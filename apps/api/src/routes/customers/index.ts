@@ -64,15 +64,20 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
           phone: customers.phone,
           tags: customers.tags,
           blocked: customers.blocked,
-          last_visit: sql<Date | null>`max(${appointments.startsAt}) filter (where ${appointments.status} = 'completed')`,
-          total_appointments: sql<number>`count(distinct ${appointments.id})`,
-          loyalty_points: sql<number>`coalesce(sum(distinct ${loyaltyPoints.delta}), 0)`,
+          last_visit: sql<Date | null>`(
+            select max(a.starts_at) from appointments a
+            where a.customer_id = ${customers.id} and a.status = 'completed'
+          )`,
+          total_appointments: sql<number>`(
+            select count(*) from appointments a where a.customer_id = ${customers.id}
+          )`,
+          loyalty_points: sql<number>`(
+            select coalesce(sum(lp.delta), 0) from loyalty_points lp
+            where lp.customer_id = ${customers.id}
+          )`,
         })
         .from(customers)
-        .leftJoin(appointments, eq(appointments.customerId, customers.id))
-        .leftJoin(loyaltyPoints, eq(loyaltyPoints.customerId, customers.id))
         .where(and(...conditions))
-        .groupBy(customers.id)
         .orderBy(customers.fullName)
         .limit(20)
         .offset((page - 1) * 20),

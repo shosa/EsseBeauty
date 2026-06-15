@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   createContext,
   type ReactNode,
   useContext,
@@ -12,6 +13,11 @@ import {
 import type { ModuleKey } from "./keys.js";
 
 type ModuleState = Readonly<Partial<Record<ModuleKey, boolean>>>;
+interface ModuleContextValue {
+  modules: ModuleState;
+  refresh(): Promise<void>;
+  setModule(moduleKey: ModuleKey, enabled: boolean): void;
+}
 
 interface ModuleProviderProps {
   apiBaseUrl?: string;
@@ -19,7 +25,11 @@ interface ModuleProviderProps {
   salonId: string;
 }
 
-const ModuleContext = createContext<ModuleState>({});
+const ModuleContext = createContext<ModuleContextValue>({
+  modules: {},
+  async refresh() {},
+  setModule() {},
+});
 
 export function ModuleProvider({
   apiBaseUrl = "",
@@ -28,15 +38,13 @@ export function ModuleProvider({
 }: ModuleProviderProps) {
   const [modules, setModules] = useState<ModuleState>({});
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadModules(): Promise<void> {
+  const loadModules = useCallback(
+    async (signal?: AbortSignal): Promise<void> => {
       const response = await fetch(
         `${apiBaseUrl}/api/salons/${salonId}/modules`,
         {
           credentials: "include",
-          signal: controller.signal,
+          signal,
         },
       );
 
@@ -54,9 +62,13 @@ export function ModuleProvider({
         nextModules[row.module_key] = row.enabled;
       }
       setModules(nextModules);
-    }
+    },
+    [apiBaseUrl, salonId],
+  );
 
-    void loadModules().catch((error: unknown) => {
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadModules(controller.signal).catch((error: unknown) => {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
         console.error(error);
       }
@@ -65,9 +77,15 @@ export function ModuleProvider({
     return () => {
       controller.abort();
     };
-  }, [apiBaseUrl, salonId]);
+  }, [loadModules]);
 
-  const value = useMemo(() => modules, [modules]);
+  const setModule = useCallback((moduleKey: ModuleKey, enabled: boolean) => {
+    setModules((current) => ({ ...current, [moduleKey]: enabled }));
+  }, []);
+  const value = useMemo(
+    () => ({ modules, refresh: () => loadModules(), setModule }),
+    [loadModules, modules, setModule],
+  );
 
   return (
     <ModuleContext.Provider value={value}>{children}</ModuleContext.Provider>
@@ -75,5 +93,9 @@ export function ModuleProvider({
 }
 
 export function useModuleEnabled(moduleKey: ModuleKey): boolean {
-  return useContext(ModuleContext)[moduleKey] ?? false;
+  return useContext(ModuleContext).modules[moduleKey] ?? false;
+}
+
+export function useModules(): ModuleContextValue {
+  return useContext(ModuleContext);
 }

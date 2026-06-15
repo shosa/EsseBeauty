@@ -27,22 +27,25 @@ export async function registerPublicRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string } }>("/api/public/:slug", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
     if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    if (!salon.onlineBookingEnabled) {
+      return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
+    }
     const [serviceRows, staffRows] = await Promise.all([
       app.db.select().from(services).where(and(eq(services.salonId, salon.id), eq(services.active, true)))
         .orderBy(asc(services.category), asc(services.displayOrder)),
       app.db.select().from(staff).where(and(eq(staff.salonId, salon.id), eq(staff.active, true)))
         .orderBy(asc(staff.displayName)),
     ]);
-    const openingHours = { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } as Record<string, Array<{ from: string; to: string }>>;
-    for (const member of staffRows) for (const [day, intervals] of Object.entries(member.workingHours))
-      openingHours[day]!.push(...intervals);
-    return { salon, services: serviceRows, staff: staffRows, opening_hours: openingHours };
+    return { salon, services: serviceRows, staff: staffRows, opening_hours: salon.openingHours };
   });
 
   app.get<{ Params: { slug: string }; Querystring: { serviceId: string; staffId?: string; date: string } }>(
     "/api/public/:slug/slots", async (request, reply) => {
       const salon = await getSalon(app, request.params.slug);
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+      if (!salon.onlineBookingEnabled) {
+        return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
+      }
       const serviceRows = await app.db.select().from(services).where(and(
         eq(services.id, request.query.serviceId), eq(services.salonId, salon.id), eq(services.active, true)));
       const service = serviceRows[0];
@@ -63,6 +66,19 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     "/api/public/:slug/book", async (request, reply) => {
       const salon = await getSalon(app, request.params.slug);
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+      if (!salon.onlineBookingEnabled) {
+        return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
+      }
+      const customerInput = request.body.customer;
+      let customerRows = customerInput.email || customerInput.phone
+        ? await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), or(
+          ...(customerInput.email ? [ilike(customers.email, customerInput.email)] : []),
+          ...(customerInput.phone ? [eq(customers.phone, customerInput.phone)] : []),
+        )))
+        : [];
+      if (customerRows[0]?.blocked) {
+        return reply.code(403).send({ error: "CUSTOMER_BLOCKED" });
+      }
       const serviceRows = await app.db.select().from(services).where(and(
         eq(services.id, request.body.service_id), eq(services.salonId, salon.id), eq(services.active, true)));
       const service = serviceRows[0];
@@ -82,13 +98,6 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         selected = undefined;
       }
       if (!selected) return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
-      const customerInput = request.body.customer;
-      let customerRows = customerInput.email || customerInput.phone
-        ? await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), or(
-          ...(customerInput.email ? [ilike(customers.email, customerInput.email)] : []),
-          ...(customerInput.phone ? [eq(customers.phone, customerInput.phone)] : []),
-        )))
-        : [];
       if (!customerRows[0]) customerRows = await app.db.insert(customers).values({
         salonId: salon.id, fullName: customerInput.full_name, email: customerInput.email, phone: customerInput.phone,
       }).returning();

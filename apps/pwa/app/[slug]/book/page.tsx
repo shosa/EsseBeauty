@@ -30,21 +30,53 @@ export default function BookingPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [startsAt, setStartsAt] = useState("");
   const [booking, setBooking] = useState<Booking>();
-  useEffect(() => { void fetch(`${api}/api/public/${slug}`).then((r) => r.json()).then(setProfile); }, [slug]);
+  const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
+  useEffect(() => {
+    void fetch(`${api}/api/public/${slug}`).then(async (response) => {
+      if (response.status === 503) {
+        setUnavailable(true);
+        return;
+      }
+      if (!response.ok) {
+        setError("Salone non trovato.");
+        return;
+      }
+      setProfile(await response.json());
+    });
+  }, [slug]);
   async function next() {
     const query = new URLSearchParams({ serviceId, date }); if (staffId) query.set("staffId", staffId);
-    const result = await fetch(`${api}/api/public/${slug}/slots?${query}`).then((r) => r.json());
+    const response = await fetch(`${api}/api/public/${slug}/slots?${query}`);
+    if (response.status === 503) {
+      setUnavailable(true);
+      return;
+    }
+    if (!response.ok) {
+      setError("Impossibile caricare gli orari disponibili.");
+      return;
+    }
+    const result = await response.json();
     setSlots(result.slots ?? []); setStep(2);
   }
   async function submit(data: FormData) {
     const response = await fetch(`${api}/api/public/${slug}/book`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ service_id: serviceId, staff_id: staffId || undefined, starts_at: startsAt,
         customer: { full_name: data.get("name"), email: data.get("email"), phone: data.get("phone") } }) });
-    if (response.ok) setBooking(await response.json());
+    if (response.ok) {
+      setBooking(await response.json());
+      return;
+    }
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    if (response.status === 503) setUnavailable(true);
+    else if (response.status === 403 && result.error === "CUSTOMER_BLOCKED") setError("Non è possibile prenotare online con questi dati. Contatta il salone.");
+    else setError("Prenotazione non riuscita. Verifica i dati e riprova.");
   }
+  if (unavailable) return <main className="grid min-h-screen place-items-center bg-[#f8f2ef] p-5"><section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl"><h1 className="text-3xl font-bold">Prenotazioni non disponibili</h1><p className="mt-3 text-stone-600">Il salone ha sospeso temporaneamente le prenotazioni online.</p></section></main>;
   if (booking) return <main className="min-h-screen bg-[#f8f2ef] p-4"><section className="mx-auto mt-14 max-w-md rounded-[2rem] bg-white p-7 text-center shadow-xl"><p className="text-5xl text-emerald-600">✓</p><h1 className="mt-4 text-3xl font-bold">Prenotazione inviata</h1><p className="mt-3 text-stone-600">{booking.service_name} con {booking.staff_name}</p><button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-xl bg-stone-950 font-bold text-white">Aggiungi al calendario</button></section></main>;
   if (!profile) return <main className="grid min-h-screen place-items-center bg-[#f8f2ef]">Caricamento…</main>;
   return <main className="min-h-screen overflow-x-hidden bg-[#f8f2ef] px-4 py-6"><div className="mx-auto max-w-md"><p className="text-center text-xs font-bold uppercase tracking-[.2em] text-rose-700">{profile.salon.name}</p><h1 className="mt-2 text-center text-3xl font-bold">Prenota</h1>
+    {error && <p className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     <div className="my-6 grid grid-cols-3 gap-2">{["Servizio","Orario","Dati"].map((label, index) => <span key={label} className={`rounded-full py-2 text-center text-xs font-bold ${step >= index + 1 ? "bg-stone-950 text-white" : "bg-white text-stone-400"}`}>{index + 1}/3</span>)}</div>
     {step === 1 && <section className="space-y-4 rounded-[2rem] bg-white p-5">{profile.services.map((service) => <button key={service.id} onClick={() => setServiceId(service.id)} className={`flex min-h-16 w-full items-center justify-between rounded-xl border p-3 text-left ${serviceId === service.id ? "border-rose-700 bg-rose-50" : "border-stone-200"}`}><span><b className="block">{service.name}</b><small>{service.durationMinutes} min</small></span><b>{formatPrice(service.priceCents, "it-IT")}</b></button>)}
       <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className="min-h-12 w-full rounded-xl border border-stone-300 bg-white px-3"><option value="">Nessuna preferenza</option>{profile.staff.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}</select>

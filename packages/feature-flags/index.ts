@@ -6,4 +6,4 @@ export {
   isModuleEnabled,
   requireModule,
 } from "./server.js";
-export { ModuleProvider, useModuleEnabled } from "./react.js";
+export { ModuleProvider, useModuleEnabled, useModules } from "./react.js";
