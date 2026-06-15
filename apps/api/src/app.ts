@@ -1,7 +1,6 @@
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
-import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, {
   type preHandlerHookHandler,
@@ -19,6 +18,7 @@ import { authenticate, requireRole } from "./middleware/auth.js";
 import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
+import { registerCustomerRoutes } from "./routes/customers/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
 import { registerMarketingRoutes } from "./routes/marketing/index.js";
@@ -27,20 +27,18 @@ import { registerReminderRoutes } from "./routes/reminders/index.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
 import { registerReviewRoutes } from "./routes/reviews/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
+import { registerSettingsRoutes } from "./routes/settings/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
 import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
-import type { SupabaseAdmin } from "./routes/auth/supabase-admin.js";
 
 interface ApiEnvironment {
   API_CORS_ORIGIN: string;
-  SUPABASE_JWT_SECRET: string;
 }
 
 interface CreateAppOptions {
   db: DrizzleDB;
   env: ApiEnvironment;
   logger?: boolean;
-  supabaseAdmin?: SupabaseAdmin;
 }
 
 interface SalonParams {
@@ -62,54 +60,23 @@ function parseOrigins(value: string): string[] {
     .filter(Boolean);
 }
 
-const unavailableSupabaseAdmin: SupabaseAdmin = {
-  async deleteUser() {
-    throw new Error("Supabase admin is not configured");
-  },
-  async getUsers() {
-    throw new Error("Supabase admin is not configured");
-  },
-  async inviteUser() {
-    throw new Error("Supabase admin is not configured");
-  },
-};
-
 export function createApp({
   db,
   env,
   logger = false,
-  supabaseAdmin = unavailableSupabaseAdmin,
 }: CreateAppOptions) {
   const app = Fastify({ logger });
 
   app.decorate("db", db);
   app.decorateRequest("salonId", "");
+  app.decorateRequest("user");
 
   void app.register(cookie);
-  void app.register(jwt, {
-    cookie: {
-      cookieName: "sb-access-token",
-      signed: false,
-    },
-    secret: env.SUPABASE_JWT_SECRET,
-  });
   void app.register(cors, {
+    credentials: true,
     origin: parseOrigins(env.API_CORS_ORIGIN),
   });
   void app.register(helmet);
-
-  app.addHook("onRequest", async (request) => {
-    if (
-      request.headers.authorization ||
-      request.cookies["sb-access-token"]
-    ) {
-      try {
-        await request.jwtVerify();
-      } catch {
-        // Protected routes produce the authentication response in preHandler.
-      }
-    }
-  });
 
   void app.register(rateLimit, {
     keyGenerator: (request) => request.user?.sub ?? request.ip,
@@ -132,10 +99,11 @@ export function createApp({
     timestamp: new Date().toISOString(),
   }));
 
-  void registerAuthRoutes(app, supabaseAdmin);
+  void registerAuthRoutes(app);
   void registerServiceRoutes(app);
   void registerStaffRoutes(app);
   void registerAppointmentRoutes(app);
+  void registerCustomerRoutes(app);
   void registerPublicRoutes(app);
   void registerReminderRoutes(app);
   void registerReviewRoutes(app);
@@ -144,6 +112,7 @@ export function createApp({
   void registerMarketingRoutes(app);
   void registerInventoryRoutes(app);
   void registerReportRoutes(app);
+  void registerSettingsRoutes(app);
 
   app.get<{ Params: SalonParams }>(
     "/api/salons/:id/modules",

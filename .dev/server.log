@@ -1,0 +1,32 @@
+Scope: 3 of 8 workspace projects
+apps/api dev$ tsx watch src/index.ts
+apps/pwa dev$ next dev --port 3002
+apps/web dev$ next dev
+apps/web dev:  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+apps/web dev:  We detected multiple lockfiles and selected the directory of C:\Users\Stefano\package-lock.json as the root directory.
+apps/web dev:  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+apps/web dev:    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+apps/web dev:  Detected additional lockfiles: 
+apps/web dev:    * C:\Users\Stefano\Desktop\EsseBeauty\pnpm-lock.yaml
+apps/web dev:    ▲ Next.js 15.5.19
+apps/web dev:    - Local:        http://localhost:3001
+apps/web dev:    - Network:      http://100.66.203.91:3001
+apps/web dev:  ✓ Starting...
+apps/pwa dev:  ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+apps/pwa dev:  We detected multiple lockfiles and selected the directory of C:\Users\Stefano\package-lock.json as the root directory.
+apps/pwa dev:  To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+apps/pwa dev:    See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+apps/pwa dev:  Detected additional lockfiles: 
+apps/pwa dev:    * C:\Users\Stefano\Desktop\EsseBeauty\pnpm-lock.yaml
+apps/api dev: {"level":30,"time":1781553701030,"pid":28328,"hostname":"Portatile","msg":"Server listening at http://127.0.0.1:3001"}
+apps/api dev: {"level":30,"time":1781553701031,"pid":28328,"hostname":"Portatile","msg":"Server listening at http://100.66.203.91:3001"}
+apps/api dev: {"level":30,"time":1781553701031,"pid":28328,"hostname":"Portatile","msg":"Server listening at http://192.168.1.14:3001"}
+apps/api dev: {"level":30,"time":1781553701031,"pid":28328,"hostname":"Portatile","msg":"Server listening at http://172.31.0.1:3001"}
+apps/web dev:  ✓ Ready in 3.3s
+apps/pwa dev:    ▲ Next.js 15.5.19
+apps/pwa dev:    - Local:        http://localhost:3002
+apps/pwa dev:    - Network:      http://100.66.203.91:3002
+apps/pwa dev:  ✓ Starting...
+apps/pwa dev: > [PWA] PWA support is disabled
+apps/pwa dev: > [PWA] PWA support is disabled
+apps/pwa dev:  ✓ Ready in 4.1s

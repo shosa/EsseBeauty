@@ -9,6 +9,10 @@ Lo stack comprende:
 - `esse-beauty-web`: dashboard Next.js su `http://localhost:3000`
 - `esse-beauty-pwa`: portale clienti su `http://localhost:3002`
 
+L'autenticazione è locale: password hashate e sessioni revocabili sono salvate
+in PostgreSQL. Al primo avvio aprire `http://localhost:3000/login` per creare
+il salone e l'account owner.
+
 ## Avvio
 
 Le impostazioni predefinite permettono di avviare lo stack senza un file ambiente:

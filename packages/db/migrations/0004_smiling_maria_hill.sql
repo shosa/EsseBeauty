@@ -1,0 +1,3 @@
+ALTER TABLE "salons" ADD COLUMN "opening_hours" jsonb DEFAULT '{"mon":[{"from":"09:00","to":"18:00"}],"tue":[{"from":"09:00","to":"18:00"}],"wed":[{"from":"09:00","to":"18:00"}],"thu":[{"from":"09:00","to":"18:00"}],"fri":[{"from":"09:00","to":"18:00"}],"sat":[],"sun":[]}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "salons" ADD COLUMN "cancellation_policy_hours" integer DEFAULT 24 NOT NULL;--> statement-breakpoint
+ALTER TABLE "salons" ADD COLUMN "online_booking_enabled" boolean DEFAULT true NOT NULL;

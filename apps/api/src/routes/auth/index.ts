@@ -1,8 +1,11 @@
-import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import type { FastifyInstance, FastifyReply } from "fastify";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import {
+  authSessions,
   salons,
+  userCredentials,
   userPermissions,
   users,
 } from "@esse-beauty/db/schema";
@@ -20,26 +23,14 @@ import {
   requirePermission,
   requireRole,
 } from "../../middleware/auth.js";
-import type { SupabaseAdmin } from "./supabase-admin.js";
-
-interface InviteBody {
-  email: string;
-  full_name: string;
-  role: UserRole;
-}
-
-interface UserParams {
-  userId: string;
-}
-
-interface PermissionBody {
-  granted: boolean;
-  permission_key: string;
-}
-
-interface ActiveBody {
-  active: boolean;
-}
+import {
+  createSessionToken,
+  hashPassword,
+  hashSessionToken,
+  SESSION_COOKIE,
+  SESSION_DURATION_MS,
+  verifyPassword,
+} from "./local-auth.js";
 
 const userRoleSet = new Set<string>(USER_ROLES);
 
@@ -47,96 +38,146 @@ function isUserRole(value: string): value is UserRole {
   return userRoleSet.has(value);
 }
 
-export async function registerAuthRoutes(
+function setSessionCookie(
+  reply: FastifyReply,
+  token: string,
+) {
+  reply.setCookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    maxAge: SESSION_DURATION_MS / 1000,
+    path: "/",
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+}
+
+async function createSession(
   app: FastifyInstance,
-  supabaseAdmin: SupabaseAdmin,
-): Promise<void> {
-  app.post<{ Body: InviteBody }>(
-    "/api/auth/invite",
-    {
-      preHandler: [authenticate, requireRole("owner")],
-      schema: {
-        body: {
-          type: "object",
-          additionalProperties: false,
-          required: ["email", "full_name", "role"],
-          properties: {
-            email: { type: "string", format: "email" },
-            full_name: { type: "string", minLength: 1 },
-            role: { type: "string", enum: [...USER_ROLES] },
-          },
-        },
-      },
-    },
+  userId: string,
+  reply: FastifyReply,
+) {
+  const token = createSessionToken();
+  await app.db.insert(authSessions).values({
+    userId,
+    tokenHash: hashSessionToken(token),
+    expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
+  });
+  setSessionCookie(reply, token);
+}
+
+export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
+  app.get("/api/auth/bootstrap/status", async () => {
+    const rows = await app.db
+      .select({ count: sql<number>`count(*)` })
+      .from(users);
+    return { required: Number(rows[0]?.count ?? 0) === 0 };
+  });
+
+  app.post<{
+    Body: {
+      salon_name: string;
+      full_name: string;
+      email: string;
+      password: string;
+    };
+  }>("/api/auth/bootstrap", async (request, reply) => {
+    const counts = await app.db
+      .select({ count: sql<number>`count(*)` })
+      .from(users);
+    if (Number(counts[0]?.count ?? 0) > 0) {
+      return reply.code(409).send({ error: "BOOTSTRAP_ALREADY_COMPLETED" });
+    }
+    if (request.body.password.length < 10) {
+      return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
+    }
+    const salonRows = await app.db
+      .insert(salons)
+      .values({
+        name: request.body.salon_name,
+        slug: request.body.salon_name
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, ""),
+        timezone: "Europe/Rome",
+        locale: "it-IT",
+      })
+      .returning();
+    const userId = randomUUID();
+    const password = await hashPassword(request.body.password);
+    await app.db.insert(users).values({
+      id: userId,
+      salonId: salonRows[0]!.id,
+      email: request.body.email.toLowerCase(),
+      fullName: request.body.full_name,
+      role: "owner",
+    });
+    await app.db.insert(userCredentials).values({
+      userId,
+      passwordHash: password.hash,
+      passwordSalt: password.salt,
+    });
+    await createSession(app, userId, reply);
+    return reply.code(201).send({ created: true });
+  });
+
+  app.post<{ Body: { email: string; password: string } }>(
+    "/api/auth/login",
     async (request, reply) => {
-      if (!isUserRole(request.body.role)) {
-        return reply.code(400).send({ error: "INVALID_ROLE" });
+      const rows = await app.db
+        .select({
+          active: users.active,
+          id: users.id,
+          passwordHash: userCredentials.passwordHash,
+          passwordSalt: userCredentials.passwordSalt,
+        })
+        .from(users)
+        .innerJoin(userCredentials, eq(userCredentials.userId, users.id))
+        .where(eq(users.email, request.body.email.toLowerCase()));
+      const user = rows[0];
+      if (
+        !user?.active ||
+        !(await verifyPassword(
+          request.body.password,
+          user.passwordSalt,
+          user.passwordHash,
+        ))
+      ) {
+        return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
       }
-
-      const invitedUser = await supabaseAdmin.inviteUser(request.body.email);
-
-      try {
-        await request.server.db.insert(users).values({
-          id: invitedUser.id,
-          salonId: request.user.salon_id,
-          email: request.body.email,
-          fullName: request.body.full_name,
-          role: request.body.role,
-          active: true,
-        });
-      } catch (error: unknown) {
-        await supabaseAdmin.deleteUser(invitedUser.id);
-        throw error;
-      }
-
-      return reply.code(201).send({
-        id: invitedUser.id,
-        email: request.body.email,
-        full_name: request.body.full_name,
-        role: request.body.role,
-      });
+      await createSession(app, user.id, reply);
+      return { authenticated: true };
     },
   );
+
+  app.post("/api/auth/logout", async (request, reply) => {
+    const token = request.cookies[SESSION_COOKIE];
+    if (token) {
+      await app.db
+        .delete(authSessions)
+        .where(eq(authSessions.tokenHash, hashSessionToken(token)));
+    }
+    reply.clearCookie(SESSION_COOKIE, { path: "/" });
+    return { authenticated: false };
+  });
 
   app.get(
     "/api/auth/me",
     { preHandler: [authenticate] },
     async (request, reply) => {
-      const userRows = await request.server.db
-        .select({
-          active: users.active,
-          email: users.email,
-          fullName: users.fullName,
-          id: users.id,
-          role: users.role,
-          salonId: users.salonId,
-        })
+      const userRows = await app.db
+        .select()
         .from(users)
         .where(eq(users.id, request.user.id));
       const user = userRows[0];
-      if (!user) {
-        return reply.code(404).send({ error: "USER_NOT_FOUND" });
-      }
-
-      const salonRows = await request.server.db
-        .select({
-          id: salons.id,
-          name: salons.name,
-          slug: salons.slug,
-        })
+      if (!user) return reply.code(404).send({ error: "USER_NOT_FOUND" });
+      const salonRows = await app.db
+        .select()
         .from(salons)
-        .where(eq(salons.id, request.user.salon_id));
+        .where(eq(salons.id, user.salonId));
       const salon = salonRows[0];
-      if (!salon) {
-        return reply.code(404).send({ error: "SALON_NOT_FOUND" });
-      }
-
-      const permissions = await resolvePermissions(
-        user.id,
-        user.role,
-        request.server.db,
-      );
-
+      if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
       return {
         user: {
           active: user.active,
@@ -146,50 +187,143 @@ export async function registerAuthRoutes(
           role: user.role,
           salon_id: user.salonId,
         },
-        salon,
-        permissions,
+        salon: { id: salon.id, name: salon.name, slug: salon.slug },
+        permissions: await resolvePermissions(user.id, user.role, app.db),
       };
     },
   );
 
-  app.patch<{ Body: PermissionBody; Params: UserParams }>(
+  app.post<{ Body: { current_password: string; new_password: string } }>(
+    "/api/auth/change-password",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.body.new_password.length < 10) {
+        return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
+      }
+      const rows = await app.db
+        .select()
+        .from(userCredentials)
+        .where(eq(userCredentials.userId, request.user.id));
+      const current = rows[0];
+      if (
+        !current ||
+        !(await verifyPassword(
+          request.body.current_password,
+          current.passwordSalt,
+          current.passwordHash,
+        ))
+      ) {
+        return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
+      }
+      const password = await hashPassword(request.body.new_password);
+      await app.db
+        .update(userCredentials)
+        .set({
+          passwordHash: password.hash,
+          passwordSalt: password.salt,
+          mustChangePassword: false,
+          updatedAt: new Date(),
+        })
+        .where(eq(userCredentials.userId, request.user.id));
+      return { changed: true };
+    },
+  );
+
+  app.post<{
+    Body: {
+      email: string;
+      full_name: string;
+      role: UserRole;
+      password?: string;
+    };
+  }>(
+    "/api/auth/invite",
+    { preHandler: [authenticate, requireRole("owner")] },
+    async (request, reply) => {
+      if (!isUserRole(request.body.role)) {
+        return reply.code(400).send({ error: "INVALID_ROLE" });
+      }
+      const temporaryPassword =
+        request.body.password ?? createSessionToken().slice(0, 16);
+      const password = await hashPassword(temporaryPassword);
+      const userId = randomUUID();
+      await app.db.insert(users).values({
+        id: userId,
+        salonId: request.salonId,
+        email: request.body.email.toLowerCase(),
+        fullName: request.body.full_name,
+        role: request.body.role,
+      });
+      await app.db.insert(userCredentials).values({
+        userId,
+        passwordHash: password.hash,
+        passwordSalt: password.salt,
+        mustChangePassword: !request.body.password,
+      });
+      return reply.code(201).send({
+        id: userId,
+        email: request.body.email,
+        full_name: request.body.full_name,
+        role: request.body.role,
+        ...(request.body.password ? {} : { temporary_password: temporaryPassword }),
+      });
+    },
+  );
+
+  app.get(
+    "/api/auth/users",
+    { preHandler: [authenticate, requireRole("owner", "manager")] },
+    async (request) => {
+      const salonUsers = await app.db
+        .select({
+          active: users.active,
+          email: users.email,
+          full_name: users.fullName,
+          id: users.id,
+          role: users.role,
+          last_login: sql<Date | null>`max(${authSessions.lastSeenAt})`,
+        })
+        .from(users)
+        .leftJoin(authSessions, eq(authSessions.userId, users.id))
+        .where(eq(users.salonId, request.salonId))
+        .groupBy(users.id)
+        .orderBy(users.fullName);
+      const overrides = await app.db
+        .select()
+        .from(userPermissions)
+        .where(eq(userPermissions.salonId, request.salonId));
+      return salonUsers.map((user) => ({
+        ...user,
+        permission_overrides: overrides
+          .filter((override) => override.userId === user.id)
+          .map((override) => ({
+            granted: override.granted,
+            permission_key: override.permissionKey,
+          })),
+      }));
+    },
+  );
+
+  app.patch<{
+    Body: { granted: boolean; permission_key: string };
+    Params: { userId: string };
+  }>(
     "/api/auth/users/:userId/permissions",
     {
       preHandler: [
         authenticate,
         requirePermission(PERMISSION_KEYS.SETTINGS_USERS),
       ],
-      schema: {
-        body: {
-          type: "object",
-          additionalProperties: false,
-          required: ["permission_key", "granted"],
-          properties: {
-            permission_key: { type: "string" },
-            granted: { type: "boolean" },
-          },
-        },
-      },
     },
     async (request, reply) => {
       if (!isPermissionKey(request.body.permission_key)) {
         return reply.code(400).send({ error: "INVALID_PERMISSION_KEY" });
       }
-
-      const targetUsers = await request.server.db
-        .select({ salonId: users.salonId })
-        .from(users)
-        .where(eq(users.id, request.params.userId));
-      const targetUser = targetUsers[0];
-      if (!targetUser || targetUser.salonId !== request.user.salon_id) {
-        return reply.code(404).send({ error: "USER_NOT_FOUND" });
-      }
-
-      await request.server.db
+      await app.db
         .insert(userPermissions)
         .values({
           userId: request.params.userId,
-          salonId: request.user.salon_id,
+          salonId: request.salonId,
           permissionKey: request.body.permission_key,
           granted: request.body.granted,
           updatedAt: new Date(),
@@ -204,111 +338,42 @@ export async function registerAuthRoutes(
             updatedAt: new Date(),
           },
         });
-
       invalidatePermissionCache(request.params.userId);
-
-      return {
-        permission_key: request.body.permission_key,
-        granted: request.body.granted,
-      };
+      return request.body;
     },
   );
 
-  app.get(
-    "/api/auth/users",
-    {
-      preHandler: [
-        authenticate,
-        requireRole("owner", "manager"),
-      ],
-    },
-    async (request) => {
-      const salonUsers = await request.server.db
-        .select({
-          active: users.active,
-          email: users.email,
-          fullName: users.fullName,
-          id: users.id,
-          role: users.role,
-        })
-        .from(users)
-        .where(eq(users.salonId, request.user.salon_id));
-      const overrides = await request.server.db
-        .select({
-          granted: userPermissions.granted,
-          permissionKey: userPermissions.permissionKey,
-          userId: userPermissions.userId,
-        })
-        .from(userPermissions)
-        .where(eq(userPermissions.salonId, request.user.salon_id));
-      const authUsers = await supabaseAdmin.getUsers();
-      const loginById = new Map(
-        authUsers.map((user) => [user.id, user.last_sign_in_at ?? null]),
-      );
-
-      return salonUsers.map((user) => ({
-        active: user.active,
-        email: user.email,
-        full_name: user.fullName,
-        id: user.id,
-        last_login: loginById.get(user.id) ?? null,
-        permission_overrides: overrides
-          .filter((override) => override.userId === user.id)
-          .map((override) => ({
-            granted: override.granted,
-            permission_key: override.permissionKey,
-          })),
-        role: user.role,
-      }));
-    },
-  );
-
-  app.patch<{ Body: ActiveBody; Params: UserParams }>(
+  app.patch<{ Body: { active: boolean }; Params: { userId: string } }>(
     "/api/auth/users/:userId",
     {
       preHandler: [
         authenticate,
         requirePermission(PERMISSION_KEYS.SETTINGS_USERS),
       ],
-      schema: {
-        body: {
-          type: "object",
-          additionalProperties: false,
-          required: ["active"],
-          properties: {
-            active: { type: "boolean" },
-          },
-        },
-      },
     },
     async (request, reply) => {
-      if (
-        request.params.userId === request.user.id &&
-        !request.body.active
-      ) {
+      if (request.params.userId === request.user.id && !request.body.active) {
         return reply
           .code(400)
           .send({ error: "SELF_DEACTIVATION_FORBIDDEN" });
       }
-
-      const targetUsers = await request.server.db
-        .select({ salonId: users.salonId })
-        .from(users)
-        .where(eq(users.id, request.params.userId));
-      const targetUser = targetUsers[0];
-      if (!targetUser || targetUser.salonId !== request.user.salon_id) {
-        return reply.code(404).send({ error: "USER_NOT_FOUND" });
-      }
-
-      await request.server.db
+      const rows = await app.db
         .update(users)
         .set({ active: request.body.active })
-        .where(eq(users.id, request.params.userId));
-
-      return {
-        active: request.body.active,
-        id: request.params.userId,
-      };
+        .where(
+          and(
+            eq(users.id, request.params.userId),
+            eq(users.salonId, request.salonId),
+          ),
+        )
+        .returning();
+      if (!rows[0]) return reply.code(404).send({ error: "USER_NOT_FOUND" });
+      if (!request.body.active) {
+        await app.db
+          .delete(authSessions)
+          .where(eq(authSessions.userId, request.params.userId));
+      }
+      return { active: request.body.active, id: request.params.userId };
     },
   );
 }

@@ -3,9 +3,6 @@ export interface ApiEnvironment {
   API_HOST: string;
   DATABASE_URL: string;
   PORT: number;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-  SUPABASE_URL: string;
-  SUPABASE_JWT_SECRET: string;
 }
 
 function required(name: string): string {
@@ -29,8 +26,5 @@ export function loadEnvironment(): ApiEnvironment {
     API_HOST: process.env.API_HOST ?? "0.0.0.0",
     DATABASE_URL: required("DATABASE_URL"),
     PORT: port,
-    SUPABASE_SERVICE_ROLE_KEY: required("SUPABASE_SERVICE_ROLE_KEY"),
-    SUPABASE_URL: required("SUPABASE_URL"),
-    SUPABASE_JWT_SECRET: required("SUPABASE_JWT_SECRET"),
   };
 }

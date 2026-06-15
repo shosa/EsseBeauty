@@ -65,6 +65,24 @@ export const salons = pgTable("salons", {
   slug: text("slug").notNull().unique(),
   timezone: text("timezone").notNull(),
   locale: text("locale").notNull(),
+  openingHours: jsonb("opening_hours")
+    .$type<WorkingHours>()
+    .default({
+      mon: [{ from: "09:00", to: "18:00" }],
+      tue: [{ from: "09:00", to: "18:00" }],
+      wed: [{ from: "09:00", to: "18:00" }],
+      thu: [{ from: "09:00", to: "18:00" }],
+      fri: [{ from: "09:00", to: "18:00" }],
+      sat: [],
+      sun: [],
+    })
+    .notNull(),
+  cancellationPolicyHours: integer("cancellation_policy_hours")
+    .default(24)
+    .notNull(),
+  onlineBookingEnabled: boolean("online_booking_enabled")
+    .default(true)
+    .notNull(),
   planId: uuid("plan_id"),
   active: boolean("active").default(true).notNull(),
   ...timestamps,
@@ -109,6 +127,31 @@ export const users = pgTable(
     uniqueIndex("users_salon_email_unique").on(table.salonId, table.email),
   ],
 );
+
+export const userCredentials = pgTable("user_credentials", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  mustChangePassword: boolean("must_change_password").default(false).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const authSessions = pgTable("auth_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  ...timestamps,
+});
 
 export const userPermissions = pgTable(
   "user_permissions",

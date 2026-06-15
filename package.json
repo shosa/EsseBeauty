@@ -13,7 +13,7 @@
     "docker:logs": "docker compose logs -f",
     "docker:reset": "docker compose down -v",
     "docker:up": "docker compose up -d --build",
-    "dev": "turbo dev",
+    "dev": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "lint": "turbo lint",
     "test": "turbo test",
     "typecheck": "turbo typecheck"

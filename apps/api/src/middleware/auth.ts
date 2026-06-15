@@ -1,12 +1,16 @@
 import type { preHandlerHookHandler } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
-import { users } from "@esse-beauty/db/schema";
+import { authSessions, users } from "@esse-beauty/db/schema";
 import {
   hasPermission,
   type PermissionKey,
   type UserRole,
 } from "@esse-beauty/shared";
+import {
+  hashSessionToken,
+  SESSION_COOKIE,
+} from "../routes/auth/local-auth.js";
 
 export interface AuthenticatedUser {
   id: string;
@@ -15,46 +19,50 @@ export interface AuthenticatedUser {
   sub: string;
 }
 
-declare module "@fastify/jwt" {
-  interface FastifyJWT {
-    payload: {
-      sub: string;
-    };
+declare module "fastify" {
+  interface FastifyRequest {
     user: AuthenticatedUser;
   }
 }
 
 export const authenticate: preHandlerHookHandler = async (request, reply) => {
-  try {
-    await request.jwtVerify();
-  } catch {
+  const token = request.cookies[SESSION_COOKIE];
+  if (!token) {
     await reply.code(401).send({ error: "UNAUTHORIZED" });
     return;
   }
-
-  const userRows = await request.server.db
+  const rows = await request.server.db
     .select({
       active: users.active,
       id: users.id,
       role: users.role,
       salonId: users.salonId,
+      sessionId: authSessions.id,
     })
-    .from(users)
-    .where(eq(users.id, request.user.sub));
-  const user = userRows[0];
-
-  if (!user?.active) {
+    .from(authSessions)
+    .innerJoin(users, eq(users.id, authSessions.userId))
+    .where(
+      and(
+        eq(authSessions.tokenHash, hashSessionToken(token)),
+        gt(authSessions.expiresAt, new Date()),
+      ),
+    );
+  const session = rows[0];
+  if (!session?.active) {
     await reply.code(401).send({ error: "UNAUTHORIZED" });
     return;
   }
-
   request.user = {
-    id: user.id,
-    role: user.role,
-    salon_id: user.salonId,
-    sub: user.id,
+    id: session.id,
+    role: session.role,
+    salon_id: session.salonId,
+    sub: session.id,
   };
-  request.salonId = user.salonId;
+  request.salonId = session.salonId;
+  void request.server.db
+    .update(authSessions)
+    .set({ lastSeenAt: new Date() })
+    .where(eq(authSessions.id, session.sessionId));
 };
 
 export function requireRole(...roles: UserRole[]): preHandlerHookHandler {

@@ -17,26 +17,31 @@ function createReply() {
 }
 
 describe("authenticate", () => {
-  it("loads role and salon from the database after JWT verification", async () => {
+  it("loads role and salon from a valid local session", async () => {
+    const where = vi.fn().mockResolvedValue([
+      {
+        active: true,
+        id: "user-1",
+        role: "employee",
+        salonId: "salon-1",
+        sessionId: "session-1",
+      },
+    ]);
     const request = {
-      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      cookies: { "esse-session": "opaque-token" },
       server: {
         db: {
           select: () => ({
             from: () => ({
-              where: vi.fn().mockResolvedValue([
-                {
-                  active: true,
-                  id: "user-1",
-                  role: "employee",
-                  salonId: "salon-1",
-                },
-              ]),
+              innerJoin: () => ({ where }),
             }),
+          }),
+          update: () => ({
+            set: () => ({ where: vi.fn().mockResolvedValue(undefined) }),
           }),
         } as unknown as DrizzleDB,
       },
-      user: { sub: "user-1" },
+      user: undefined,
     };
     const reply = createReply();
 
@@ -57,24 +62,27 @@ describe("authenticate", () => {
 
   it("rejects inactive application users", async () => {
     const request = {
-      jwtVerify: vi.fn().mockResolvedValue(undefined),
+      cookies: { "esse-session": "opaque-token" },
       server: {
         db: {
           select: () => ({
             from: () => ({
-              where: vi.fn().mockResolvedValue([
-                {
-                  active: false,
-                  id: "user-1",
-                  role: "employee",
-                  salonId: "salon-1",
-                },
-              ]),
+              innerJoin: () => ({
+                where: vi.fn().mockResolvedValue([
+                  {
+                    active: false,
+                    id: "user-1",
+                    role: "employee",
+                    salonId: "salon-1",
+                    sessionId: "session-1",
+                  },
+                ]),
+              }),
             }),
           }),
         } as unknown as DrizzleDB,
       },
-      user: { sub: "user-1" },
+      user: undefined,
     };
     const reply = createReply();
 

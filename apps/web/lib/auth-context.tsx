@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void loadSession()
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error(error);
+          setSession(null);
         }
       })
       .finally(() => setLoading(false));

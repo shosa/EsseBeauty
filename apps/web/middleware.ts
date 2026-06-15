@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 function hasAccessToken(request: NextRequest): boolean {
-  return Boolean(request.cookies.get("sb-access-token")?.value);
+  return Boolean(request.cookies.get("esse-session")?.value);
 }
 
 export function middleware(request: NextRequest) {

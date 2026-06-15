@@ -19,7 +19,7 @@ describe("dashboard middleware", () => {
     const request = new NextRequest(
       "http://localhost:3000/settings/users",
     );
-    request.cookies.set("sb-access-token", "jwt-token");
+    request.cookies.set("esse-session", "session-token");
 
     const response = middleware(request);
 
