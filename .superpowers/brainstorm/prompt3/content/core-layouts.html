@@ -1,0 +1,44 @@
+<h2>Direzione visiva per calendario e booking</h2>
+<p class="subtitle">Scegli la densita operativa che preferisci. La struttura funzionale resta invariata.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#f8fafc">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px">Calendario compatto</div>
+      <div style="display:grid;grid-template-columns:42px repeat(3,1fr);gap:3px;font-size:9px">
+        <div></div><b>Anna</b><b>Marco</b><b>Giulia</b>
+        <span>09:00</span><div style="height:30px;border:1px solid #ddd"></div><div style="background:#dbeafe;padding:3px">Taglio<br>09:00</div><div style="height:30px;border:1px solid #ddd"></div>
+        <span>09:30</span><div style="background:#fce7f3;padding:3px">Colore</div><div style="height:30px;border:1px solid #ddd"></div><div style="background:#dcfce7;padding:3px">Piega</div>
+        <span>10:00</span><div style="background:#fce7f3;padding:3px"></div><div style="height:30px;border:1px solid #ddd"></div><div style="height:30px;border:1px solid #ddd"></div>
+      </div>
+      <div style="margin-top:14px;font-size:12px;font-weight:700">Booking compatto</div>
+      <div style="display:flex;gap:4px;margin:8px 0"><span style="background:#111;color:white;padding:4px 8px;border-radius:10px">1</span><span style="background:#ddd;padding:4px 8px;border-radius:10px">2</span><span style="background:#ddd;padding:4px 8px;border-radius:10px">3</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px">
+        <div style="background:white;border:1px solid #ddd;padding:8px"><b>Taglio</b><br><small>30 min · EUR 25</small></div>
+        <div style="background:white;border:1px solid #ddd;padding:8px"><b>Piega</b><br><small>45 min · EUR 30</small></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Denso e operativo</h3>
+      <p>Piu dati visibili nel calendario; wizard essenziale con controlli piccoli.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#fafafa">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px"><b>15–21 giugno</b><span>Oggi · ‹ ›</span></div>
+      <div style="display:grid;grid-template-columns:42px repeat(3,1fr);gap:6px;font-size:9px">
+        <div></div><b style="text-align:center">Anna</b><b style="text-align:center">Marco</b><b style="text-align:center">Giulia</b>
+        <span>09:00</span><div style="height:38px;border-top:1px solid #ddd"></div><div style="border-radius:6px;background:#bfdbfe;padding:5px">Taglio<br><small>Luca</small></div><div style="height:38px;border-top:1px solid #ddd"></div>
+        <span>09:30</span><div style="border-radius:6px;background:#fbcfe8;padding:5px">Colore<br><small>Elena</small></div><div style="height:38px;border-top:1px solid #ddd"></div><div style="border-radius:6px;background:#bbf7d0;padding:5px">Piega</div>
+      </div>
+      <div style="margin-top:16px;text-align:center"><small>Passaggio 1 di 3</small><div style="height:4px;background:#ddd;margin:5px"><div style="width:33%;height:4px;background:#111"></div></div></div>
+      <div style="background:white;border:2px solid #111;border-radius:10px;padding:10px;margin-top:8px"><b>Taglio e styling</b><br><small>30 minuti · EUR 25,00</small></div>
+      <div style="background:white;border:1px solid #ddd;border-radius:10px;padding:10px;margin-top:6px"><b>Piega</b><br><small>45 minuti · EUR 30,00</small></div>
+    </div>
+    <div class="card-body">
+      <h3>B. Aria e gerarchia (consigliato)</h3>
+      <p>Calendario ancora operativo, ma blocchi leggibili; wizard mobile con tap target ampi e progressione chiara.</p>
+    </div>
+  </div>
+</div>

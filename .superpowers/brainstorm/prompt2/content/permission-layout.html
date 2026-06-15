@@ -1,0 +1,50 @@
+<h2>Editor permessi: quale gerarchia funziona meglio?</h2>
+<p class="subtitle">Entrambe mostrano default di ruolo e override individuali, ma con densita diversa.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px;background:#f8fafc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <strong>Giulia Bianchi</strong><span style="font-size:12px;padding:4px 8px;border-radius:999px;background:#e2e8f0">Receptionist</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.5fr .8fr .7fr;gap:8px;font-size:11px;color:#64748b;margin-bottom:6px">
+        <b>Permesso</b><b>Origine</b><b>Accesso</b>
+      </div>
+      <div style="display:grid;gap:6px">
+        <div style="display:grid;grid-template-columns:1.5fr .8fr .7fr;gap:8px;padding:8px;background:white;border:1px solid #e2e8f0"><span>calendar.view_own</span><span>Default</span><span>ON</span></div>
+        <div style="display:grid;grid-template-columns:1.5fr .8fr .7fr;gap:8px;padding:8px;background:white;border:1px solid #e2e8f0"><span>calendar.delete</span><span>Override</span><span>ON</span></div>
+        <div style="display:grid;grid-template-columns:1.5fr .8fr .7fr;gap:8px;padding:8px;background:white;border:1px solid #e2e8f0"><span>clients.view</span><span>Default</span><span>ON</span></div>
+        <div style="display:grid;grid-template-columns:1.5fr .8fr .7fr;gap:8px;padding:8px;background:white;border:1px solid #e2e8f0"><span>reports.export</span><span>Default</span><span>OFF</span></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Tabella compatta</h3>
+      <p>Molti permessi visibili insieme, ma categorie e significato degli override sono meno immediati.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:18px;background:#f8fafc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div><strong>Giulia Bianchi</strong><div style="font-size:11px;color:#64748b">Receptionist · default del ruolo</div></div>
+        <span style="font-size:12px;padding:4px 8px;border-radius:999px;background:#e2e8f0">Attiva</span>
+      </div>
+      <div style="display:grid;gap:10px">
+        <div style="padding:10px;background:white;border:1px solid #e2e8f0;border-radius:8px">
+          <b style="font-size:12px">Calendario</b>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#64748b"><span>Visualizza il proprio calendario <i>Default</i></span><span>ON</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px"><span>Elimina appuntamenti <b style="color:#7c3aed">Override</b></span><span style="color:#7c3aed">ON</span></div>
+        </div>
+        <div style="padding:10px;background:white;border:1px solid #e2e8f0;border-radius:8px">
+          <b style="font-size:12px">Clienti</b>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#64748b"><span>Visualizza clienti <i>Default</i></span><span>ON</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#64748b"><span>Blocca clienti <i>Default</i></span><span>OFF</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Sezioni per categoria (consigliato)</h3>
+      <p>Descrizioni leggibili, default attenuati e override evidenziati. Migliore per modifiche sensibili.</p>
+    </div>
+  </div>
+</div>

@@ -10,4 +10,3 @@ coverage/
 pnpm-debug.log*
 apps/pwa/public/sw.js
 apps/pwa/public/workbox-*.js
-.superpowers/
