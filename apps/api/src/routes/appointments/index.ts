@@ -1,0 +1,150 @@
+import type { FastifyInstance } from "fastify";
+import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
+
+import { appointments, availabilityBlocks, customers, salons, services, staff } from "@esse-beauty/db/schema";
+import { computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { authenticate } from "../../middleware/auth.js";
+
+async function ownStaffId(request: any): Promise<string | undefined> {
+  const rows = await request.server.db.select({ id: staff.id }).from(staff).where(and(
+    eq(staff.userId, request.user.id), eq(staff.salonId, request.salonId),
+  ));
+  return rows[0]?.id;
+}
+
+async function canManage(request: any, staffId: string): Promise<boolean> {
+  const own = await ownStaffId(request);
+  return hasPermission(request.user.id,
+    own === staffId ? PERMISSION_KEYS.CALENDAR_MANAGE_OWN : PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+    request.server.db);
+}
+
+export async function hasAppointmentConflict(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string) {
+  const appointmentRows = await db.select({ id: appointments.id }).from(appointments).where(and(
+    eq(appointments.salonId, salonId), eq(appointments.staffId, staffId),
+    ne(appointments.status, "cancelled"), lt(appointments.startsAt, endsAt), gt(appointments.endsAt, startsAt),
+    ...(excludeId ? [ne(appointments.id, excludeId)] : []),
+  ));
+  const blockRows = await db.select({ id: availabilityBlocks.id }).from(availabilityBlocks).where(and(
+    eq(availabilityBlocks.salonId, salonId), eq(availabilityBlocks.staffId, staffId),
+    lt(availabilityBlocks.startsAt, endsAt), gt(availabilityBlocks.endsAt, startsAt),
+  ));
+  return appointmentRows.length > 0 || blockRows.length > 0;
+}
+
+export async function registerAppointmentRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string; staffId?: string; status?: string } }>("/api/salons/:id/appointments", {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const own = await ownStaffId(request);
+    const viewOthers = await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OTHERS, request.server.db);
+    const viewOwn = await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OWN, request.server.db);
+    if (!viewOthers && (!viewOwn || !own)) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const selectedStaff = request.query.staffId ?? (viewOthers ? undefined : own);
+    return request.server.db.select({
+      id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
+      status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
+      customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
+    }).from(appointments)
+      .innerJoin(customers, eq(customers.id, appointments.customerId))
+      .innerJoin(services, eq(services.id, appointments.serviceId))
+      .innerJoin(staff, eq(staff.id, appointments.staffId))
+      .where(and(eq(appointments.salonId, request.salonId),
+        ...(selectedStaff ? [eq(appointments.staffId, selectedStaff)] : []),
+        ...(request.query.status ? [eq(appointments.status, request.query.status as any)] : []),
+        ...(request.query.from ? [gt(appointments.endsAt, new Date(request.query.from))] : []),
+        ...(request.query.to ? [lt(appointments.startsAt, new Date(request.query.to))] : [])))
+      .orderBy(asc(appointments.startsAt));
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { staffId: string; serviceId: string; date: string } }>("/api/salons/:id/slots", {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const [staffRows, serviceRows, salonRows] = await Promise.all([
+      request.server.db.select().from(staff).where(and(eq(staff.id, request.query.staffId), eq(staff.salonId, request.salonId))),
+      request.server.db.select().from(services).where(and(eq(services.id, request.query.serviceId), eq(services.salonId, request.salonId))),
+      request.server.db.select().from(salons).where(eq(salons.id, request.salonId)),
+    ]);
+    const member = staffRows[0], service = serviceRows[0], salon = salonRows[0];
+    if (!member || !service || !salon) return reply.code(404).send({ error: "NOT_FOUND" });
+    const dayStart = new Date(`${request.query.date}T00:00:00.000Z`);
+    const dayEnd = new Date(dayStart.getTime() + 36 * 60 * 60_000);
+    const [busy, blocks] = await Promise.all([
+      request.server.db.select({ startsAt: appointments.startsAt, endsAt: appointments.endsAt }).from(appointments).where(and(
+        eq(appointments.staffId, member.id), ne(appointments.status, "cancelled"),
+        lt(appointments.startsAt, dayEnd), gt(appointments.endsAt, dayStart))),
+      request.server.db.select({ startsAt: availabilityBlocks.startsAt, endsAt: availabilityBlocks.endsAt }).from(availabilityBlocks).where(and(
+        eq(availabilityBlocks.staffId, member.id), lt(availabilityBlocks.startsAt, dayEnd), gt(availabilityBlocks.endsAt, dayStart))),
+    ]);
+    return computeAvailableSlots({ date: request.query.date, timezone: salon.timezone, workingHours: member.workingHours,
+      durationMinutes: service.durationMinutes, appointments: busy, blocks });
+  });
+
+  app.post<{ Params: { id: string }; Body: { customer_id: string; staff_id: string; service_id: string; starts_at: string; notes?: string; source?: "manual" | "walk_in" } }>(
+    "/api/salons/:id/appointments", { preHandler: [authenticate] }, async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      if (!(await canManage(request, request.body.staff_id))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const serviceRows = await request.server.db.select().from(services).where(and(eq(services.id, request.body.service_id), eq(services.salonId, request.salonId)));
+      const service = serviceRows[0];
+      if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
+      const startsAt = new Date(request.body.starts_at);
+      const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+      if (await hasAppointmentConflict(request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt))
+        return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      const rows = await request.server.db.insert(appointments).values({
+        salonId: request.salonId, customerId: request.body.customer_id, staffId: request.body.staff_id,
+        serviceId: request.body.service_id, startsAt, endsAt, status: "confirmed",
+        internalNotes: request.body.notes, source: request.body.source ?? "manual",
+      }).returning();
+      return reply.code(201).send(rows[0]);
+    });
+
+  app.get<{ Params: { id: string; appointmentId: string } }>("/api/salons/:id/appointments/:appointmentId", {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await request.server.db.select({
+      id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
+      status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
+      customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
+    }).from(appointments)
+      .innerJoin(customers, eq(customers.id, appointments.customerId))
+      .innerJoin(services, eq(services.id, appointments.serviceId))
+      .innerJoin(staff, eq(staff.id, appointments.staffId))
+      .where(and(eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId)));
+    return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+  });
+
+  app.patch<{ Params: { id: string; appointmentId: string }; Body: { starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
+    "/api/salons/:id/appointments/:appointmentId", { preHandler: [authenticate] }, async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const rows = await request.server.db.select().from(appointments).where(and(eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId)));
+      const item = rows[0];
+      if (!item) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+      if (!(await canManage(request, item.staffId))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const startsAt = request.body.starts_at ? new Date(request.body.starts_at) : item.startsAt;
+      const duration = item.endsAt.getTime() - item.startsAt.getTime();
+      const endsAt = new Date(startsAt.getTime() + duration);
+      if (request.body.starts_at && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id))
+        return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      const updated = await request.server.db.update(appointments).set({
+        startsAt, endsAt, ...(request.body.status && { status: request.body.status }),
+        ...(request.body.notes !== undefined && { internalNotes: request.body.notes }),
+      }).where(eq(appointments.id, item.id)).returning();
+      return updated[0];
+    });
+
+  app.delete<{ Params: { id: string; appointmentId: string } }>("/api/salons/:id/appointments/:appointmentId", {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_DELETE, request.server.db)))
+      return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const rows = await request.server.db.delete(appointments).where(and(
+      eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId),
+    )).returning();
+    return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+  });
+}
