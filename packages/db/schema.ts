@@ -230,6 +230,25 @@ export const reminders = pgTable("reminders", {
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
 });
 
+export const reminderSettings = pgTable(
+  "reminder_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    smsEnabled: boolean("sms_enabled").default(false).notNull(),
+    emailEnabled: boolean("email_enabled").default(true).notNull(),
+    hoursBefore: jsonb("hours_before").$type<number[]>().default([24]).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("reminder_settings_salon_unique").on(table.salonId),
+  ],
+);
+
 export const reviews = pgTable(
   "reviews",
   {
@@ -251,6 +270,7 @@ export const reviews = pgTable(
   },
   (table) => [
     check("reviews_rating_check", sql`${table.rating} between 1 and 5`),
+    uniqueIndex("reviews_appointment_unique").on(table.appointmentId),
   ],
 );
 
@@ -271,21 +291,46 @@ export const waitlistEntries = pgTable("waitlist_entries", {
   ...timestamps,
 });
 
-export const loyaltyPoints = pgTable("loyalty_points", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  salonId: uuid("salon_id")
-    .notNull()
-    .references(() => salons.id, { onDelete: "cascade" }),
-  customerId: uuid("customer_id")
-    .notNull()
-    .references(() => customers.id),
-  delta: integer("delta").notNull(),
-  reason: text("reason").notNull(),
-  appointmentId: uuid("appointment_id").references(() => appointments.id, {
-    onDelete: "set null",
-  }),
-  ...timestamps,
-});
+export const loyaltyPoints = pgTable(
+  "loyalty_points",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id),
+    delta: integer("delta").notNull(),
+    reason: text("reason").notNull(),
+    appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("loyalty_points_appointment_unique").on(table.appointmentId),
+  ],
+);
+
+export const loyaltySettings = pgTable(
+  "loyalty_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    pointsPerAppointment: integer("points_per_appointment")
+      .default(10)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("loyalty_settings_salon_unique").on(table.salonId),
+  ],
+);
 
 export const loyaltyRewards = pgTable("loyalty_rewards", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -314,6 +359,33 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
   status: campaignStatusEnum("status").default("draft").notNull(),
   ...timestamps,
 });
+
+export const campaignRecipients = pgTable(
+  "campaign_recipients",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    campaignId: uuid("campaign_id")
+      .notNull()
+      .references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    destination: text("destination").notNull(),
+    status: text("status").default("pending").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    error: text("error"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("campaign_recipients_campaign_destination_unique").on(
+      table.campaignId,
+      table.destination,
+    ),
+  ],
+);
 
 export const inventoryProducts = pgTable("inventory_products", {
   id: uuid("id").defaultRandom().primaryKey(),

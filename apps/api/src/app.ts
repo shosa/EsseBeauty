@@ -16,11 +16,19 @@ import {
   type ModuleKey,
 } from "@esse-beauty/feature-flags";
 import { authenticate, requireRole } from "./middleware/auth.js";
+import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
+import { registerInventoryRoutes } from "./routes/inventory/index.js";
+import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
+import { registerMarketingRoutes } from "./routes/marketing/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
+import { registerReminderRoutes } from "./routes/reminders/index.js";
+import { registerReportRoutes } from "./routes/reports/index.js";
+import { registerReviewRoutes } from "./routes/reviews/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
+import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
 import type { SupabaseAdmin } from "./routes/auth/supabase-admin.js";
 
 interface ApiEnvironment {
@@ -109,6 +117,8 @@ export function createApp({
     timeWindow: "1 minute",
   });
 
+  registerAppointmentEventHooks(app);
+
   const bindSalon: preHandlerHookHandler = async (request, reply) => {
     const params = request.params as SalonParams;
 
@@ -127,6 +137,13 @@ export function createApp({
   void registerStaffRoutes(app);
   void registerAppointmentRoutes(app);
   void registerPublicRoutes(app);
+  void registerReminderRoutes(app);
+  void registerReviewRoutes(app);
+  void registerWaitlistRoutes(app);
+  void registerLoyaltyRoutes(app);
+  void registerMarketingRoutes(app);
+  void registerInventoryRoutes(app);
+  void registerReportRoutes(app);
 
   app.get<{ Params: SalonParams }>(
     "/api/salons/:id/modules",

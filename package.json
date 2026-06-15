@@ -8,6 +8,11 @@
   },
   "scripts": {
     "build": "turbo build",
+    "docker:build": "docker compose build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:reset": "docker compose down -v",
+    "docker:up": "docker compose up -d --build",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "test": "turbo test",

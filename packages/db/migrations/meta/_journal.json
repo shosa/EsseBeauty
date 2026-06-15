@@ -15,6 +15,20 @@
       "when": 1781534714634,
       "tag": "0001_shocking_scream",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781551230385,
+      "tag": "0002_flowery_morph",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781551632956,
+      "tag": "0003_salty_goliath",
+      "breakpoints": true
     }
   ]
 }

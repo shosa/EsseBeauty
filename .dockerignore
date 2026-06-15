@@ -1,0 +1,17 @@
+.git
+.github
+.next
+.turbo
+coverage
+dist
+node_modules
+**/.next
+**/.turbo
+**/coverage
+**/dist
+**/node_modules
+.env
+.env.local
+.env.*.local
+*.log
+package-lock.json
