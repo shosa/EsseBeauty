@@ -1,7 +1,9 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button, ConfirmDialog, PageTransition, SaveToast } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -20,18 +22,13 @@ interface Customer {
   phone: string | null;
   tags: string[];
 }
-interface Service { id: string; name: string; }
-interface Staff { id: string; displayName: string; }
-
 export default function CustomerPage({ params }: { params: Promise<{ customerId: string }> }) {
   const { customerId } = use(params);
   const router = useRouter();
   const { salon } = useAuth();
   const [customer, setCustomer] = useState<Customer>();
   const [tags, setTags] = useState<string[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [showAppointment, setShowAppointment] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -81,7 +78,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
   }
 
   async function removeCustomer() {
-    if (!salon || !customer || !window.confirm(`Eliminare il cliente "${customer.fullName}"?`)) return;
+    if (!salon || !customer) return;
     const response = await fetch(`${api}/api/salons/${salon.id}/customers/${customerId}`, {
       method: "DELETE",
       credentials: "include",
@@ -93,43 +90,10 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     router.push("/clients");
   }
 
-  async function openAppointment() {
-    if (!salon) return;
-    const [serviceResponse, staffResponse] = await Promise.all([
-      fetch(`${api}/api/salons/${salon.id}/services?active=true`, { credentials: "include" }),
-      fetch(`${api}/api/salons/${salon.id}/staff?active=true`, { credentials: "include" }),
-    ]);
-    setServices(serviceResponse.ok ? await serviceResponse.json() : []);
-    setStaff(staffResponse.ok ? await staffResponse.json() : []);
-    setShowAppointment(true);
-  }
-
-  async function createAppointment(formData: FormData) {
-    if (!salon) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/appointments`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        customer_id: customerId,
-        service_id: formData.get("service_id"),
-        staff_id: formData.get("staff_id"),
-        starts_at: new Date(String(formData.get("starts_at"))).toISOString(),
-        notes: formData.get("notes") || undefined,
-      }),
-    });
-    if (!response.ok) {
-      setError(response.status === 409 ? "Orario gia occupato." : "Appuntamento non creato.");
-      return;
-    }
-    setShowAppointment(false);
-    await load();
-  }
-
   if (error && !customer) return <main className="p-8 text-red-700">{error}</main>;
   if (!customer) return <main className="p-8"><div className="h-72 animate-pulse rounded-2xl bg-stone-100" /></main>;
 
-  return <main className="min-h-screen bg-[#f7f4f2] p-4 md:p-8"><div className="mx-auto max-w-6xl">
+  return <main className="min-h-screen bg-[#f7f4f2] p-4 md:p-8"><PageTransition className="mx-auto max-w-6xl">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7b3159]">Profilo cliente</p>
@@ -137,12 +101,12 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
         <p className="mt-1 text-sm text-stone-500">{customer.email ?? "Nessuna email"} - {customer.phone ?? "Nessun telefono"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => void toggleBlocked()} className={`rounded-xl px-4 py-3 text-sm font-bold ${customer.blocked ? "bg-red-100 text-red-700" : "border border-stone-300"}`}>{customer.blocked ? "Sblocca cliente" : "Blocca cliente"}</button>
-        <button onClick={() => void removeCustomer()} className="rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-700">Elimina</button>
-        <button onClick={() => void openAppointment()} className="rounded-xl bg-[#7b3159] px-4 py-3 text-sm font-bold text-white">Nuovo appuntamento</button>
+        <Button onClick={() => void toggleBlocked()} variant={customer.blocked ? "destructive" : "outline"}>{customer.blocked ? "Sblocca cliente" : "Blocca cliente"}</Button>
+        <Button onClick={() => setConfirmDelete(true)} variant="destructive">Elimina</Button>
+        <Link href="/calendar/appointments/new" className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 py-3 text-sm font-bold text-white">Nuovo appuntamento</Link>
       </div>
     </header>
-    {message && <p className="fixed right-5 top-5 z-40 rounded-xl bg-stone-900 px-4 py-3 text-sm text-white">{message}</p>}
+    <SaveToast visible={Boolean(message)}>{message}</SaveToast>
     {error && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     <div className="mt-7 grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
       <section className="space-y-5">
@@ -152,6 +116,15 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
       </section>
       <section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="font-bold">Storico appuntamenti</h2><div className="mt-5 space-y-3">{customer.appointments.length === 0 ? <p className="rounded-xl bg-stone-50 p-6 text-center text-sm text-stone-500">Nessun appuntamento registrato.</p> : customer.appointments.map((appointment) => <article key={appointment.id} className="grid grid-cols-[auto_1fr_auto] gap-4 rounded-xl border border-stone-100 p-4"><div className="rounded-xl bg-rose-50 px-3 py-2 text-center"><strong className="block">{new Date(appointment.starts_at).getDate()}</strong><span className="text-xs uppercase">{new Date(appointment.starts_at).toLocaleDateString("it-IT", { month: "short" })}</span></div><div><h3 className="font-bold">{appointment.service_name}</h3><p className="text-sm text-stone-500">{appointment.staff_name} - {new Date(appointment.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</p></div><span className="text-xs font-bold uppercase text-stone-500">{appointment.status}</span></article>)}</div></section>
     </div>
-    {showAppointment && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"><form action={createAppointment} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"><h2 className="text-xl font-bold">Nuovo appuntamento</h2><div className="mt-5 grid gap-4"><select required name="service_id" className="rounded-xl border p-3"><option value="">Seleziona servizio</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><select required name="staff_id" className="rounded-xl border p-3"><option value="">Seleziona operatore</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</select><input required type="datetime-local" name="starts_at" className="rounded-xl border p-3" /><textarea name="notes" placeholder="Note" className="rounded-xl border p-3" /></div><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setShowAppointment(false)} className="rounded-xl border px-4 py-3">Annulla</button><button className="rounded-xl bg-[#7b3159] px-4 py-3 font-bold text-white">Crea</button></div></form></div>}
-  </div></main>;
+  </PageTransition>
+  <ConfirmDialog
+    confirmLabel="Elimina"
+    destructive
+    description="Il cliente verrà rimosso se non ha appuntamenti collegati."
+    onCancel={() => setConfirmDelete(false)}
+    onConfirm={() => void removeCustomer()}
+    open={confirmDelete}
+    title={`Eliminare ${customer.fullName}?`}
+  />
+  </main>;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../../lib/auth-context";
 
@@ -85,9 +85,9 @@ export default function RewardDetailPage() {
         ) : (
           <form action={save} className="mt-5 grid gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
             <h1 className="text-3xl font-bold">{reward.name}</h1>
-            <input required name="name" defaultValue={reward.name} className="min-h-12 rounded-xl border px-3" />
-            <input required name="points" type="number" min="1" defaultValue={reward.pointsRequired} className="min-h-12 rounded-xl border px-3" />
-            <textarea name="description" defaultValue={reward.description ?? ""} className="min-h-28 rounded-xl border p-3" />
+            <FormField label="Nome premio" required><input required name="name" defaultValue={reward.name} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+            <FormField label="Punti richiesti" required><input required name="points" type="number" min="1" defaultValue={reward.pointsRequired} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+            <FormField label="Descrizione"><textarea name="description" defaultValue={reward.description ?? ""} className="min-h-28 w-full rounded-xl border p-3" /></FormField>
             <div className="flex justify-end gap-3">
               <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Elimina</Button>
               <Button type="submit">Salva</Button>

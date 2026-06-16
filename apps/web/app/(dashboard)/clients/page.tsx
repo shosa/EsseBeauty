@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AppPage, Button, ConfirmDialog, PageHeader, PageTransition, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -36,6 +37,7 @@ export default function ClientsPage() {
   const [data, setData] = useState<CustomerList>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Customer>();
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setQuery(search.trim()), 300);
@@ -77,10 +79,10 @@ export default function ClientsPage() {
     return () => controller.abort();
   }, [blocked, query, salon, tag]);
 
-  async function remove(customer: Customer) {
-    if (!salon || !window.confirm(`Eliminare il cliente "${customer.full_name}"?`)) return;
+  async function remove() {
+    if (!salon || !pendingDelete) return;
     setError("");
-    const response = await fetch(`${api}/api/salons/${salon.id}/customers/${customer.id}`, {
+    const response = await fetch(`${api}/api/salons/${salon.id}/customers/${pendingDelete.id}`, {
       method: "DELETE",
       credentials: "include",
     });
@@ -90,24 +92,21 @@ export default function ClientsPage() {
     }
     setData((current) => current ? {
       ...current,
-      items: current.items.filter((item) => item.id !== customer.id),
+      items: current.items.filter((item) => item.id !== pendingDelete.id),
       total: Math.max(0, current.total - 1),
     } : current);
+    setPendingDelete(undefined);
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4f2] p-4 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7b3159]">CRM</p>
-            <h1 className="mt-2 text-3xl font-bold text-stone-900">Clienti</h1>
-            <p className="mt-1 text-sm text-stone-500">{data?.total ?? 0} profili nel salone</p>
-          </div>
-          <Link href="/clients/new" className="rounded-xl bg-[#7b3159] px-4 py-3 text-sm font-bold text-white">
-            Nuovo cliente
-          </Link>
-        </header>
+    <AppPage maxWidth="max-w-7xl">
+      <PageTransition>
+        <PageHeader
+          eyebrow="CRM"
+          title="Clienti"
+          subtitle={`${data?.total ?? 0} profili nel salone`}
+          actions={<Link href="/clients/new" className="rounded-xl bg-[#7b3159] px-4 py-3 text-sm font-bold text-white">Nuovo cliente</Link>}
+        />
 
         <section className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
@@ -148,13 +147,13 @@ export default function ClientsPage() {
                 <tbody>
                   {data?.items.map((customer) => (
                     <tr key={customer.id} className="border-t border-stone-100 hover:bg-stone-50">
-                      <td className="p-4"><Link href={`/clients/${customer.id}`} className="font-bold text-stone-900 hover:text-[#7b3159]">{customer.full_name}</Link>{customer.blocked && <span className="ml-2 rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold text-red-700">BLOCCATO</span>}</td>
-                      <td className="text-stone-600"><span className="block">{customer.email ?? "—"}</span><span className="text-xs">{customer.phone ?? "—"}</span></td>
+                      <td className="p-4"><Link href={`/clients/${customer.id}`} className="font-bold text-stone-900 hover:text-[#7b3159]">{customer.full_name}</Link>{customer.blocked && <span className="ml-2"><StatusBadge status="cancelled">Bloccato</StatusBadge></span>}</td>
+                      <td className="text-stone-600"><span className="block">{customer.email ?? "-"}</span><span className="text-xs">{customer.phone ?? "-"}</span></td>
                       <td><div className="flex max-w-56 flex-wrap gap-1">{customer.tags.map((item) => <span key={item} className="rounded-full bg-rose-50 px-2 py-1 text-xs text-[#7b3159]">{item}</span>)}</div></td>
-                      <td>{customer.last_visit ? new Date(customer.last_visit).toLocaleDateString("it-IT") : "—"}</td>
+                      <td>{customer.last_visit ? new Date(customer.last_visit).toLocaleDateString("it-IT") : "-"}</td>
                       <td>{customer.total_appointments}</td>
                       <td>{customer.loyalty_points}</td>
-                      <td><button onClick={() => void remove(customer)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Elimina</button></td>
+                      <td><Button onClick={() => setPendingDelete(customer)} size="sm" variant="destructive">Elimina</Button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,7 +161,16 @@ export default function ClientsPage() {
             </div>
           )}
         </section>
-      </div>
-    </main>
+      </PageTransition>
+      <ConfirmDialog
+        confirmLabel="Elimina"
+        destructive
+        description="Il cliente verra rimosso se non ha appuntamenti collegati."
+        onCancel={() => setPendingDelete(undefined)}
+        onConfirm={() => void remove()}
+        open={Boolean(pendingDelete)}
+        title={`Eliminare ${pendingDelete?.full_name ?? "cliente"}?`}
+      />
+    </AppPage>
   );
 }

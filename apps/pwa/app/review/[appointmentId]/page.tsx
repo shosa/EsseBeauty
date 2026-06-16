@@ -33,18 +33,18 @@ export default function ReviewPage() {
       body: JSON.stringify({ rating, comment: comment || undefined }),
     });
     if (response.ok) setDone(true);
-    else setError(response.status === 409 ? "Hai già inviato una recensione." : "Non è stato possibile inviare la recensione.");
+    else setError(response.status === 409 ? "Hai gia inviato una recensione." : "Non e stato possibile inviare la recensione.");
   }
 
   if (done) {
-    return <main className="grid min-h-screen place-items-center bg-[#f6f1f4] p-5"><section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl"><div className="text-5xl text-[#792f59]">★★★★★</div><h1 className="mt-5 text-3xl font-bold">Grazie del tuo tempo</h1><p className="mt-3 text-stone-600">La tua esperienza aiuta il salone a migliorare.</p></section></main>;
+    return <main className="grid min-h-screen place-items-center bg-[#f6f1f4] p-5"><section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl"><div className="text-5xl text-[#792f59]">*****</div><h1 className="mt-5 text-3xl font-bold">Grazie del tuo tempo</h1><p className="mt-3 text-stone-600">La tua esperienza aiuta il salone a migliorare.</p></section></main>;
   }
 
   return <main className="min-h-screen bg-[#f6f1f4] px-4 py-10"><section className="mx-auto max-w-lg overflow-hidden rounded-[2rem] bg-white shadow-xl">
-    <header className="bg-[#321c2a] p-7 text-white"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#e8b9d3]">{summary?.salon_name ?? "Recensione"}</p><h1 className="mt-2 text-3xl font-bold">Com&apos;è andata?</h1><p className="mt-3 text-sm text-stone-300">{summary ? `${summary.service_name} · ${new Date(summary.starts_at).toLocaleDateString("it-IT")}` : "Caricamento…"}</p></header>
-    <div className="space-y-6 p-7"><div><p className="mb-3 font-semibold">La tua valutazione</p><div className="flex justify-between">{[1,2,3,4,5].map((star) => <button key={star} onClick={() => setRating(star)} className={`text-4xl transition ${star <= rating ? "text-[#a33d72]" : "text-stone-200"}`} aria-label={`${star} stelle`}>★</button>)}</div></div>
-      <label className="block font-semibold">Commento <span className="font-normal text-stone-400">(facoltativo)</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={5} className="mt-2 w-full rounded-2xl border border-stone-200 p-4 font-normal outline-none focus:border-[#792f59]" placeholder="Raccontaci cosa hai apprezzato…" /></label>
-      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button disabled={!rating} onClick={() => void submit()} className="min-h-13 w-full rounded-xl bg-[#792f59] font-bold text-white disabled:opacity-35">Invia recensione</button>
+    <header className="bg-[#321c2a] p-7 text-white"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#e8b9d3]">{summary?.salon_name ?? "Recensione"}</p><h1 className="mt-2 text-3xl font-bold">Com'e andata?</h1><p className="mt-3 text-sm text-stone-300">{summary ? `${summary.service_name} · ${new Date(summary.starts_at).toLocaleDateString("it-IT")}` : "Caricamento..."}</p></header>
+    <div className="space-y-6 p-7"><div><p className="mb-3 font-semibold">La tua valutazione</p><div className="flex justify-between">{[1,2,3,4,5].map((star) => <button key={star} onClick={() => setRating(star)} className={`rounded-2xl px-2 text-4xl transition hover:-translate-y-0.5 ${star <= rating ? "bg-[#f3e2eb] text-[#a33d72]" : "text-stone-200 hover:bg-stone-50"}`} aria-label={`${star} stelle`}>*</button>)}</div></div>
+      <label className="block font-semibold">Commento <span className="font-normal text-stone-400">(facoltativo)</span><textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={5} className="mt-2 w-full rounded-2xl border border-stone-200 p-4 font-normal" placeholder="Raccontaci cosa hai apprezzato..." /></label>
+      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button disabled={!rating} onClick={() => void submit()} className="min-h-13 w-full rounded-xl bg-[#792f59] font-bold text-white shadow-[0_10px_24px_rgb(45_29_39_/_0.12)] transition hover:-translate-y-0.5 disabled:opacity-45 disabled:shadow-none">Invia recensione</button>
     </div>
   </section></main>;
 }

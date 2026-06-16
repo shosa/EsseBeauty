@@ -119,6 +119,36 @@ export const salonModules = pgTable(
   ],
 );
 
+export const platformAdmins = pgTable("platform_admins", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull().unique(),
+  fullName: text("full_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  active: boolean("active").default(true).notNull(),
+  lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  ...timestamps,
+});
+
+export const platformAdminSessions = pgTable("platform_admin_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminId: uuid("admin_id")
+    .notNull()
+    .references(() => platformAdmins.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  ...timestamps,
+});
+
 export const users = pgTable(
   "users",
   {

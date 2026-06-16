@@ -18,6 +18,26 @@ const checkedFiles = [
 ];
 
 describe("professional UI regression guard", () => {
+  it("uses the refreshed brand typography and breadcrumb treatment", () => {
+    const layout = readFileSync(join(process.cwd(), "app", "layout.tsx"), "utf8");
+    const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
+    expect(layout).toContain("Manrope");
+    expect(layout).toContain("Fraunces");
+    expect(ui).toContain("›");
+    expect(ui).toContain("backdrop-blur");
+  });
+
+  it("gives active CTAs an explicit hand cursor and tactile hover state", () => {
+    const globals = readFileSync(join(process.cwd(), "app", "globals.css"), "utf8");
+    const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
+    expect(ui).toContain("cursor-pointer");
+    expect(ui).toContain("shadow-[0_10px_24px");
+    expect(globals).toContain('@source "../../../packages/ui"');
+    expect(globals).toContain("button:not(:disabled)");
+    expect(globals).toContain("a[href]");
+    expect(globals).toContain("cursor: pointer");
+  });
+
   it("does not use browser confirm in dashboard workflows", () => {
     for (const file of checkedFiles) {
       const source = readFileSync(join(dashboardRoot, file), "utf8");
@@ -38,5 +58,59 @@ describe("professional UI regression guard", () => {
       const source = readFileSync(join(dashboardRoot, file), "utf8");
       expect(source, file).not.toMatch(/createOpen|inviteOpen|setOpen\(/);
     }
+  });
+
+  it("keeps CRUD forms labelled and appointment customer lookup scalable", () => {
+    for (const file of [
+      "services/new/page.tsx",
+      "services/[serviceId]/page.tsx",
+      "staff/new/page.tsx",
+      "settings/users/invite/page.tsx",
+      "settings/loyalty/rewards/new/page.tsx",
+      "settings/loyalty/rewards/[rewardId]/page.tsx",
+    ]) {
+      const source = readFileSync(join(dashboardRoot, file), "utf8");
+      expect(source, file).toContain("FormField");
+    }
+
+    const appointmentNew = readFileSync(join(dashboardRoot, "calendar", "appointments", "new", "page.tsx"), "utf8");
+    expect(appointmentNew).toContain("selectedCustomer");
+    expect(appointmentNew).toContain("customers?${params");
+    expect(appointmentNew).not.toContain('fetch(`${api}/api/salons/${salon.id}/customers`)');
+  });
+
+  it("keeps public booking searchable instead of dumping long lists", () => {
+    const booking = readFileSync(join(process.cwd(), "..", "pwa", "app", "[slug]", "book", "page.tsx"), "utf8");
+    expect(booking).toContain("serviceQuery");
+    expect(booking).toContain("Cerca servizio");
+    expect(booking).toContain("Collaboratore preferito");
+  });
+
+  it("uses operational detail patterns on appointment pages", () => {
+    const appointment = readFileSync(join(dashboardRoot, "calendar", "appointments", "[appointmentId]", "page.tsx"), "utf8");
+    expect(appointment).toContain("PageHeader");
+    expect(appointment).toContain("StatusBadge");
+    expect(appointment).toContain("StatGrid");
+    expect(appointment).toContain("ActionBar");
+    expect(appointment).toContain("active={item.status === status}");
+    expect(appointment).toContain("Elimina appuntamento");
+  });
+
+  it("uses the shared page header on primary dashboard views", () => {
+    for (const file of ["page.tsx", "calendar/page.tsx", "clients/page.tsx", "services/page.tsx", "staff/page.tsx"]) {
+      const source = readFileSync(join(dashboardRoot, file), "utf8");
+      expect(source, file).toContain("PageHeader");
+      expect(source, file).toContain("AppPage");
+    }
+  });
+
+  it("keeps salon module settings read-only and delegates activation to platform tier", () => {
+    const salonModules = readFileSync(join(dashboardRoot, "settings", "modules", "page.tsx"), "utf8");
+    const platform = readFileSync(join(process.cwd(), "app", "platform", "page.tsx"), "utf8");
+    expect(salonModules).not.toContain("method: \"PATCH\"");
+    expect(salonModules).not.toContain("setModule(");
+    expect(salonModules).toContain("gestiti dalla piattaforma");
+    expect(platform).toContain("/api/platform/salons");
+    expect(platform).toContain("modules/${moduleKey}");
   });
 });

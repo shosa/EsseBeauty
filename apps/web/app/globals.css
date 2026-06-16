@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui";
 
 :root {
   color-scheme: light;
@@ -15,4 +16,43 @@ h1,
 .font-display {
   font-family: var(--font-display), var(--font-sans), ui-serif, serif;
   font-variation-settings: "SOFT" 70, "WONK" 0;
+}
+
+button:not(:disabled),
+a[href],
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  background: #fff;
+  border-color: #d6d3d1;
+  color: #1c1917;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #792f59;
+  box-shadow: 0 0 0 4px rgb(121 47 89 / 0.12);
+  outline: none;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: #f5f5f4;
+  color: #78716c;
+}
+
+table tbody tr {
+  transition: background-color 160ms ease;
 }

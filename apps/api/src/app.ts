@@ -9,12 +9,7 @@ import { eq } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import { salonModules } from "@esse-beauty/db/schema";
-import {
-  invalidateModuleCache,
-  isModuleKey,
-  type ModuleKey,
-} from "@esse-beauty/feature-flags";
-import { authenticate, requireRole } from "./middleware/auth.js";
+import { authenticate } from "./middleware/auth.js";
 import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
@@ -22,6 +17,7 @@ import { registerCustomerRoutes } from "./routes/customers/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
 import { registerMarketingRoutes } from "./routes/marketing/index.js";
+import { registerPlatformRoutes } from "./routes/platform/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerReminderRoutes } from "./routes/reminders/index.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
@@ -44,14 +40,6 @@ interface CreateAppOptions {
 
 interface SalonParams {
   id: string;
-}
-
-interface ModuleParams extends SalonParams {
-  key: string;
-}
-
-interface ToggleModuleBody {
-  enabled: boolean;
 }
 
 function parseOrigins(value: string): true | string[] {
@@ -118,6 +106,7 @@ export function createApp({
   void registerReportRoutes(app);
   void registerSettingsRoutes(app);
   void registerShellRoutes(app);
+  void registerPlatformRoutes(app);
 
   app.get<{ Params: SalonParams }>(
     "/api/salons/:id/modules",
@@ -130,52 +119,6 @@ export function createApp({
         })
         .from(salonModules)
         .where(eq(salonModules.salonId, request.params.id)),
-  );
-
-  app.patch<{ Body: ToggleModuleBody; Params: ModuleParams }>(
-    "/api/salons/:id/modules/:key",
-    {
-      preHandler: [authenticate, bindSalon, requireRole("owner")],
-      schema: {
-        body: {
-          type: "object",
-          additionalProperties: false,
-          required: ["enabled"],
-          properties: {
-            enabled: { type: "boolean" },
-          },
-        },
-      },
-    },
-    async (request, reply) => {
-      if (!isModuleKey(request.params.key)) {
-        return reply.code(400).send({ error: "INVALID_MODULE_KEY" });
-      }
-
-      const moduleKey: ModuleKey = request.params.key;
-      await request.server.db
-        .insert(salonModules)
-        .values({
-          salonId: request.params.id,
-          moduleKey,
-          enabled: request.body.enabled,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [salonModules.salonId, salonModules.moduleKey],
-          set: {
-            enabled: request.body.enabled,
-            updatedAt: new Date(),
-          },
-        });
-
-      invalidateModuleCache(request.params.id, moduleKey);
-
-      return {
-        module_key: moduleKey,
-        enabled: request.body.enabled,
-      };
-    },
   );
 
   return app;

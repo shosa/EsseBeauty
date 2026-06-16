@@ -13,7 +13,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const links = [
     { href: "/settings", label: "Generali" },
     { href: "/settings/users", label: "Utenti" },
-    { href: "/settings/modules", label: "Moduli" },
+    { href: "/settings/modules", label: "Licenza" },
     ...(reminders
       ? [{ href: "/settings/reminders", label: "Promemoria" }]
       : []),

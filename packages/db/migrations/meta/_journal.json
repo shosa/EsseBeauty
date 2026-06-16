@@ -50,6 +50,13 @@
       "when": 1781596204708,
       "tag": "0006_messy_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781617200000,
+      "tag": "0007_platform_admins",
+      "breakpoints": true
     }
   ]
 }

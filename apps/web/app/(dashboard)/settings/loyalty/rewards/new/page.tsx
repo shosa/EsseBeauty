@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
+import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../../lib/auth-context";
 
@@ -39,9 +39,9 @@ export default function NewRewardPage() {
         <Breadcrumbs items={[{ href: "/settings/loyalty", label: "Fedeltà" }, { label: "Nuovo premio" }]} />
         <h1 className="text-3xl font-bold">Nuovo premio</h1>
         {error && <InlineError>{error}</InlineError>}
-        <input required name="name" placeholder="Nome premio" className="min-h-12 rounded-xl border px-3" />
-        <input required name="points" type="number" min="1" placeholder="Punti richiesti" className="min-h-12 rounded-xl border px-3" />
-        <textarea name="description" placeholder="Descrizione" className="min-h-28 rounded-xl border p-3" />
+        <FormField label="Nome premio" required><input required name="name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+        <FormField label="Punti richiesti" required><input required name="points" type="number" min="1" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+        <FormField label="Descrizione"><textarea name="description" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
         <Button type="submit">Salva</Button>
       </form>
     </main>

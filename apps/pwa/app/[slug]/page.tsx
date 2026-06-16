@@ -27,7 +27,7 @@ export default function SalonLanding() {
       setStatus("ready");
     });
   }, [slug]);
-  if (status === "loading") return <main className="grid min-h-screen place-items-center bg-[#f8f2ef]">Caricamento…</main>;
+  if (status === "loading") return <main className="grid min-h-screen place-items-center bg-[#f8f2ef]">Caricamento...</main>;
   if (status === "unavailable") return <main className="grid min-h-screen place-items-center bg-[#f8f2ef] p-5"><section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl"><p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Prenotazioni online</p><h1 className="mt-3 text-3xl font-bold">Servizio momentaneamente non disponibile</h1><p className="mt-3 text-stone-600">Contatta direttamente il salone per fissare un appuntamento.</p></section></main>;
   if (status === "missing") return <main className="grid min-h-screen place-items-center bg-[#f8f2ef] p-5"><h1 className="text-2xl font-bold">Salone non trovato</h1></main>;
   const groups = profile ? Map.groupBy(profile.services, (service) => service.category) : new Map<string, Service[]>();

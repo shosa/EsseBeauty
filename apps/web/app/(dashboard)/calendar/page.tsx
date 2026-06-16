@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { Button, InlineError, PageTransition } from "@esse-beauty/ui";
+import { AppPage, Button, InlineError, PageHeader, PageTransition } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -53,20 +53,19 @@ export default function CalendarPage() {
   }, [monday, salon?.id]);
 
   return (
-    <main className="min-h-screen bg-[#f7f5f2] p-3 md:p-8">
-      <PageTransition className="mx-auto max-w-[1500px]">
-        <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[.2em] text-rose-700">Agenda</p>
-            <h1 className="text-4xl font-black text-stone-950">Calendario</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+    <AppPage maxWidth="max-w-[1500px]">
+      <PageTransition>
+        <PageHeader
+          eyebrow="Agenda"
+          title="Calendario"
+          subtitle="Vista settimanale degli appuntamenti."
+          actions={<div className="flex flex-wrap items-center gap-2">
             {canCreate && <Link href="/calendar/appointments/new" className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-800">Nuovo appuntamento</Link>}
             <Button onClick={() => setWeekOffset((value) => value - 1)} variant="outline">Prec.</Button>
             <Button onClick={() => setWeekOffset(0)} variant="secondary">Oggi</Button>
             <Button onClick={() => setWeekOffset((value) => value + 1)} variant="outline">Succ.</Button>
-          </div>
-        </header>
+          </div>}
+        />
 
         {error && <InlineError className="mb-4">{error}</InlineError>}
 
@@ -90,7 +89,7 @@ export default function CalendarPage() {
                       >
                         <strong className="block text-xs text-stone-500">{new Date(item.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</strong>
                         <span className="mt-1 block truncate text-sm font-bold text-stone-950">{item.customer_name}</span>
-                        <span className="block truncate text-xs text-stone-500">{item.service_name} · {item.staff_name}</span>
+                        <span className="block truncate text-xs text-stone-500">{item.service_name} - {item.staff_name}</span>
                       </Link>
                     ))}
                 </div>
@@ -99,6 +98,6 @@ export default function CalendarPage() {
           </div>
         </div>
       </PageTransition>
-    </main>
+    </AppPage>
   );
 }

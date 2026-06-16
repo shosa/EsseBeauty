@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -80,28 +80,36 @@ export default function ServiceDetailPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <div className="mx-auto max-w-3xl">
-        <Breadcrumbs items={[{ href: "/services", label: "Servizi" }, { label: service?.name ?? "Servizio" }]} />
-        {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
-        {!service ? (
-          <EmptyState title="Servizio non trovato" description="Potrebbe essere archiviato o non accessibile." />
-        ) : (
-          <form action={save} className="mt-5 grid gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
-            <h1 className="text-3xl font-bold">{service.name}</h1>
-            <input required name="name" defaultValue={service.name} className="min-h-12 rounded-xl border px-3" />
-            <input required name="category" defaultValue={service.category} className="min-h-12 rounded-xl border px-3" />
-            <textarea name="description" defaultValue={service.description ?? ""} className="min-h-28 rounded-xl border p-3" />
-            <input required name="duration" type="number" min="5" step="5" defaultValue={service.durationMinutes} className="min-h-12 rounded-xl border px-3" />
-            <input required name="price" type="number" min="0" step="0.01" defaultValue={(service.priceCents / 100).toFixed(2)} className="min-h-12 rounded-xl border px-3" />
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Archivia</Button>
-              <Button type="submit">Salva</Button>
-            </div>
-          </form>
-        )}
-      </div>
-      <ConfirmDialog open={confirmDelete} destructive title="Archiviare servizio?" description="Il servizio non sarà più disponibile tra quelli attivi." confirmLabel="Archivia" onCancel={() => setConfirmDelete(false)} onConfirm={() => void archive()} />
-    </main>
+    <AppPage maxWidth="max-w-4xl">
+      <Breadcrumbs items={[{ href: "/services", label: "Servizi" }, { label: service?.name ?? "Servizio" }]} />
+      {error && <div className="mb-4"><InlineError>{error}</InlineError></div>}
+      {!service ? (
+        <EmptyState title="Servizio non trovato" description="Potrebbe essere archiviato o non accessibile." />
+      ) : (
+        <>
+          <PageHeader eyebrow="Servizio" title={service.name} subtitle={service.category} status={<StatusBadge status={service.active ? "active" : "archived"}>{service.active ? "Attivo" : "Archiviato"}</StatusBadge>} />
+          <StatGrid>
+            <StatCard label="Durata" value={`${service.durationMinutes} min`} />
+            <StatCard label="Prezzo info" value={`${(service.priceCents / 100).toFixed(2)} EUR`} />
+            <StatCard label="Categoria" value={service.category} />
+            <StatCard label="Stato" value={service.active ? "Attivo" : "Archiviato"} />
+          </StatGrid>
+          <SectionCard className="mt-5" title="Dati servizio">
+            <form action={save} className="grid gap-4">
+              <FormField label="Nome servizio" required><input required name="name" defaultValue={service.name} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+              <FormField label="Categoria" required><input required name="category" defaultValue={service.category} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+              <FormField label="Descrizione"><textarea name="description" defaultValue={service.description ?? ""} className="min-h-28 w-full rounded-xl border p-3" /></FormField>
+              <FormField label="Durata" required description="Durata in minuti."><input required name="duration" type="number" min="5" step="5" defaultValue={service.durationMinutes} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+              <FormField label="Prezzo informativo" required description="Solo informativo, non genera pagamenti o documenti fiscali."><input required name="price" type="number" min="0" step="0.01" defaultValue={(service.priceCents / 100).toFixed(2)} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+              <div className="flex justify-end gap-3">
+                <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Archivia</Button>
+                <Button type="submit" variant="primary">Salva</Button>
+              </div>
+            </form>
+          </SectionCard>
+        </>
+      )}
+      <ConfirmDialog open={confirmDelete} destructive title="Archiviare servizio?" description="Il servizio non sara piu disponibile tra quelli attivi." confirmLabel="Archivia" onCancel={() => setConfirmDelete(false)} onConfirm={() => void archive()} />
+    </AppPage>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -53,7 +54,7 @@ export default function MarketingPage() {
                 <p className="text-sm text-stone-500">Segmento: {item.targetSegment.type.replace("_", " ")}</p>
               </div>
               <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">{item.channel}</span>
-              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs">{item.status}</span>
+              <StatusBadge status={item.status} />
               <time className="text-sm text-stone-500">
                 {item.sentAt || item.scheduledAt ? new Date(item.sentAt ?? item.scheduledAt!).toLocaleString("it-IT") : "Bozza"}
               </time>

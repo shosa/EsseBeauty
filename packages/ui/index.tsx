@@ -89,6 +89,7 @@ export const designTokens = {
 } as const;
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  active?: boolean;
   size?: "sm" | "md" | "lg";
   variant?:
     | "default"
@@ -119,6 +120,7 @@ const buttonSizes: Record<NonNullable<ButtonProps["size"]>, string> = {
 };
 
 export function Button({
+  active = false,
   className = "",
   size = "md",
   type = "button",
@@ -126,13 +128,28 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <motion.button
-      whileHover={props.disabled ? undefined : { y: -1 }}
-      whileTap={props.disabled ? undefined : { scale: 0.985 }}
-      className={`inline-flex items-center justify-center gap-2 font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7b3159]/20 disabled:cursor-not-allowed disabled:opacity-45 ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
+    <button
+      aria-pressed={active || undefined}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold shadow-[0_10px_24px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgb(45_29_39_/_0.14)] active:translate-y-0 active:scale-[.985] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7b3159]/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0 ${active ? "ring-2 ring-[#792f59]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
       type={type}
       {...props}
     />
+  );
+}
+
+export function AppPage({
+  children,
+  className = "",
+  maxWidth = "max-w-6xl",
+}: {
+  children: ReactNode;
+  className?: string;
+  maxWidth?: string;
+}) {
+  return (
+    <main className={`min-h-screen bg-[#f6f2f4] p-5 md:p-10 ${className}`}>
+      <div className={`mx-auto ${maxWidth}`}>{children}</div>
+    </main>
   );
 }
 
@@ -146,6 +163,148 @@ export function PageTransition({ children, className = "" }: { children: ReactNo
     >
       {children}
     </motion.div>
+  );
+}
+
+export function PageHeader({
+  actions,
+  eyebrow,
+  meta,
+  status,
+  subtitle,
+  title,
+}: {
+  actions?: ReactNode;
+  eyebrow?: string;
+  meta?: ReactNode;
+  status?: ReactNode;
+  subtitle?: ReactNode;
+  title: ReactNode;
+}) {
+  return (
+    <header className="mb-6 rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-sm ring-1 ring-stone-950/5 backdrop-blur md:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-5">
+        <div className="min-w-0">
+          {eyebrow && <p className="text-xs font-bold uppercase tracking-[.22em] text-[#792f59]">{eyebrow}</p>}
+          <h1 className="mt-2 text-3xl font-bold tracking-[-.02em] text-[#2d1d27] md:text-4xl">{title}</h1>
+          {subtitle && <div className="mt-2 text-sm leading-6 text-stone-600">{subtitle}</div>}
+          {meta && <div className="mt-4 flex flex-wrap gap-2">{meta}</div>}
+        </div>
+        <div className="flex flex-col items-end gap-3">
+          {status}
+          {actions}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+const statusStyles: Record<string, string> = {
+  active: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  archived: "border-stone-200 bg-stone-100 text-stone-600",
+  booked: "border-blue-200 bg-blue-50 text-blue-800",
+  cancelled: "border-red-200 bg-red-50 text-red-800",
+  completed: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  confirmed: "border-blue-200 bg-blue-50 text-blue-800",
+  draft: "border-stone-200 bg-stone-100 text-stone-700",
+  failed: "border-red-200 bg-red-50 text-red-800",
+  inactive: "border-stone-200 bg-stone-100 text-stone-600",
+  no_show: "border-amber-200 bg-amber-50 text-amber-900",
+  notified: "border-violet-200 bg-violet-50 text-violet-800",
+  pending: "border-amber-200 bg-amber-50 text-amber-900",
+  scheduled: "border-blue-200 bg-blue-50 text-blue-800",
+  sent: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  waiting: "border-amber-200 bg-amber-50 text-amber-900",
+};
+
+const statusLabels: Record<string, string> = {
+  active: "Attivo",
+  archived: "Archiviato",
+  booked: "Prenotato",
+  cancelled: "Annullato",
+  completed: "Completato",
+  confirmed: "Confermato",
+  draft: "Bozza",
+  failed: "Fallito",
+  inactive: "Disattivato",
+  no_show: "No-show",
+  notified: "Notificato",
+  pending: "In attesa",
+  scheduled: "Programmato",
+  sent: "Inviato",
+  waiting: "In lista",
+};
+
+export function StatusBadge({
+  children,
+  status,
+}: {
+  children?: ReactNode;
+  status: string;
+}) {
+  return (
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[.08em] ${statusStyles[status] ?? "border-stone-200 bg-stone-100 text-stone-700"}`}>
+      {children ?? statusLabels[status] ?? status}
+    </span>
+  );
+}
+
+export function StatGrid({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <dl className={`grid gap-3 md:grid-cols-4 ${className}`}>{children}</dl>;
+}
+
+export function StatCard({
+  label,
+  value,
+  detail,
+}: {
+  detail?: ReactNode;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-stone-100 bg-white p-4 shadow-sm">
+      <dt className="text-xs font-bold uppercase tracking-[.14em] text-stone-400">{label}</dt>
+      <dd className="mt-2 text-lg font-black text-[#2d1d27]">{value}</dd>
+      {detail && <p className="mt-1 text-xs font-medium text-stone-500">{detail}</p>}
+    </div>
+  );
+}
+
+export function SectionCard({
+  actions,
+  children,
+  className = "",
+  subtitle,
+  title,
+}: {
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  subtitle?: ReactNode;
+  title?: ReactNode;
+}) {
+  return (
+    <section className={`rounded-[2rem] border border-white/70 bg-white p-5 shadow-sm ring-1 ring-stone-950/5 md:p-6 ${className}`}>
+      {(title || actions || subtitle) && (
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            {title && <h2 className="text-xl font-bold text-stone-950">{title}</h2>}
+            {subtitle && <p className="mt-1 text-sm leading-6 text-stone-500">{subtitle}</p>}
+          </div>
+          {actions}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+export function ActionBar({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`flex flex-wrap items-center gap-2 rounded-2xl border border-stone-100 bg-stone-50/80 p-2 ${className}`}>
+      {children}
+    </div>
   );
 }
 
@@ -268,6 +427,34 @@ export function InlineError({
     <p className={`rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700 ${className}`} role="alert">
       {children}
     </p>
+  );
+}
+
+export function FormField({
+  children,
+  className = "",
+  description,
+  error,
+  label,
+  required = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  description?: string;
+  error?: string;
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <label className={`block text-sm font-bold text-stone-800 ${className}`}>
+      <span className="mb-1.5 flex items-center gap-1">
+        {label}
+        {required && <span aria-hidden="true" className="text-red-700">*</span>}
+      </span>
+      {children}
+      {description && <span className="mt-1.5 block text-xs font-medium leading-5 text-stone-500">{description}</span>}
+      {error && <span className="mt-1.5 block text-xs font-semibold text-red-700">{error}</span>}
+    </label>
   );
 }
 

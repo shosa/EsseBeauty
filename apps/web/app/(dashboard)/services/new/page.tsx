@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
+import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -41,11 +41,11 @@ export default function NewServicePage() {
         <Breadcrumbs items={[{ href: "/services", label: "Servizi" }, { label: "Nuovo servizio" }]} />
         <h1 className="text-3xl font-bold">Nuovo servizio</h1>
         {error && <InlineError>{error}</InlineError>}
-        <input required name="name" placeholder="Nome" className="min-h-12 rounded-xl border px-3" />
-        <input required name="category" placeholder="Categoria" className="min-h-12 rounded-xl border px-3" />
-        <textarea name="description" placeholder="Descrizione" className="min-h-28 rounded-xl border p-3" />
-        <input required name="duration" type="number" min="5" step="5" placeholder="Durata minuti" className="min-h-12 rounded-xl border px-3" />
-        <input required name="price" type="number" min="0" step="0.01" placeholder="Prezzo informativo" className="min-h-12 rounded-xl border px-3" />
+        <FormField label="Nome servizio" required><input required name="name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+        <FormField label="Categoria" required><input required name="category" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+        <FormField label="Descrizione"><textarea name="description" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
+        <FormField label="Durata" required description="Inserisci la durata in minuti."><input required name="duration" type="number" min="5" step="5" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+        <FormField label="Prezzo informativo" required description="Solo informativo, non genera pagamenti o documenti fiscali."><input required name="price" type="number" min="0" step="0.01" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => router.push("/services")}>Annulla</Button>
           <Button type="submit">Salva</Button>

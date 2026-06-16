@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
+import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 import type { WorkingHours } from "@esse-beauty/shared";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -42,8 +42,8 @@ export default function NewStaffPage() {
         <Breadcrumbs items={[{ href: "/staff", label: "Staff" }, { label: "Nuovo collaboratore" }]} />
         <h1 className="text-3xl font-bold">Nuovo collaboratore</h1>
         {error && <InlineError>{error}</InlineError>}
-        <input required name="display_name" placeholder="Nome visibile" className="min-h-12 rounded-xl border px-3" />
-        <textarea name="bio" placeholder="Bio o note interne" className="min-h-28 rounded-xl border p-3" />
+        <FormField label="Nome visibile" required><input required name="display_name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
+        <FormField label="Bio o note interne"><textarea name="bio" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => router.push("/staff")}>Annulla</Button>
           <Button type="submit">Crea</Button>

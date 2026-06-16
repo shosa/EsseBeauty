@@ -2,7 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import {
+  ActionBar,
+  AppPage,
+  Breadcrumbs,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  InlineError,
+  PageHeader,
+  PageSkeleton,
+  SectionCard,
+  StatCard,
+  StatGrid,
+  StatusBadge,
+} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -17,6 +31,30 @@ interface Appointment {
   staff_name: string;
   starts_at: string;
   status: string;
+}
+
+const statusActions = [
+  { label: "Conferma", status: "confirmed", variant: "secondary" },
+  { label: "Completa", status: "completed", variant: "primary" },
+  { label: "No-show", status: "no_show", variant: "outline" },
+  { label: "Annulla", status: "cancelled", variant: "destructive" },
+] as const;
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+}
+
+function minutesBetween(from: string, to: string) {
+  return Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60000));
+}
+
+function relativeTiming(startsAt: string, endsAt: string) {
+  const now = Date.now();
+  const start = new Date(startsAt).getTime();
+  const end = new Date(endsAt).getTime();
+  if (now < start) return `Tra ${Math.max(1, Math.round((start - now) / 60000))} min`;
+  if (now <= end) return "In corso";
+  return `Terminato da ${Math.max(1, Math.round((now - end) / 60000))} min`;
 }
 
 export default function AppointmentDetailPage() {
@@ -39,7 +77,7 @@ export default function AppointmentDetailPage() {
       setLoading(false);
       return;
     }
-    setItem(await response.json() as Appointment);
+    setItem((await response.json()) as Appointment);
     setLoading(false);
   }
 
@@ -77,41 +115,69 @@ export default function AppointmentDetailPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <div className="mx-auto max-w-4xl">
-        <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Appuntamento" }]} />
-        {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
-        {!item ? (
-          <EmptyState title="Appuntamento non trovato" description="Potrebbe essere stato eliminato o non essere accessibile." />
-        ) : (
-          <article className="mt-5 rounded-3xl bg-white p-6 shadow-sm md:p-8">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Appuntamento</p>
-                <h1 className="mt-2 text-3xl font-bold">{item.customer_name}</h1>
-                <p className="mt-2 text-stone-600">{item.service_name} con {item.staff_name}</p>
-              </div>
-              <span className="rounded-full bg-stone-100 px-3 py-1 text-sm font-bold">{item.status}</span>
-            </div>
-            <dl className="mt-6 grid gap-4 rounded-2xl bg-stone-50 p-4 text-sm md:grid-cols-2">
-              <div><dt className="font-bold">Inizio</dt><dd>{new Date(item.starts_at).toLocaleString("it-IT")}</dd></div>
-              <div><dt className="font-bold">Fine</dt><dd>{new Date(item.ends_at).toLocaleString("it-IT")}</dd></div>
-              <div className="md:col-span-2"><dt className="font-bold">Note</dt><dd>{item.notes || "Nessuna nota interna."}</dd></div>
-            </dl>
-            <div className="mt-6 flex flex-wrap gap-2">
-              {([
-                ["confirmed", "Conferma"],
-                ["completed", "Completa"],
-                ["no_show", "No-show"],
-                ["cancelled", "Annulla"],
-              ] as const).map(([status, label]) => (
-                <Button key={status} type="button" variant="outline" onClick={() => void updateStatus(status)}>{label}</Button>
-              ))}
-              <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Elimina</Button>
-            </div>
-          </article>
-        )}
-      </div>
+    <AppPage maxWidth="max-w-5xl">
+      <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Appuntamento" }]} />
+      {error && <div className="mb-4"><InlineError>{error}</InlineError></div>}
+      {!item ? (
+        <EmptyState title="Appuntamento non trovato" description="Potrebbe essere stato eliminato o non essere accessibile." />
+      ) : (
+        <>
+          <PageHeader
+            eyebrow="Appuntamento"
+            title={item.customer_name}
+            subtitle={`${item.service_name} con ${item.staff_name}`}
+            status={<StatusBadge status={item.status} />}
+            actions={
+              <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>
+                Elimina appuntamento
+              </Button>
+            }
+          />
+
+          <StatGrid>
+            <StatCard label="Durata" value={`${minutesBetween(item.starts_at, item.ends_at)} min`} detail={relativeTiming(item.starts_at, item.ends_at)} />
+            <StatCard label="Inizio" value={formatDateTime(item.starts_at)} />
+            <StatCard label="Fine" value={formatDateTime(item.ends_at)} />
+            <StatCard label="Collaboratore" value={item.staff_name} />
+          </StatGrid>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
+            <SectionCard title="Dettagli operativi" subtitle="Riepilogo rapido per gestire l'appuntamento senza cambiare schermata.">
+              <dl className="grid gap-4 text-sm md:grid-cols-2">
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <dt className="font-bold text-stone-500">Cliente</dt>
+                  <dd className="mt-1 text-lg font-black">{item.customer_name}</dd>
+                </div>
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <dt className="font-bold text-stone-500">Servizio</dt>
+                  <dd className="mt-1 text-lg font-black">{item.service_name}</dd>
+                </div>
+                <div className="rounded-2xl bg-stone-50 p-4 md:col-span-2">
+                  <dt className="font-bold text-stone-500">Note interne</dt>
+                  <dd className="mt-2 leading-6">{item.notes || "Nessuna nota interna."}</dd>
+                </div>
+              </dl>
+            </SectionCard>
+
+            <SectionCard title="Stato appuntamento" subtitle="Lo stato attivo resta evidenziato; le altre azioni sono disponibili come transizioni rapide.">
+              <ActionBar className="flex-col items-stretch">
+                {statusActions.map(({ status, label, variant }) => (
+                  <Button
+                    active={item.status === status}
+                    disabled={item.status === status}
+                    key={status}
+                    type="button"
+                    variant={item.status === status ? "primary" : variant}
+                    onClick={() => void updateStatus(status)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </ActionBar>
+            </SectionCard>
+          </div>
+        </>
+      )}
       <ConfirmDialog
         confirmLabel="Elimina"
         destructive
@@ -119,8 +185,8 @@ export default function AppointmentDetailPage() {
         onConfirm={() => void remove()}
         open={confirmDelete}
         title="Eliminare appuntamento?"
-        description="L'appuntamento verrà rimosso dal calendario."
+        description="L'appuntamento verra rimosso dal calendario. Questa operazione non puo essere annullata."
       />
-    </main>
+    </AppPage>
   );
 }

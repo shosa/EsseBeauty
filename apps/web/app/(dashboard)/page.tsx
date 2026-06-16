@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
+import { AppPage, PageHeader } from "@esse-beauty/ui";
 
 import { useAuth } from "../../lib/auth-context";
 
@@ -73,8 +74,8 @@ export default function DashboardPage() {
   if (loading) return <main className="min-h-screen bg-[#f6f2f4] p-5 md:p-10"><div className="mx-auto max-w-6xl"><Skeleton className="h-12 w-80" /><div className="mt-8 grid gap-4 md:grid-cols-4">{[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-32" />)}</div></div></main>;
   if (!user || !salon) return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5"><section className="w-full max-w-xl rounded-[2rem] bg-white p-8 shadow-xl"><h1 className="text-3xl font-bold">Sessione non disponibile</h1><Link href="/login" className="mt-6 inline-grid min-h-12 w-full place-items-center rounded-xl bg-[#402334] font-bold text-white">Vai al login</Link></section></main>;
 
-  return <main className="min-h-screen bg-[#f6f2f4] p-5 md:p-10"><div className="mx-auto max-w-7xl">
-    <header><p className="text-xs font-bold uppercase tracking-[.2em] text-[#792f59]">Panoramica</p><h1 className="mt-2 text-4xl font-bold text-[#2d1d27]">Oggi da {salon.name}</h1><p className="mt-2 text-stone-500">Bentornato, {user.full_name}.</p></header>
+  return <AppPage maxWidth="max-w-7xl">
+    <PageHeader eyebrow="Panoramica" title={`Oggi da ${salon.name}`} subtitle={`Bentornato, ${user.full_name}.`} />
     <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard label="Appuntamenti oggi" state={asCount(todayAppointments, (items) => items.length)} />
       <StatCard label="Appuntamenti prossimi 7 giorni" state={asCount(weekAppointments, (items) => items.length)} />
@@ -84,17 +85,17 @@ export default function DashboardPage() {
     <section className="mt-6 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
       <article className="rounded-[2rem] bg-white p-6 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-xl font-bold">Agenda di oggi</h2><Link href="/calendar" className="text-sm font-semibold text-[#792f59]">Apri calendario</Link></div>
         {todayAppointments.status === "loading" && <div className="mt-5 space-y-3">{[1,2,3].map((item) => <Skeleton key={item} className="h-16" />)}</div>}
-        {todayAppointments.status === "error" && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">Non è stato possibile caricare l&apos;agenda.</p>}
+        {todayAppointments.status === "error" && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">Non e stato possibile caricare l&apos;agenda.</p>}
         {todayAppointments.status === "ready" && todayAppointments.data.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-stone-200 p-8 text-center"><p className="font-semibold">Nessun appuntamento per oggi</p><p className="mt-2 text-sm text-stone-500">Configura staff, servizi e clienti per creare il primo appuntamento.</p></div>}
-        {todayAppointments.status === "ready" && todayAppointments.data.slice(0, 5).map((item) => <div key={item.id} className="mt-4 flex items-center gap-4 border-b border-stone-100 pb-4 last:border-0"><span className="size-3 rounded-full" style={{ backgroundColor: item.color }} /><time className="w-12 font-bold">{new Date(item.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</time><div><b>{item.customer_name}</b><p className="text-sm text-stone-500">{item.service_name} · {item.staff_name}</p></div></div>)}
+        {todayAppointments.status === "ready" && todayAppointments.data.slice(0, 5).map((item) => <div key={item.id} className="mt-4 flex items-center gap-4 border-b border-stone-100 pb-4 last:border-0"><span className="size-3 rounded-full" style={{ backgroundColor: item.color }} /><time className="w-12 font-bold">{new Date(item.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</time><div><b>{item.customer_name}</b><p className="text-sm text-stone-500">{item.service_name} - {item.staff_name}</p></div></div>)}
       </article>
-      <article className="rounded-[2rem] bg-[#402334] p-6 text-white shadow-sm"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#e8b9d3]">Team</p><h2 className="mt-2 text-2xl font-bold">Staff operativo</h2>{staff.status === "loading" ? <Skeleton className="mt-5 h-20 bg-white/10" /> : staff.status === "error" ? <p className="mt-5 text-sm text-rose-200">Dati staff non disponibili.</p> : <><p className="mt-5 text-5xl font-bold">{staff.data.length}</p><p className="mt-2 text-sm text-stone-300">membri attivi configurati</p></>}<Link href="/staff" className="mt-6 inline-block rounded-xl bg-white/10 px-4 py-3 text-sm font-bold">Gestisci staff →</Link></article>
+      <article className="rounded-[2rem] bg-[#402334] p-6 text-white shadow-sm"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#e8b9d3]">Team</p><h2 className="mt-2 text-2xl font-bold">Staff operativo</h2>{staff.status === "loading" ? <Skeleton className="mt-5 h-20 bg-white/10" /> : staff.status === "error" ? <p className="mt-5 text-sm text-rose-200">Dati staff non disponibili.</p> : <><p className="mt-5 text-5xl font-bold">{staff.data.length}</p><p className="mt-2 text-sm text-stone-300">membri attivi configurati</p></>}<Link href="/staff" className="mt-6 inline-block rounded-xl bg-white/10 px-4 py-3 text-sm font-bold">Gestisci staff</Link></article>
     </section>
     {(inventoryEnabled || reviewsEnabled || waitlistEnabled || loyaltyEnabled) && <section className="mt-6"><h2 className="text-xl font-bold">Moduli attivi</h2><div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {inventoryEnabled && <ModuleCount href="/inventory" label="Prodotti sotto scorta" state={inventory} />}
       {reviewsEnabled && <ModuleCount href="/reviews" label="Recensioni da gestire" state={reviews} />}
       {waitlistEnabled && <ModuleCount href="/waitlist" label="Richieste in attesa" state={waitlist} />}
-      {loyaltyEnabled && <article className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-sm text-stone-500">Top clienti fedeltà</p>{loyalty.status === "loading" ? <Skeleton className="mt-3 h-20" /> : loyalty.status === "error" ? <p className="mt-3 text-sm text-red-700">Non disponibile</p> : <div className="mt-3 space-y-2">{loyalty.data.leaders.slice(0, 3).map((item, index) => <div key={item.customer_id} className="flex justify-between text-sm"><span>{index + 1}. {item.name}</span><strong>{item.total_points}</strong></div>)}</div>}</article>}
+      {loyaltyEnabled && <article className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-sm text-stone-500">Top clienti fedelta</p>{loyalty.status === "loading" ? <Skeleton className="mt-3 h-20" /> : loyalty.status === "error" ? <p className="mt-3 text-sm text-red-700">Non disponibile</p> : <div className="mt-3 space-y-2">{loyalty.data.leaders.slice(0, 3).map((item, index) => <div key={item.customer_id} className="flex justify-between text-sm"><span>{index + 1}. {item.name}</span><strong>{item.total_points}</strong></div>)}</div>}</article>}
     </div></section>}
-  </div></main>;
+  </AppPage>;
 }
