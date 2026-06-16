@@ -28,6 +28,7 @@ import { registerReportRoutes } from "./routes/reports/index.js";
 import { registerReviewRoutes } from "./routes/reviews/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerSettingsRoutes } from "./routes/settings/index.js";
+import { registerShellRoutes } from "./routes/shell/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
 import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
 
@@ -116,6 +117,7 @@ export function createApp({
   void registerInventoryRoutes(app);
   void registerReportRoutes(app);
   void registerSettingsRoutes(app);
+  void registerShellRoutes(app);
 
   app.get<{ Params: SalonParams }>(
     "/api/salons/:id/modules",

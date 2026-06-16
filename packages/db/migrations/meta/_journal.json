@@ -43,6 +43,13 @@
       "when": 1781554424528,
       "tag": "0005_modern_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781596204708,
+      "tag": "0006_messy_tarantula",
+      "breakpoints": true
     }
   ]
 }

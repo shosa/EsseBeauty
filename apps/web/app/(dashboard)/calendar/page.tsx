@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
@@ -155,7 +156,7 @@ export default function CalendarPage() {
             <h1 className="text-3xl font-bold">Calendario</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {canCreate && <button onClick={() => void openCreate()} className="rounded-xl bg-[#402334] px-4 py-2 font-bold text-white">Nuovo appuntamento</button>}
+            {canCreate && <Link href="/calendar/appointments/new" className="rounded-xl bg-stone-900 px-4 py-2 font-bold text-white">Nuovo appuntamento</Link>}
             <button onClick={() => setWeekOffset((value) => value - 1)} className="rounded-xl bg-white px-4 py-2">Prec.</button>
             <button onClick={() => setWeekOffset(0)} className="rounded-xl bg-white px-4 py-2 text-sm font-semibold">Oggi</button>
             <button onClick={() => setWeekOffset((value) => value + 1)} className="rounded-xl bg-white px-4 py-2">Succ.</button>
@@ -174,11 +175,11 @@ export default function CalendarPage() {
                 </header>
                 <div className="space-y-2 p-2">
                   {items.filter((item) => new Date(item.starts_at).toDateString() === day.toDateString()).map((item) => (
-                    <button key={item.id} onClick={() => setSelected(item)} className="w-full rounded-xl border-l-4 bg-stone-50 p-3 text-left shadow-sm" style={{ borderColor: item.color }}>
+                    <Link key={item.id} href={`/calendar/appointments/${item.id}`} className="block w-full rounded-xl border-l-4 bg-stone-50 p-3 text-left shadow-sm" style={{ borderColor: item.color }}>
                       <strong className="block text-xs">{new Date(item.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</strong>
                       <span className="block truncate text-sm font-semibold">{item.customer_name}</span>
                       <span className="block truncate text-xs text-stone-500">{item.service_name} - {item.staff_name}</span>
-                    </button>
+                    </Link>
                   ))}
                 </div>
               </section>

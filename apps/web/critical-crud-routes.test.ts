@@ -1,0 +1,27 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const appRoot = join(process.cwd(), "app", "(dashboard)");
+
+const requiredRoutes = [
+  "calendar/appointments/new/page.tsx",
+  "calendar/appointments/[appointmentId]/page.tsx",
+  "inventory/new/page.tsx",
+  "inventory/[productId]/page.tsx",
+  "marketing/[campaignId]/page.tsx",
+];
+
+describe("critical CRUD route contracts", () => {
+  it("exposes direct page routes for critical CRUD entities", () => {
+    for (const route of requiredRoutes) {
+      expect(existsSync(join(appRoot, route)), route).toBe(true);
+    }
+  });
+
+  it("does not auto-send a campaign from the new campaign page", () => {
+    const source = readFileSync(join(appRoot, "marketing/new/page.tsx"), "utf8");
+    expect(source).not.toContain("/send");
+    expect(source).toContain("router.push(`/marketing/${campaign.id}`)");
+  });
+});
