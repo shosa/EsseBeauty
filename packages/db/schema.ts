@@ -55,6 +55,36 @@ export const campaignStatusEnum = pgEnum("campaign_status", [
   "sent",
   "failed",
 ]);
+export const platformSalonStatusEnum = pgEnum("platform_salon_status", [
+  "active",
+  "suspended",
+  "trial",
+  "churn_risk",
+]);
+export const notificationPriorityEnum = pgEnum("notification_priority", [
+  "low",
+  "normal",
+  "high",
+  "critical",
+]);
+export const notificationChannelEnum = pgEnum("notification_channel", [
+  "in_app",
+  "email",
+  "sms",
+  "push",
+]);
+export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
+  "pending",
+  "signed",
+  "revoked",
+  "expired",
+]);
+export const staffRequestStatusEnum = pgEnum("staff_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "cancelled",
+]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -91,6 +121,12 @@ export const salons = pgTable("salons", {
   bookingPolicyText: text("booking_policy_text"),
   cancellationPolicyText: text("cancellation_policy_text"),
   planId: uuid("plan_id"),
+  platformStatus: platformSalonStatusEnum("platform_status")
+    .default("active")
+    .notNull(),
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  churnRiskScore: integer("churn_risk_score").default(0).notNull(),
   active: boolean("active").default(true).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
@@ -117,6 +153,42 @@ export const salonModules = pgTable(
       table.moduleKey,
     ),
   ],
+);
+
+export const platformPlans = pgTable(
+  "platform_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    code: text("code").notNull(),
+    description: text("description"),
+    includedModules: jsonb("included_modules").$type<string[]>().default([]).notNull(),
+    limits: jsonb("limits").$type<Record<string, unknown>>().default({}).notNull(),
+    active: boolean("active").default(true).notNull(),
+    displayOrder: integer("display_order").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("platform_plans_code_unique").on(table.code)],
+);
+
+export const platformModuleCatalog = pgTable(
+  "platform_module_catalog",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    moduleKey: text("module_key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    globallyEnabled: boolean("globally_enabled").default(true).notNull(),
+    defaultEnabled: boolean("default_enabled").default(false).notNull(),
+    configurationSchema: jsonb("configuration_schema")
+      .$type<Record<string, unknown>>()
+      .default({})
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("platform_module_catalog_key_unique").on(table.moduleKey)],
 );
 
 export const platformAdmins = pgTable("platform_admins", {
@@ -148,6 +220,54 @@ export const platformAdminSessions = pgTable("platform_admin_sessions", {
   userAgent: text("user_agent"),
   ...timestamps,
 });
+
+export const platformAuditLog = pgTable("platform_audit_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorAdminId: uuid("actor_admin_id").references(() => platformAdmins.id, {
+    onDelete: "set null",
+  }),
+  salonId: uuid("salon_id").references(() => salons.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id"),
+  summary: text("summary").notNull(),
+  diff: jsonb("diff").$type<Record<string, unknown>>().default({}).notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  ...timestamps,
+});
+
+export const platformImpersonationSessions = pgTable("platform_impersonation_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminId: uuid("admin_id")
+    .notNull()
+    .references(() => platformAdmins.id, { onDelete: "cascade" }),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+});
+
+export const platformSystemTemplates = pgTable(
+  "platform_system_templates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    key: text("key").notNull(),
+    channel: notificationChannelEnum("channel").default("email").notNull(),
+    subject: text("subject"),
+    body: text("body").notNull(),
+    variables: jsonb("variables").$type<string[]>().default([]).notNull(),
+    active: boolean("active").default(true).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("platform_system_templates_key_channel_unique").on(table.key, table.channel)],
+);
 
 export const users = pgTable(
   "users",
@@ -195,6 +315,142 @@ export const authSessions = pgTable("auth_sessions", {
   userAgent: text("user_agent"),
   ...timestamps,
 });
+
+export const salonLocations = pgTable(
+  "salon_locations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    address: text("address"),
+    phone: text("phone"),
+    email: text("email"),
+    timezone: text("timezone"),
+    active: boolean("active").default(true).notNull(),
+    displayOrder: integer("display_order").default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("salon_locations_salon_name_unique").on(table.salonId, table.name)],
+);
+
+export const salonResources = pgTable(
+  "salon_resources",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    locationId: uuid("location_id").references(() => salonLocations.id, {
+      onDelete: "set null",
+    }),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    capacity: integer("capacity").default(1).notNull(),
+    active: boolean("active").default(true).notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("salon_resources_salon_name_unique").on(table.salonId, table.name)],
+);
+
+export const salonSettings = pgTable(
+  "salon_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    settings: jsonb("settings").$type<Record<string, unknown>>().default({}).notNull(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("salon_settings_salon_category_unique").on(table.salonId, table.category)],
+);
+
+export const calendarSettings = pgTable(
+  "calendar_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    minSlotMinutes: integer("min_slot_minutes").default(15).notNull(),
+    bufferMinutes: integer("buffer_minutes").default(0).notNull(),
+    minBookingNoticeHours: integer("min_booking_notice_hours").default(2).notNull(),
+    cancellationPolicyHours: integer("cancellation_policy_hours").default(24).notNull(),
+    allowOverbooking: boolean("allow_overbooking").default(false).notNull(),
+    overbookingLimit: integer("overbooking_limit").default(0).notNull(),
+    defaultView: text("default_view").default("week").notNull(),
+    enableResourceView: boolean("enable_resource_view").default(false).notNull(),
+    printableFields: jsonb("printable_fields").$type<string[]>().default([]).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("calendar_settings_salon_unique").on(table.salonId)],
+);
+
+export const dataExchangeSettings = pgTable(
+  "data_exchange_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    entityType: text("entity_type").notNull(),
+    exportFormats: jsonb("export_formats").$type<string[]>().default(["csv"]).notNull(),
+    importMapping: jsonb("import_mapping").$type<Record<string, string>>().default({}).notNull(),
+    validationRules: jsonb("validation_rules").$type<Record<string, unknown>>().default({}).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("data_exchange_settings_salon_entity_unique").on(table.salonId, table.entityType)],
+);
+
+export const integrationSettings = pgTable(
+  "integration_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    label: text("label").notNull(),
+    enabled: boolean("enabled").default(false).notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().default({}).notNull(),
+    secretRef: text("secret_ref"),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("integration_settings_salon_provider_unique").on(table.salonId, table.provider)],
+);
+
+export const pwaBrandingSettings = pgTable(
+  "pwa_branding_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    logoUrl: text("logo_url"),
+    primaryColor: text("primary_color"),
+    accentColor: text("accent_color"),
+    heroTitle: text("hero_title"),
+    heroSubtitle: text("hero_subtitle"),
+    welcomeText: text("welcome_text"),
+    bookingSuccessText: text("booking_success_text"),
+    installPromptEnabled: boolean("install_prompt_enabled").default(true).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("pwa_branding_settings_salon_unique").on(table.salonId)],
+);
 
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -267,6 +523,9 @@ export const staff = pgTable("staff", {
   jobTitle: text("job_title"),
   phone: text("phone"),
   email: text("email"),
+  locationId: uuid("location_id").references(() => salonLocations.id, {
+    onDelete: "set null",
+  }),
   active: boolean("active").default(true).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
@@ -317,6 +576,31 @@ export const serviceStaff = pgTable(
     uniqueIndex("service_staff_service_staff_unique").on(
       table.serviceId,
       table.staffId,
+    ),
+  ],
+);
+
+export const serviceResources = pgTable(
+  "service_resources",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id, { onDelete: "cascade" }),
+    resourceId: uuid("resource_id")
+      .notNull()
+      .references(() => salonResources.id, { onDelete: "cascade" }),
+    required: boolean("required").default(true).notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("service_resources_service_resource_unique").on(
+      table.serviceId,
+      table.resourceId,
     ),
   ],
 );
@@ -386,11 +670,19 @@ export const appointments = pgTable("appointments", {
   serviceId: uuid("service_id")
     .notNull()
     .references(() => services.id),
+  locationId: uuid("location_id").references(() => salonLocations.id, {
+    onDelete: "set null",
+  }),
+  resourceId: uuid("resource_id").references(() => salonResources.id, {
+    onDelete: "set null",
+  }),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   status: appointmentStatusEnum("status").notNull(),
   internalNotes: text("internal_notes"),
   source: appointmentSourceEnum("source").notNull(),
+  paidExternally: boolean("paid_externally").default(false).notNull(),
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   cancelledByUserId: uuid("cancelled_by_user_id").references(() => users.id, {
     onDelete: "set null",
@@ -418,7 +710,43 @@ export const appointmentNotes = pgTable("appointment_notes", {
   ...timestamps,
 });
 
+export const appointmentRescheduleRequests = pgTable("appointment_reschedule_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  appointmentId: uuid("appointment_id")
+    .notNull()
+    .references(() => appointments.id, { onDelete: "cascade" }),
+  requestedStartsAt: timestamp("requested_starts_at", { withTimezone: true }).notNull(),
+  reason: text("reason"),
+  status: text("status").default("pending").notNull(),
+  resolvedByUserId: uuid("resolved_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  ...timestamps,
+});
+
 export const availabilityBlocks = pgTable("availability_blocks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  staffId: uuid("staff_id")
+    .notNull()
+    .references(() => staff.id, { onDelete: "cascade" }),
+  locationId: uuid("location_id").references(() => salonLocations.id, {
+    onDelete: "set null",
+  }),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  reason: text("reason"),
+  recurring: boolean("recurring").default(false).notNull(),
+  recurrenceRule: text("recurrence_rule"),
+});
+
+export const staffAvailabilityRequests = pgTable("staff_availability_requests", {
   id: uuid("id").defaultRandom().primaryKey(),
   salonId: uuid("salon_id")
     .notNull()
@@ -429,8 +757,13 @@ export const availabilityBlocks = pgTable("availability_blocks", {
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   reason: text("reason"),
-  recurring: boolean("recurring").default(false).notNull(),
-  recurrenceRule: text("recurrence_rule"),
+  status: staffRequestStatusEnum("status").default("pending").notNull(),
+  reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: text("review_note"),
+  ...timestamps,
 });
 
 export const reminders = pgTable("reminders", {
@@ -537,6 +870,9 @@ export const notifications = pgTable("notifications", {
   userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
   targetRole: userRoleEnum("target_role"),
   type: text("type").notNull(),
+  category: text("category").default("general").notNull(),
+  priority: notificationPriorityEnum("priority").default("normal").notNull(),
+  channel: notificationChannelEnum("channel").default("in_app").notNull(),
   title: text("title").notNull(),
   body: text("body"),
   payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
@@ -546,6 +882,31 @@ export const notifications = pgTable("notifications", {
   archivedAt: timestamp("archived_at", { withTimezone: true }),
   ...timestamps,
 });
+
+export const notificationPreferences = pgTable(
+  "notification_preferences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    role: userRoleEnum("role").notNull(),
+    category: text("category").notNull(),
+    channel: notificationChannelEnum("channel").notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    quietHours: jsonb("quiet_hours").$type<Record<string, unknown>>().default({}).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("notification_preferences_salon_role_category_channel_unique").on(
+      table.salonId,
+      table.role,
+      table.category,
+      table.channel,
+    ),
+  ],
+);
 
 export const savedViews = pgTable(
   "saved_views",
@@ -838,5 +1199,122 @@ export const inventoryMovements = pgTable("inventory_movements", {
   }),
   stockAfter: integer("stock_after"),
   note: text("note"),
+  ...timestamps,
+});
+
+export const consentTemplates = pgTable(
+  "consent_templates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    version: integer("version").default(1).notNull(),
+    body: text("body").notNull(),
+    requiredForServices: jsonb("required_for_services").$type<string[]>().default([]).notNull(),
+    active: boolean("active").default(true).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("consent_templates_salon_name_version_unique").on(
+      table.salonId,
+      table.name,
+      table.version,
+    ),
+  ],
+);
+
+export const customerConsents = pgTable(
+  "customer_consents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "set null",
+    }),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => consentTemplates.id, { onDelete: "restrict" }),
+    status: consentSignatureStatusEnum("status").default("pending").notNull(),
+    signedAt: timestamp("signed_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    signatureData: jsonb("signature_data").$type<Record<string, unknown>>().default({}).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("customer_consents_customer_template_appointment_unique").on(
+      table.customerId,
+      table.templateId,
+      table.appointmentId,
+    ),
+  ],
+);
+
+export const servicePackages = pgTable(
+  "service_packages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    serviceId: uuid("service_id").references(() => services.id, {
+      onDelete: "set null",
+    }),
+    includedSessions: integer("included_sessions").notNull(),
+    validityDays: integer("validity_days"),
+    active: boolean("active").default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("service_packages_salon_name_unique").on(table.salonId, table.name)],
+);
+
+export const customerServicePackages = pgTable("customer_service_packages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id")
+    .notNull()
+    .references(() => customers.id, { onDelete: "cascade" }),
+  packageId: uuid("package_id")
+    .notNull()
+    .references(() => servicePackages.id, { onDelete: "restrict" }),
+  totalSessions: integer("total_sessions").notNull(),
+  usedSessions: integer("used_sessions").default(0).notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  active: boolean("active").default(true).notNull(),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const servicePackageUsages = pgTable("service_package_usages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  customerPackageId: uuid("customer_package_id")
+    .notNull()
+    .references(() => customerServicePackages.id, { onDelete: "cascade" }),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, {
+    onDelete: "set null",
+  }),
+  sessionsUsed: integer("sessions_used").default(1).notNull(),
+  note: text("note"),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
   ...timestamps,
 });

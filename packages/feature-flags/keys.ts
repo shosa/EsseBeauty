@@ -6,6 +6,10 @@ export const MODULE_KEYS = {
   MARKETING: "marketing",
   INVENTORY: "inventory",
   STAFF_PERF: "staff_performance",
+  DOCUMENTS: "documents",
+  PACKAGES: "packages",
+  MULTI_LOCATION: "multi_location",
+  AUDIT_COMPLIANCE: "audit_compliance",
 } as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS];

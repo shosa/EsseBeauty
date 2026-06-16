@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { Button, ConfirmDialog, PageTransition } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, EmptyState, FormField, PageHeader, SaveToast, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -24,6 +24,12 @@ export default function LoyaltySettingsPage() {
   const [message, setMessage] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Reward>();
 
+  const activeRewards = useMemo(() => rewards.filter((reward) => reward.active).length, [rewards]);
+  const averageCost = useMemo(
+    () => rewards.length ? Math.round(rewards.reduce((sum, reward) => sum + reward.pointsRequired, 0) / rewards.length) : 0,
+    [rewards],
+  );
+
   async function load() {
     if (!salon) return;
     const [settingsResponse, rewardsResponse] = await Promise.all([
@@ -38,6 +44,11 @@ export default function LoyaltySettingsPage() {
   }
 
   useEffect(() => { void load(); }, [salon]);
+  useEffect(() => {
+    if (!message) return;
+    const timeout = window.setTimeout(() => setMessage(""), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [message]);
 
   async function savePoints() {
     if (!salon) return;
@@ -69,48 +80,67 @@ export default function LoyaltySettingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f2f4] p-5 md:p-10">
-      <PageTransition className="mx-auto max-w-4xl">
-        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#792f59]">Modulo</p>
-        <h1 className="mt-2 text-4xl font-black">Programma fedeltà</h1>
-        <section className="mt-7 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-950/5">
-          <h2 className="font-bold">Accumulo punti</h2>
-          <label className="mt-4 block text-sm font-semibold">Punti per appuntamento completato<input type="number" min={0} value={points} onChange={(event) => setPoints(Number(event.target.value))} className="mt-2 block w-full rounded-xl border p-3" /></label>
-          <Button className="mt-4" onClick={() => void savePoints()}>Salva</Button>
-          {message && <p className="mt-3 text-sm">{message}</p>}
-        </section>
-        <section className="mt-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-950/5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-bold">Premi</h2>
-            <Link href="/settings/loyalty/rewards/new" className="rounded-xl bg-stone-950 px-4 py-3 text-sm font-bold text-white">Nuovo premio</Link>
-          </div>
-          <div className="mt-5 space-y-3">
-            {rewards.length === 0 && <p className="rounded-xl bg-stone-50 p-5 text-center text-sm text-stone-500">Nessun premio configurato.</p>}
+    <AppPage maxWidth="max-w-5xl">
+      <SaveToast variant={message.includes("non riuscito") ? "error" : "success"} visible={Boolean(message)}>{message}</SaveToast>
+      <PageHeader
+        actions={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/settings/loyalty/rewards/new">Nuovo premio</Link>}
+        eyebrow="Modulo"
+        title="Programma fedelta"
+        subtitle="Configura punti e premi riscattabili per trasformare le visite ricorrenti in valore."
+        status={<StatusBadge status={activeRewards > 0 ? "active" : "draft"}>{activeRewards} premi attivi</StatusBadge>}
+      />
+
+      <StatGrid className="mb-6 md:grid-cols-3">
+        <StatCard label="Punti visita" value={points} detail="Per appuntamento completato" />
+        <StatCard label="Premi attivi" value={activeRewards} detail={`${rewards.length} configurati`} />
+        <StatCard label="Costo medio" value={`${averageCost} pt`} detail="Media premi" />
+      </StatGrid>
+
+      <SectionCard title="Accumulo punti" subtitle="Decidi quanti punti assegna ogni appuntamento completato.">
+        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+          <FormField label="Punti per appuntamento completato">
+            <input min={0} onChange={(event) => setPoints(Number(event.target.value))} type="number" value={points} />
+          </FormField>
+          <Button onClick={() => void savePoints()} variant="primary">Salva punti</Button>
+        </div>
+      </SectionCard>
+
+      <SectionCard className="mt-6" title="Premi" subtitle="Mantieni pochi premi chiari, facili da spiegare in salone.">
+        {rewards.length === 0 ? (
+          <EmptyState
+            action={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/settings/loyalty/rewards/new">Crea premio</Link>}
+            description="Aggiungi il primo premio riscattabile dai clienti abituali."
+            title="Nessun premio configurato"
+          />
+        ) : (
+          <div className="grid gap-3">
             {rewards.map((reward) => (
-              <article key={reward.id} className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4 transition hover:-translate-y-0.5 ${reward.active ? "" : "opacity-55"}`}>
+              <article className={`grid gap-4 rounded-2xl border border-white/80 bg-white/82 p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.06)] ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:border-[#d7a6c1] md:grid-cols-[1fr_auto] md:items-center ${reward.active ? "" : "opacity-60"}`} key={reward.id}>
                 <div>
-                  <Link href={`/settings/loyalty/rewards/${reward.id}`} className="font-bold hover:text-[#792f59]">{reward.name}</Link>
-                  <p className="text-sm text-stone-500">{reward.description ?? "Nessuna descrizione"}</p>
+                  <Link className="text-lg font-bold text-stone-950 hover:text-[#792f59]" href={`/settings/loyalty/rewards/${reward.id}`}>{reward.name}</Link>
+                  <p className="mt-1 text-sm leading-6 text-stone-500">{reward.description ?? "Nessuna descrizione"}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <strong>{reward.pointsRequired} pt</strong>
-                  <Button onClick={() => void toggleReward(reward)} variant="outline">{reward.active ? "Disattiva" : "Attiva"}</Button>
-                  <Button onClick={() => setConfirmDelete(reward)} variant="destructive">Elimina</Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-full border border-[#ead1df] bg-[#fffafd] px-3 py-1 text-sm font-black text-[#792f59]">{reward.pointsRequired} pt</span>
+                  <StatusBadge status={reward.active ? "active" : "inactive"}>{reward.active ? "Attivo" : "Sospeso"}</StatusBadge>
+                  <Button onClick={() => void toggleReward(reward)} size="sm" variant="outline">{reward.active ? "Disattiva" : "Attiva"}</Button>
+                  <Button onClick={() => setConfirmDelete(reward)} size="sm" variant="destructive">Elimina</Button>
                 </div>
               </article>
             ))}
           </div>
-        </section>
-      </PageTransition>
+        )}
+      </SectionCard>
+
       <ConfirmDialog
         confirmLabel="Elimina"
         destructive
-        description="Il premio verrà rimosso dal programma fedeltà."
+        description="Il premio verra rimosso dal programma fedelta."
         onCancel={() => setConfirmDelete(undefined)}
         onConfirm={() => void removeReward()}
         open={Boolean(confirmDelete)}
         title={`Eliminare ${confirmDelete?.name ?? "premio"}?`}
       />
-    </main>
+    </AppPage>
   );
 }

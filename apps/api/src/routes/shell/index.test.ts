@@ -32,7 +32,12 @@ describe("shell route helpers", () => {
   it("maps notification payload links without persisting href as a schema column", () => {
     expect(
       notificationToDto({
+        category: "inventory",
+        channel: "in_app",
+        entityId: "p1",
+        entityType: "inventory_product",
         id: "n1",
+        priority: "high",
         type: "inventory_low_stock",
         title: "Scorta bassa",
         body: null,
@@ -41,7 +46,12 @@ describe("shell route helpers", () => {
         createdAt: new Date("2026-06-16T08:00:00Z"),
       }),
     ).toEqual({
+      category: "inventory",
+      channel: "in_app",
+      entity_id: "p1",
+      entity_type: "inventory_product",
       id: "n1",
+      priority: "high",
       type: "inventory_low_stock",
       title: "Scorta bassa",
       body: null,

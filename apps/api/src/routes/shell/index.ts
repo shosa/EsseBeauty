@@ -36,11 +36,16 @@ export interface SearchResult {
 type SearchResponse = Record<SearchGroup, Array<Omit<SearchResult, "group">>>;
 
 interface NotificationRow {
+  category: string;
+  channel: string;
   id: string;
   type: string;
   title: string;
   body: string | null;
+  entityId: string | null;
+  entityType: string | null;
   payload: Record<string, unknown>;
+  priority: string;
   readAt: Date | null;
   createdAt: Date;
 }
@@ -72,9 +77,14 @@ export function notificationToDto(row: NotificationRow) {
 
   return {
     id: row.id,
+    category: row.category,
+    channel: row.channel,
     type: row.type,
+    priority: row.priority,
     title: row.title,
     body: row.body,
+    entity_id: row.entityId,
+    entity_type: row.entityType,
     href,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
@@ -331,9 +341,14 @@ export async function registerShellRoutes(app: FastifyInstance) {
       const rows = await app.db
         .select({
           id: notifications.id,
+          category: notifications.category,
+          channel: notifications.channel,
           type: notifications.type,
+          priority: notifications.priority,
           title: notifications.title,
           body: notifications.body,
+          entityId: notifications.entityId,
+          entityType: notifications.entityType,
           payload: notifications.payload,
           readAt: notifications.readAt,
           createdAt: notifications.createdAt,

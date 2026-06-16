@@ -7,8 +7,15 @@ import type {
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import {
+  appointments,
+  authSessions,
+  marketingCampaigns,
+  platformAuditLog,
   platformAdmins,
   platformAdminSessions,
+  platformModuleCatalog,
+  platformPlans,
+  platformSystemTemplates,
   salonModules,
   salons,
   userCredentials,
@@ -253,6 +260,172 @@ export async function registerPlatformRoutes(
         .orderBy(asc(salons.name)),
   );
 
+  app.get(
+    "/api/platform/overview",
+    { preHandler: [authenticatePlatform] },
+    async () => {
+      const [salonRows, moduleRows, appointmentRows, campaignRows, sessionRows] =
+        await Promise.all([
+          app.db
+            .select({
+              active: sql<number>`count(*) filter (where ${salons.active} = true)::int`,
+              churnRisk: sql<number>`count(*) filter (where ${salons.platformStatus} = 'churn_risk')::int`,
+              suspended: sql<number>`count(*) filter (where ${salons.platformStatus} = 'suspended')::int`,
+              total: sql<number>`count(*)::int`,
+              trial: sql<number>`count(*) filter (where ${salons.platformStatus} = 'trial')::int`,
+            })
+            .from(salons),
+          app.db
+            .select({
+              enabled: sql<number>`count(*) filter (where ${salonModules.enabled} = true)::int`,
+              module_key: salonModules.moduleKey,
+            })
+            .from(salonModules)
+            .groupBy(salonModules.moduleKey),
+          app.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(appointments),
+          app.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(marketingCampaigns),
+          app.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(authSessions),
+        ]);
+
+      return {
+        appointments: appointmentRows[0]?.count ?? 0,
+        campaigns: campaignRows[0]?.count ?? 0,
+        module_usage: moduleRows,
+        salons: salonRows[0] ?? { active: 0, churnRisk: 0, suspended: 0, total: 0, trial: 0 },
+        sessions: sessionRows[0]?.count ?? 0,
+      };
+    },
+  );
+
+  app.get(
+    "/api/platform/plans",
+    { preHandler: [authenticatePlatform] },
+    async () => app.db.select().from(platformPlans).orderBy(asc(platformPlans.displayOrder), asc(platformPlans.name)),
+  );
+
+  app.post<{
+    Body: { active?: boolean; code: string; description?: string; included_modules?: string[]; limits?: Record<string, unknown>; name: string };
+  }>(
+    "/api/platform/plans",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      if (!request.body.name?.trim() || !request.body.code?.trim()) {
+        return reply.code(400).send({ error: "PLAN_REQUIRED" });
+      }
+      const rows = await app.db
+        .insert(platformPlans)
+        .values({
+          active: request.body.active ?? true,
+          code: request.body.code.trim(),
+          description: request.body.description,
+          includedModules: request.body.included_modules ?? [],
+          limits: request.body.limits ?? {},
+          name: request.body.name.trim(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.get(
+    "/api/platform/module-catalog",
+    { preHandler: [authenticatePlatform] },
+    async () => app.db.select().from(platformModuleCatalog).orderBy(asc(platformModuleCatalog.name)),
+  );
+
+  app.put<{
+    Body: { default_enabled?: boolean; description?: string; globally_enabled?: boolean; module_key: string; name: string; schema?: Record<string, unknown> };
+  }>(
+    "/api/platform/module-catalog",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      if (!isModuleKey(request.body.module_key)) {
+        return reply.code(400).send({ error: "INVALID_MODULE_KEY" });
+      }
+      const rows = await app.db
+        .insert(platformModuleCatalog)
+        .values({
+          configurationSchema: request.body.schema ?? {},
+          defaultEnabled: request.body.default_enabled ?? false,
+          description: request.body.description,
+          globallyEnabled: request.body.globally_enabled ?? true,
+          moduleKey: request.body.module_key,
+          name: request.body.name,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          set: {
+            configurationSchema: request.body.schema ?? {},
+            defaultEnabled: request.body.default_enabled ?? false,
+            description: request.body.description,
+            globallyEnabled: request.body.globally_enabled ?? true,
+            name: request.body.name,
+            updatedAt: new Date(),
+          },
+          target: platformModuleCatalog.moduleKey,
+        })
+        .returning();
+      return rows[0];
+    },
+  );
+
+  app.get(
+    "/api/platform/audit-log",
+    { preHandler: [authenticatePlatform] },
+    async () =>
+      app.db
+        .select()
+        .from(platformAuditLog)
+        .orderBy(sql`${platformAuditLog.createdAt} desc`)
+        .limit(250),
+  );
+
+  app.get(
+    "/api/platform/system-templates",
+    { preHandler: [authenticatePlatform] },
+    async () => app.db.select().from(platformSystemTemplates).orderBy(asc(platformSystemTemplates.key)),
+  );
+
+  app.put<{
+    Body: { active?: boolean; body: string; channel?: "in_app" | "email" | "sms" | "push"; key: string; subject?: string; variables?: string[] };
+  }>(
+    "/api/platform/system-templates",
+    { preHandler: [authenticatePlatform] },
+    async (request) => {
+      const channel = request.body.channel ?? "email";
+      const rows = await app.db
+        .insert(platformSystemTemplates)
+        .values({
+          active: request.body.active ?? true,
+          body: request.body.body,
+          channel,
+          key: request.body.key,
+          subject: request.body.subject,
+          updatedAt: new Date(),
+          variables: request.body.variables ?? [],
+        })
+        .onConflictDoUpdate({
+          set: {
+            active: request.body.active ?? true,
+            body: request.body.body,
+            subject: request.body.subject,
+            updatedAt: new Date(),
+            variables: request.body.variables ?? [],
+          },
+          target: [platformSystemTemplates.key, platformSystemTemplates.channel],
+        })
+        .returning();
+      return rows[0];
+    },
+  );
+
   app.post<{
     Body: {
       active?: boolean;
@@ -315,7 +488,9 @@ export async function registerPlatformRoutes(
       locale?: string;
       name?: string;
       plan_id?: string | null;
+      platform_status?: "active" | "suspended" | "trial" | "churn_risk";
       slug?: string;
+      trial_ends_at?: string | null;
       timezone?: string;
     };
     Params: { salonId: string };
@@ -342,6 +517,16 @@ export async function registerPlatformRoutes(
       if ("plan_id" in request.body) {
         patch.planId = request.body.plan_id;
       }
+      if (typeof request.body.platform_status === "string") {
+        patch.platformStatus = request.body.platform_status;
+        patch.suspendedAt =
+          request.body.platform_status === "suspended" ? new Date() : null;
+      }
+      if ("trial_ends_at" in request.body) {
+        patch.trialEndsAt = request.body.trial_ends_at
+          ? new Date(request.body.trial_ends_at)
+          : null;
+      }
 
       const rows = await app.db
         .update(salons)
@@ -352,6 +537,90 @@ export async function registerPlatformRoutes(
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
 
       return salon;
+    },
+  );
+
+  app.post<{
+    Body: { email: string; full_name: string; password: string };
+    Params: { salonId: string };
+  }>(
+    "/api/platform/salons/:salonId/owner-access",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      if (!request.body.email?.trim() || !request.body.full_name?.trim()) {
+        return reply.code(400).send({ error: "OWNER_REQUIRED" });
+      }
+      if (request.body.password.length < 10) {
+        return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
+      }
+
+      const salonRows = await app.db
+        .select({ id: salons.id })
+        .from(salons)
+        .where(eq(salons.id, request.params.salonId));
+      if (!salonRows[0]) {
+        return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+      }
+
+      const email = request.body.email.toLowerCase().trim();
+      const password = await hashPassword(request.body.password);
+      const existingRows = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.salonId, request.params.salonId),
+            eq(users.email, email),
+          ),
+        );
+
+      const existing = existingRows[0];
+      const userId = existing?.id ?? randomUUID();
+
+      if (existing) {
+        await app.db
+          .update(users)
+          .set({
+            active: true,
+            fullName: request.body.full_name.trim(),
+            role: "owner",
+          })
+          .where(eq(users.id, existing.id));
+      } else {
+        await app.db.insert(users).values({
+          active: true,
+          email,
+          fullName: request.body.full_name.trim(),
+          id: userId,
+          role: "owner",
+          salonId: request.params.salonId,
+        });
+      }
+
+      await app.db
+        .insert(userCredentials)
+        .values({
+          mustChangePassword: true,
+          passwordHash: password.hash,
+          passwordSalt: password.salt,
+          userId,
+        })
+        .onConflictDoUpdate({
+          set: {
+            mustChangePassword: true,
+            passwordHash: password.hash,
+            passwordSalt: password.salt,
+            updatedAt: new Date(),
+          },
+          target: userCredentials.userId,
+        });
+
+      return {
+        email,
+        full_name: request.body.full_name.trim(),
+        role: "owner",
+        updated: Boolean(existing),
+      };
     },
   );
 

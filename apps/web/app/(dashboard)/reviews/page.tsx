@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { Button, Dialog, PageTransition } from "@esse-beauty/ui";
+import { AppPage, Button, Dialog, EmptyState, PageHeader, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -18,6 +19,15 @@ interface Review {
   reply?: string;
 }
 
+function stars(rating: number) {
+  return (
+    <span className="text-[#b85888]">
+      {"★".repeat(rating)}
+      <span className="text-stone-200">{"★".repeat(5 - rating)}</span>
+    </span>
+  );
+}
+
 export default function ReviewsPage() {
   const { hasPermission, salon } = useAuth();
   const [items, setItems] = useState<Review[]>([]);
@@ -26,33 +36,102 @@ export default function ReviewsPage() {
   const load = () => salon ? fetch(`${api}/api/salons/${salon.id}/reviews`, { credentials: "include" }).then((response) => response.json()).then(setItems) : Promise.resolve();
   useEffect(() => { void load(); }, [salon]);
   const average = useMemo(() => items.length ? items.reduce((sum, item) => sum + item.rating, 0) / items.length : 0, [items]);
-  async function saveReply() { await fetch(`${api}/api/salons/${salon?.id}/reviews/${selected?.id}/reply`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ reply }) }); setSelected(undefined); await load(); }
-  async function setPublished(item: Review, published: boolean) {
-    await fetch(`${api}/api/salons/${salon?.id}/reviews/${item.id}/publish`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ published }) });
+  const published = useMemo(() => items.filter((item) => item.published).length, [items]);
+  const unanswered = useMemo(() => items.filter((item) => !item.reply).length, [items]);
+
+  async function saveReply() {
+    await fetch(`${api}/api/salons/${salon?.id}/reviews/${selected?.id}/reply`, {
+      body: JSON.stringify({ reply }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    setSelected(undefined);
+    await load();
+  }
+
+  async function setPublished(item: Review, nextPublished: boolean) {
+    await fetch(`${api}/api/salons/${salon?.id}/reviews/${item.id}/publish`, {
+      body: JSON.stringify({ published: nextPublished }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
     await load();
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f2f4] p-5 md:p-10">
-      <PageTransition className="mx-auto max-w-6xl">
-        <header><p className="text-xs font-bold uppercase tracking-[.2em] text-[#792f59]">Voce dei clienti</p><h1 className="mt-2 text-4xl font-black">Recensioni</h1></header>
-        <section className="mt-7 grid gap-4 md:grid-cols-[1.1fr_2fr]">
-          <article className="rounded-3xl bg-[#402334] p-7 text-white shadow-lg shadow-[#402334]/15"><strong className="text-6xl">{average.toFixed(1)}</strong><p className="mt-2 text-[#e8b9d3]">media su {items.length} recensioni</p></article>
-          <article className="grid grid-cols-5 gap-2 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-950/5">{[5, 4, 3, 2, 1].map((star) => <div key={star} className="text-center"><b>{star}★</b><div className="mt-2 flex h-24 items-end rounded-full bg-stone-100 p-1"><div className="w-full rounded-full bg-[#a33d72]" style={{ height: `${items.length ? items.filter((item) => item.rating === star).length / items.length * 100 : 0}%` }} /></div></div>)}</article>
-        </section>
-        <section className="mt-6 space-y-3">
-          {items.length === 0 && <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-10 text-center"><h2 className="text-xl font-bold">Nessuna recensione</h2><p className="mt-2 text-sm text-stone-500">Le recensioni compariranno dopo gli appuntamenti completati.</p></div>}
-          {items.map((item) => <article key={item.id} className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md"><div className="flex flex-wrap justify-between gap-3"><div><p className="text-[#a33d72]">{"★".repeat(item.rating)}<span className="text-stone-200">{"★".repeat(5 - item.rating)}</span></p><h2 className="mt-1 font-bold">{item.customer_name}</h2></div><span className={`h-fit rounded-full px-3 py-1 text-xs ${item.published ? "bg-emerald-50 text-emerald-700" : "bg-stone-100"}`}>{item.published ? "Pubblicata" : "Privata"}</span></div><p className="mt-3 text-stone-600">{item.comment || "Nessun commento."}</p>{item.reply && <p className="mt-3 border-l-2 border-[#d9a5c2] pl-3 text-sm"><b>Risposta:</b> {item.reply}</p>}<div className="mt-4 flex flex-wrap gap-2"><Button onClick={() => { setSelected(item); setReply(item.reply ?? ""); }} variant="outline">Rispondi</Button>{hasPermission(PERMISSION_KEYS.SETTINGS_SALON) && <Button onClick={() => void setPublished(item, !item.published)} variant="tableAction">{item.published ? "Rendi privata" : "Pubblica"}</Button>}</div></article>)}
-        </section>
-      </PageTransition>
+    <AppPage>
+      <PageHeader
+        eyebrow="Voce dei clienti"
+        title="Recensioni"
+        subtitle="Rispondi ai feedback e scegli cosa rendere pubblico nella pagina del salone."
+        status={<StatusBadge status={items.length > 0 ? "active" : "draft"}>{items.length} recensioni</StatusBadge>}
+      />
+
+      <StatGrid className="mb-6 md:grid-cols-3">
+        <StatCard label="Media" value={average.toFixed(1)} detail="Su 5 stelle" />
+        <StatCard label="Pubblicate" value={published} detail="Visibili ai clienti" />
+        <StatCard label="Da rispondere" value={unanswered} detail="Senza risposta" />
+      </StatGrid>
+
+      <SectionCard title="Distribuzione voti" subtitle="Una lettura rapida della soddisfazione recente.">
+        <div className="grid gap-3 md:grid-cols-5">
+          {[5, 4, 3, 2, 1].map((star) => {
+            const count = items.filter((item) => item.rating === star).length;
+            const height = items.length ? (count / items.length) * 100 : 0;
+            return (
+              <div className="rounded-2xl border border-[#ead1df] bg-[#fffafd] p-3 text-center" key={star}>
+                <b className="text-sm text-[#792f59]">{star}★</b>
+                <div className="mx-auto mt-3 flex h-24 w-8 items-end rounded-full bg-white p-1 shadow-inner">
+                  <div className="w-full rounded-full bg-[linear-gradient(180deg,#b85888,#792f59)]" style={{ height: `${height}%` }} />
+                </div>
+                <p className="mt-2 text-xs font-bold text-stone-500">{count}</p>
+              </div>
+            );
+          })}
+        </div>
+      </SectionCard>
+
+      <SectionCard className="mt-6" title="Feedback clienti" subtitle="Ogni recensione resta gestibile senza uscire dalla pagina.">
+        {items.length === 0 ? (
+          <EmptyState title="Nessuna recensione" description="Le recensioni compariranno dopo gli appuntamenti completati." />
+        ) : (
+          <div className="space-y-3">
+            {items.map((item) => (
+              <article className="rounded-2xl border border-white/80 bg-white/82 p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.06)] ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:border-[#d7a6c1]" key={item.id}>
+                <div className="flex flex-wrap justify-between gap-3">
+                  <div>
+                    <p className="font-bold">{stars(item.rating)}</p>
+                    <h2 className="mt-1 text-lg font-bold text-stone-950">{item.customer_name}</h2>
+                    <time className="text-xs font-semibold uppercase tracking-[.08em] text-stone-400">{new Date(item.created_at).toLocaleDateString("it-IT")}</time>
+                  </div>
+                  <StatusBadge status={item.published ? "active" : "inactive"}>{item.published ? "Pubblicata" : "Privata"}</StatusBadge>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-stone-600">{item.comment || "Nessun commento."}</p>
+                {item.reply && <p className="mt-4 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm leading-6 text-stone-600"><b className="text-[#792f59]">Risposta:</b> {item.reply}</p>}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button onClick={() => { setSelected(item); setReply(item.reply ?? ""); }} variant="outline">Rispondi</Button>
+                  {hasPermission(PERMISSION_KEYS.SETTINGS_SALON) && (
+                    <Button onClick={() => void setPublished(item, !item.published)} variant="tableAction">
+                      {item.published ? "Rendi privata" : "Pubblica"}
+                    </Button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </SectionCard>
+
       <Dialog
         footer={<><Button onClick={() => setSelected(undefined)} variant="outline">Annulla</Button><Button onClick={() => void saveReply()} variant="primary">Salva risposta</Button></>}
         onClose={() => setSelected(undefined)}
         open={Boolean(selected)}
         title={`Rispondi a ${selected?.customer_name ?? "cliente"}`}
       >
-        <textarea value={reply} onChange={(event) => setReply(event.target.value)} rows={5} className="w-full rounded-xl border p-3" />
+        <textarea className="w-full" onChange={(event) => setReply(event.target.value)} rows={5} value={reply} />
       </Dialog>
-    </main>
+    </AppPage>
   );
 }

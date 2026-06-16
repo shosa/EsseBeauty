@@ -1,6 +1,7 @@
 import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
+  MouseEvent,
   ReactNode,
 } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -8,12 +9,22 @@ import { AnimatePresence, motion } from "motion/react";
 export const designTokens = {
   color: {
     brand: {
+      25: "#fffafd",
       50: "#faf3f7",
       100: "#f3e2eb",
+      200: "#e8bfd4",
+      300: "#d99aba",
+      500: "#b85888",
       600: "#8f3a68",
       700: "#792f59",
       900: "#402334",
       950: "#2d1d27",
+    },
+    accent: {
+      champagne: "#f4d8a8",
+      ink: "#211820",
+      petal: "#f8e8f0",
+      sage: "#dce7dd",
     },
     danger: { bg: "#fef2f2", fg: "#b91c1c" },
     info: { bg: "#eff6ff", fg: "#1d4ed8" },
@@ -54,11 +65,12 @@ export const designTokens = {
     "2xl": "24px",
   },
   shadow: {
-    focus: "0 0 0 3px rgb(123 49 89 / 0.22)",
-    lg: "0 18px 48px rgb(45 29 39 / 0.14)",
-    md: "0 8px 24px rgb(45 29 39 / 0.08)",
+    focus: "0 0 0 4px rgb(184 88 136 / 0.18), 0 0 0 1px rgb(121 47 89 / 0.55)",
+    lg: "0 24px 70px rgb(45 29 39 / 0.16), 0 2px 8px rgb(45 29 39 / 0.05)",
+    md: "0 14px 34px rgb(45 29 39 / 0.10), 0 1px 2px rgb(45 29 39 / 0.06)",
     none: "none",
-    sm: "0 1px 2px rgb(45 29 39 / 0.06)",
+    sm: "0 6px 18px rgb(45 29 39 / 0.07)",
+    glow: "0 18px 44px rgb(184 88 136 / 0.22)",
   },
   space: {
     0: "0",
@@ -103,14 +115,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  default: "bg-neutral-950 text-white hover:bg-neutral-800",
-  destructive: "bg-red-700 text-white hover:bg-red-800",
-  ghost: "bg-transparent text-stone-700 hover:bg-stone-100",
-  icon: "bg-transparent text-stone-600 hover:bg-stone-100",
-  outline: "border border-stone-300 bg-white text-stone-800 hover:border-[#792f59] hover:text-[#792f59]",
-  primary: "bg-[#402334] text-white hover:bg-[#5a3048]",
-  secondary: "bg-[#f3e2eb] text-[#792f59] hover:bg-[#ead1df]",
-  tableAction: "border border-stone-200 bg-white text-xs font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]",
+  default: "border border-[#2d1d27] bg-[#2d1d27] text-white hover:bg-[#402334]",
+  destructive: "border border-red-700 bg-red-700 text-white hover:bg-red-800",
+  ghost: "bg-transparent text-stone-700 shadow-none hover:bg-white/75 hover:text-[#792f59]",
+  icon: "bg-white/70 text-stone-600 shadow-none ring-1 ring-stone-950/5 hover:bg-[#faf3f7] hover:text-[#792f59]",
+  outline: "border border-[#d7a6c1]/70 bg-white/80 text-[#402334] shadow-[inset_0_1px_0_rgb(255_255_255_/_0.72)] hover:border-[#792f59] hover:bg-[#fffafd] hover:text-[#792f59]",
+  primary: "border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] hover:shadow-[0_22px_48px_rgb(121_47_89_/_0.34)]",
+  secondary: "border border-[#ead1df] bg-[linear-gradient(135deg,#fffafd_0%,#f3e2eb_100%)] text-[#792f59] hover:border-[#d99aba] hover:bg-[#f3e2eb]",
+  tableAction: "border border-stone-200 bg-white/90 text-xs font-bold text-stone-700 shadow-none hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]",
 };
 
 const buttonSizes: Record<NonNullable<ButtonProps["size"]>, string> = {
@@ -130,7 +142,7 @@ export function Button({
   return (
     <button
       aria-pressed={active || undefined}
-      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold shadow-[0_10px_24px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgb(45_29_39_/_0.14)] active:translate-y-0 active:scale-[.985] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7b3159]/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0 ${active ? "ring-2 ring-[#792f59]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold tracking-[-.01em] shadow-[0_12px_28px_rgb(45_29_39_/_0.10)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgb(45_29_39_/_0.16)] active:translate-y-0 active:scale-[.985] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0 ${active ? "ring-2 ring-[#792f59]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
       type={type}
       {...props}
     />
@@ -147,7 +159,7 @@ export function AppPage({
   maxWidth?: string;
 }) {
   return (
-    <main className={`min-h-screen bg-[#f6f2f4] p-5 md:p-10 ${className}`}>
+    <main className={`min-h-screen bg-[radial-gradient(circle_at_top_left,#fffafd_0,#f6f2f4_32%,#efe7ed_100%)] p-5 text-stone-900 md:p-10 ${className}`}>
       <div className={`mx-auto ${maxWidth}`}>{children}</div>
     </main>
   );
@@ -182,10 +194,13 @@ export function PageHeader({
   title: ReactNode;
 }) {
   return (
-    <header className="mb-6 rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-sm ring-1 ring-stone-950/5 backdrop-blur md:p-7">
+    <header className="relative mb-6 overflow-hidden rounded-[2rem] border border-white/80 bg-white/82 p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.11)] ring-1 ring-[#792f59]/5 backdrop-blur md:p-7">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-[#f3e2eb]/80 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 size-48 rounded-full bg-[#f4d8a8]/45 blur-3xl" />
+      <div className="relative">
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0">
-          {eyebrow && <p className="text-xs font-bold uppercase tracking-[.22em] text-[#792f59]">{eyebrow}</p>}
+          {eyebrow && <p className="inline-flex rounded-full border border-[#ead1df] bg-[#faf3f7] px-3 py-1 text-[11px] font-black uppercase tracking-[.22em] text-[#792f59]">{eyebrow}</p>}
           <h1 className="mt-2 text-3xl font-bold tracking-[-.02em] text-[#2d1d27] md:text-4xl">{title}</h1>
           {subtitle && <div className="mt-2 text-sm leading-6 text-stone-600">{subtitle}</div>}
           {meta && <div className="mt-4 flex flex-wrap gap-2">{meta}</div>}
@@ -194,6 +209,7 @@ export function PageHeader({
           {status}
           {actions}
         </div>
+      </div>
       </div>
     </header>
   );
@@ -243,7 +259,7 @@ export function StatusBadge({
   status: string;
 }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[.08em] ${statusStyles[status] ?? "border-stone-200 bg-stone-100 text-stone-700"}`}>
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[.1em] shadow-[inset_0_1px_0_rgb(255_255_255_/_0.75)] ${statusStyles[status] ?? "border-stone-200 bg-stone-100 text-stone-700"}`}>
       {children ?? statusLabels[status] ?? status}
     </span>
   );
@@ -263,7 +279,8 @@ export function StatCard({
   value: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-stone-100 bg-white p-4 shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/86 p-4 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] ring-1 ring-stone-950/5 backdrop-blur">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#792f59,#d99aba,#f4d8a8)]" />
       <dt className="text-xs font-bold uppercase tracking-[.14em] text-stone-400">{label}</dt>
       <dd className="mt-2 text-lg font-black text-[#2d1d27]">{value}</dd>
       {detail && <p className="mt-1 text-xs font-medium text-stone-500">{detail}</p>}
@@ -285,9 +302,10 @@ export function SectionCard({
   title?: ReactNode;
 }) {
   return (
-    <section className={`rounded-[2rem] border border-white/70 bg-white p-5 shadow-sm ring-1 ring-stone-950/5 md:p-6 ${className}`}>
+    <section className={`relative overflow-hidden rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_52px_rgb(45_29_39_/_0.09)] ring-1 ring-stone-950/5 backdrop-blur md:p-6 ${className}`}>
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
       {(title || actions || subtitle) && (
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
             {title && <h2 className="text-xl font-bold text-stone-950">{title}</h2>}
             {subtitle && <p className="mt-1 text-sm leading-6 text-stone-500">{subtitle}</p>}
@@ -295,7 +313,7 @@ export function SectionCard({
           {actions}
         </div>
       )}
-      {children}
+      <div className="relative">{children}</div>
     </section>
   );
 }
@@ -328,7 +346,7 @@ export function Badge({
 
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${variants[variant]} ${className}`}
+      className={`inline-flex rounded-full border border-white/70 px-2.5 py-1 text-xs font-bold shadow-[inset_0_1px_0_rgb(255_255_255_/_0.75)] ${variants[variant]} ${className}`}
       {...props}
     />
   );
@@ -350,8 +368,8 @@ export function Switch({
   return (
     <button
       aria-checked={checked}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7b3159]/20 ${
-        checked ? "bg-neutral-950" : "bg-neutral-300"
+      className={`relative inline-flex h-7 w-12 items-center rounded-full border transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${
+        checked ? "border-[#792f59] bg-[linear-gradient(135deg,#402334,#b85888)] shadow-[0_10px_24px_rgb(121_47_89_/_0.22)]" : "border-stone-200 bg-stone-200 shadow-inner"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""} ${className}`}
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
@@ -360,7 +378,7 @@ export function Switch({
       {...props}
     >
       <span
-        className={`inline-block h-4 w-4 rounded-full bg-white transition ${
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-[0_2px_8px_rgb(45_29_39_/_0.28)] transition duration-200 ${
           checked ? "translate-x-6" : "translate-x-1"
         }`}
       />
@@ -408,7 +426,7 @@ export function EmptyState({
   title: string;
 }) {
   return (
-    <section className="rounded-2xl border border-dashed border-stone-300 bg-white p-10 text-center">
+    <section className="rounded-[2rem] border border-dashed border-[#d7a6c1] bg-[#fffafd]/85 p-10 text-center shadow-[inset_0_1px_0_rgb(255_255_255_/_0.85)]">
       <h2 className="text-xl font-bold text-stone-950">{title}</h2>
       {description && <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
@@ -424,7 +442,7 @@ export function InlineError({
   className?: string;
 }) {
   return (
-    <p className={`rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700 ${className}`} role="alert">
+    <p className={`rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-sm ${className}`} role="alert">
       {children}
     </p>
   );
@@ -446,7 +464,7 @@ export function FormField({
   required?: boolean;
 }) {
   return (
-    <label className={`block text-sm font-bold text-stone-800 ${className}`}>
+    <label className={`group block text-sm font-bold text-stone-800 ${className}`}>
       <span className="mb-1.5 flex items-center gap-1">
         {label}
         {required && <span aria-hidden="true" className="text-red-700">*</span>}
@@ -460,17 +478,26 @@ export function FormField({
 
 export function SaveToast({
   children,
+  variant = "success",
   visible,
 }: {
   children: ReactNode;
+  variant?: "error" | "info" | "success" | "warning";
   visible: boolean;
 }) {
+  const variants = {
+    error: "border-red-200 bg-red-600 text-white shadow-[0_20px_54px_rgb(185_28_28_/_0.25)]",
+    info: "border-blue-200 bg-blue-600 text-white shadow-[0_20px_54px_rgb(37_99_235_/_0.25)]",
+    success: "border-emerald-200 bg-emerald-600 text-white shadow-[0_20px_54px_rgb(5_150_105_/_0.25)]",
+    warning: "border-amber-200 bg-amber-500 text-amber-950 shadow-[0_20px_54px_rgb(217_119_6_/_0.22)]",
+  };
+
   return (
     <AnimatePresence>
       {visible && (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="fixed right-5 top-5 z-50 rounded-xl bg-stone-950 px-4 py-3 text-sm font-semibold text-white shadow-lg"
+          className={`fixed right-5 top-5 z-50 rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
           exit={{ opacity: 0, y: -8 }}
           initial={{ opacity: 0, y: -8 }}
           role="status"
@@ -501,7 +528,7 @@ export function Dialog({
       {open && (
         <motion.div
           animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-[#2d1d27]/45 p-4 backdrop-blur-sm"
           exit={{ opacity: 0 }}
           initial={{ opacity: 0 }}
           onMouseDown={onClose}
@@ -510,10 +537,10 @@ export function Dialog({
           <motion.section
             animate={{ opacity: 1, scale: 1, y: 0 }}
             aria-modal="true"
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-lg rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_30px_90px_rgb(45_29_39_/_0.28)] ring-1 ring-[#792f59]/10 backdrop-blur"
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             initial={{ opacity: 0, scale: 0.98, y: 8 }}
-            onMouseDown={(event) => event.stopPropagation()}
+            onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
             role="dialog"
             transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.emphasized }}
           >
@@ -548,7 +575,7 @@ export function Drawer({
       {open && (
         <motion.div
           animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 bg-black/35"
+          className="fixed inset-0 z-50 bg-[#2d1d27]/45 backdrop-blur-sm"
           exit={{ opacity: 0 }}
           initial={{ opacity: 0 }}
           onMouseDown={onClose}
@@ -556,10 +583,10 @@ export function Drawer({
           <motion.aside
             animate={{ x: 0 }}
             aria-modal="true"
-            className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl"
+            className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto border-l border-white/70 bg-white/95 p-6 shadow-[0_30px_90px_rgb(45_29_39_/_0.28)] backdrop-blur"
             exit={{ x: "100%" }}
             initial={{ x: "100%" }}
-            onMouseDown={(event) => event.stopPropagation()}
+            onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
             role="dialog"
             transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.emphasized }}
           >
@@ -642,9 +669,9 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white shadow-sm">
+    <div className="overflow-x-auto rounded-[1.75rem] border border-white/80 bg-white/90 shadow-[0_18px_48px_rgb(45_29_39_/_0.09)] ring-1 ring-stone-950/5 backdrop-blur">
       <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="bg-stone-50 text-xs uppercase tracking-wider text-stone-500">
+        <thead className="bg-[#faf3f7] text-xs uppercase tracking-wider text-[#792f59]">
           <tr>
             {columns.map((column) => (
               <th key={column.key} className={`p-4 ${column.align === "right" ? "text-right" : "text-left"}`}>
@@ -655,7 +682,7 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={getRowId(item)} className="border-t border-stone-100 hover:bg-stone-50">
+            <tr key={getRowId(item)} className="border-t border-stone-100 transition hover:bg-[#fffafd]">
               {columns.map((column) => (
                 <td key={column.key} className={`p-4 ${column.align === "right" ? "text-right" : "text-left"}`}>
                   {column.render(item)}
@@ -703,7 +730,7 @@ export function ScheduleEditor({
       {scheduleDays.map((day) => {
         const interval = value[day.key][0];
         return (
-          <div key={day.key} className="grid gap-3 rounded-xl bg-stone-50 p-3 sm:grid-cols-[120px_auto_1fr_1fr] sm:items-center">
+          <div key={day.key} className="grid gap-3 rounded-2xl border border-stone-100 bg-[#fffafd] p-3 sm:grid-cols-[120px_auto_1fr_1fr] sm:items-center">
             <b className="text-sm">{day.label}</b>
             <Switch checked={Boolean(interval)} onCheckedChange={(open) => setDay(day.key, open)} />
             <input

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, ilike, lt, ne, or } from "drizzle-orm";
 
-import { appointments, availabilityBlocks, customers, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, customers, pwaBrandingSettings, salons, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 
 async function getSalon(app: FastifyInstance, slug: string) {
@@ -30,13 +30,14 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     if (!salon.onlineBookingEnabled) {
       return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
     }
-    const [serviceRows, staffRows] = await Promise.all([
+    const [serviceRows, staffRows, brandingRows] = await Promise.all([
       app.db.select().from(services).where(and(eq(services.salonId, salon.id), eq(services.active, true)))
         .orderBy(asc(services.category), asc(services.displayOrder)),
       app.db.select().from(staff).where(and(eq(staff.salonId, salon.id), eq(staff.active, true)))
         .orderBy(asc(staff.displayName)),
+      app.db.select().from(pwaBrandingSettings).where(eq(pwaBrandingSettings.salonId, salon.id)),
     ]);
-    return { salon, services: serviceRows, staff: staffRows, opening_hours: salon.openingHours };
+    return { branding: brandingRows[0] ?? null, salon, services: serviceRows, staff: staffRows, opening_hours: salon.openingHours };
   });
 
   app.get<{ Params: { slug: string }; Querystring: { serviceId: string; staffId?: string; date: string } }>(
@@ -124,5 +125,70 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       .where(and(eq(appointments.salonId, salon.id), ilike(customers.email, request.query.email),
         gt(appointments.endsAt, new Date()), ne(appointments.status, "cancelled")))
       .orderBy(asc(appointments.startsAt));
+  });
+
+  app.post<{
+    Body: { email: string; reason?: string };
+    Params: { appointmentId: string; slug: string };
+  }>("/api/public/:slug/appointments/:appointmentId/cancel", async (request, reply) => {
+    const salon = await getSalon(app, request.params.slug);
+    if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const rows = await app.db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .innerJoin(customers, eq(customers.id, appointments.customerId))
+      .where(and(
+        eq(appointments.id, request.params.appointmentId),
+        eq(appointments.salonId, salon.id),
+        ilike(customers.email, request.body.email),
+        ne(appointments.status, "cancelled"),
+        gt(appointments.startsAt, new Date()),
+      ));
+    if (!rows[0]) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+    const updated = await app.db
+      .update(appointments)
+      .set({
+        cancellationReason: request.body.reason || "Richiesta cliente",
+        cancelledAt: new Date(),
+        status: "cancelled",
+        updatedAt: new Date(),
+      })
+      .where(eq(appointments.id, rows[0].id))
+      .returning();
+    return updated[0];
+  });
+
+  app.post<{
+    Body: { email: string; reason?: string; requested_starts_at: string };
+    Params: { appointmentId: string; slug: string };
+  }>("/api/public/:slug/appointments/:appointmentId/reschedule-requests", async (request, reply) => {
+    const salon = await getSalon(app, request.params.slug);
+    if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const requestedStartsAt = new Date(request.body.requested_starts_at);
+    if (!request.body.email || Number.isNaN(requestedStartsAt.getTime())) {
+      return reply.code(400).send({ error: "INVALID_RESCHEDULE_REQUEST" });
+    }
+    const rows = await app.db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .innerJoin(customers, eq(customers.id, appointments.customerId))
+      .where(and(
+        eq(appointments.id, request.params.appointmentId),
+        eq(appointments.salonId, salon.id),
+        ilike(customers.email, request.body.email),
+        ne(appointments.status, "cancelled"),
+        gt(appointments.startsAt, new Date()),
+      ));
+    if (!rows[0]) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+    const created = await app.db
+      .insert(appointmentRescheduleRequests)
+      .values({
+        appointmentId: rows[0].id,
+        reason: request.body.reason,
+        requestedStartsAt,
+        salonId: salon.id,
+      })
+      .returning();
+    return reply.code(201).send(created[0]);
   });
 }

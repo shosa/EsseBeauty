@@ -1,37 +1,45 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { formatPrice } from "@esse-beauty/shared";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+interface Branding {
+  accentColor?: string;
+  heroTitle?: string;
+  primaryColor?: string;
+}
 interface Service {
+  category?: string;
+  durationMinutes: number;
   id: string;
   name: string;
-  durationMinutes: number;
   priceCents: number;
 }
 interface Member {
-  id: string;
   displayName: string;
+  id: string;
 }
 interface Slot {
-  starts_at: string;
   available: boolean;
+  starts_at: string;
 }
 interface Profile {
+  branding?: Branding | null;
   salon: { name: string };
   services: Service[];
   staff: Member[];
 }
 interface Booking {
-  id: string;
-  startsAt: string;
   endsAt: string;
+  id: string;
+  salon_name: string;
   service_name: string;
   staff_name: string;
-  salon_name: string;
+  startsAt: string;
 }
 
 function ics(value: string) {
@@ -74,13 +82,7 @@ export default function BookingPage() {
   const [booking, setBooking] = useState<Booking>();
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
-
-  const filteredServices = useMemo(() => {
-    const query = serviceQuery.trim().toLowerCase();
-    if (!profile || query.length < 2) return profile?.services ?? [];
-    return profile.services.filter((service) => service.name.toLowerCase().includes(query));
-  }, [profile, serviceQuery]);
-  const selectedService = profile?.services.find((service) => service.id === serviceId);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
     void fetch(`${api}/api/public/${slug}`).then(async (response) => {
@@ -96,10 +98,23 @@ export default function BookingPage() {
     });
   }, [slug]);
 
+  const selectedService = profile?.services.find((service) => service.id === serviceId);
+  const filteredServices = useMemo(() => {
+    const query = serviceQuery.trim().toLowerCase();
+    if (!profile || query.length < 2) return profile?.services ?? [];
+    return profile.services.filter((service) => `${service.name} ${service.category ?? ""}`.toLowerCase().includes(query));
+  }, [profile, serviceQuery]);
+  const brand = profile?.branding;
+  const primary = brand?.primaryColor || "#402334";
+  const accent = brand?.accentColor || "#f4d8a8";
+
   async function next() {
-    const query = new URLSearchParams({ serviceId, date });
+    setLoadingSlots(true);
+    setError("");
+    const query = new URLSearchParams({ date, serviceId });
     if (staffId) query.set("staffId", staffId);
     const response = await fetch(`${api}/api/public/${slug}/slots?${query}`);
+    setLoadingSlots(false);
     if (response.status === 503) {
       setUnavailable(true);
       return;
@@ -108,25 +123,27 @@ export default function BookingPage() {
       setError("Impossibile caricare gli orari disponibili.");
       return;
     }
-    const result = await response.json();
+    const result = await response.json() as { slots?: Slot[] };
     setSlots(result.slots ?? []);
+    setStartsAt("");
     setStep(2);
   }
 
   async function submit(data: FormData) {
+    setError("");
     const response = await fetch(`${api}/api/public/${slug}/book`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify({
+        customer: {
+          email: data.get("email"),
+          full_name: data.get("name"),
+          phone: data.get("phone"),
+        },
         service_id: serviceId,
         staff_id: staffId || undefined,
         starts_at: startsAt,
-        customer: {
-          full_name: data.get("name"),
-          email: data.get("email"),
-          phone: data.get("phone"),
-        },
       }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
     });
     if (response.ok) {
       setBooking(await response.json());
@@ -134,15 +151,15 @@ export default function BookingPage() {
     }
     const result = (await response.json().catch(() => ({}))) as { error?: string };
     if (response.status === 503) setUnavailable(true);
-    else if (response.status === 403 && result.error === "CUSTOMER_BLOCKED") setError("Non e possibile prenotare online con questi dati. Contatta il salone.");
+    else if (response.status === 403 && result.error === "CUSTOMER_BLOCKED") setError("Non è possibile prenotare online con questi dati. Contatta il salone.");
     else setError("Prenotazione non riuscita. Verifica i dati e riprova.");
   }
 
   if (unavailable) {
     return (
-      <main className="grid min-h-screen place-items-center bg-[#f8f2ef] p-5">
+      <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5">
         <section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl">
-          <h1 className="text-3xl font-bold">Prenotazioni non disponibili</h1>
+          <h1 className="text-3xl font-black">Prenotazioni non disponibili</h1>
           <p className="mt-3 text-stone-600">Il salone ha sospeso temporaneamente le prenotazioni online.</p>
         </section>
       </main>
@@ -151,135 +168,93 @@ export default function BookingPage() {
 
   if (booking) {
     return (
-      <main className="min-h-screen bg-[#f8f2ef] p-4">
-        <section className="mx-auto mt-14 max-w-md rounded-[2rem] bg-white p-7 text-center shadow-xl">
-          <p className="text-5xl font-black text-emerald-600">OK</p>
-          <h1 className="mt-4 text-3xl font-bold">Prenotazione inviata</h1>
-          <p className="mt-3 text-stone-600">
-            {booking.service_name} con {booking.staff_name}
-          </p>
-          <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-xl bg-stone-950 font-bold text-white">
-            Aggiungi al calendario
-          </button>
+      <main className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top, ${accent}55, transparent 20rem), #f6f2f4` }}>
+        <section className="mx-auto max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
+          <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
+          <h1 className="mt-5 text-3xl font-black">Prenotazione inviata</h1>
+          <p className="mt-3 text-stone-600">{booking.service_name} con {booking.staff_name}</p>
+          <p className="mt-1 text-sm font-bold text-[#792f59]">{new Date(booking.startsAt).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
+          <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}>Aggiungi al calendario</button>
+          <Link className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-stone-100 font-black text-stone-700" href={`/${slug}`}>Torna alla home</Link>
         </section>
       </main>
     );
   }
 
-  if (!profile) return <main className="grid min-h-screen place-items-center bg-[#f8f2ef]">Caricamento...</main>;
+  if (!profile) return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] text-sm font-black text-[#792f59]">Preparazione agenda...</main>;
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f8f2ef] px-4 py-6">
+    <main className="min-h-screen overflow-x-hidden px-4 py-6" style={{ background: `radial-gradient(circle at 10% 0%, ${accent}60, transparent 18rem), linear-gradient(180deg,#fffafd,#f6f2f4)` }}>
       <div className="mx-auto max-w-md">
-        <p className="text-center text-xs font-bold uppercase tracking-[.2em] text-rose-700">{profile.salon.name}</p>
-        <h1 className="mt-2 text-center text-3xl font-bold">Prenota</h1>
-        {error && <p className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
-        <div className="my-6 grid grid-cols-3 gap-2">
+        <header className="rounded-[2.2rem] p-6 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
+          <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>{profile.salon.name}</p>
+          <h1 className="mt-3 text-4xl font-black tracking-[-.03em]">Prenota</h1>
+          <p className="mt-2 text-sm text-white/75">{selectedService ? selectedService.name : "Scegli servizio, orario e lascia i tuoi dati."}</p>
+        </header>
+
+        {error && <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
+
+        <div className="my-5 grid grid-cols-3 gap-2">
           {["Servizio", "Orario", "Dati"].map((label, index) => (
-            <span key={label} className={`rounded-full py-2 text-center text-xs font-bold ${step >= index + 1 ? "bg-stone-950 text-white" : "bg-white text-stone-400"}`}>
-              {index + 1}/3
+            <span key={label} className={`rounded-2xl py-3 text-center text-xs font-black ${step >= index + 1 ? "text-white" : "bg-white text-stone-400"}`} style={step >= index + 1 ? { background: primary } : undefined}>
+              {label}
             </span>
           ))}
         </div>
 
         {step === 1 && (
-          <section className="space-y-4 rounded-[2rem] bg-white p-5">
-            <label className="block text-sm font-bold text-stone-800" htmlFor="service-search">
-              Servizio
-            </label>
-            <input
-              id="service-search"
-              value={serviceQuery}
-              onChange={(event) => setServiceQuery(event.target.value)}
-              placeholder="Cerca servizio"
-              className="min-h-12 w-full rounded-xl border border-stone-300 px-3"
-            />
-            {selectedService && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800">Selezionato: {selectedService.name}</p>}
+          <section className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+            <label className="block text-sm font-black text-stone-800" htmlFor="service-search">Servizio</label>
+            <input id="service-search" value={serviceQuery} onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca trattamento" className="w-full" />
             <div className="max-h-80 space-y-2 overflow-auto pr-1">
               {filteredServices.map((service) => (
-                <button
-                  key={service.id}
-                  onClick={() => setServiceId(service.id)}
-                  className={`flex min-h-16 w-full items-center justify-between rounded-xl border p-3 text-left transition ${
-                    serviceId === service.id ? "border-rose-700 bg-rose-50" : "border-stone-200 hover:border-stone-400"
-                  }`}
-                >
-                  <span>
-                    <b className="block">{service.name}</b>
-                    <small>{service.durationMinutes} min</small>
-                  </span>
-                  <b>{formatPrice(service.priceCents, "it-IT")}</b>
+                <button key={service.id} onClick={() => setServiceId(service.id)} className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}>
+                  <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
+                  <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
                 </button>
               ))}
-              {filteredServices.length === 0 && <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Nessun servizio trovato. Prova con un altro nome.</p>}
+              {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun servizio trovato.</p>}
             </div>
-
-            <label className="block text-sm font-bold text-stone-800" htmlFor="staff">
-              Collaboratore preferito
-            </label>
-            <select id="staff" value={staffId} onChange={(event) => setStaffId(event.target.value)} className="min-h-12 w-full rounded-xl border border-stone-300 bg-white px-3">
+            <label className="block text-sm font-black text-stone-800" htmlFor="staff">Collaboratore preferito</label>
+            <select id="staff" value={staffId} onChange={(event) => setStaffId(event.target.value)} className="w-full">
               <option value="">Nessuna preferenza</option>
-              {profile.staff.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.displayName}
-                </option>
-              ))}
+              {profile.staff.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
             </select>
-
-            <label className="block text-sm font-bold text-stone-800" htmlFor="booking-date">
-              Data
-            </label>
-            <input
-              id="booking-date"
-              type="date"
-              value={date}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(event) => setDate(event.target.value)}
-              className="min-h-12 w-full rounded-xl border border-stone-300 px-3"
-            />
-            <button disabled={!serviceId} onClick={() => void next()} className="min-h-12 w-full rounded-xl bg-stone-950 font-bold text-white disabled:opacity-40">
-              Continua
-            </button>
+            <label className="block text-sm font-black text-stone-800" htmlFor="booking-date">Data</label>
+            <input id="booking-date" min={new Date().toISOString().slice(0, 10)} type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full" />
+            <button disabled={!serviceId || loadingSlots} onClick={() => void next()} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>{loadingSlots ? "Cerco orari..." : "Mostra orari"}</button>
           </section>
         )}
 
         {step === 2 && (
-          <section className="rounded-[2rem] bg-white p-5">
-            <button onClick={() => setStep(1)}>Indietro</button>
-            <div className="mt-4 grid grid-cols-3 gap-2">
+          <section className="rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+            <button className="mb-4 text-sm font-black text-[#792f59]" onClick={() => setStep(1)}>← Cambia servizio</button>
+            <div className="grid grid-cols-3 gap-2">
               {slots.map((slot) => (
-                <button
-                  key={slot.starts_at}
-                  disabled={!slot.available}
-                  onClick={() => setStartsAt(slot.starts_at)}
-                  className={`min-h-12 rounded-xl border text-sm font-bold ${startsAt === slot.starts_at ? "bg-stone-950 text-white" : slot.available ? "" : "bg-stone-100 text-stone-300 line-through"}`}
-                >
+                <button key={slot.starts_at} disabled={!slot.available} onClick={() => setStartsAt(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-100 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary } : undefined}>
                   {new Date(slot.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
                 </button>
               ))}
             </div>
-            <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-xl bg-stone-950 font-bold text-white disabled:opacity-40">
-              Continua
-            </button>
+            {slots.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun orario disponibile per questa data.</p>}
+            <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>
           </section>
         )}
 
         {step === 3 && (
-          <form action={submit} className="space-y-4 rounded-[2rem] bg-white p-5">
-            <button type="button" onClick={() => setStep(2)}>
-              Indietro
-            </button>
+          <form action={submit} className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+            <button type="button" className="text-sm font-black text-[#792f59]" onClick={() => setStep(2)}>← Cambia orario</button>
             {[
               ["name", "Nome e cognome", "text"],
               ["email", "Email", "email"],
               ["phone", "Telefono", "tel"],
             ].map(([name, label, type]) => (
-              <label key={name} className="block font-semibold">
+              <label key={name} className="block text-sm font-black text-stone-800">
                 {label}
-                <input name={name} type={type} required={name === "name"} className="mt-1 min-h-12 w-full rounded-xl border border-stone-300 px-3" />
+                <input name={name} type={type} required={name === "name"} className="mt-2 w-full" />
               </label>
             ))}
-            <button className="min-h-12 w-full rounded-xl bg-stone-950 font-bold text-white">Conferma prenotazione</button>
+            <button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>
           </form>
         )}
       </div>

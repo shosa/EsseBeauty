@@ -104,13 +104,25 @@ describe("professional UI regression guard", () => {
     }
   });
 
-  it("keeps salon module settings read-only and delegates activation to platform tier", () => {
+  it("keeps salon module settings read-only and delegates activation to the central configurator", () => {
     const salonModules = readFileSync(join(dashboardRoot, "settings", "modules", "page.tsx"), "utf8");
     const platform = readFileSync(join(process.cwd(), "app", "platform", "page.tsx"), "utf8");
     expect(salonModules).not.toContain("method: \"PATCH\"");
     expect(salonModules).not.toContain("setModule(");
-    expect(salonModules).toContain("gestiti dalla piattaforma");
+    expect(salonModules).toContain("aggiorna il piano del salone");
+    expect(salonModules).toContain("Moduli inclusi");
     expect(platform).toContain("/api/platform/salons");
-    expect(platform).toContain("modules/${moduleKey}");
+    expect(platform).toContain("modules/${featureKey}");
+    expect(platform).toContain("Gestisci moduli");
+  });
+
+  it("does not auto-open a salon card before an explicit selection", () => {
+    const platform = readFileSync(join(process.cwd(), "app", "platform", "page.tsx"), "utf8");
+    expect(platform).toContain("const [selectedSalonId, setSelectedSalonId] = useState(\"\")");
+    expect(platform).toContain("function closeSalonCard()");
+    expect(platform).toContain("onClick={closeSalonCard}");
+    expect(platform).toContain("panel !== \"new\" && !selectedSalon");
+    expect(platform).not.toContain("?? salons[0]");
+    expect(platform).not.toContain("setSelectedSalonId(rows[0]");
   });
 });

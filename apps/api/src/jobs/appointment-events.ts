@@ -12,7 +12,7 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
-import { sendEmail, sendSms } from "./notifications.js";
+import { createNotification, sendEmail, sendSms } from "./notifications.js";
 import { getQueue, QUEUE_NAMES } from "./queues.js";
 import type { ReviewRequestJob } from "./reviews.js";
 
@@ -72,6 +72,28 @@ async function awardLoyalty(
       appointmentId: appointment.id,
     })
     .onConflictDoNothing();
+}
+
+async function notifyAppointmentTransition(
+  app: FastifyInstance,
+  appointment: typeof appointments.$inferSelect,
+  status: "completed" | "cancelled",
+) {
+  await createNotification(app, {
+    body:
+      status === "completed"
+        ? "Un appuntamento e stato completato. Verifica eventuali punti, recensioni o note operative."
+        : "Un appuntamento e stato cancellato. Controlla eventuali richieste in lista d'attesa.",
+    category: "calendar",
+    entityId: appointment.id,
+    entityType: "appointment",
+    href: `/calendar/appointments/${appointment.id}`,
+    priority: status === "cancelled" ? "high" : "normal",
+    salonId: appointment.salonId,
+    targetRole: "owner",
+    title: status === "completed" ? "Appuntamento completato" : "Appuntamento cancellato",
+    type: `appointment_${status}`,
+  });
 }
 
 async function enqueueReview(
@@ -195,9 +217,13 @@ export function registerAppointmentEventHooks(app: FastifyInstance): void {
         await Promise.all([
           awardLoyalty(app, appointment),
           enqueueReview(app, appointment),
+          notifyAppointmentTransition(app, appointment, "completed"),
         ]);
       } else {
-        await notifyWaitlist(app, appointment);
+        await Promise.all([
+          notifyWaitlist(app, appointment),
+          notifyAppointmentTransition(app, appointment, "cancelled"),
+        ]);
       }
     } catch (error) {
       request.log.error(error, "Optional module appointment trigger failed");

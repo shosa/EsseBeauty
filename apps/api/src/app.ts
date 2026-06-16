@@ -14,6 +14,7 @@ import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
+import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
 import { registerMarketingRoutes } from "./routes/marketing/index.js";
@@ -96,6 +97,7 @@ export function createApp({
   void registerStaffRoutes(app);
   void registerAppointmentRoutes(app);
   void registerCustomerRoutes(app);
+  void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);
   void registerReminderRoutes(app);
   void registerReviewRoutes(app);
