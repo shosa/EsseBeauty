@@ -37,8 +37,12 @@ export default function ModulesPage() {
       credentials: "include",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ enabled }),
-    });
+    }).catch(() => null);
     setPending(undefined);
+    if (!response) {
+      setError("API non raggiungibile o richiesta bloccata dal browser.");
+      return;
+    }
     if (!response.ok) {
       setError(response.status === 403 ? "Solo il proprietario può modificare i moduli." : "La modifica non è stata salvata.");
       return;

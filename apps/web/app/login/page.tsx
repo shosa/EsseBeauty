@@ -38,7 +38,12 @@ export default function LoginPage() {
       credentials: "include",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
-    });
+    }).catch(() => null);
+    if (!response) {
+      setError("API non raggiungibile o richiesta bloccata dal browser.");
+      setLoading(false);
+      return;
+    }
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       setError(

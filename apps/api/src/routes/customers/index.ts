@@ -171,13 +171,36 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
       tags?: string[];
     };
   }>("/api/salons/:id/customers", { preHandler: editGuard }, async (request, reply) => {
+    if (request.params.id !== request.salonId) {
+      return reply.code(403).send({ error: "FORBIDDEN" });
+    }
+    const email = request.body.email?.trim().toLowerCase() || undefined;
+    const phone = request.body.phone?.trim() || undefined;
+    if (email || phone) {
+      const existing = await app.db
+        .select()
+        .from(customers)
+        .where(
+          and(
+            eq(customers.salonId, request.salonId),
+            or(
+              ...(email ? [eq(customers.email, email)] : []),
+              ...(phone ? [eq(customers.phone, phone)] : []),
+            )!,
+          ),
+        )
+        .limit(1);
+      if (existing[0]) {
+        return reply.code(200).send(existing[0]);
+      }
+    }
     const rows = await app.db
       .insert(customers)
       .values({
         salonId: request.salonId,
         fullName: request.body.full_name,
-        email: request.body.email,
-        phone: request.body.phone,
+        email,
+        phone,
         notes: request.body.notes,
         tags: request.body.tags ?? [],
       })
@@ -215,6 +238,38 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
       .returning();
     return rows[0] ?? reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
   });
+
+  app.delete<{ Params: { id: string; customerId: string } }>(
+    "/api/salons/:id/customers/:customerId",
+    { preHandler: editGuard },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const appointmentRows = await app.db
+        .select({ count: sql<number>`count(*)` })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.salonId, request.salonId),
+            eq(appointments.customerId, request.params.customerId),
+          ),
+        );
+      if (Number(appointmentRows[0]?.count ?? 0) > 0) {
+        return reply.code(409).send({ error: "CUSTOMER_HAS_APPOINTMENTS" });
+      }
+      const rows = await app.db
+        .delete(customers)
+        .where(
+          and(
+            eq(customers.id, request.params.customerId),
+            eq(customers.salonId, request.salonId),
+          ),
+        )
+        .returning();
+      return rows[0] ?? reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+    },
+  );
 
   app.patch<{
     Params: { id: string; customerId: string };

@@ -53,11 +53,13 @@ interface ToggleModuleBody {
   enabled: boolean;
 }
 
-function parseOrigins(value: string): string[] {
-  return value
+function parseOrigins(value: string): true | string[] {
+  const origins = value
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  return origins.includes("*") ? true : origins;
 }
 
 export function createApp({
@@ -74,6 +76,7 @@ export function createApp({
   void app.register(cookie);
   void app.register(cors, {
     credentials: true,
+    methods: ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
     origin: parseOrigins(env.API_CORS_ORIGIN),
   });
   void app.register(helmet);

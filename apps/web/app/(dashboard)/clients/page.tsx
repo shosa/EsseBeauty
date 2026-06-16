@@ -77,6 +77,24 @@ export default function ClientsPage() {
     return () => controller.abort();
   }, [blocked, query, salon, tag]);
 
+  async function remove(customer: Customer) {
+    if (!salon || !window.confirm(`Eliminare il cliente "${customer.full_name}"?`)) return;
+    setError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/customers/${customer.id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      setError(response.status === 409 ? "Il cliente ha appuntamenti collegati: non puo essere eliminato." : "Il cliente non e stato eliminato.");
+      return;
+    }
+    setData((current) => current ? {
+      ...current,
+      items: current.items.filter((item) => item.id !== customer.id),
+      total: Math.max(0, current.total - 1),
+    } : current);
+  }
+
   return (
     <main className="min-h-screen bg-[#f7f4f2] p-4 md:p-8">
       <div className="mx-auto max-w-7xl">
@@ -125,8 +143,8 @@ export default function ClientsPage() {
             <div className="p-12 text-center"><h2 className="font-bold">Nessun cliente trovato</h2><p className="mt-2 text-sm text-stone-500">Modifica i filtri oppure crea il primo profilo.</p></div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[850px] text-left text-sm">
-                <thead className="bg-stone-50 text-xs uppercase tracking-wider text-stone-500"><tr><th className="p-4">Cliente</th><th>Contatti</th><th>Tag</th><th>Ultima visita</th><th>Appuntamenti</th><th>Punti</th></tr></thead>
+              <table className="w-full min-w-[920px] text-left text-sm">
+                <thead className="bg-stone-50 text-xs uppercase tracking-wider text-stone-500"><tr><th className="p-4">Cliente</th><th>Contatti</th><th>Tag</th><th>Ultima visita</th><th>Appuntamenti</th><th>Punti</th><th>Azioni</th></tr></thead>
                 <tbody>
                   {data?.items.map((customer) => (
                     <tr key={customer.id} className="border-t border-stone-100 hover:bg-stone-50">
@@ -136,6 +154,7 @@ export default function ClientsPage() {
                       <td>{customer.last_visit ? new Date(customer.last_visit).toLocaleDateString("it-IT") : "—"}</td>
                       <td>{customer.total_appointments}</td>
                       <td>{customer.loyalty_points}</td>
+                      <td><button onClick={() => void remove(customer)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700">Elimina</button></td>
                     </tr>
                   ))}
                 </tbody>

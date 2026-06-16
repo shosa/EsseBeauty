@@ -13,8 +13,10 @@ export default function NewClientPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function submit(formData: FormData) {
-    if (!salon) return;
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!salon || saving) return;
+    const formData = new FormData(event.currentTarget);
     setSaving(true);
     setError("");
     const response = await fetch(`${api}/api/salons/${salon.id}/customers`, {
@@ -38,7 +40,7 @@ export default function NewClientPage() {
     router.push(`/clients/${customer.id}`);
   }
 
-  return <main className="min-h-screen bg-[#f7f4f2] p-4 md:p-8"><form action={submit} className="mx-auto max-w-2xl rounded-2xl bg-white p-6 shadow-sm md:p-8">
+  return <main className="min-h-screen bg-[#f7f4f2] p-4 md:p-8"><form onSubmit={(event) => void submit(event)} className="mx-auto max-w-2xl rounded-2xl bg-white p-6 shadow-sm md:p-8">
     <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7b3159]">CRM</p><h1 className="mt-2 text-3xl font-bold">Nuovo cliente</h1>
     <div className="mt-7 grid gap-4 md:grid-cols-2">
       <label className="text-sm font-semibold md:col-span-2">Nome completo<input required name="full_name" className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
@@ -48,6 +50,6 @@ export default function NewClientPage() {
       <label className="text-sm font-semibold md:col-span-2">Note<textarea name="notes" rows={5} className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
     </div>
     {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
-    <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => router.back()} className="rounded-xl border px-4 py-3 font-semibold">Annulla</button><button disabled={saving} className="rounded-xl bg-[#7b3159] px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? "Salvataggio..." : "Crea cliente"}</button></div>
+    <div className="mt-6 flex justify-end gap-3"><button type="button" disabled={saving} onClick={() => router.back()} className="rounded-xl border px-4 py-3 font-semibold disabled:opacity-50">Annulla</button><button type="submit" disabled={saving} className="rounded-xl bg-[#7b3159] px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? "Salvataggio..." : "Crea cliente"}</button></div>
   </form></main>;
 }
