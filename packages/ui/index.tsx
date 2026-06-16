@@ -126,11 +126,26 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <button
+    <motion.button
+      whileHover={props.disabled ? undefined : { y: -1 }}
+      whileTap={props.disabled ? undefined : { scale: 0.985 }}
       className={`inline-flex items-center justify-center gap-2 font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7b3159]/20 disabled:cursor-not-allowed disabled:opacity-45 ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
       type={type}
       {...props}
     />
+  );
+}
+
+export function PageTransition({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      className={className}
+      initial={{ opacity: 0, y: 10 }}
+      transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.emphasized }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
@@ -531,16 +546,16 @@ export function Breadcrumbs({
   items: Array<{ href?: string; label: string }>;
 }) {
   return (
-    <nav aria-label="Breadcrumb" className="mb-5 flex flex-wrap items-center gap-2 text-sm text-stone-500">
+    <nav aria-label="Breadcrumb" className="mb-5 inline-flex max-w-full flex-wrap items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-1 text-xs font-bold text-stone-500 shadow-sm ring-1 ring-stone-950/5 backdrop-blur">
       {items.map((item, index) => (
-        <span key={`${item.label}-${index}`} className="flex items-center gap-2">
-          {index > 0 && <span aria-hidden="true">/</span>}
+        <span key={`${item.label}-${index}`} className="flex items-center gap-1">
+          {index > 0 && <span aria-hidden="true" className="text-stone-300">›</span>}
           {item.href ? (
-            <a className="font-semibold text-[#792f59] hover:underline" href={item.href}>
+            <a className="rounded-full px-2 py-1 text-[#792f59] transition hover:bg-[#f3e2eb]" href={item.href}>
               {item.label}
             </a>
           ) : (
-            <span className="font-semibold text-stone-700">{item.label}</span>
+            <span className="rounded-full bg-stone-100 px-2 py-1 text-stone-700">{item.label}</span>
           )}
         </span>
       ))}
