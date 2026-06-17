@@ -11,7 +11,7 @@ describe("dashboard shell infrastructure config", () => {
     expect(quickCreateActions.map((action) => action.href)).toEqual([
       "/calendar/appointments/new",
       "/clients/new",
-      "/services/new",
+      "/settings/services/new",
     ]);
     expect(searchGroups.map((group) => group.key)).toEqual([
       "customers",

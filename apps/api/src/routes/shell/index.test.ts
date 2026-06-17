@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSearchResponse,
+  normalizeShellPreferences,
   normalizeSearchQuery,
   notificationToDto,
 } from "./index.js";
@@ -59,6 +60,18 @@ describe("shell route helpers", () => {
       read_at: null,
       created_at: "2026-06-16T08:00:00.000Z",
       unread: true,
+    });
+  });
+
+  it("normalizes persisted shell navigation preferences", () => {
+    expect(normalizeShellPreferences({ navigation_collapsed: true })).toEqual({
+      navigation_collapsed: true,
+    });
+    expect(normalizeShellPreferences({ navigation_collapsed: "yes" })).toEqual({
+      navigation_collapsed: false,
+    });
+    expect(normalizeShellPreferences(null)).toEqual({
+      navigation_collapsed: false,
     });
   });
 });

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 
-import { appointments, availabilityBlocks, customers, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, salons, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { authenticate } from "../../middleware/auth.js";
 
@@ -19,17 +19,51 @@ async function canManage(request: any, staffId: string): Promise<boolean> {
     request.server.db);
 }
 
-export async function hasAppointmentConflict(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string) {
+function closureMatchesDate(closure: { date: string; recurringYearly: boolean }, date: string) {
+  return closure.date === date || (closure.recurringYearly && closure.date.slice(5) === date.slice(5));
+}
+
+async function isSalonClosed(db: any, salonId: string, date: string) {
+  const rows = await db.select({ date: salonClosures.date, recurringYearly: salonClosures.recurringYearly }).from(salonClosures).where(eq(salonClosures.salonId, salonId));
+  return rows.some((closure: { date: string; recurringYearly: boolean }) => closureMatchesDate(closure, date));
+}
+
+interface AppointmentConflictRules {
+  allowOverbooking: boolean;
+  bufferMinutes: number;
+  overbookingLimit: number;
+}
+
+async function getCalendarRules(db: any, salonId: string): Promise<AppointmentConflictRules> {
+  const rows = await db.select({
+    allowOverbooking: calendarSettings.allowOverbooking,
+    bufferMinutes: calendarSettings.bufferMinutes,
+    overbookingLimit: calendarSettings.overbookingLimit,
+  }).from(calendarSettings).where(eq(calendarSettings.salonId, salonId));
+  return {
+    allowOverbooking: rows[0]?.allowOverbooking ?? false,
+    bufferMinutes: rows[0]?.bufferMinutes ?? 0,
+    overbookingLimit: rows[0]?.overbookingLimit ?? 0,
+  };
+}
+
+export async function hasAppointmentConflict(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string, rules?: AppointmentConflictRules) {
+  const activeRules = rules ?? await getCalendarRules(db, salonId);
+  const bufferMs = Math.max(0, activeRules.bufferMinutes) * 60_000;
+  const protectedStart = new Date(startsAt.getTime() - bufferMs);
+  const protectedEnd = new Date(endsAt.getTime() + bufferMs);
   const appointmentRows = await db.select({ id: appointments.id }).from(appointments).where(and(
     eq(appointments.salonId, salonId), eq(appointments.staffId, staffId),
-    ne(appointments.status, "cancelled"), lt(appointments.startsAt, endsAt), gt(appointments.endsAt, startsAt),
+    ne(appointments.status, "cancelled"), lt(appointments.startsAt, protectedEnd), gt(appointments.endsAt, protectedStart),
     ...(excludeId ? [ne(appointments.id, excludeId)] : []),
   ));
   const blockRows = await db.select({ id: availabilityBlocks.id }).from(availabilityBlocks).where(and(
     eq(availabilityBlocks.salonId, salonId), eq(availabilityBlocks.staffId, staffId),
-    lt(availabilityBlocks.startsAt, endsAt), gt(availabilityBlocks.endsAt, startsAt),
+    lt(availabilityBlocks.startsAt, protectedEnd), gt(availabilityBlocks.endsAt, protectedStart),
   ));
-  return appointmentRows.length > 0 || blockRows.length > 0;
+  if (blockRows.length > 0) return true;
+  if (!activeRules.allowOverbooking) return appointmentRows.length > 0;
+  return appointmentRows.length > Math.max(0, activeRules.overbookingLimit);
 }
 
 export async function registerAppointmentRoutes(app: FastifyInstance) {
@@ -69,6 +103,9 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     ]);
     const member = staffRows[0], service = serviceRows[0], salon = salonRows[0];
     if (!member || !service || !salon) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (await isSalonClosed(request.server.db, request.salonId, request.query.date)) {
+      return [];
+    }
     const dayStart = new Date(`${request.query.date}T00:00:00.000Z`);
     const dayEnd = new Date(dayStart.getTime() + 36 * 60 * 60_000);
     const [busy, blocks] = await Promise.all([
@@ -82,6 +119,62 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       durationMinutes: service.durationMinutes, appointments: busy, blocks });
   });
 
+  app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string; staffId?: string; status?: string } }>("/api/salons/:id/calendar-events", {
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const own = await ownStaffId(request);
+    const viewOthers = await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OTHERS, request.server.db);
+    const viewOwn = await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OWN, request.server.db);
+    if (!viewOthers && (!viewOwn || !own)) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const selectedStaff = request.query.staffId ?? (viewOthers ? undefined : own);
+    const from = request.query.from ? new Date(request.query.from) : new Date(new Date().setHours(0, 0, 0, 0));
+    const to = request.query.to ? new Date(request.query.to) : new Date(from.getTime() + 7 * 24 * 60 * 60_000);
+    const appointmentRows = await request.server.db.select({
+      id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
+      status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
+      customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
+    }).from(appointments)
+      .innerJoin(customers, eq(customers.id, appointments.customerId))
+      .innerJoin(services, eq(services.id, appointments.serviceId))
+      .innerJoin(staff, eq(staff.id, appointments.staffId))
+      .where(and(eq(appointments.salonId, request.salonId),
+        ...(selectedStaff ? [eq(appointments.staffId, selectedStaff)] : []),
+        ...(request.query.status ? [eq(appointments.status, request.query.status as any)] : []),
+        gt(appointments.endsAt, from),
+        lt(appointments.startsAt, to)))
+      .orderBy(asc(appointments.startsAt));
+    const blockRows = await request.server.db.select({
+      color: staff.color,
+      ends_at: availabilityBlocks.endsAt,
+      id: availabilityBlocks.id,
+      reason: availabilityBlocks.reason,
+      staff_id: availabilityBlocks.staffId,
+      staff_name: staff.displayName,
+      starts_at: availabilityBlocks.startsAt,
+    }).from(availabilityBlocks)
+      .innerJoin(staff, eq(staff.id, availabilityBlocks.staffId))
+      .where(and(eq(availabilityBlocks.salonId, request.salonId),
+        ...(selectedStaff ? [eq(availabilityBlocks.staffId, selectedStaff)] : []),
+        gt(availabilityBlocks.endsAt, from),
+        lt(availabilityBlocks.startsAt, to)))
+      .orderBy(asc(availabilityBlocks.startsAt));
+    const closureRows = await request.server.db.select().from(salonClosures)
+      .where(eq(salonClosures.salonId, request.salonId))
+      .orderBy(asc(salonClosures.date));
+    const fromDate = from.toISOString().slice(0, 10);
+    const toDate = to.toISOString().slice(0, 10);
+    const visibleClosures = closureRows.filter((closure) => {
+      if (closure.recurringYearly) return true;
+      return closure.date >= fromDate && closure.date <= toDate;
+    });
+    return {
+      appointments: appointmentRows,
+      availability_blocks: blockRows,
+      salon_closures: visibleClosures,
+    };
+  });
+
   app.post<{ Params: { id: string }; Body: { customer_id: string; staff_id: string; service_id: string; starts_at: string; notes?: string; source?: "manual" | "walk_in" } }>(
     "/api/salons/:id/appointments", { preHandler: [authenticate] }, async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
@@ -91,7 +184,8 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
       const startsAt = new Date(request.body.starts_at);
       const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
-      if (await hasAppointmentConflict(request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt))
+      const rules = await getCalendarRules(request.server.db, request.salonId);
+      if (await hasAppointmentConflict(request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt, undefined, rules))
         return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
       const rows = await request.server.db.insert(appointments).values({
         salonId: request.salonId, customerId: request.body.customer_id, staffId: request.body.staff_id,
@@ -127,7 +221,8 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const startsAt = request.body.starts_at ? new Date(request.body.starts_at) : item.startsAt;
       const duration = item.endsAt.getTime() - item.startsAt.getTime();
       const endsAt = new Date(startsAt.getTime() + duration);
-      if (request.body.starts_at && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id))
+      const rules = await getCalendarRules(request.server.db, request.salonId);
+      if (request.body.starts_at && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules))
         return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
       const updated = await request.server.db.update(appointments).set({
         startsAt, endsAt, ...(request.body.status && { status: request.body.status }),

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, asc, eq } from "drizzle-orm";
 
 import { services } from "@esse-beauty/db/schema";
-import { PERMISSION_KEYS } from "@esse-beauty/shared";
+import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 
 interface ServiceBody {
@@ -16,6 +16,29 @@ interface ServiceBody {
 }
 
 export async function registerServiceRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string }; Querystring: { q?: string } }>(
+    "/api/salons/:id/operations/services",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const canRead =
+        await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OWN, request.server.db) ||
+        await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OTHERS, request.server.db) ||
+        await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_MANAGE_OWN, request.server.db) ||
+        await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS, request.server.db);
+      if (!canRead) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const query = request.query.q?.trim().toLowerCase();
+      const rows = await request.server.db
+        .select()
+        .from(services)
+        .where(and(eq(services.salonId, request.salonId), eq(services.active, true)))
+        .orderBy(asc(services.category), asc(services.displayOrder), asc(services.name));
+      return query
+        ? rows.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(query))
+        : rows;
+    },
+  );
+
   app.get<{ Params: { id: string }; Querystring: { active?: string } }>("/api/salons/:id/services", { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SERVICES)] }, async (request, reply) => {
     if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
     return request.server.db

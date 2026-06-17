@@ -7,6 +7,7 @@ import {
   integrationSettings,
   notificationPreferences,
   pwaBrandingSettings,
+  salonClosures,
   salonLocations,
   salonResources,
   salons,
@@ -338,6 +339,83 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         })
         .returning();
       return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/settings/closures",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+      ],
+    },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      return app.db
+        .select()
+        .from(salonClosures)
+        .where(eq(salonClosures.salonId, request.salonId))
+        .orderBy(asc(salonClosures.date));
+    },
+  );
+
+  app.post<{
+    Body: { date: string; reason?: string; recurring_yearly?: boolean };
+    Params: { id: string };
+  }>(
+    "/api/salons/:id/settings/closures",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+      ],
+    },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(request.body.date)) {
+        return reply.code(400).send({ error: "INVALID_DATE" });
+      }
+      const rows = await app.db
+        .insert(salonClosures)
+        .values({
+          date: request.body.date,
+          reason: request.body.reason,
+          recurringYearly: request.body.recurring_yearly ?? false,
+          salonId: request.salonId,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          set: {
+            reason: request.body.reason,
+            recurringYearly: request.body.recurring_yearly ?? false,
+            updatedAt: new Date(),
+          },
+          target: [salonClosures.salonId, salonClosures.date],
+        })
+        .returning();
+      return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.delete<{ Params: { closureId: string; id: string } }>(
+    "/api/salons/:id/settings/closures/:closureId",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+      ],
+    },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const rows = await app.db
+        .delete(salonClosures)
+        .where(and(eq(salonClosures.id, request.params.closureId), eq(salonClosures.salonId, request.salonId)))
+        .returning();
+      return rows[0] ?? reply.code(404).send({ error: "CLOSURE_NOT_FOUND" });
     },
   );
 

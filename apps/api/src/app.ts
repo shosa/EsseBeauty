@@ -26,6 +26,7 @@ import { registerReviewRoutes } from "./routes/reviews/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerSettingsRoutes } from "./routes/settings/index.js";
 import { registerShellRoutes } from "./routes/shell/index.js";
+import { registerStaffAppRoutes } from "./routes/staff-app/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
 import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
 
@@ -108,6 +109,7 @@ export function createApp({
   void registerReportRoutes(app);
   void registerSettingsRoutes(app);
   void registerShellRoutes(app);
+  void registerStaffAppRoutes(app);
   void registerPlatformRoutes(app);
 
   app.get<{ Params: SalonParams }>(

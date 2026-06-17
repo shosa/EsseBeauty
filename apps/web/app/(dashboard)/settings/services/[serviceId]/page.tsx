@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
 
-import { useAuth } from "../../../../lib/auth-context";
+import { useAuth } from "../../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -74,14 +74,14 @@ export default function ServiceDetailPage() {
       setError("Servizio non archiviato.");
       return;
     }
-    router.push("/services");
+    router.push("/settings/services");
   }
 
   if (loading) return <PageSkeleton />;
 
   return (
     <AppPage maxWidth="max-w-4xl">
-      <Breadcrumbs items={[{ href: "/services", label: "Servizi" }, { label: service?.name ?? "Servizio" }]} />
+      <Breadcrumbs items={[{ href: "/settings/services", label: "Catalogo servizi" }, { label: service?.name ?? "Servizio" }]} />
       {error && <div className="mb-4"><InlineError>{error}</InlineError></div>}
       {!service ? (
         <EmptyState title="Servizio non trovato" description="Potrebbe essere archiviato o non accessibile." />

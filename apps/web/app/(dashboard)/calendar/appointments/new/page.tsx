@@ -37,15 +37,15 @@ export default function NewAppointmentPage() {
     setLoading(true);
     setError("");
     void Promise.all([
-      fetch(`${api}/api/salons/${salon.id}/services?active=true`, { credentials: "include" }),
-      fetch(`${api}/api/salons/${salon.id}/staff?active=true`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/operations/services`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/operations/staff`, { credentials: "include" }),
     ])
       .then(async ([servicesResponse, staffResponse]) => {
         if (!servicesResponse.ok || !staffResponse.ok) throw new Error("Dati di base non disponibili.");
         const serviceData = (await servicesResponse.json()) as Array<{ id: string; name: string }>;
-        const staffData = (await staffResponse.json()) as Array<{ displayName: string; id: string }>;
+        const staffData = (await staffResponse.json()) as Array<{ display_name: string; id: string }>;
         setServices(serviceData.map((item) => ({ id: item.id, name: item.name })));
-        setStaff(staffData.map((item) => ({ id: item.id, name: item.displayName })));
+        setStaff(staffData.map((item) => ({ id: item.id, name: item.display_name })));
       })
       .catch(() => setError("Configura almeno un servizio e un collaboratore prima di creare un appuntamento."))
       .finally(() => setLoading(false));

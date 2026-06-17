@@ -16,6 +16,8 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const links = [
     { href: "/settings", label: "Centro controllo" },
     { href: "/settings/users", label: "Utenti" },
+    { href: "/settings/staff", label: "Staff & disponibilità" },
+    { href: "/settings/services", label: "Catalogo servizi" },
     { href: "/settings/modules", label: "Moduli" },
     ...(reminders ? [{ href: "/settings/reminders", label: "Promemoria" }] : []),
     ...(loyalty ? [{ href: "/settings/loyalty", label: "Fedeltà" }] : []),

@@ -10,7 +10,7 @@ Get-Content (Join-Path $PSScriptRoot "..\.env") |
 Set-Location (Join-Path $PSScriptRoot "..")
 corepack prepare pnpm@10.12.1 --activate | Out-Null
 
-$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002 -State Listen -ErrorAction SilentlyContinue
+$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003 -State Listen -ErrorAction SilentlyContinue
 if ($busyPorts) {
   $ports = ($busyPorts | Select-Object -ExpandProperty LocalPort -Unique) -join ", "
   throw "Development ports already in use: $ports. Stop the existing dev server or free these ports before running pnpm run dev."
@@ -29,4 +29,5 @@ corepack pnpm --parallel `
   --filter @esse-beauty/api `
   --filter @esse-beauty/web `
   --filter @esse-beauty/pwa `
+  --filter @esse-beauty/staff-pwa `
   run dev

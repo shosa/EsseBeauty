@@ -9,6 +9,7 @@ import {
   notifications,
   services,
   staff,
+  userInterfacePreferences,
 } from "@esse-beauty/db/schema";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 
@@ -92,6 +93,19 @@ export function notificationToDto(row: NotificationRow) {
   };
 }
 
+export function normalizeShellPreferences(
+  value: unknown,
+): { navigation_collapsed: boolean } {
+  if (!value || typeof value !== "object") {
+    return { navigation_collapsed: false };
+  }
+
+  return {
+    navigation_collapsed:
+      (value as { navigation_collapsed?: unknown }).navigation_collapsed === true,
+  };
+}
+
 function like(query: string): string {
   return `%${query}%`;
 }
@@ -111,6 +125,79 @@ async function canSearch(
 }
 
 export async function registerShellRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/shell-preferences",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+
+      const rows = await app.db
+        .select({
+          navigation_collapsed: userInterfacePreferences.navigationCollapsed,
+        })
+        .from(userInterfacePreferences)
+        .where(
+          and(
+            eq(userInterfacePreferences.salonId, request.salonId),
+            eq(userInterfacePreferences.userId, request.user.id),
+          ),
+        );
+
+      return normalizeShellPreferences(rows[0] ?? null);
+    },
+  );
+
+  app.patch<{
+    Body: { navigation_collapsed: boolean };
+    Params: { id: string };
+  }>(
+    "/api/salons/:id/shell-preferences",
+    {
+      preHandler: [authenticate],
+      schema: {
+        body: {
+          additionalProperties: false,
+          properties: {
+            navigation_collapsed: { type: "boolean" },
+          },
+          required: ["navigation_collapsed"],
+          type: "object",
+        },
+      },
+    },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+
+      const rows = await app.db
+        .insert(userInterfacePreferences)
+        .values({
+          navigationCollapsed: request.body.navigation_collapsed,
+          salonId: request.salonId,
+          userId: request.user.id,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          set: {
+            navigationCollapsed: request.body.navigation_collapsed,
+            updatedAt: new Date(),
+          },
+          target: [
+            userInterfacePreferences.userId,
+            userInterfacePreferences.salonId,
+          ],
+        })
+        .returning({
+          navigation_collapsed: userInterfacePreferences.navigationCollapsed,
+        });
+
+      return normalizeShellPreferences(rows[0] ?? null);
+    },
+  );
+
   app.get<{ Params: { id: string }; Querystring: { q?: string } }>(
     "/api/salons/:id/search",
     { preHandler: [authenticate] },

@@ -1,65 +1,72 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
+import { type WorkingHours } from "@esse-beauty/shared";
+import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, PageTransition, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-interface Member {
+interface OperationalStaff {
   active: boolean;
-  bio?: string;
+  appointment_count: number;
   color: string;
-  displayName: string;
+  completed_count: number;
+  display_name: string;
   id: string;
-  specializations: string[];
-  workingHours: WorkingHours;
+  next_service?: string | null;
+  working_hours: WorkingHours;
+}
+
+function todayParams() {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(to.getDate() + 1);
+  return new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
 }
 
 export default function StaffPage() {
-  const [staff, setStaff] = useState<Member[]>([]);
+  const [staff, setStaff] = useState<OperationalStaff[]>([]);
   const [error, setError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<Member>();
-  const { hasPermission, salon } = useAuth();
-  const canEdit = hasPermission(PERMISSION_KEYS.SETTINGS_STAFF);
+  const [selected, setSelected] = useState<OperationalStaff>();
+  const { salon } = useAuth();
 
   async function load() {
     if (!salon) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/staff`, { credentials: "include" });
+    const response = await fetch(`${api}/api/salons/${salon.id}/operations/staff?${todayParams()}`, { credentials: "include" });
     if (!response.ok) {
-      setError("Impossibile caricare lo staff.");
+      setError("Disponibilità staff non disponibile.");
       return;
     }
-    const data: unknown = await response.json();
-    setStaff(Array.isArray(data) ? data as Member[] : []);
+    const data = await response.json() as OperationalStaff[];
+    setStaff(data);
+    setSelected((current) => current ?? data[0]);
   }
 
   useEffect(() => { void load(); }, [salon?.id]);
 
-  async function toggle(member: Member) {
-    if (!salon || !canEdit) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/staff/${member.id}`, {
-      method: "PATCH",
+  const totalAppointments = useMemo(() => staff.reduce((sum, item) => sum + item.appointment_count, 0), [staff]);
+  const completed = useMemo(() => staff.reduce((sum, item) => sum + item.completed_count, 0), [staff]);
+
+  async function markAbsence(data: FormData) {
+    if (!salon || !selected) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/operations/staff/${selected.id}/absence`, {
+      body: JSON.stringify({
+        ends_at: data.get("ends_at"),
+        reason: data.get("reason"),
+        starts_at: data.get("starts_at"),
+      }),
       credentials: "include",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ active: !member.active }),
+      method: "POST",
     });
-    if (!response.ok) setError("Lo stato del collaboratore non e stato aggiornato.");
-    await load();
-  }
-
-  async function remove() {
-    if (!salon || !confirmDelete) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/staff/${confirmDelete.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (!response.ok) setError("Il collaboratore non e stato eliminato.");
-    setConfirmDelete(undefined);
+    if (!response.ok) {
+      setError("Assenza non registrata.");
+      return;
+    }
     await load();
   }
 
@@ -67,54 +74,65 @@ export default function StaffPage() {
     <AppPage>
       <PageTransition>
         <PageHeader
-          eyebrow="Team"
+          eyebrow="Team operativo"
           title="Staff"
-          subtitle={`${staff.length} collaboratori configurati`}
-          actions={canEdit ? <Link href="/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link> : <Button disabled>Nuovo collaboratore</Button>}
+          subtitle="Disponibilità di oggi, carico di lavoro e assenze last-minute. La configurazione collaboratori vive in Impostazioni."
+          status={<StatusBadge status="active">{staff.length} collaboratori attivi</StatusBadge>}
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}
-        <div className="grid gap-4 md:grid-cols-2">
-          {staff.map((member) => (
-            <article key={member.id} className="rounded-3xl border border-white/70 bg-white p-5 shadow-sm ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex gap-3">
-                  <span className="mt-1 h-12 w-2 rounded-full" style={{ background: member.color }} />
-                  <div>
-                    <Link href={`/staff/${member.id}`} className="text-lg font-bold hover:text-[#792f59]">{member.displayName}</Link>
-                    <p className="text-sm text-stone-500">{member.specializations.join(", ") || "Specializzazioni da definire"}</p>
+        <StatGrid className="mb-6 md:grid-cols-3">
+          <StatCard label="Collaboratori" value={staff.length} detail="Attivi oggi" />
+          <StatCard label="Appuntamenti" value={totalAppointments} detail="Carico giornaliero" />
+          <StatCard label="Completati" value={completed} detail="Servizi chiusi" />
+        </StatGrid>
+
+        {staff.length === 0 ? (
+          <EmptyState title="Nessuno staff operativo" description="Controlla configurazione collaboratori in Impostazioni." />
+        ) : (
+          <div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
+            <section className="grid gap-4 md:grid-cols-2">
+              {staff.map((member) => (
+                <button
+                  className={`rounded-3xl border p-5 text-left shadow-sm ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md ${selected?.id === member.id ? "border-[#792f59] bg-[#fffafd]" : "border-white/70 bg-white"}`}
+                  key={member.id}
+                  onClick={() => setSelected(member)}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex gap-3">
+                      <span className="mt-1 h-12 w-2 rounded-full" style={{ background: member.color }} />
+                      <div>
+                        <h2 className="text-lg font-bold text-stone-950">{member.display_name}</h2>
+                        <p className="text-sm text-stone-500">{member.next_service ?? "Nessun servizio imminente"}</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={member.appointment_count > 0 ? "scheduled" : "inactive"}>{member.appointment_count} oggi</StatusBadge>
                   </div>
-                </div>
-                <Switch checked={member.active} disabled={!canEdit} onCheckedChange={() => void toggle(member)} />
-              </div>
-              <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per orari e blocchi di disponibilita."}</p>
-              <div className="mt-5 grid grid-cols-7 gap-1">
-                {Object.entries(member.workingHours).map(([day, hours]) => (
-                  <div key={day} className="text-center">
-                    <span className="text-[10px] font-bold uppercase text-stone-400">{day}</span>
-                    <div className={`mt-1 h-8 rounded-md ${hours.length ? "bg-rose-100" : "bg-stone-100"}`} />
+                  <div className="mt-5 grid grid-cols-7 gap-1">
+                    {Object.entries(member.working_hours).map(([day, hours]) => (
+                      <div key={day} className="text-center">
+                        <span className="text-[10px] font-bold uppercase text-stone-400">{day}</span>
+                        <div className={`mt-1 h-8 rounded-md ${hours.length ? "bg-rose-100" : "bg-stone-100"}`} />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              {canEdit && (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Link href={`/staff/${member.id}`} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]">Apri scheda</Link>
-                  <Button onClick={() => setConfirmDelete(member)} variant="destructive">Elimina</Button>
-                </div>
-              )}
-            </article>
-          ))}
-        </div>
+                </button>
+              ))}
+            </section>
+
+            <SectionCard title="Assenza last-minute" subtitle="Azione operativa rapida: non modifica orari contrattuali o ruoli.">
+              <form action={markAbsence} className="grid gap-3">
+                <p className="rounded-2xl bg-[#fffafd] p-4 text-sm font-bold text-[#792f59]">{selected?.display_name ?? "Seleziona collaboratore"}</p>
+                <FormField label="Inizio" required><input name="starts_at" required type="datetime-local" /></FormField>
+                <FormField label="Fine" required><input name="ends_at" required type="datetime-local" /></FormField>
+                <FormField label="Motivo"><input name="reason" placeholder="Malattia, emergenza, permesso..." /></FormField>
+                <Button disabled={!selected} type="submit" variant="primary">Segna assenza</Button>
+              </form>
+            </SectionCard>
+          </div>
+        )}
       </PageTransition>
-      <ConfirmDialog
-        confirmLabel="Elimina"
-        destructive
-        description="Il collaboratore verra rimosso dalle configurazioni attive."
-        onCancel={() => setConfirmDelete(undefined)}
-        onConfirm={() => void remove()}
-        open={Boolean(confirmDelete)}
-        title={`Eliminare ${confirmDelete?.displayName ?? "collaboratore"}?`}
-      />
     </AppPage>
   );
 }

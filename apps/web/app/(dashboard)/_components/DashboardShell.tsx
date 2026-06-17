@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ComponentType, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import {
+  BellIcon,
   CalendarIcon,
   ClientsIcon,
   DashboardIcon,
@@ -22,6 +23,7 @@ import {
   ReportsIcon,
   ReviewsIcon,
   ServicesIcon,
+  SidebarToggleIcon,
   SettingsIcon,
   StaffIcon,
   WaitlistIcon,
@@ -37,7 +39,6 @@ const primary: Array<{ href: string; icon: IconComponent; label: string; section
   { href: "/clients", icon: ClientsIcon, label: "Clienti", section: "Archivio" },
   { href: "/services", icon: ServicesIcon, label: "Servizi", section: "Archivio" },
   { href: "/staff", icon: StaffIcon, label: "Staff", section: "Archivio" },
-  { href: "/staff-pwa", icon: StaffIcon, label: "App staff", section: "Operativita" },
 ];
 
 const moduleLinks = [
@@ -84,46 +85,33 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-function RailLink({ href, icon: Icon, label }: { href: string; icon: IconComponent; label: string }) {
+function NavigationLink({ collapsed = false, href, icon: Icon, label, onClick }: { collapsed?: boolean; href: string; icon: IconComponent; label: string; onClick?: () => void }) {
   const pathname = usePathname();
   const active = isActive(pathname, href);
   return (
     <Link
       aria-label={label}
-      className={`grid size-12 place-items-center rounded-2xl transition ${active ? "bg-[#f3e2eb] text-[#792f59] shadow-sm" : "text-stone-500 hover:bg-white hover:text-[#792f59]"}`}
-      href={href}
-      title={label}
-    >
-      <Icon />
-    </Link>
-  );
-}
-
-function SidebarLink({ href, icon: Icon, label, onClick }: { href: string; icon: IconComponent; label: string; onClick?: () => void }) {
-  const pathname = usePathname();
-  const active = isActive(pathname, href);
-  return (
-    <Link
-      className={`flex min-h-11 items-center gap-3 rounded-2xl px-3 text-sm font-bold transition ${active ? "bg-[#f3e2eb] text-[#792f59]" : "text-stone-600 hover:bg-white hover:text-[#792f59]"}`}
+      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} rounded-2xl text-sm font-bold transition ${active ? "bg-[#f3e2eb] text-[#792f59] shadow-sm" : "text-stone-600 hover:bg-white hover:text-[#792f59]"}`}
       href={href}
       onClick={onClick}
+      title={label}
     >
       <Icon className="shrink-0" />
-      <span>{label}</span>
+      {!collapsed && <span>{label}</span>}
     </Link>
   );
 }
 
-function ModuleNav({ close }: { close?: () => void }) {
+function ModuleNav({ close, collapsed = false }: { close?: () => void; collapsed?: boolean }) {
   return (
     <div className="space-y-1">
-      {moduleLinks.map((item) => <ModuleNavItem close={close} key={item.moduleKey} {...item} />)}
+      {moduleLinks.map((item) => <ModuleNavItem close={close} collapsed={collapsed} key={item.moduleKey} {...item} />)}
     </div>
   );
 }
 
-function ModuleNavItem({ close, href, icon, moduleKey, label }: { close?: () => void; href: string; icon: IconComponent; moduleKey: (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS]; label: string }) {
-  return useModuleEnabled(moduleKey) ? <SidebarLink href={href} icon={icon} label={label} onClick={close} /> : null;
+function ModuleNavItem({ close, collapsed = false, href, icon, moduleKey, label }: { close?: () => void; collapsed?: boolean; href: string; icon: IconComponent; moduleKey: (typeof MODULE_KEYS)[keyof typeof MODULE_KEYS]; label: string }) {
+  return useModuleEnabled(moduleKey) ? <NavigationLink collapsed={collapsed} href={href} icon={icon} label={label} onClick={close} /> : null;
 }
 
 function QuickCreateMenu() {
@@ -256,6 +244,59 @@ function NotificationCenter({ onClose, open, salonId, onRead }: { onClose(): voi
   );
 }
 
+function UnifiedSideNavigation({
+  collapsed,
+  logout,
+  onNotificationOpen,
+  sectionLinks,
+  unreadCount,
+  user,
+}: {
+  collapsed: boolean;
+  logout(): void;
+  onNotificationOpen(): void;
+  sectionLinks: Array<{ href: string; icon: IconComponent; label: string }>;
+  unreadCount: number;
+  user?: { full_name: string; role: string } | null;
+}) {
+  return (
+    <aside className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-white/70 bg-white/78 shadow-[12px_0_40px_rgb(45_29_39_/_0.06)] backdrop-blur transition-[width] duration-200 md:flex md:flex-col ${collapsed ? "w-20 p-3" : "w-72 p-5"}`}>
+      <div className={`flex shrink-0 items-center ${collapsed ? "justify-center" : "justify-start"} gap-3 border-b border-stone-100 pb-5`}>
+        <Link className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#402334] text-lg font-black text-white" href="/">E</Link>
+        {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-lg text-stone-950">EsseBeauty</b><small className="text-stone-400">Gestione salone</small></div>}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-5 pr-1 [scrollbar-width:thin]">
+        <nav className="space-y-1">
+          {sectionLinks.map((item) => <NavigationLink collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
+        </nav>
+
+        <div className="mt-6 border-t border-stone-100 pt-5">
+          {!collapsed && <p className="mb-2 px-3 text-xs font-black uppercase tracking-[.18em] text-stone-400">Moduli attivi</p>}
+          <ModuleNav collapsed={collapsed} />
+        </div>
+      </div>
+
+      <div className="shrink-0 space-y-2 border-t border-stone-100 pt-3">
+        <NavigationLink collapsed={collapsed} href="/settings" icon={SettingsIcon} label="Impostazioni" />
+        <button className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 w-full items-center gap-3 px-3"} relative rounded-2xl text-sm font-bold text-stone-600 hover:bg-white hover:text-[#792f59]`} onClick={onNotificationOpen} type="button">
+          <BellIcon className="shrink-0" />
+          {!collapsed && <span>Notifiche</span>}
+          {unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}
+        </button>
+        <div className={`rounded-3xl border border-white/80 bg-[#fffafd] p-3 shadow-sm ${collapsed ? "text-center" : ""}`}>
+          <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#d9a5c2] font-bold text-[#402334]">{user?.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+            {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-sm">{user?.full_name}</b><small className="text-stone-500">{user?.role}</small></div>}
+            {!collapsed && <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-700" onClick={logout} title="Esci"><LogoutIcon /></button>}
+          </div>
+        </div>
+        {collapsed && <button className="grid size-12 place-items-center rounded-2xl text-red-700 hover:bg-white" onClick={logout} title="Esci" type="button"><LogoutIcon /></button>}
+      </div>
+    </aside>
+  );
+}
+
 function ShellContent({ children }: { children: ReactNode }) {
   const { salon, user } = useAuth();
   const pathname = usePathname();
@@ -263,6 +304,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const sectionLinks = useMemo(() => {
@@ -290,55 +332,69 @@ function ShellContent({ children }: { children: ReactNode }) {
 
   useEffect(loadUnread, [salon?.id]);
 
+  useEffect(() => {
+    if (!salon?.id) return;
+    const controller = new AbortController();
+    void fetch(`${api}/api/salons/${salon.id}/shell-preferences`, { credentials: "include", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json() as { navigation_collapsed?: boolean };
+        setNavigationCollapsed(data.navigation_collapsed === true);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [salon?.id]);
+
+  function setCollapsedPreference(next: boolean) {
+    setNavigationCollapsed(next);
+    if (!salon?.id) return;
+    void fetch(`${api}/api/salons/${salon.id}/shell-preferences`, {
+      body: JSON.stringify({ navigation_collapsed: next }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    }).catch(() => undefined);
+  }
+
   async function logout() {
     await fetch(`${api}/api/auth/logout`, { method: "POST", credentials: "include" });
     router.push("/login");
     router.refresh();
   }
 
+  const shellStyle = {
+    "--shell-nav-width": navigationCollapsed ? "5rem" : "18rem",
+  } as CSSProperties;
+
   return (
-    <div className="min-h-screen bg-[#f6f2f4] pl-0 md:pl-[344px]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-20 border-r border-white/70 bg-white/82 p-3 shadow-[12px_0_40px_rgb(45_29_39_/_0.06)] backdrop-blur md:block">
-        <Link className="mb-6 grid size-12 place-items-center rounded-2xl bg-[#402334] text-lg font-black text-white" href="/">E</Link>
-        <nav className="space-y-2">
-          {primary.map((item) => <RailLink href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
-        </nav>
-        <div className="absolute inset-x-3 bottom-4 space-y-2">
-          <RailLink href="/settings" icon={SettingsIcon} label="Impostazioni" />
-          <button className="relative grid size-12 place-items-center rounded-2xl text-stone-500 hover:bg-white hover:text-[#792f59]" onClick={() => setNotificationsOpen(true)} type="button">
-            N
-            {unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}
-          </button>
-        </div>
-      </aside>
+    <div className="min-h-screen bg-[#f6f2f4] pl-0 md:pl-[var(--shell-nav-width)]" style={shellStyle}>
+      <UnifiedSideNavigation
+        collapsed={navigationCollapsed}
+        logout={() => void logout()}
+        onNotificationOpen={() => setNotificationsOpen(true)}
+        sectionLinks={sectionLinks}
+        unreadCount={unreadCount}
+        user={user}
+      />
 
-      <aside className="fixed inset-y-0 left-20 z-30 hidden w-64 border-r border-white/70 bg-white/70 p-5 shadow-[12px_0_40px_rgb(45_29_39_/_0.05)] backdrop-blur md:flex md:flex-col">
-        <Link className="border-b border-stone-100 pb-5" href="/">
-          <b className="block truncate text-lg text-stone-950">{salon?.name ?? "Esse Beauty"}</b>
-          <small className="text-stone-400">Gestione salone</small>
-        </Link>
-        <nav className="mt-5 space-y-1">{sectionLinks.map((item) => <SidebarLink href={item.href} icon={item.icon} key={item.href} label={item.label} />)}</nav>
-        <div className="mt-6 border-t border-stone-100 pt-5">
-          <p className="mb-2 px-3 text-xs font-black uppercase tracking-[.18em] text-stone-400">Moduli attivi</p>
-          <ModuleNav />
-        </div>
-        <div className="mt-auto rounded-3xl border border-white/80 bg-[#fffafd] p-3 shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-full bg-[#d9a5c2] font-bold text-[#402334]">{user?.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
-            <div className="min-w-0 flex-1"><b className="block truncate text-sm">{user?.full_name}</b><small className="text-stone-500">{user?.role}</small></div>
-            <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-700" onClick={() => void logout()} title="Esci"><LogoutIcon /></button>
-          </div>
-        </div>
-      </aside>
-
-      <header className="fixed left-0 right-0 top-0 z-20 border-b border-white/70 bg-white/72 px-4 py-3 shadow-[0_12px_34px_rgb(45_29_39_/_0.06)] backdrop-blur md:left-[344px]">
+      <header className="fixed left-0 right-0 top-0 z-20 border-b border-white/70 bg-white/72 px-4 py-3 shadow-[0_12px_34px_rgb(45_29_39_/_0.06)] backdrop-blur md:left-[var(--shell-nav-width)]">
         <div className="flex items-center justify-between gap-3">
           <button className="rounded-2xl border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-stone-600 md:hidden" onClick={() => setMoreOpen(true)} type="button"><MoreIcon />Menu</button>
+          <button
+            aria-label={navigationCollapsed ? "Espandi navigazione" : "Comprimi navigazione"}
+            aria-pressed={navigationCollapsed}
+            className="hidden min-h-10 min-w-10 place-items-center rounded-2xl border border-stone-200 bg-white text-[#792f59] shadow-sm transition hover:-translate-y-0.5 hover:border-[#d7a6c1] hover:bg-[#fffafd] md:grid"
+            onClick={() => setCollapsedPreference(!navigationCollapsed)}
+            title={navigationCollapsed ? "Espandi navigazione" : "Comprimi navigazione"}
+            type="button"
+          >
+            <SidebarToggleIcon />
+          </button>
           <button className="hidden min-h-10 min-w-[280px] rounded-2xl border border-stone-200 bg-white px-4 text-left text-sm font-semibold text-stone-500 shadow-sm md:block" onClick={() => setSearchOpen(true)} type="button">Cerca cliente, appuntamento, servizio... Ctrl+K</button>
           <div className="ml-auto flex items-center gap-2">
             <QuickCreateMenu />
             <button aria-label="Apri notifiche" className="relative grid min-h-10 min-w-10 place-items-center rounded-xl border border-stone-200 bg-white text-sm font-black text-[#792f59] shadow-sm" onClick={() => setNotificationsOpen(true)} type="button">
-              N
+              <BellIcon />
               {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}
             </button>
           </div>
@@ -353,7 +409,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-50 bg-[#2d1d27]/40 backdrop-blur-sm md:hidden" onClick={() => setMoreOpen(false)}>
           <aside className="absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Navigazione</h2><button onClick={() => setMoreOpen(false)}>Chiudi</button></div>
-            <nav className="mt-6 space-y-1">{primary.map((item) => <SidebarLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <SidebarLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
+            <nav className="mt-6 space-y-1">{primary.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
             <button className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 py-3 font-semibold text-red-700" onClick={() => void logout()}><LogoutIcon />Esci</button>
           </aside>
         </div>

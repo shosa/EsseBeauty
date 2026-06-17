@@ -21,6 +21,8 @@ describe("appointment conflicts", () => {
       "staff",
       new Date("2026-06-15T08:00:00Z"),
       new Date("2026-06-15T08:30:00Z"),
+      undefined,
+      { allowOverbooking: false, bufferMinutes: 0, overbookingLimit: 0 },
     )).resolves.toBe(true);
   });
 
@@ -32,7 +34,34 @@ describe("appointment conflicts", () => {
       "staff",
       new Date("2026-06-15T08:00:00Z"),
       new Date("2026-06-15T08:30:00Z"),
+      undefined,
+      { allowOverbooking: false, bufferMinutes: 0, overbookingLimit: 0 },
     )).resolves.toBe(false);
   });
-});
 
+  it("allows controlled overbooking within the configured limit", async () => {
+    const db = databaseWith([[{ id: "existing" }], []]);
+    await expect(hasAppointmentConflict(
+      db,
+      "salon",
+      "staff",
+      new Date("2026-06-15T08:00:00Z"),
+      new Date("2026-06-15T08:30:00Z"),
+      undefined,
+      { allowOverbooking: true, bufferMinutes: 10, overbookingLimit: 1 },
+    )).resolves.toBe(false);
+  });
+
+  it("keeps availability blocks authoritative even when overbooking is enabled", async () => {
+    const db = databaseWith([[{ id: "existing" }], [{ id: "block" }]]);
+    await expect(hasAppointmentConflict(
+      db,
+      "salon",
+      "staff",
+      new Date("2026-06-15T08:00:00Z"),
+      new Date("2026-06-15T08:30:00Z"),
+      undefined,
+      { allowOverbooking: true, bufferMinutes: 10, overbookingLimit: 5 },
+    )).resolves.toBe(true);
+  });
+});

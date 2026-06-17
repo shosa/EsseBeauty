@@ -62,9 +62,9 @@ describe("professional UI regression guard", () => {
 
   it("keeps CRUD forms labelled and appointment customer lookup scalable", () => {
     for (const file of [
-      "services/new/page.tsx",
-      "services/[serviceId]/page.tsx",
-      "staff/new/page.tsx",
+      "settings/services/new/page.tsx",
+      "settings/services/[serviceId]/page.tsx",
+      "settings/staff/new/page.tsx",
       "settings/users/invite/page.tsx",
       "settings/loyalty/rewards/new/page.tsx",
       "settings/loyalty/rewards/[rewardId]/page.tsx",
@@ -124,5 +124,99 @@ describe("professional UI regression guard", () => {
     expect(platform).toContain("panel !== \"new\" && !selectedSalon");
     expect(platform).not.toContain("?? salons[0]");
     expect(platform).not.toContain("setSelectedSalonId(rows[0]");
+  });
+
+  it("uses one persistent dashboard side navigation instead of separate rail and sidebar blocks", () => {
+    const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
+    expect(shell).toContain("UnifiedSideNavigation");
+    expect(shell).toContain("navigation_collapsed");
+    expect(shell).toContain("/api/salons/${salon.id}/shell-preferences");
+    expect(shell).toContain("md:pl-[var(--shell-nav-width)]");
+    expect(shell).toContain("md:left-[var(--shell-nav-width)]");
+    expect(shell).toContain("overflow-y-auto");
+    expect(shell).toContain("SidebarToggleIcon");
+    expect(shell).toContain("BellIcon");
+    expect(shell).not.toContain('<span className="font-black">N</span>');
+    expect(shell).not.toContain(">\\n              N\\n");
+    expect(shell).not.toContain("onToggle");
+    expect(shell).not.toContain("function RailLink");
+    expect(shell).not.toContain("left-20");
+    expect(shell).not.toContain("md:pl-[344px]");
+  });
+
+  it("keeps the staff PWA as a separate installable workspace, not a dashboard menu page", () => {
+    const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
+    const staffPackage = readFileSync(join(process.cwd(), "..", "staff-pwa", "package.json"), "utf8");
+    const staffApp = readFileSync(join(process.cwd(), "..", "staff-pwa", "app", "page.tsx"), "utf8");
+    const staffManifest = readFileSync(join(process.cwd(), "..", "staff-pwa", "app", "manifest.ts"), "utf8");
+    expect(shell).not.toContain("/staff-pwa");
+    expect(staffPackage).toContain("@esse-beauty/staff-pwa");
+    expect(staffPackage).toContain("next-pwa");
+    expect(staffApp).toContain("/api/staff-app/me");
+    expect(staffApp).toContain("/api/staff-app/appointments");
+    expect(staffManifest).toContain("EsseBeauty Staff");
+  });
+
+  it("splits operational Staff and Services from core configuration pages", () => {
+    const staff = readFileSync(join(dashboardRoot, "staff", "page.tsx"), "utf8");
+    const services = readFileSync(join(dashboardRoot, "services", "page.tsx"), "utf8");
+    const settingsStaff = readFileSync(join(dashboardRoot, "settings", "staff", "page.tsx"), "utf8");
+    const settingsServices = readFileSync(join(dashboardRoot, "settings", "services", "page.tsx"), "utf8");
+    const appointmentNew = readFileSync(join(dashboardRoot, "calendar", "appointments", "new", "page.tsx"), "utf8");
+    expect(staff).toContain("/operations/staff");
+    expect(staff).toContain("Assenza last-minute");
+    expect(staff).not.toContain("/staff/new");
+    expect(staff).not.toContain("method: \"DELETE\"");
+    expect(services).toContain("/operations/services");
+    expect(services).not.toContain("/services/new");
+    expect(services).not.toContain("method: \"PATCH\"");
+    expect(settingsStaff).toContain("/settings/staff/new");
+    expect(settingsStaff).toContain("/api/salons/${salon.id}/staff");
+    expect(settingsServices).toContain("/settings/services/new");
+    expect(settingsServices).toContain("/api/salons/${salon.id}/services");
+    expect(appointmentNew).toContain("/operations/services");
+    expect(appointmentNew).toContain("/operations/staff");
+  });
+
+  it("does not expose fake settings panels without persisted behavior", () => {
+    const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");
+    expect(settings).not.toContain("Configurazione persistente disponibile via API centro controllo");
+    expect(settings).not.toContain("Infrastruttura persistente gia pronta");
+    expect(settings).not.toMatch(/prossimamente|coming soon|mock|demo/i);
+  });
+
+  it("uses persisted calendar rules in the professional calendar surface", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("/settings/control-center");
+    expect(calendar).toContain("defaultView");
+    expect(calendar).toContain("minSlotMinutes");
+    expect(calendar).toContain("bufferMinutes");
+    expect(calendar).toContain("staff_columns");
+    expect(calendar).toContain("StatusBadge");
+    expect(calendar).toContain("StatGrid");
+    expect(calendar).toContain("Cerca cliente, servizio o collaboratore");
+  });
+
+  it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {
+    const staffDetail = readFileSync(join(dashboardRoot, "settings", "staff", "[staffId]", "page.tsx"), "utf8");
+    const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    const shared = readFileSync(join(process.cwd(), "..", "..", "packages", "shared", "index.ts"), "utf8");
+
+    expect(staffDetail).toContain("Accesso PWA dipendente");
+    expect(staffDetail).toContain("/access");
+    expect(staffDetail).toContain("WEEK_DAYS_IT");
+    expect(staffDetail).not.toContain('["mon", "tue", "wed", "thu", "fri", "sat", "sun"]');
+
+    expect(settings).toContain("Giorni di chiusura");
+    expect(settings).toContain("/settings/closures");
+
+    expect(calendar).toContain("availability_blocks");
+    expect(calendar).toContain("salon_closures");
+    expect(calendar).toContain("Non disponibile");
+    expect(calendar).toContain("Chiusura salone");
+
+    expect(shared).toContain("WEEK_DAYS_IT");
+    expect(shared).toContain("formatWeekdayIt");
   });
 });

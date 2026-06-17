@@ -205,7 +205,7 @@ export default function BookingPage() {
         {step === 1 && (
           <section className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
             <label className="block text-sm font-black text-stone-800" htmlFor="service-search">Servizio</label>
-            <input id="service-search" value={serviceQuery} onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca trattamento" className="w-full" />
+            <input id="service-search" value={serviceQuery} onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca servizio" className="w-full" />
             <div className="max-h-80 space-y-2 overflow-auto pr-1">
               {filteredServices.map((service) => (
                 <button key={service.id} onClick={() => setServiceId(service.id)} className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}>

@@ -908,6 +908,48 @@ export const notificationPreferences = pgTable(
   ],
 );
 
+export const salonClosures = pgTable(
+  "salon_closures",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    reason: text("reason"),
+    recurringYearly: boolean("recurring_yearly").default(false).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("salon_closures_salon_date_unique").on(table.salonId, table.date)],
+);
+
+export const userInterfacePreferences = pgTable(
+  "user_interface_preferences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    navigationCollapsed: boolean("navigation_collapsed")
+      .default(false)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("user_interface_preferences_user_salon_unique").on(
+      table.userId,
+      table.salonId,
+    ),
+  ],
+);
+
 export const savedViews = pgTable(
   "saved_views",
   {

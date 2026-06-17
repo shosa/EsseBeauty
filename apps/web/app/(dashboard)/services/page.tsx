@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { formatPrice, PERMISSION_KEYS } from "@esse-beauty/shared";
-import { AppPage, Button, EmptyState, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
+import { formatPrice } from "@esse-beauty/shared";
+import { AppPage, EmptyState, FormField, InlineError, PageHeader, PageTransition, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -22,78 +21,72 @@ interface Service {
 
 export default function ServicesPage() {
   const [items, setItems] = useState<Service[]>([]);
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { hasPermission, salon } = useAuth();
-  const canEdit = hasPermission(PERMISSION_KEYS.SETTINGS_SERVICES);
+  const { salon } = useAuth();
 
   async function load() {
     if (!salon) return;
     setLoading(true);
     setError("");
-    const response = await fetch(`${api}/api/salons/${salon.id}/services`, { credentials: "include" });
+    const params = query.trim() ? `?${new URLSearchParams({ q: query.trim() })}` : "";
+    const response = await fetch(`${api}/api/salons/${salon.id}/operations/services${params}`, { credentials: "include" });
     if (!response.ok) {
-      setError(response.status === 403 ? "Non hai il permesso di gestire i servizi." : "Impossibile caricare i servizi.");
+      setError("Catalogo operativo non disponibile.");
       setItems([]);
       setLoading(false);
       return;
     }
-    const data: unknown = await response.json();
-    setItems(Array.isArray(data) ? data as Service[] : []);
+    setItems(await response.json() as Service[]);
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, [salon?.id]);
+  useEffect(() => { void load(); }, [salon?.id, query]);
 
-  async function toggle(item: Service) {
-    if (!salon || !canEdit) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/services/${item.id}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ active: !item.active }),
-    });
-    if (!response.ok) setError("Lo stato del servizio non e stato aggiornato.");
-    await load();
-  }
+  const categories = useMemo(() => new Set(items.map((item) => item.category)).size, [items]);
+  const averageDuration = useMemo(() => items.length ? Math.round(items.reduce((sum, item) => sum + item.durationMinutes, 0) / items.length) : 0, [items]);
 
   return (
     <AppPage>
       <PageTransition>
         <PageHeader
-          eyebrow="Catalogo"
+          eyebrow="Catalogo operativo"
           title="Servizi"
-          subtitle="Trattamenti, durata, prezzo informativo e disponibilita online."
-          actions={canEdit ? (
-            <Link href="/services/new" className="inline-flex min-h-12 items-center rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo servizio</Link>
-          ) : (
-            <Button disabled>Nuovo servizio</Button>
-          )}
+          subtitle="Consultazione quotidiana del catalogo attivo. Prezzo, durata e categoria si configurano solo in Impostazioni."
+          status={<StatusBadge status="active">{items.length} servizi attivi</StatusBadge>}
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}
+        <StatGrid className="mb-6 md:grid-cols-3">
+          <StatCard label="Servizi attivi" value={items.length} />
+          <StatCard label="Categorie" value={categories} />
+          <StatCard label="Durata media" value={`${averageDuration} min`} />
+        </StatGrid>
+
+        <SectionCard className="mb-5" title="Ricerca catalogo" subtitle="Nessuna modifica strutturale da questa vista.">
+          <FormField label="Cerca servizio o categoria">
+            <input className="w-full" onChange={(event) => setQuery(event.target.value)} placeholder="Es. piega, colore, ceretta..." value={query} />
+          </FormField>
+        </SectionCard>
+
         {loading ? (
           <div className="space-y-3">{[1, 2, 3].map((item) => <div key={item} className="h-24 animate-pulse rounded-3xl bg-white" />)}</div>
         ) : items.length === 0 ? (
-          <EmptyState
-            action={canEdit ? <Link href="/services/new" className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Crea il primo servizio</Link> : null}
-            description="Crea il primo trattamento per calendario, prenotazione pubblica e report."
-            title="Nessun servizio configurato"
-          />
+          <EmptyState description="Nessun servizio attivo corrisponde alla ricerca." title="Nessun servizio operativo" />
         ) : (
           <section className="grid gap-4">
             {items.map((item) => (
-              <article key={item.id} className={`rounded-3xl border border-white/70 bg-white p-5 shadow-sm ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md ${item.active ? "" : "opacity-60"}`}>
+              <article key={item.id} className="rounded-3xl border border-white/70 bg-white p-5 shadow-sm ring-1 ring-stone-950/5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <Link href={`/services/${item.id}`} className="text-lg font-bold text-stone-950 hover:text-[#792f59]">{item.name}</Link>
+                    <h2 className="text-lg font-bold text-stone-950">{item.name}</h2>
                     <p className="mt-1 text-sm text-stone-500">{item.durationMinutes} min - {item.category}</p>
                     {item.description && <p className="mt-2 max-w-2xl text-sm text-stone-600">{item.description}</p>}
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
+                  <div className="text-right">
                     <strong>{formatPrice(item.priceCents, "it-IT")}</strong>
-                    <Link href={`/services/${item.id}`} className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]">Apri scheda</Link>
-                    <Switch checked={item.active} disabled={!canEdit} onCheckedChange={() => void toggle(item)} />
+                    <p className="mt-1 text-xs font-bold uppercase tracking-[.12em] text-stone-400">Informativo</p>
                   </div>
                 </div>
               </article>

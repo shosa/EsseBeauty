@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, ilike, lt, ne, or } from "drizzle-orm";
 
-import { appointmentRescheduleRequests, appointments, availabilityBlocks, customers, pwaBrandingSettings, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, customers, pwaBrandingSettings, salonClosures, salons, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 
 async function getSalon(app: FastifyInstance, slug: string) {
@@ -10,6 +10,7 @@ async function getSalon(app: FastifyInstance, slug: string) {
 }
 
 async function slotsFor(app: FastifyInstance, salon: any, member: any, service: any, date: string) {
+  if (await isSalonClosed(app, salon.id, date)) return [];
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart.getTime() + 36 * 60 * 60_000);
   const [busy, blocks] = await Promise.all([
@@ -21,6 +22,11 @@ async function slotsFor(app: FastifyInstance, salon: any, member: any, service: 
   ]);
   return computeAvailableSlots({ date, timezone: salon.timezone, workingHours: member.workingHours,
     durationMinutes: service.durationMinutes, appointments: busy, blocks });
+}
+
+async function isSalonClosed(app: FastifyInstance, salonId: string, date: string) {
+  const closures = await app.db.select({ date: salonClosures.date, recurringYearly: salonClosures.recurringYearly }).from(salonClosures).where(eq(salonClosures.salonId, salonId));
+  return closures.some((closure) => closure.date === date || (closure.recurringYearly && closure.date.slice(5) === date.slice(5)));
 }
 
 export async function registerPublicRoutes(app: FastifyInstance) {
@@ -85,6 +91,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       const service = serviceRows[0];
       if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
       const date = new Intl.DateTimeFormat("en-CA", { timeZone: salon.timezone }).format(new Date(request.body.starts_at));
+      if (await isSalonClosed(app, salon.id, date)) return reply.code(409).send({ error: "SALON_CLOSED" });
       const candidates = await app.db.select().from(staff).where(and(
         eq(staff.salonId, salon.id), eq(staff.active, true),
         ...(request.body.staff_id ? [eq(staff.id, request.body.staff_id)] : []),

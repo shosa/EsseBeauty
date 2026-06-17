@@ -24,6 +24,7 @@ import {
   platformSystemTemplates,
   pwaBrandingSettings,
   savedViews,
+  salonClosures,
   salonLocations,
   salonResources,
   salonSettings,
@@ -32,6 +33,7 @@ import {
   serviceResources,
   serviceStaff,
   staffAvailabilityRequests,
+  userInterfacePreferences,
 } from "./schema.js";
 
 const plannedTables = [
@@ -60,6 +62,7 @@ const plannedTables = [
   platformSystemTemplates,
   pwaBrandingSettings,
   savedViews,
+  salonClosures,
   salonLocations,
   salonResources,
   salonSettings,
@@ -68,8 +71,9 @@ const plannedTables = [
   serviceResources,
   serviceStaff,
   staffAvailabilityRequests,
+  userInterfacePreferences,
 ];
 
-if (plannedTables.length !== 35) {
+if (plannedTables.length !== 37) {
   throw new Error("Schema remediation contract is incomplete.");
 }

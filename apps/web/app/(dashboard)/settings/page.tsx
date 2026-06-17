@@ -40,11 +40,19 @@ interface BrandingControl {
   welcomeText?: string;
 }
 
+interface SalonClosure {
+  date: string;
+  id: string;
+  reason?: string | null;
+  recurringYearly: boolean;
+}
+
 export default function GeneralSettingsPage() {
   const { salon } = useAuth();
   const [settings, setSettings] = useState<Settings>();
   const [calendar, setCalendar] = useState<CalendarControl>({});
   const [branding, setBranding] = useState<BrandingControl>({});
+  const [closures, setClosures] = useState<SalonClosure[]>([]);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -52,7 +60,8 @@ export default function GeneralSettingsPage() {
     void Promise.all([
       fetch(`${api}/api/salons/${salon.id}/settings`, { credentials: "include" }).then((response) => response.json()),
       fetch(`${api}/api/salons/${salon.id}/settings/control-center`, { credentials: "include" }).then((response) => response.json()),
-    ]).then(([salonSettings, control]) => {
+      fetch(`${api}/api/salons/${salon.id}/settings/closures`, { credentials: "include" }).then((response) => response.ok ? response.json() : []),
+    ]).then(([salonSettings, control, closureRows]) => {
       setSettings(salonSettings as Settings);
       setCalendar({
         allowOverbooking: control.calendar?.allowOverbooking ?? false,
@@ -74,6 +83,7 @@ export default function GeneralSettingsPage() {
         primaryColor: control.branding?.primaryColor ?? "#792f59",
         welcomeText: control.branding?.welcomeText ?? "Benvenuta nel nostro salone.",
       });
+      setClosures(Array.isArray(closureRows) ? closureRows as SalonClosure[] : []);
     });
   }, [salon]);
 
@@ -142,6 +152,38 @@ export default function GeneralSettingsPage() {
     setMessage(response.ok ? "Brand PWA salvato." : "Salvataggio non riuscito.");
   }
 
+  async function reloadClosures() {
+    if (!salon) return;
+    const rows = await fetch(`${api}/api/salons/${salon.id}/settings/closures`, { credentials: "include" }).then((response) => response.json());
+    setClosures(Array.isArray(rows) ? rows as SalonClosure[] : []);
+  }
+
+  async function addClosure(formData: FormData) {
+    if (!salon) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/settings/closures`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        date: formData.get("date"),
+        reason: formData.get("reason") || undefined,
+        recurring_yearly: formData.get("recurring_yearly") === "on",
+      }),
+    });
+    setMessage(response.ok ? "Giorno di chiusura salvato." : "Chiusura non salvata.");
+    if (response.ok) await reloadClosures();
+  }
+
+  async function removeClosure(closureId: string) {
+    if (!salon) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/settings/closures/${closureId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    setMessage(response.ok ? "Giorno di chiusura rimosso." : "Chiusura non rimossa.");
+    if (response.ok) setClosures((current) => current.filter((item) => item.id !== closureId));
+  }
+
   if (!settings) {
     return <AppPage><SectionCard><div className="h-96 animate-pulse rounded-[2rem] bg-stone-100" /></SectionCard></AppPage>;
   }
@@ -202,11 +244,27 @@ export default function GeneralSettingsPage() {
           <Button className="mt-5" onClick={() => void saveBranding()} variant="primary">Salva brand PWA</Button>
         </SectionCard>
 
-        <SectionCard title="Dati, integrazioni e notifiche" subtitle="Infrastruttura persistente gia pronta per import/export, connettori e policy per ruolo.">
-          <div className="grid gap-3">
-            {["Import/export clienti", "Import/export appuntamenti", "Connettori esterni", "Policy notifiche per ruolo", "Template comunicazioni", "Sedi e risorse"].map((item) => <div className="rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm font-bold text-stone-800" key={item}>{item}<p className="mt-1 text-xs font-medium text-stone-500">Configurazione persistente disponibile via API centro controllo.</p></div>)}
+        <SectionCard title="Giorni di chiusura" subtitle="Festivita, ferie e chiusure straordinarie bloccano la prenotazione online e sono visibili in agenda.">
+          <form action={addClosure} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <FormField label="Data chiusura" required><input name="date" type="date" required /></FormField>
+            <FormField label="Motivo"><input name="reason" placeholder="Ferie, festivita, formazione..." /></FormField>
+            <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[#ead1df] bg-[#fffafd] px-4 text-sm font-bold">
+              <input name="recurring_yearly" type="checkbox" />
+              Ogni anno
+            </label>
+            <div className="md:col-span-3"><Button type="submit" variant="primary">Aggiungi chiusura</Button></div>
+          </form>
+          <div className="mt-4 grid gap-2">
+            {closures.length === 0 && <p className="text-sm font-semibold text-stone-500">Nessun giorno di chiusura configurato.</p>}
+            {closures.map((closure) => (
+              <article className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-100 bg-white p-3 text-sm" key={closure.id}>
+                <span><b>{new Date(`${closure.date}T00:00:00`).toLocaleDateString("it-IT", { dateStyle: "full" })}</b>{closure.recurringYearly ? " - ogni anno" : ""}<br />{closure.reason || "Chiusura salone"}</span>
+                <Button size="sm" variant="destructive" onClick={() => void removeClosure(closure.id)}>Elimina</Button>
+              </article>
+            ))}
           </div>
         </SectionCard>
+
       </div>
     </AppPage>
   );

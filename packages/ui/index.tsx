@@ -292,17 +292,19 @@ export function SectionCard({
   actions,
   children,
   className = "",
+  id,
   subtitle,
   title,
 }: {
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  id?: string;
   subtitle?: ReactNode;
   title?: ReactNode;
 }) {
   return (
-    <section className={`relative overflow-hidden rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_52px_rgb(45_29_39_/_0.09)] ring-1 ring-stone-950/5 backdrop-blur md:p-6 ${className}`}>
+    <section id={id} className={`relative overflow-hidden rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_52px_rgb(45_29_39_/_0.09)] ring-1 ring-stone-950/5 backdrop-blur md:p-6 ${className}`}>
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
       {(title || actions || subtitle) && (
         <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
@@ -700,13 +702,13 @@ export type ScheduleDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export type ScheduleValue = Record<ScheduleDay, Array<{ from: string; to: string }>>;
 
 const scheduleDays: Array<{ key: ScheduleDay; label: string }> = [
-  { key: "mon", label: "Lunedì" },
-  { key: "tue", label: "Martedì" },
-  { key: "wed", label: "Mercoledì" },
-  { key: "thu", label: "Giovedì" },
-  { key: "fri", label: "Venerdì" },
-  { key: "sat", label: "Sabato" },
-  { key: "sun", label: "Domenica" },
+  { key: "mon", label: "LUN" },
+  { key: "tue", label: "MAR" },
+  { key: "wed", label: "MER" },
+  { key: "thu", label: "GIO" },
+  { key: "fri", label: "VEN" },
+  { key: "sat", label: "SAB" },
+  { key: "sun", label: "DOM" },
 ];
 
 export function ScheduleEditor({
@@ -776,3 +778,4 @@ export function Breadcrumbs({
     </nav>
   );
 }
+

@@ -1,9 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 
-import { availabilityBlocks, staff } from "@esse-beauty/db/schema";
-import { PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
+import { appointments, authSessions, availabilityBlocks, services, staff, userCredentials, users } from "@esse-beauty/db/schema";
+import { hasPermission, PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { hashPassword } from "../auth/local-auth.js";
 
 interface StaffBody {
   user_id?: string | null;
@@ -15,7 +17,82 @@ interface StaffBody {
   active?: boolean;
 }
 
+interface StaffAccessBody {
+  active?: boolean;
+  email: string;
+  password?: string;
+}
+
 export async function registerStaffRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string } }>(
+    "/api/salons/:id/operations/staff",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const viewOthers = await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OTHERS, request.server.db);
+      const viewOwn = await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_VIEW_OWN, request.server.db);
+      if (!viewOthers && !viewOwn) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const ownRows = await request.server.db.select({ id: staff.id }).from(staff)
+        .where(and(eq(staff.userId, request.user.id), eq(staff.salonId, request.salonId)));
+      const ownStaffId = ownRows[0]?.id;
+      if (!viewOthers && !ownStaffId) return reply.code(403).send({ error: "STAFF_PROFILE_NOT_FOUND" });
+      const from = request.query.from ? new Date(request.query.from) : new Date(new Date().setHours(0, 0, 0, 0));
+      const to = request.query.to ? new Date(request.query.to) : new Date(from.getTime() + 24 * 60 * 60_000);
+
+      return request.server.db
+        .select({
+          active: staff.active,
+          appointment_count: sql<number>`count(${appointments.id})::int`,
+          color: staff.color,
+          completed_count: sql<number>`count(*) filter (where ${appointments.status} = 'completed')::int`,
+          display_name: staff.displayName,
+          id: staff.id,
+          next_service: sql<string | null>`min(${services.name}) filter (where ${appointments.startsAt} >= now())`,
+          working_hours: staff.workingHours,
+        })
+        .from(staff)
+        .leftJoin(
+          appointments,
+          and(
+            eq(appointments.staffId, staff.id),
+            gte(appointments.startsAt, from),
+            lt(appointments.startsAt, to),
+          ),
+        )
+        .leftJoin(services, eq(services.id, appointments.serviceId))
+        .where(and(
+          eq(staff.salonId, request.salonId),
+          eq(staff.active, true),
+          ...(!viewOthers && ownStaffId ? [eq(staff.id, ownStaffId)] : []),
+        ))
+        .groupBy(staff.id)
+        .orderBy(asc(staff.displayName));
+    },
+  );
+
+  app.post<{ Body: { ends_at: string; reason?: string; starts_at: string }; Params: { id: string; staffId: string } }>(
+    "/api/salons/:id/operations/staff/:staffId/absence",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const ownRows = await request.server.db.select({ id: staff.id }).from(staff)
+        .where(and(eq(staff.userId, request.user.id), eq(staff.salonId, request.salonId)));
+      const ownStaffId = ownRows[0]?.id;
+      const permission = ownStaffId === request.params.staffId ? PERMISSION_KEYS.CALENDAR_MANAGE_OWN : PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS;
+      if (!(await hasPermission(request.user.id, permission, request.server.db))) {
+        return reply.code(403).send({ error: "PERMISSION_DENIED", required: permission });
+      }
+      const rows = await request.server.db.insert(availabilityBlocks).values({
+        endsAt: new Date(request.body.ends_at),
+        reason: request.body.reason ?? "Assenza last-minute",
+        salonId: request.salonId,
+        staffId: request.params.staffId,
+        startsAt: new Date(request.body.starts_at),
+      }).returning();
+      return reply.code(201).send(rows[0]);
+    },
+  );
+
   app.get<{ Params: { id: string }; Querystring: { active?: string } }>("/api/salons/:id/staff", { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)] }, async (request, reply) => {
     if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
     return request.server.db.select().from(staff)
@@ -74,6 +151,89 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     return request.server.db.select().from(availabilityBlocks)
     .where(and(eq(availabilityBlocks.staffId, request.params.staffId), eq(availabilityBlocks.salonId, request.salonId)))
     .orderBy(asc(availabilityBlocks.startsAt));
+  });
+
+  app.get<{ Params: { id: string; staffId: string } }>("/api/salons/:id/staff/:staffId/access", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await request.server.db
+      .select({
+        active: users.active,
+        email: users.email,
+        user_id: users.id,
+      })
+      .from(staff)
+      .leftJoin(users, eq(users.id, staff.userId))
+      .where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId)));
+    if (!rows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+    return rows[0].user_id ? rows[0] : { active: false, email: "", user_id: null };
+  });
+
+  app.patch<{ Body: StaffAccessBody; Params: { id: string; staffId: string } }>("/api/salons/:id/staff/:staffId/access", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const email = request.body.email.trim().toLowerCase();
+    if (!email.includes("@")) return reply.code(400).send({ error: "INVALID_EMAIL" });
+    if (request.body.password !== undefined && request.body.password.length < 10) {
+      return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
+    }
+
+    const staffRows = await request.server.db.select().from(staff)
+      .where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId)));
+    const member = staffRows[0];
+    if (!member) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+
+    const existingUserRows = await request.server.db.select().from(users)
+      .where(and(eq(users.salonId, request.salonId), eq(users.email, email)));
+    const existingUser = existingUserRows[0];
+    if (existingUser && existingUser.id !== member.userId) {
+      return reply.code(409).send({ error: "EMAIL_ALREADY_USED" });
+    }
+
+    const userId = member.userId ?? randomUUID();
+    if (member.userId) {
+      await request.server.db.update(users).set({
+        active: request.body.active ?? true,
+        email,
+        fullName: member.displayName,
+        role: "employee",
+      }).where(and(eq(users.id, member.userId), eq(users.salonId, request.salonId)));
+    } else {
+      if (!request.body.password) return reply.code(400).send({ error: "PASSWORD_REQUIRED" });
+      await request.server.db.insert(users).values({
+        active: request.body.active ?? true,
+        email,
+        fullName: member.displayName,
+        id: userId,
+        role: "employee",
+        salonId: request.salonId,
+      });
+      await request.server.db.update(staff).set({ email, userId }).where(eq(staff.id, member.id));
+    }
+
+    if (request.body.password) {
+      const password = await hashPassword(request.body.password);
+      await request.server.db.insert(userCredentials).values({
+        mustChangePassword: false,
+        passwordHash: password.hash,
+        passwordSalt: password.salt,
+        userId,
+      }).onConflictDoUpdate({
+        target: userCredentials.userId,
+        set: {
+          mustChangePassword: false,
+          passwordHash: password.hash,
+          passwordSalt: password.salt,
+          updatedAt: new Date(),
+        },
+      });
+      await request.server.db.delete(authSessions).where(eq(authSessions.userId, userId));
+    }
+
+    await request.server.db.update(staff).set({ email }).where(eq(staff.id, member.id));
+    return { active: request.body.active ?? true, email, user_id: userId };
   });
 
   app.post<{ Params: { id: string; staffId: string }; Body: { starts_at: string; ends_at: string; reason?: string; recurring?: boolean; recurrence_rule?: string } }>(

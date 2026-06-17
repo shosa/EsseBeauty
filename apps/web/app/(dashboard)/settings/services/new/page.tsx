@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 
-import { useAuth } from "../../../../lib/auth-context";
+import { useAuth } from "../../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -32,13 +32,13 @@ export default function NewServicePage() {
       return;
     }
     const service = await response.json() as { id: string };
-    router.push(`/services/${service.id}`);
+    router.push(`/settings/services/${service.id}`);
   }
 
   return (
     <main className="min-h-screen bg-stone-100 p-5 md:p-10">
       <form action={create} className="mx-auto grid max-w-3xl gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
-        <Breadcrumbs items={[{ href: "/services", label: "Servizi" }, { label: "Nuovo servizio" }]} />
+        <Breadcrumbs items={[{ href: "/settings/services", label: "Catalogo servizi" }, { label: "Nuovo servizio" }]} />
         <h1 className="text-3xl font-bold">Nuovo servizio</h1>
         {error && <InlineError>{error}</InlineError>}
         <FormField label="Nome servizio" required><input required name="name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
@@ -47,7 +47,7 @@ export default function NewServicePage() {
         <FormField label="Durata" required description="Inserisci la durata in minuti."><input required name="duration" type="number" min="5" step="5" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <FormField label="Prezzo informativo" required description="Solo informativo, non genera pagamenti o documenti fiscali."><input required name="price" type="number" min="0" step="0.01" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={() => router.push("/services")}>Annulla</Button>
+          <Button type="button" variant="ghost" onClick={() => router.push("/settings/services")}>Annulla</Button>
           <Button type="submit">Salva</Button>
         </div>
       </form>

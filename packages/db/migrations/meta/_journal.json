@@ -64,6 +64,20 @@
       "when": 1781640883438,
       "tag": "0008_familiar_mystique",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781653200000,
+      "tag": "0009_user_interface_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781656800000,
+      "tag": "0010_salon_closures",
+      "breakpoints": true
     }
   ]
 }
