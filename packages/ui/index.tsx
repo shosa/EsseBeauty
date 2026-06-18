@@ -729,33 +729,88 @@ export function ScheduleEditor({
     onChange({ ...schedule, [day]: open ? [{ from: "09:00", to: "18:00" }] : [] });
   }
 
-  function setInterval(day: ScheduleDay, field: "from" | "to", next: string) {
-    const current = schedule[day]?.[0] ?? { from: "09:00", to: "18:00" };
-    onChange({ ...schedule, [day]: [{ ...current, [field]: next }] });
+  function setInterval(
+    day: ScheduleDay,
+    index: number,
+    field: "from" | "to",
+    next: string,
+  ) {
+    const intervals = [...(schedule[day] ?? [])];
+    const current = intervals[index] ?? { from: "09:00", to: "18:00" };
+    intervals[index] = { ...current, [field]: next };
+    onChange({ ...schedule, [day]: intervals });
+  }
+
+  function addInterval(day: ScheduleDay) {
+    const intervals = schedule[day] ?? [];
+    const previous = intervals.at(-1);
+    onChange({
+      ...schedule,
+      [day]: [
+        ...intervals,
+        {
+          from: previous?.to && previous.to < "18:00" ? previous.to : "14:00",
+          to: "18:00",
+        },
+      ],
+    });
+  }
+
+  function removeInterval(day: ScheduleDay, index: number) {
+    onChange({
+      ...schedule,
+      [day]: (schedule[day] ?? []).filter((_, itemIndex) => itemIndex !== index),
+    });
   }
 
   return (
     <div className="space-y-2">
       {scheduleDays.map((day) => {
-        const interval = schedule[day.key]?.[0];
+        const intervals = schedule[day.key] ?? [];
+        const open = intervals.length > 0;
         return (
-          <div key={day.key} className="grid gap-3 rounded-2xl border border-stone-100 bg-[#fffafd] p-3 sm:grid-cols-[120px_auto_1fr_1fr] sm:items-center">
-            <b className="text-sm">{day.label}</b>
-            <Switch checked={Boolean(interval)} onCheckedChange={(open) => setDay(day.key, open)} />
-            <input
-              className="min-h-10 rounded-lg border border-stone-200 px-2 disabled:opacity-40"
-              disabled={!interval}
-              onChange={(event) => setInterval(day.key, "from", event.target.value)}
-              type="time"
-              value={interval?.from ?? "09:00"}
-            />
-            <input
-              className="min-h-10 rounded-lg border border-stone-200 px-2 disabled:opacity-40"
-              disabled={!interval}
-              onChange={(event) => setInterval(day.key, "to", event.target.value)}
-              type="time"
-              value={interval?.to ?? "18:00"}
-            />
+          <div key={day.key} className="rounded-2xl border border-stone-100 bg-[#fffafd] p-3">
+            <div className="flex min-h-10 items-center gap-3">
+              <b className="w-16 shrink-0 text-sm">{day.label}</b>
+              <Switch checked={open} onCheckedChange={(nextOpen) => setDay(day.key, nextOpen)} />
+              <span className="text-xs font-semibold text-stone-500">
+                {open ? `${intervals.length} ${intervals.length === 1 ? "fascia" : "fasce"}` : "Chiuso"}
+              </span>
+            </div>
+            {open && (
+              <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
+                {intervals.map((interval, index) => (
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center" key={`${day.key}-${index}`}>
+                    <input
+                      aria-label={`${day.label} fascia ${index + 1} apertura`}
+                      className="min-h-10 rounded-lg border border-stone-200 px-2"
+                      onChange={(event) => setInterval(day.key, index, "from", event.target.value)}
+                      type="time"
+                      value={interval.from}
+                    />
+                    <span className="text-center text-xs font-bold text-stone-400">—</span>
+                    <input
+                      aria-label={`${day.label} fascia ${index + 1} chiusura`}
+                      className="min-h-10 rounded-lg border border-stone-200 px-2"
+                      onChange={(event) => setInterval(day.key, index, "to", event.target.value)}
+                      type="time"
+                      value={interval.to}
+                    />
+                    <Button
+                      aria-label={`Rimuovi fascia ${index + 1} di ${day.label}`}
+                      onClick={() => removeInterval(day.key, index)}
+                      size="sm"
+                      variant="ghost"
+                    >
+                      Rimuovi
+                    </Button>
+                  </div>
+                ))}
+                <Button onClick={() => addInterval(day.key)} size="sm" variant="outline">
+                  Aggiungi fascia
+                </Button>
+              </div>
+            )}
           </div>
         );
       })}

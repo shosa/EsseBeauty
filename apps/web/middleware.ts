@@ -1,14 +1,9 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-function hasAccessToken(request: NextRequest): boolean {
-  return Boolean(request.cookies.get("esse-session")?.value);
-}
-
-export function middleware(request: NextRequest) {
-  if (!hasAccessToken(request)) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
+export function middleware() {
+  // La sessione appartiene all'API e può vivere su un host o una porta
+  // differenti dalla Web. La verifica autorevole viene quindi eseguita
+  // client-side tramite /api/auth/me nell'AuthProvider.
   return NextResponse.next();
 }
 
@@ -18,6 +13,7 @@ export const config = {
     "/clients/:path*",
     "/inventory/:path*",
     "/marketing/:path*",
+    "/onboarding/:path*",
     "/reports/:path*",
     "/reviews/:path*",
     "/services/:path*",

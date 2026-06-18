@@ -68,62 +68,6 @@ async function createSession(
 }
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
-  app.get("/api/auth/bootstrap/status", async () => {
-    const rows = await app.db
-      .select({ count: sql<number>`count(*)` })
-      .from(users);
-    return { required: Number(rows[0]?.count ?? 0) === 0 };
-  });
-
-  app.post<{
-    Body: {
-      salon_name: string;
-      full_name: string;
-      email: string;
-      password: string;
-    };
-  }>("/api/auth/bootstrap", async (request, reply) => {
-    const counts = await app.db
-      .select({ count: sql<number>`count(*)` })
-      .from(users);
-    if (Number(counts[0]?.count ?? 0) > 0) {
-      return reply.code(409).send({ error: "BOOTSTRAP_ALREADY_COMPLETED" });
-    }
-    if (request.body.password.length < 10) {
-      return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
-    }
-    const salonRows = await app.db
-      .insert(salons)
-      .values({
-        name: request.body.salon_name,
-        slug: request.body.salon_name
-          .toLowerCase()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, ""),
-        timezone: "Europe/Rome",
-        locale: "it-IT",
-      })
-      .returning();
-    const userId = randomUUID();
-    const password = await hashPassword(request.body.password);
-    await app.db.insert(users).values({
-      id: userId,
-      salonId: salonRows[0]!.id,
-      email: request.body.email.toLowerCase(),
-      fullName: request.body.full_name,
-      role: "owner",
-    });
-    await app.db.insert(userCredentials).values({
-      userId,
-      passwordHash: password.hash,
-      passwordSalt: password.salt,
-    });
-    await createSession(app, userId, reply, sessionCookieForClient());
-    return reply.code(201).send({ created: true });
-  });
-
   app.post<{ Body: { email: string; password: string } }>(
     "/api/auth/login",
     async (request, reply) => {
@@ -190,7 +134,13 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           role: user.role,
           salon_id: user.salonId,
         },
-        salon: { id: salon.id, name: salon.name, slug: salon.slug },
+        salon: {
+          id: salon.id,
+          name: salon.name,
+          onboarding_completed: Boolean(salon.onboardingCompletedAt),
+          onboarding_step: salon.onboardingStep,
+          slug: salon.slug,
+        },
         permissions: await resolvePermissions(user.id, user.role, app.db),
       };
     },

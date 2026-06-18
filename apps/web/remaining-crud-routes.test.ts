@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 const appRoot = join(process.cwd(), "app", "(dashboard)");
 
 const requiredRoutes = [
-  "services/new/page.tsx",
-  "services/[serviceId]/page.tsx",
-  "staff/new/page.tsx",
+  "settings/services/new/page.tsx",
+  "settings/services/[serviceId]/page.tsx",
+  "settings/staff/new/page.tsx",
   "settings/users/invite/page.tsx",
   "settings/loyalty/rewards/new/page.tsx",
   "settings/loyalty/rewards/[rewardId]/page.tsx",

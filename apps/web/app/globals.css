@@ -206,3 +206,33 @@ table tbody tr {
   height: 0 !important;
   width: 0 !important;
 }
+
+.platform-admin input:focus,
+.platform-admin select:focus,
+.platform-admin textarea:focus {
+  border-color: rgb(8 145 178 / 0.7);
+  box-shadow:
+    0 0 0 4px rgb(6 182 212 / 0.14),
+    0 12px 30px rgb(8 51 68 / 0.08);
+}
+
+.platform-admin input:hover:not(:disabled),
+.platform-admin select:hover:not(:disabled),
+.platform-admin textarea:hover:not(:disabled) {
+  border-color: rgb(8 145 178 / 0.45);
+}
+
+.platform-admin {
+  background:
+    linear-gradient(180deg, rgb(236 254 255 / 0.55), transparent 260px),
+    #f5f7f7;
+}
+
+.platform-admin .esse-page-header::after {
+  background: linear-gradient(90deg, #0f766e, #06b6d4 60%, transparent);
+}
+
+.platform-admin input[type="checkbox"],
+.platform-admin input[type="radio"] {
+  accent-color: #0f766e;
+}

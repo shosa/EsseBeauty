@@ -120,7 +120,7 @@ export const salons = pgTable("salons", {
   brandColor: text("brand_color"),
   bookingPolicyText: text("booking_policy_text"),
   cancellationPolicyText: text("cancellation_policy_text"),
-  planId: uuid("plan_id"),
+  planId: text("plan_id"),
   platformStatus: platformSalonStatusEnum("platform_status")
     .default("active")
     .notNull(),
@@ -128,6 +128,10 @@ export const salons = pgTable("salons", {
   suspendedAt: timestamp("suspended_at", { withTimezone: true }),
   churnRiskScore: integer("churn_risk_score").default(0).notNull(),
   active: boolean("active").default(true).notNull(),
+  onboardingStep: integer("onboarding_step").default(1).notNull(),
+  onboardingCompletedAt: timestamp("onboarding_completed_at", {
+    withTimezone: true,
+  }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

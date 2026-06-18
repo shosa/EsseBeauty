@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, FormField, InlineError, PageHeader, SaveToast, SectionCard } from "@esse-beauty/ui";
+import { type WorkingHours } from "@esse-beauty/shared";
+import { AppPage, Button, FormField, InlineError, PageHeader, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
 import { useAuth } from "../../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -170,47 +170,11 @@ export default function StaffDetailPage() {
           </form>
         </SectionCard>
 
-        <SectionCard title="Orari settimanali" subtitle="Giorni sempre in ordine LUN - DOM.">
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
-            {WEEK_DAYS_IT.map((day) => {
-              const value = member.workingHours[day.key][0] ?? { from: "", to: "" };
-              return (
-                <article key={day.key} className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-stone-100">
-                  <b className="uppercase">{day.shortLabel}</b>
-                  <input
-                    aria-label={`${day.shortLabel} apertura`}
-                    type="time"
-                    value={value.from}
-                    onChange={(event) =>
-                      setMember({
-                        ...member,
-                        workingHours: {
-                          ...member.workingHours,
-                          [day.key]: event.target.value ? [{ from: event.target.value, to: value.to || "18:00" }] : [],
-                        },
-                      })
-                    }
-                    className="mt-2"
-                  />
-                  <input
-                    aria-label={`${day.shortLabel} chiusura`}
-                    type="time"
-                    value={value.to}
-                    onChange={(event) =>
-                      setMember({
-                        ...member,
-                        workingHours: {
-                          ...member.workingHours,
-                          [day.key]: value.from ? [{ from: value.from, to: event.target.value }] : [],
-                        },
-                      })
-                    }
-                    className="mt-2"
-                  />
-                </article>
-              );
-            })}
-          </div>
+        <SectionCard title="Orari settimanali" subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
+          <ScheduleEditor
+            onChange={(workingHours) => setMember({ ...member, workingHours })}
+            value={member.workingHours}
+          />
         </SectionCard>
 
         <SectionCard title="Blocchi disponibilita" subtitle="I blocchi compaiono anche sull'agenda come promemoria operativo.">

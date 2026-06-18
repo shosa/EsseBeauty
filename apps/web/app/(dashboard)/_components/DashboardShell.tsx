@@ -553,6 +553,23 @@ function ShellContent({ children }: { children: ReactNode }) {
 }
 
 export function DashboardShell({ children }: { children: ReactNode }) {
-  const { salon } = useAuth();
-  return salon ? <ModuleProvider apiBaseUrl={api} salonId={salon.id}><ShellContent>{children}</ShellContent></ModuleProvider> : <>{children}</>;
+  const { loading, salon, user } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    if (loading) return;
+    if (!salon || !user) {
+      router.replace("/login");
+    } else if (user.role === "owner" && !salon.onboarding_completed) {
+      router.replace("/onboarding");
+    }
+  }, [loading, router, salon, user]);
+  if (
+    loading ||
+    !salon ||
+    !user ||
+    (user.role === "owner" && !salon.onboarding_completed)
+  ) {
+    return <main className="grid min-h-screen place-items-center bg-[#f6f2f4]"><div className="size-12 animate-pulse rounded-2xl bg-[#792f59]" /></main>;
+  }
+  return <ModuleProvider apiBaseUrl={api} salonId={salon.id}><ShellContent>{children}</ShellContent></ModuleProvider>;
 }

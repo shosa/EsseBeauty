@@ -249,6 +249,8 @@ export async function registerPlatformRoutes(
           locale: salons.locale,
           modules_enabled: sql<number>`count(${salonModules.id}) filter (where ${salonModules.enabled} = true)::int`,
           name: salons.name,
+          onboarding_completed: sql<boolean>`${salons.onboardingCompletedAt} is not null`,
+          onboarding_step: salons.onboardingStep,
           plan_id: salons.planId,
           slug: salons.slug,
           timezone: salons.timezone,
@@ -431,7 +433,7 @@ export async function registerPlatformRoutes(
       active?: boolean;
       locale?: string;
       name: string;
-      owner?: { email: string; full_name: string; password: string };
+      owner: { email: string; full_name: string; password: string };
       slug?: string;
       timezone?: string;
     };
@@ -443,40 +445,44 @@ export async function registerPlatformRoutes(
         return reply.code(400).send({ error: "NAME_REQUIRED" });
       }
       if (
-        request.body.owner &&
-        request.body.owner.password.length < 10
+        !request.body.owner?.email?.trim() ||
+        !request.body.owner?.full_name?.trim()
       ) {
+        return reply.code(400).send({ error: "OWNER_REQUIRED" });
+      }
+      if (request.body.owner.password.length < 10) {
         return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
       }
 
-      const salonRows = await app.db
-        .insert(salons)
-        .values({
-          active: request.body.active ?? true,
-          locale: request.body.locale ?? "it-IT",
-          name: request.body.name.trim(),
-          slug: request.body.slug?.trim() || slugify(request.body.name),
-          timezone: request.body.timezone ?? "Europe/Rome",
-        })
-        .returning();
-      const salon = salonRows[0]!;
-
-      if (request.body.owner) {
-        const password = await hashPassword(request.body.owner.password);
+      const password = await hashPassword(request.body.owner.password);
+      const salon = await app.db.transaction(async (tx) => {
+        const salonRows = await tx
+          .insert(salons)
+          .values({
+            active: request.body.active ?? true,
+            locale: request.body.locale ?? "it-IT",
+            name: request.body.name.trim(),
+            slug: request.body.slug?.trim() || slugify(request.body.name),
+            timezone: request.body.timezone ?? "Europe/Rome",
+          })
+          .returning();
+        const createdSalon = salonRows[0]!;
         const userId = randomUUID();
-        await app.db.insert(users).values({
-          email: request.body.owner.email.toLowerCase(),
-          fullName: request.body.owner.full_name,
+        await tx.insert(users).values({
+          email: request.body.owner.email.toLowerCase().trim(),
+          fullName: request.body.owner.full_name.trim(),
           id: userId,
           role: "owner",
-          salonId: salon.id,
+          salonId: createdSalon.id,
         });
-        await app.db.insert(userCredentials).values({
+        await tx.insert(userCredentials).values({
+          mustChangePassword: true,
           passwordHash: password.hash,
           passwordSalt: password.salt,
           userId,
         });
-      }
+        return createdSalon;
+      });
 
       return reply.code(201).send(salon);
     },
@@ -515,7 +521,7 @@ export async function registerPlatformRoutes(
         patch.locale = request.body.locale.trim();
       }
       if ("plan_id" in request.body) {
-        patch.planId = request.body.plan_id;
+        patch.planId = request.body.plan_id?.trim() || null;
       }
       if (typeof request.body.platform_status === "string") {
         patch.platformStatus = request.body.platform_status;
@@ -540,8 +546,41 @@ export async function registerPlatformRoutes(
     },
   );
 
-  app.post<{
-    Body: { email: string; full_name: string; password: string };
+  app.get<{
+    Params: { salonId: string };
+  }>(
+    "/api/platform/salons/:salonId/owner-access",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      const rows = await app.db
+        .select({
+          active: users.active,
+          created_at: users.createdAt,
+          email: users.email,
+          full_name: users.fullName,
+          id: users.id,
+          last_login: sql<Date | null>`max(${authSessions.lastSeenAt})`,
+          must_change_password: userCredentials.mustChangePassword,
+          role: users.role,
+        })
+        .from(users)
+        .innerJoin(userCredentials, eq(userCredentials.userId, users.id))
+        .leftJoin(authSessions, eq(authSessions.userId, users.id))
+        .where(
+          and(
+            eq(users.salonId, request.params.salonId),
+            eq(users.role, "owner"),
+          ),
+        )
+        .groupBy(users.id, userCredentials.mustChangePassword)
+        .orderBy(asc(users.createdAt))
+        .limit(1);
+      return rows[0] ?? reply.code(404).send({ error: "OWNER_NOT_FOUND" });
+    },
+  );
+
+  app.patch<{
+    Body: { active: boolean; email: string; full_name: string };
     Params: { salonId: string };
   }>(
     "/api/platform/salons/:salonId/owner-access",
@@ -550,77 +589,65 @@ export async function registerPlatformRoutes(
       if (!request.body.email?.trim() || !request.body.full_name?.trim()) {
         return reply.code(400).send({ error: "OWNER_REQUIRED" });
       }
+      const ownerRows = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.salonId, request.params.salonId), eq(users.role, "owner")))
+        .orderBy(asc(users.createdAt))
+        .limit(1);
+      const owner = ownerRows[0];
+      if (!owner) return reply.code(404).send({ error: "OWNER_NOT_FOUND" });
+
+      const rows = await app.db
+        .update(users)
+        .set({
+          active: request.body.active,
+          email: request.body.email.toLowerCase().trim(),
+          fullName: request.body.full_name.trim(),
+        })
+        .where(eq(users.id, owner.id))
+        .returning({
+          active: users.active,
+          email: users.email,
+          full_name: users.fullName,
+          id: users.id,
+          role: users.role,
+        });
+      return rows[0];
+    },
+  );
+
+  app.post<{
+    Body: { password: string };
+    Params: { salonId: string };
+  }>(
+    "/api/platform/salons/:salonId/owner-access/reset-password",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
       if (request.body.password.length < 10) {
         return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
       }
-
-      const salonRows = await app.db
-        .select({ id: salons.id })
-        .from(salons)
-        .where(eq(salons.id, request.params.salonId));
-      if (!salonRows[0]) {
-        return reply.code(404).send({ error: "SALON_NOT_FOUND" });
-      }
-
-      const email = request.body.email.toLowerCase().trim();
-      const password = await hashPassword(request.body.password);
-      const existingRows = await app.db
+      const ownerRows = await app.db
         .select({ id: users.id })
         .from(users)
-        .where(
-          and(
-            eq(users.salonId, request.params.salonId),
-            eq(users.email, email),
-          ),
-        );
+        .where(and(eq(users.salonId, request.params.salonId), eq(users.role, "owner")))
+        .orderBy(asc(users.createdAt))
+        .limit(1);
+      const owner = ownerRows[0];
+      if (!owner) return reply.code(404).send({ error: "OWNER_NOT_FOUND" });
 
-      const existing = existingRows[0];
-      const userId = existing?.id ?? randomUUID();
-
-      if (existing) {
-        await app.db
-          .update(users)
-          .set({
-            active: true,
-            fullName: request.body.full_name.trim(),
-            role: "owner",
-          })
-          .where(eq(users.id, existing.id));
-      } else {
-        await app.db.insert(users).values({
-          active: true,
-          email,
-          fullName: request.body.full_name.trim(),
-          id: userId,
-          role: "owner",
-          salonId: request.params.salonId,
-        });
-      }
-
+      const password = await hashPassword(request.body.password);
       await app.db
-        .insert(userCredentials)
-        .values({
+        .update(userCredentials)
+        .set({
           mustChangePassword: true,
           passwordHash: password.hash,
           passwordSalt: password.salt,
-          userId,
+          updatedAt: new Date(),
         })
-        .onConflictDoUpdate({
-          set: {
-            mustChangePassword: true,
-            passwordHash: password.hash,
-            passwordSalt: password.salt,
-            updatedAt: new Date(),
-          },
-          target: userCredentials.userId,
-        });
-
-      return {
-        email,
-        full_name: request.body.full_name.trim(),
-        role: "owner",
-        updated: Boolean(existing),
-      };
+        .where(eq(userCredentials.userId, owner.id));
+      await app.db.delete(authSessions).where(eq(authSessions.userId, owner.id));
+      return { reset: true };
     },
   );
 

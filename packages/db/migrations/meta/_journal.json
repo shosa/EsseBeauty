@@ -85,6 +85,20 @@
       "when": 1781779200000,
       "tag": "0011_notification_deduplication",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781792400000,
+      "tag": "0012_salon_onboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781794800000,
+      "tag": "0013_salon_plan_text",
+      "breakpoints": true
     }
   ]
 }

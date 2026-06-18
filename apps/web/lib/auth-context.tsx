@@ -27,6 +27,8 @@ interface AuthUser {
 interface Salon {
   id: string;
   name: string;
+  onboarding_completed: boolean;
+  onboarding_step: number;
   slug: string;
 }
 

@@ -18,6 +18,7 @@ import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
 import { registerMarketingRoutes } from "./routes/marketing/index.js";
+import { registerOnboardingRoutes } from "./routes/onboarding/index.js";
 import { registerPlatformRoutes } from "./routes/platform/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerReminderRoutes } from "./routes/reminders/index.js";
@@ -105,6 +106,7 @@ export function createApp({
   void registerWaitlistRoutes(app);
   void registerLoyaltyRoutes(app);
   void registerMarketingRoutes(app);
+  void registerOnboardingRoutes(app);
   void registerInventoryRoutes(app);
   void registerReportRoutes(app);
   void registerSettingsRoutes(app);
