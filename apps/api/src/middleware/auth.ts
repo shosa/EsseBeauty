@@ -9,7 +9,7 @@ import {
 } from "@esse-beauty/shared";
 import {
   hashSessionToken,
-  SESSION_COOKIE,
+  sessionCookieForClient,
 } from "../routes/auth/local-auth.js";
 
 export interface AuthenticatedUser {
@@ -26,7 +26,8 @@ declare module "fastify" {
 }
 
 export const authenticate: preHandlerHookHandler = async (request, reply) => {
-  const token = request.cookies[SESSION_COOKIE];
+  const cookieName = sessionCookieForClient(request.headers?.["x-esse-client"] as string | undefined);
+  const token = request.cookies[cookieName];
   if (!token) {
     await reply.code(401).send({ error: "UNAUTHORIZED" });
     return;

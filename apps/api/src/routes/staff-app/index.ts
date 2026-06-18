@@ -15,6 +15,7 @@ import {
   resolvePermissions,
 } from "@esse-beauty/shared";
 
+import { ensureStaffRequestReviewNotifications } from "../../jobs/staff-request-notifications.js";
 import { authenticate } from "../../middleware/auth.js";
 
 async function ownStaff(request: Parameters<FastifyInstance["get"]>[1] extends never ? never : any) {
@@ -185,7 +186,9 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
         startsAt: new Date(request.body.starts_at),
       })
       .returning();
-    return reply.code(201).send(rows[0]);
+    const requestRow = rows[0]!;
+    await ensureStaffRequestReviewNotifications(app, request.salonId, requestRow.id);
+    return reply.code(201).send(requestRow);
   });
 
   app.get<{

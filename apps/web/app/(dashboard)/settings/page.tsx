@@ -14,7 +14,7 @@ interface Settings {
   locale: string;
   name: string;
   onlineBookingEnabled: boolean;
-  openingHours: WorkingHours;
+  openingHours?: WorkingHours;
   timezone: string;
 }
 
@@ -39,6 +39,16 @@ interface BrandingControl {
   primaryColor?: string;
   welcomeText?: string;
 }
+
+const emptyOpeningHours: WorkingHours = {
+  mon: [],
+  tue: [],
+  wed: [],
+  thu: [],
+  fri: [],
+  sat: [],
+  sun: [],
+};
 
 interface SalonClosure {
   date: string;
@@ -214,7 +224,7 @@ export default function GeneralSettingsPage() {
               <Switch checked={settings.onlineBookingEnabled} onCheckedChange={(onlineBookingEnabled) => setSettings({ ...settings, onlineBookingEnabled })} />
             </label>
           </div>
-          <div className="mt-5"><ScheduleEditor onChange={(openingHours) => setSettings({ ...settings, openingHours })} value={settings.openingHours} /></div>
+          <div className="mt-5"><ScheduleEditor onChange={(openingHours) => setSettings({ ...settings, openingHours })} value={settings.openingHours ?? emptyOpeningHours} /></div>
           <Button className="mt-5" onClick={() => void saveSalon()} variant="primary">Salva dati salone</Button>
         </SectionCard>
 

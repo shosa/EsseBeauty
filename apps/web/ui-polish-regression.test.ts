@@ -144,6 +144,28 @@ describe("professional UI regression guard", () => {
     expect(shell).not.toContain("md:pl-[344px]");
   });
 
+  it("uses the Connected Workspace contract across shell, pages, and settings", () => {
+    const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
+    const settings = readFileSync(join(dashboardRoot, "settings", "layout.tsx"), "utf8");
+    const dashboard = readFileSync(join(dashboardRoot, "page.tsx"), "utf8");
+    const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
+    const globals = readFileSync(join(process.cwd(), "app", "globals.css"), "utf8");
+
+    expect(ui).toContain("esse-workspace-page");
+    expect(ui).toContain("esse-page-header");
+    expect(ui).toContain("esse-panel");
+    expect(globals).toContain(".esse-workspace");
+    expect(shell).toContain("workspaceSections");
+    expect(shell).toContain("currentSection");
+    expect(shell).toContain("bg-[#35212e]");
+    expect(settings).toContain("Impostazioni salone");
+    expect(settings).toContain("rounded-2xl border");
+    expect(dashboard).toContain("Da fare");
+    expect(dashboard).toContain("/notifications");
+    expect(dashboard).not.toContain("function StatCard");
+    expect(dashboard).not.toContain("function ModuleCount");
+  });
+
   it("keeps the staff PWA as a separate installable workspace, not a dashboard menu page", () => {
     const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
     const staffPackage = readFileSync(join(process.cwd(), "..", "staff-pwa", "package.json"), "utf8");

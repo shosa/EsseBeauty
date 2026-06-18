@@ -862,26 +862,37 @@ export const activityLog = pgTable("activity_log", {
   ...timestamps,
 });
 
-export const notifications = pgTable("notifications", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  salonId: uuid("salon_id")
-    .notNull()
-    .references(() => salons.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
-  targetRole: userRoleEnum("target_role"),
-  type: text("type").notNull(),
-  category: text("category").default("general").notNull(),
-  priority: notificationPriorityEnum("priority").default("normal").notNull(),
-  channel: notificationChannelEnum("channel").default("in_app").notNull(),
-  title: text("title").notNull(),
-  body: text("body"),
-  payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
-  entityType: text("entity_type"),
-  entityId: uuid("entity_id"),
-  readAt: timestamp("read_at", { withTimezone: true }),
-  archivedAt: timestamp("archived_at", { withTimezone: true }),
-  ...timestamps,
-});
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    targetRole: userRoleEnum("target_role"),
+    type: text("type").notNull(),
+    category: text("category").default("general").notNull(),
+    priority: notificationPriorityEnum("priority").default("normal").notNull(),
+    channel: notificationChannelEnum("channel").default("in_app").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
+    entityType: text("entity_type"),
+    entityId: uuid("entity_id"),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("notifications_entity_role_type_unique").on(
+      table.salonId,
+      table.entityId,
+      table.targetRole,
+      table.type,
+    ),
+  ],
+);
 
 export const notificationPreferences = pgTable(
   "notification_preferences",

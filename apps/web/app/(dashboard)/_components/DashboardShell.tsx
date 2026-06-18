@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
@@ -57,8 +57,37 @@ const moduleLinks = [
 const settingsLinks = [
   { href: "/settings", icon: SettingsIcon, label: "Centro controllo" },
   { href: "/settings/users", icon: StaffIcon, label: "Utenti" },
+  { href: "/settings/staff/requests", icon: RemindersIcon, label: "Richieste staff" },
   { href: "/settings/modules", icon: ModuleIcon, label: "Moduli" },
 ];
+
+const workspaceSections = [
+  { label: "Oggi", paths: ["/", "/calendar"] },
+  { label: "Relazioni", paths: ["/clients", "/staff", "/services"] },
+  { label: "Operatività", paths: ["/inventory", "/reviews", "/waitlist", "/marketing", "/reports"] },
+  { label: "Sistema", paths: ["/settings"] },
+] as const;
+
+function currentSection(pathname: string) {
+  if (pathname === "/") return { area: "Oggi", label: "Panoramica" };
+  const workspaceArea = workspaceSections.find((section) =>
+    section.paths.some((path) => path !== "/" && pathname.startsWith(path)),
+  )?.label ?? "Workspace";
+  const labels: Array<[string, string, string]> = [
+    ["/calendar", "Oggi", "Agenda"],
+    ["/clients", "Relazioni", "Clienti"],
+    ["/staff", "Relazioni", "Staff"],
+    ["/services", "Relazioni", "Servizi"],
+    ["/inventory", "Operatività", "Inventario"],
+    ["/reviews", "Operatività", "Recensioni"],
+    ["/waitlist", "Operatività", "Lista d’attesa"],
+    ["/marketing", "Operatività", "Marketing"],
+    ["/reports", "Operatività", "Report"],
+    ["/settings", "Sistema", "Impostazioni"],
+  ];
+  const match = labels.find(([path]) => pathname.startsWith(path));
+  return match ? { area: match[1], label: match[2] } : { area: workspaceArea, label: "EsseBeauty" };
+}
 
 interface SearchResult {
   group: SearchGroupKey;
@@ -85,19 +114,20 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-function NavigationLink({ collapsed = false, href, icon: Icon, label, onClick }: { collapsed?: boolean; href: string; icon: IconComponent; label: string; onClick?: () => void }) {
+function NavigationLink({ badge = 0, collapsed = false, href, icon: Icon, label, onClick }: { badge?: number; collapsed?: boolean; href: string; icon: IconComponent; label: string; onClick?: () => void }) {
   const pathname = usePathname();
   const active = isActive(pathname, href);
   return (
     <Link
       aria-label={label}
-      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} rounded-2xl text-sm font-bold transition ${active ? "bg-[#f3e2eb] text-[#792f59] shadow-sm" : "text-stone-600 hover:bg-white hover:text-[#792f59]"}`}
+      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} relative rounded-xl text-sm font-bold transition ${active ? "bg-white text-[#5f2447] shadow-[0_8px_22px_rgb(20_10_16_/_0.22)]" : "text-white/68 hover:bg-white/10 hover:text-white"}`}
       href={href}
       onClick={onClick}
       title={label}
     >
       <Icon className="shrink-0" />
       {!collapsed && <span>{label}</span>}
+      {badge > 0 && <span className={`${collapsed ? "absolute -right-1 -top-1" : "ml-auto"} grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white`}>{Math.min(badge, 9)}</span>}
     </Link>
   );
 }
@@ -234,8 +264,14 @@ function NotificationCenter({ onClose, open, salonId, onRead }: { onClose(): voi
             {item.body && <p className="mt-2 text-sm leading-6 text-stone-500">{item.body}</p>}
             <div className="mt-4 flex flex-wrap gap-2">
               {item.href && <Link className="rounded-xl bg-[#402334] px-3 py-2 text-xs font-bold text-white" href={item.href} onClick={onClose}>Apri</Link>}
-              {!item.read_at && <Button onClick={() => void markRead(item)} size="sm" variant="outline">Letta</Button>}
-              <Button onClick={() => void archive(item)} size="sm" variant="tableAction">Archivia</Button>
+              {item.entity_type === "staff_availability_request" ? (
+                <StatusBadge status="pending">Da completare</StatusBadge>
+              ) : (
+                <>
+                  {!item.read_at && <Button onClick={() => void markRead(item)} size="sm" variant="outline">Letta</Button>}
+                  <Button onClick={() => void archive(item)} size="sm" variant="tableAction">Archivia</Button>
+                </>
+              )}
             </div>
           </article>
         ))}
@@ -249,6 +285,7 @@ function UnifiedSideNavigation({
   logout,
   onNotificationOpen,
   sectionLinks,
+  staffRequestCount,
   unreadCount,
   user,
 }: {
@@ -256,39 +293,93 @@ function UnifiedSideNavigation({
   logout(): void;
   onNotificationOpen(): void;
   sectionLinks: Array<{ href: string; icon: IconComponent; label: string }>;
+  staffRequestCount: number;
   unreadCount: number;
   user?: { full_name: string; role: string } | null;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const [scrollShadows, setScrollShadows] = useState({ bottom: false, top: false });
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current;
+    const contentElement = scrollContentRef.current;
+    if (!scrollElement || !contentElement) return;
+
+    function updateShadows() {
+      const element = scrollRef.current;
+      if (!element) return;
+      const remaining = element.scrollHeight - element.clientHeight - element.scrollTop;
+      setScrollShadows({
+        bottom: remaining > 2,
+        top: element.scrollTop > 2,
+      });
+    }
+
+    updateShadows();
+    const observer = new ResizeObserver(updateShadows);
+    observer.observe(scrollElement);
+    observer.observe(contentElement);
+    window.addEventListener("resize", updateShadows);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateShadows);
+    };
+  }, [collapsed, sectionLinks]);
+
   return (
-    <aside className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-white/70 bg-white/78 shadow-[12px_0_40px_rgb(45_29_39_/_0.06)] backdrop-blur transition-[width] duration-200 md:flex md:flex-col ${collapsed ? "w-20 p-3" : "w-72 p-5"}`}>
-      <div className={`flex shrink-0 items-center ${collapsed ? "justify-center" : "justify-start"} gap-3 border-b border-stone-100 pb-5`}>
-        <Link className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#402334] text-lg font-black text-white" href="/">E</Link>
-        {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-lg text-stone-950">EsseBeauty</b><small className="text-stone-400">Gestione salone</small></div>}
+    <aside className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-white/10 bg-[#35212e] text-white shadow-[12px_0_36px_rgb(30_15_24_/_0.16)] transition-[width] duration-200 md:flex md:flex-col ${collapsed ? "w-20 p-3" : "w-72 p-5"}`}>
+      <div className={`flex shrink-0 items-center ${collapsed ? "justify-center" : "justify-start"} gap-3 border-b border-white/10 pb-5`}>
+        <Link className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-lg font-black text-[#792f59] shadow-lg" href="/">E</Link>
+        {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-lg text-white">EsseBeauty</b><small className="text-white/50">Gestione salone</small></div>}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden py-5 pr-1 [scrollbar-width:thin]">
-        <nav className="space-y-1">
-          {sectionLinks.map((item) => <NavigationLink collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
-        </nav>
+      <div className="relative min-h-0 flex-1">
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-1 top-0 z-10 h-px bg-[#d7a6c1] shadow-[0_10px_18px_8px_rgb(121_47_89_/_0.18)] transition-opacity duration-200 ${scrollShadows.top ? "opacity-100" : "opacity-0"}`}
+        />
+        <div
+          className="sidebar-scroll h-full overflow-y-auto overflow-x-hidden py-5"
+          onScroll={() => {
+            const element = scrollRef.current;
+            if (!element) return;
+            setScrollShadows({
+              bottom: element.scrollHeight - element.clientHeight - element.scrollTop > 2,
+              top: element.scrollTop > 2,
+            });
+          }}
+          ref={scrollRef}
+        >
+          <div ref={scrollContentRef}>
+            <nav className="space-y-1">
+              {sectionLinks.map((item) => <NavigationLink badge={item.href === "/settings/staff/requests" ? staffRequestCount : 0} collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
+            </nav>
 
-        <div className="mt-6 border-t border-stone-100 pt-5">
-          {!collapsed && <p className="mb-2 px-3 text-xs font-black uppercase tracking-[.18em] text-stone-400">Moduli attivi</p>}
-          <ModuleNav collapsed={collapsed} />
+            <div className="mt-6 border-t border-stone-100 pt-5">
+              {!collapsed && <p className="mb-2 px-3 text-[10px] font-black uppercase tracking-[.2em] text-white/35">Moduli attivi</p>}
+              <ModuleNav collapsed={collapsed} />
+            </div>
+          </div>
         </div>
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-1 bottom-0 z-10 h-px bg-[#d7a6c1] shadow-[0_-10px_18px_8px_rgb(121_47_89_/_0.18)] transition-opacity duration-200 ${scrollShadows.bottom ? "opacity-100" : "opacity-0"}`}
+        />
       </div>
 
-      <div className="shrink-0 space-y-2 border-t border-stone-100 pt-3">
-        <NavigationLink collapsed={collapsed} href="/settings" icon={SettingsIcon} label="Impostazioni" />
-        <button className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 w-full items-center gap-3 px-3"} relative rounded-2xl text-sm font-bold text-stone-600 hover:bg-white hover:text-[#792f59]`} onClick={onNotificationOpen} type="button">
+      <div className="shrink-0 space-y-2 border-t border-white/10 pt-3">
+        <NavigationLink badge={staffRequestCount} collapsed={collapsed} href="/settings" icon={SettingsIcon} label="Impostazioni" />
+        <button className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 w-full items-center gap-3 px-3"} relative rounded-xl text-sm font-bold text-white/68 hover:bg-white/10 hover:text-white`} onClick={onNotificationOpen} type="button">
           <BellIcon className="shrink-0" />
           {!collapsed && <span>Notifiche</span>}
           {unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}
         </button>
-        <div className={`rounded-3xl border border-white/80 bg-[#fffafd] p-3 shadow-sm ${collapsed ? "text-center" : ""}`}>
+        <div className={`rounded-2xl border border-white/10 bg-white/7 p-3 ${collapsed ? "text-center" : ""}`}>
           <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#d9a5c2] font-bold text-[#402334]">{user?.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
-            {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-sm">{user?.full_name}</b><small className="text-stone-500">{user?.role}</small></div>}
-            {!collapsed && <button className="rounded-lg p-2 text-stone-500 hover:bg-white hover:text-red-700" onClick={logout} title="Esci"><LogoutIcon /></button>}
+            {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-sm text-white">{user?.full_name}</b><small className="text-white/45">{user?.role}</small></div>}
+            {!collapsed && <button className="rounded-lg p-2 text-white/45 hover:bg-white/10 hover:text-white" onClick={logout} title="Esci"><LogoutIcon /></button>}
           </div>
         </div>
         {collapsed && <button className="grid size-12 place-items-center rounded-2xl text-red-700 hover:bg-white" onClick={logout} title="Esci" type="button"><LogoutIcon /></button>}
@@ -305,12 +396,13 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
+  const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
 
   const sectionLinks = useMemo(() => {
-    if (pathname.startsWith("/settings")) return settingsLinks;
     return primary;
   }, [pathname]);
+  const section = currentSection(pathname);
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
@@ -320,7 +412,14 @@ function ShellContent({ children }: { children: ReactNode }) {
       }
     }
     window.addEventListener("keydown", keydown);
-    return () => window.removeEventListener("keydown", keydown);
+    function openNotifications() {
+      setNotificationsOpen(true);
+    }
+    window.addEventListener("esse:open-notifications", openNotifications);
+    return () => {
+      window.removeEventListener("keydown", keydown);
+      window.removeEventListener("esse:open-notifications", openNotifications);
+    };
   }, []);
 
   function loadUnread() {
@@ -330,7 +429,37 @@ function ShellContent({ children }: { children: ReactNode }) {
       .then((data: { unread_count?: number }) => setUnreadCount(data.unread_count ?? 0));
   }
 
-  useEffect(loadUnread, [salon?.id]);
+  function loadStaffRequestCount() {
+    if (!salon?.id) return;
+    void fetch(`${api}/api/salons/${salon.id}/staff-availability-requests-summary`, { credentials: "include" })
+      .then((response) => response.ok ? response.json() : { pending_count: 0 })
+      .then((data: { pending_count?: number }) => {
+        const count = data.pending_count ?? 0;
+        setStaffRequestCount(count);
+        document.documentElement.dataset.staffPendingCount = String(count);
+        window.dispatchEvent(new CustomEvent("esse:staff-request-count", { detail: count }));
+      });
+  }
+
+  useEffect(() => {
+    loadUnread();
+    loadStaffRequestCount();
+    const interval = window.setInterval(() => {
+      loadUnread();
+      loadStaffRequestCount();
+    }, 30_000);
+    function refresh() {
+      loadUnread();
+      loadStaffRequestCount();
+    }
+    window.addEventListener("focus", refresh);
+    window.addEventListener("esse:staff-requests-updated", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("esse:staff-requests-updated", refresh);
+    };
+  }, [salon?.id]);
 
   useEffect(() => {
     if (!salon?.id) return;
@@ -367,17 +496,18 @@ function ShellContent({ children }: { children: ReactNode }) {
   } as CSSProperties;
 
   return (
-    <div className="min-h-screen bg-[#f6f2f4] pl-0 md:pl-[var(--shell-nav-width)]" style={shellStyle}>
+    <div className="esse-workspace min-h-screen pl-0 md:pl-[var(--shell-nav-width)]" style={shellStyle}>
       <UnifiedSideNavigation
         collapsed={navigationCollapsed}
         logout={() => void logout()}
         onNotificationOpen={() => setNotificationsOpen(true)}
         sectionLinks={sectionLinks}
+        staffRequestCount={staffRequestCount}
         unreadCount={unreadCount}
         user={user}
       />
 
-      <header className="fixed left-0 right-0 top-0 z-20 border-b border-white/70 bg-white/72 px-4 py-3 shadow-[0_12px_34px_rgb(45_29_39_/_0.06)] backdrop-blur md:left-[var(--shell-nav-width)]">
+      <header className="fixed left-0 right-0 top-0 z-20 border-b border-[#e6dce2] bg-white/94 px-4 py-2.5 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)] backdrop-blur md:left-[var(--shell-nav-width)]">
         <div className="flex items-center justify-between gap-3">
           <button className="rounded-2xl border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-stone-600 md:hidden" onClick={() => setMoreOpen(true)} type="button"><MoreIcon />Menu</button>
           <button
@@ -390,6 +520,10 @@ function ShellContent({ children }: { children: ReactNode }) {
           >
             <SidebarToggleIcon />
           </button>
+          <div className="hidden min-w-40 md:block">
+            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">{section.area}</p>
+            <p className="text-sm font-bold text-[#2d1d27]">{section.label}</p>
+          </div>
           <button className="hidden min-h-10 min-w-[280px] rounded-2xl border border-stone-200 bg-white px-4 text-left text-sm font-semibold text-stone-500 shadow-sm md:block" onClick={() => setSearchOpen(true)} type="button">Cerca cliente, appuntamento, servizio... Ctrl+K</button>
           <div className="ml-auto flex items-center gap-2">
             <QuickCreateMenu />
@@ -407,9 +541,9 @@ function ShellContent({ children }: { children: ReactNode }) {
 
       {moreOpen && (
         <div className="fixed inset-0 z-50 bg-[#2d1d27]/40 backdrop-blur-sm md:hidden" onClick={() => setMoreOpen(false)}>
-          <aside className="absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-white p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Navigazione</h2><button onClick={() => setMoreOpen(false)}>Chiudi</button></div>
-            <nav className="mt-6 space-y-1">{primary.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
+          <aside className="absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-[#35212e] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Navigazione</h2><button className="text-white/65" onClick={() => setMoreOpen(false)}>Chiudi</button></div>
+            <nav className="mt-6 space-y-1">{primary.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <NavigationLink badge={item.href === "/settings/staff/requests" ? staffRequestCount : 0} href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
             <button className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 py-3 font-semibold text-red-700" onClick={() => void logout()}><LogoutIcon />Esci</button>
           </aside>
         </div>

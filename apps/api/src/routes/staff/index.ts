@@ -2,8 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 
-import { appointments, authSessions, availabilityBlocks, services, staff, userCredentials, users } from "@esse-beauty/db/schema";
+import { appointments, authSessions, availabilityBlocks, notifications, services, staff, staffAvailabilityRequests, userCredentials, users } from "@esse-beauty/db/schema";
 import { hasPermission, PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
+import { createNotification } from "../../jobs/notifications.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { hashPassword } from "../auth/local-auth.js";
 
@@ -142,6 +143,110 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     const rows = await request.server.db.update(staff).set({ active: false })
       .where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId))).returning();
     return rows[0] ?? reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { status?: string } }>("/api/salons/:id/staff-availability-requests", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    return request.server.db.select({
+      ends_at: staffAvailabilityRequests.endsAt,
+      id: staffAvailabilityRequests.id,
+      reason: staffAvailabilityRequests.reason,
+      review_note: staffAvailabilityRequests.reviewNote,
+      reviewed_at: staffAvailabilityRequests.reviewedAt,
+      staff_id: staffAvailabilityRequests.staffId,
+      staff_name: staff.displayName,
+      starts_at: staffAvailabilityRequests.startsAt,
+      status: staffAvailabilityRequests.status,
+    }).from(staffAvailabilityRequests)
+      .innerJoin(staff, eq(staff.id, staffAvailabilityRequests.staffId))
+      .where(and(
+        eq(staffAvailabilityRequests.salonId, request.salonId),
+        ...(request.query.status ? [eq(staffAvailabilityRequests.status, request.query.status as "pending" | "approved" | "rejected" | "cancelled")] : []),
+      ))
+      .orderBy(asc(staffAvailabilityRequests.startsAt));
+  });
+
+  app.get<{ Params: { id: string } }>("/api/salons/:id/staff-availability-requests-summary", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await request.server.db.select({
+      pending_count: sql<number>`count(*) filter (where ${staffAvailabilityRequests.status} = 'pending')::int`,
+    }).from(staffAvailabilityRequests)
+      .where(eq(staffAvailabilityRequests.salonId, request.salonId));
+    return { pending_count: rows[0]?.pending_count ?? 0 };
+  });
+
+  app.patch<{
+    Body: { review_note?: string; status: "approved" | "rejected" };
+    Params: { id: string; requestId: string };
+  }>("/api/salons/:id/staff-availability-requests/:requestId", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await request.server.db.select({
+      endsAt: staffAvailabilityRequests.endsAt,
+      id: staffAvailabilityRequests.id,
+      reason: staffAvailabilityRequests.reason,
+      staffId: staffAvailabilityRequests.staffId,
+      startsAt: staffAvailabilityRequests.startsAt,
+      status: staffAvailabilityRequests.status,
+      userId: staff.userId,
+    }).from(staffAvailabilityRequests)
+      .innerJoin(staff, eq(staff.id, staffAvailabilityRequests.staffId))
+      .where(and(
+        eq(staffAvailabilityRequests.id, request.params.requestId),
+        eq(staffAvailabilityRequests.salonId, request.salonId),
+      ));
+    const item = rows[0];
+    if (!item) return reply.code(404).send({ error: "REQUEST_NOT_FOUND" });
+    if (item.status !== "pending") return reply.code(409).send({ error: "REQUEST_ALREADY_REVIEWED" });
+
+    const updated = await request.server.db.update(staffAvailabilityRequests).set({
+      reviewNote: request.body.review_note,
+      reviewedAt: new Date(),
+      reviewedByUserId: request.user.id,
+      status: request.body.status,
+    }).where(and(
+      eq(staffAvailabilityRequests.id, item.id),
+      eq(staffAvailabilityRequests.status, "pending"),
+    )).returning();
+    if (!updated[0]) return reply.code(409).send({ error: "REQUEST_ALREADY_REVIEWED" });
+
+    if (request.body.status === "approved") {
+      await request.server.db.insert(availabilityBlocks).values({
+        endsAt: item.endsAt,
+        reason: item.reason ?? "Richiesta staff approvata",
+        salonId: request.salonId,
+        staffId: item.staffId,
+        startsAt: item.startsAt,
+      });
+    }
+    if (item.userId) {
+      await createNotification(request.server, {
+        body: request.body.review_note || (request.body.status === "approved" ? "La richiesta è stata approvata." : "La richiesta è stata rifiutata."),
+        category: "staff",
+        entityId: item.id,
+        entityType: "staff_availability_request",
+        href: "/",
+        priority: "normal",
+        salonId: request.salonId,
+        title: request.body.status === "approved" ? "Richiesta approvata" : "Richiesta rifiutata",
+        type: "staff_availability_review",
+        userId: item.userId,
+      });
+    }
+    await request.server.db.update(notifications).set({
+      archivedAt: new Date(),
+      readAt: new Date(),
+    }).where(and(
+      eq(notifications.salonId, request.salonId),
+      eq(notifications.entityType, "staff_availability_request"),
+      eq(notifications.entityId, item.id),
+    ));
+    return updated[0];
   });
 
   app.get<{ Params: { id: string; staffId: string }; Querystring: { from?: string; to?: string } }>("/api/salons/:id/staff/:staffId/availability-blocks", {

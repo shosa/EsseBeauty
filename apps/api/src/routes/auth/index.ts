@@ -27,7 +27,7 @@ import {
   createSessionToken,
   hashPassword,
   hashSessionToken,
-  SESSION_COOKIE,
+  sessionCookieForClient,
   SESSION_DURATION_MS,
   verifyPassword,
 } from "./local-auth.js";
@@ -41,8 +41,9 @@ function isUserRole(value: string): value is UserRole {
 function setSessionCookie(
   reply: FastifyReply,
   token: string,
+  cookieName: string,
 ) {
-  reply.setCookie(SESSION_COOKIE, token, {
+  reply.setCookie(cookieName, token, {
     httpOnly: true,
     maxAge: SESSION_DURATION_MS / 1000,
     path: "/",
@@ -55,6 +56,7 @@ async function createSession(
   app: FastifyInstance,
   userId: string,
   reply: FastifyReply,
+  cookieName: string,
 ) {
   const token = createSessionToken();
   await app.db.insert(authSessions).values({
@@ -62,7 +64,7 @@ async function createSession(
     tokenHash: hashSessionToken(token),
     expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
   });
-  setSessionCookie(reply, token);
+  setSessionCookie(reply, token, cookieName);
 }
 
 export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
@@ -118,7 +120,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       passwordHash: password.hash,
       passwordSalt: password.salt,
     });
-    await createSession(app, userId, reply);
+    await createSession(app, userId, reply, sessionCookieForClient());
     return reply.code(201).send({ created: true });
   });
 
@@ -146,19 +148,20 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       ) {
         return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
       }
-      await createSession(app, user.id, reply);
+      await createSession(app, user.id, reply, sessionCookieForClient(request.headers["x-esse-client"] as string | undefined));
       return { authenticated: true };
     },
   );
 
   app.post("/api/auth/logout", async (request, reply) => {
-    const token = request.cookies[SESSION_COOKIE];
+    const cookieName = sessionCookieForClient(request.headers["x-esse-client"] as string | undefined);
+    const token = request.cookies[cookieName];
     if (token) {
       await app.db
         .delete(authSessions)
         .where(eq(authSessions.tokenHash, hashSessionToken(token)));
     }
-    reply.clearCookie(SESSION_COOKIE, { path: "/" });
+    reply.clearCookie(cookieName, { path: "/" });
     return { authenticated: false };
   });
 

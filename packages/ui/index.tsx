@@ -159,7 +159,7 @@ export function AppPage({
   maxWidth?: string;
 }) {
   return (
-    <main className={`min-h-screen bg-[radial-gradient(circle_at_top_left,#fffafd_0,#f6f2f4_32%,#efe7ed_100%)] p-5 text-stone-900 md:p-10 ${className}`}>
+    <main className={`esse-workspace-page min-h-[calc(100vh-4rem)] px-4 py-6 text-stone-900 sm:px-6 md:px-8 md:py-8 ${className}`}>
       <div className={`mx-auto ${maxWidth}`}>{children}</div>
     </main>
   );
@@ -194,22 +194,18 @@ export function PageHeader({
   title: ReactNode;
 }) {
   return (
-    <header className="relative mb-6 overflow-hidden rounded-[2rem] border border-white/80 bg-white/82 p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.11)] ring-1 ring-[#792f59]/5 backdrop-blur md:p-7">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-[#f3e2eb]/80 blur-3xl" />
-      <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 size-48 rounded-full bg-[#f4d8a8]/45 blur-3xl" />
-      <div className="relative">
+    <header className="esse-page-header mb-6 border-b border-[#e6dce2] pb-5 md:pb-6">
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0">
-          {eyebrow && <p className="inline-flex rounded-full border border-[#ead1df] bg-[#faf3f7] px-3 py-1 text-[11px] font-black uppercase tracking-[.22em] text-[#792f59]">{eyebrow}</p>}
-          <h1 className="mt-2 text-3xl font-bold tracking-[-.02em] text-[#2d1d27] md:text-4xl">{title}</h1>
-          {subtitle && <div className="mt-2 text-sm leading-6 text-stone-600">{subtitle}</div>}
-          {meta && <div className="mt-4 flex flex-wrap gap-2">{meta}</div>}
+          {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p>}
+          <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
+          {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
+          {meta && <div className="mt-3 flex flex-wrap gap-2">{meta}</div>}
         </div>
-        <div className="flex flex-col items-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {status}
           {actions}
         </div>
-      </div>
       </div>
     </header>
   );
@@ -279,10 +275,10 @@ export function StatCard({
   value: ReactNode;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/86 p-4 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] ring-1 ring-stone-950/5 backdrop-blur">
-      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#792f59,#d99aba,#f4d8a8)]" />
-      <dt className="text-xs font-bold uppercase tracking-[.14em] text-stone-400">{label}</dt>
-      <dd className="mt-2 text-lg font-black text-[#2d1d27]">{value}</dd>
+    <div className="esse-panel relative overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white p-4 shadow-[0_8px_24px_rgb(45_29_39_/_0.055)]">
+      <div aria-hidden="true" className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[#b85888]" />
+      <dt className="pl-1 text-[11px] font-bold uppercase tracking-[.13em] text-stone-500">{label}</dt>
+      <dd className="mt-1.5 pl-1 text-2xl font-black tracking-[-.02em] text-[#2d1d27]">{value}</dd>
       {detail && <p className="mt-1 text-xs font-medium text-stone-500">{detail}</p>}
     </div>
   );
@@ -304,8 +300,7 @@ export function SectionCard({
   title?: ReactNode;
 }) {
   return (
-    <section id={id} className={`relative overflow-hidden rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_18px_52px_rgb(45_29_39_/_0.09)] ring-1 ring-stone-950/5 backdrop-blur md:p-6 ${className}`}>
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
+    <section id={id} className={`esse-panel relative overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:p-6 ${className}`}>
       {(title || actions || subtitle) && (
         <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -322,7 +317,7 @@ export function SectionCard({
 
 export function ActionBar({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-wrap items-center gap-2 rounded-2xl border border-stone-100 bg-stone-50/80 p-2 ${className}`}>
+    <div className={`esse-toolbar flex flex-wrap items-center gap-2 rounded-xl border border-[#e8dfe4] bg-[#faf7f9] p-2 ${className}`}>
       {children}
     </div>
   );
@@ -671,7 +666,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="overflow-x-auto rounded-[1.75rem] border border-white/80 bg-white/90 shadow-[0_18px_48px_rgb(45_29_39_/_0.09)] ring-1 ring-stone-950/5 backdrop-blur">
+    <div className="esse-panel overflow-x-auto rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="bg-[#faf3f7] text-xs uppercase tracking-wider text-[#792f59]">
           <tr>
@@ -701,6 +696,16 @@ export function DataTable<T>({
 export type ScheduleDay = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export type ScheduleValue = Record<ScheduleDay, Array<{ from: string; to: string }>>;
 
+const emptySchedule: ScheduleValue = {
+  mon: [],
+  tue: [],
+  wed: [],
+  thu: [],
+  fri: [],
+  sat: [],
+  sun: [],
+};
+
 const scheduleDays: Array<{ key: ScheduleDay; label: string }> = [
   { key: "mon", label: "LUN" },
   { key: "tue", label: "MAR" },
@@ -716,21 +721,23 @@ export function ScheduleEditor({
   value,
 }: {
   onChange(value: ScheduleValue): void;
-  value: ScheduleValue;
+  value?: ScheduleValue | null;
 }) {
+  const schedule = value ?? emptySchedule;
+
   function setDay(day: ScheduleDay, open: boolean) {
-    onChange({ ...value, [day]: open ? [{ from: "09:00", to: "18:00" }] : [] });
+    onChange({ ...schedule, [day]: open ? [{ from: "09:00", to: "18:00" }] : [] });
   }
 
   function setInterval(day: ScheduleDay, field: "from" | "to", next: string) {
-    const current = value[day][0] ?? { from: "09:00", to: "18:00" };
-    onChange({ ...value, [day]: [{ ...current, [field]: next }] });
+    const current = schedule[day]?.[0] ?? { from: "09:00", to: "18:00" };
+    onChange({ ...schedule, [day]: [{ ...current, [field]: next }] });
   }
 
   return (
     <div className="space-y-2">
       {scheduleDays.map((day) => {
-        const interval = value[day.key][0];
+        const interval = schedule[day.key]?.[0];
         return (
           <div key={day.key} className="grid gap-3 rounded-2xl border border-stone-100 bg-[#fffafd] p-3 sm:grid-cols-[120px_auto_1fr_1fr] sm:items-center">
             <b className="text-sm">{day.label}</b>

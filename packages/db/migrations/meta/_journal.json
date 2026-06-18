@@ -78,6 +78,13 @@
       "when": 1781656800000,
       "tag": "0010_salon_closures",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781779200000,
+      "tag": "0011_notification_deduplication",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import { and, asc, eq, gt, ilike, lt, ne, or } from "drizzle-orm";
 
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, customers, pwaBrandingSettings, salonClosures, salons, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
+import { ensureOnlineBookingNotifications } from "../../jobs/staff-request-notifications.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {
   const rows = await app.db.select().from(salons).where(and(eq(salons.slug, slug), eq(salons.active, true)));
@@ -116,7 +117,9 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         startsAt, endsAt: new Date(startsAt.getTime() + service.durationMinutes * 60_000),
         status: "pending", internalNotes: request.body.notes, source: "online",
       }).returning();
-      return reply.code(201).send({ ...rows[0], staff_name: selected.displayName, service_name: service.name, salon_name: salon.name });
+      const appointment = rows[0]!;
+      await ensureOnlineBookingNotifications(app, salon.id, appointment.id);
+      return reply.code(201).send({ ...appointment, staff_name: selected.displayName, service_name: service.name, salon_name: salon.name });
     });
 
   app.get<{ Params: { slug: string }; Querystring: { email: string } }>("/api/public/:slug/appointments", async (request, reply) => {

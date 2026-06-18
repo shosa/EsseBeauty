@@ -9,10 +9,15 @@ import {
   notifications,
   services,
   staff,
+  staffAvailabilityRequests,
   userInterfacePreferences,
 } from "@esse-beauty/db/schema";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 
+import {
+  ensureOnlineBookingNotifications,
+  ensureStaffRequestReviewNotifications,
+} from "../../jobs/staff-request-notifications.js";
 import { authenticate } from "../../middleware/auth.js";
 
 const searchGroups = [
@@ -106,6 +111,20 @@ export function normalizeShellPreferences(
   };
 }
 
+async function hasPendingStaffTask(app: FastifyInstance, salonId: string, notificationId: string) {
+  const rows = await app.db
+    .select({ status: staffAvailabilityRequests.status })
+    .from(notifications)
+    .innerJoin(staffAvailabilityRequests, eq(staffAvailabilityRequests.id, notifications.entityId))
+    .where(and(
+      eq(notifications.id, notificationId),
+      eq(notifications.salonId, salonId),
+      eq(notifications.entityType, "staff_availability_request"),
+      eq(staffAvailabilityRequests.status, "pending"),
+    ));
+  return Boolean(rows[0]);
+}
+
 function like(query: string): string {
   return `%${query}%`;
 }
@@ -132,7 +151,12 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-
+      if (request.user.role === "owner" || request.user.role === "manager") {
+        await Promise.all([
+          ensureStaffRequestReviewNotifications(app, request.salonId),
+          ensureOnlineBookingNotifications(app, request.salonId),
+        ]);
+      }
       const rows = await app.db
         .select({
           navigation_collapsed: userInterfacePreferences.navigationCollapsed,
@@ -171,7 +195,6 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-
       const rows = await app.db
         .insert(userInterfacePreferences)
         .values({
@@ -424,7 +447,6 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-
       const rows = await app.db
         .select({
           id: notifications.id,
@@ -468,6 +490,9 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
+      if (await hasPendingStaffTask(app, request.salonId, request.params.notificationId)) {
+        return reply.code(409).send({ error: "TASK_STILL_PENDING" });
+      }
 
       const rows = await app.db
         .update(notifications)
@@ -490,6 +515,9 @@ export async function registerShellRoutes(app: FastifyInstance) {
     async (request, reply) => {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      if (await hasPendingStaffTask(app, request.salonId, request.params.notificationId)) {
+        return reply.code(409).send({ error: "TASK_STILL_PENDING" });
       }
 
       const rows = await app.db
