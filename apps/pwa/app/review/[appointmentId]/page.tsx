@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBaseUrl } from "../../../lib/api";
 
 interface Summary {
   salon_name: string;
@@ -21,13 +21,13 @@ export default function ReviewPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    void fetch(`${api}/api/public/reviews/${appointmentId}`)
+    void fetch(`${apiBaseUrl()}/api/public/reviews/${appointmentId}`)
       .then((response) => (response.ok ? response.json() : undefined))
       .then(setSummary);
   }, [appointmentId]);
 
   async function submit() {
-    const response = await fetch(`${api}/api/public/reviews/${appointmentId}`, {
+    const response = await fetch(`${apiBaseUrl()}/api/public/reviews/${appointmentId}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ rating, comment: comment || undefined }),

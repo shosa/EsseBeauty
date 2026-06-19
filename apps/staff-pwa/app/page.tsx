@@ -5,7 +5,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "re
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, PERMISSION_KEYS, type PermissionKey, type WorkingHours } from "@esse-beauty/shared";
 import { Button, EmptyState, FormField, InlineError, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBaseUrl } from "./api";
 
 type Tab = "today" | "agenda" | "requests" | "profile";
 
@@ -154,7 +154,7 @@ export default function StaffPwaHome() {
   }, [selectedDayIndex, selectedWeek.from]);
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${api}${path}`, {
+    const response = await fetch(`${apiBaseUrl()}${path}`, {
       credentials: "include",
       headers: { "content-type": "application/json", "x-esse-client": "staff", ...init?.headers },
       ...init,

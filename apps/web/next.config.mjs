@@ -6,8 +6,14 @@ const workspaceRoot = path.resolve(
   "../..",
 );
 
+const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
+  allowedDevOrigins,
   output: process.env.DOCKER_BUILD === "true" ? "standalone" : undefined,
   outputFileTracingRoot: workspaceRoot,
   turbopack: {

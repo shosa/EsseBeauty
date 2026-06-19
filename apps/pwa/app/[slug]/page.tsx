@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBaseUrl } from "../../lib/api";
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
 interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
 interface Profile { branding?: Branding | null; salon: { name: string }; services: Service[]; }
@@ -15,7 +15,7 @@ export default function SalonLanding() {
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable" | "missing">("loading");
 
   useEffect(() => {
-    void fetch(`${api}/api/public/${slug}`).then(async (response) => {
+    void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
       if (response.status === 503) return setStatus("unavailable");
       if (!response.ok) return setStatus("missing");
       setProfile(await response.json());

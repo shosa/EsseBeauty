@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "turbo build",
+    "db:clear": "powershell -ExecutionPolicy Bypass -File scripts/db-clear.ps1",
     "docker:build": "docker compose build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",

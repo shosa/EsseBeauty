@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { formatPrice } from "@esse-beauty/shared";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBaseUrl } from "../../../lib/api";
 
 interface Branding {
   accentColor?: string;
@@ -90,7 +90,7 @@ export default function BookingPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
-    void fetch(`${api}/api/public/${slug}`).then(async (response) => {
+    void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
       if (response.status === 503) {
         setUnavailable(true);
         return;
@@ -121,7 +121,7 @@ export default function BookingPage() {
     setError("");
     const query = new URLSearchParams({ date, serviceId });
     if (staffId) query.set("staffId", staffId);
-    const response = await fetch(`${api}/api/public/${slug}/slots?${query}`);
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/slots?${query}`);
     setLoadingSlots(false);
     if (response.status === 503) {
       setUnavailable(true);
@@ -139,7 +139,7 @@ export default function BookingPage() {
 
   async function submit(data: FormData) {
     setError("");
-    const response = await fetch(`${api}/api/public/${slug}/book`, {
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/book`, {
       body: JSON.stringify({
         customer: {
           email: data.get("email"),

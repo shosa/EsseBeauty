@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBaseUrl } from "../../../lib/api";
 
 interface Branding { accentColor?: string; primaryColor?: string; }
 interface Profile { branding?: Branding | null; salon: { name: string }; }
@@ -24,13 +24,13 @@ export default function LoyaltyPage() {
   const accent = profile?.branding?.accentColor || "#f4d8a8";
 
   useEffect(() => {
-    void fetch(`${api}/api/public/${slug}`).then(async (response) => {
+    void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
       if (response.ok) setProfile(await response.json());
     });
   }, [slug]);
 
   async function search() {
-    const response = await fetch(`${api}/api/public/${slug}/loyalty?email=${encodeURIComponent(email)}`);
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/loyalty?email=${encodeURIComponent(email)}`);
     setMissing(!response.ok);
     setData(response.ok ? await response.json() : undefined);
   }

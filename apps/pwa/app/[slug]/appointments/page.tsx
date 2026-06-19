@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { appointmentStatusLabel } from "@esse-beauty/shared";
 
-const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+import { apiBaseUrl } from "../../../lib/api";
 
 interface Branding { accentColor?: string; primaryColor?: string; }
 interface Profile { branding?: Branding | null; salon: { name: string }; }
@@ -22,19 +22,19 @@ export default function AppointmentsPage() {
   const accent = profile?.branding?.accentColor || "#f4d8a8";
 
   useEffect(() => {
-    void fetch(`${api}/api/public/${slug}`).then(async (response) => {
+    void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
       if (response.ok) setProfile(await response.json());
     });
   }, [slug]);
 
   async function search() {
     setSearched(true);
-    const response = await fetch(`${api}/api/public/${slug}/appointments?email=${encodeURIComponent(email)}`);
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/appointments?email=${encodeURIComponent(email)}`);
     setItems(response.ok ? await response.json() : []);
   }
 
   async function cancel(appointmentId: string) {
-    const response = await fetch(`${api}/api/public/${slug}/appointments/${appointmentId}/cancel`, {
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/appointments/${appointmentId}/cancel`, {
       body: JSON.stringify({ email }),
       headers: { "content-type": "application/json" },
       method: "POST",
@@ -44,7 +44,7 @@ export default function AppointmentsPage() {
   }
 
   async function requestReschedule(appointmentId: string) {
-    const response = await fetch(`${api}/api/public/${slug}/appointments/${appointmentId}/reschedule-requests`, {
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/appointments/${appointmentId}/reschedule-requests`, {
       body: JSON.stringify({ email, requested_starts_at: requestedStartsAt }),
       headers: { "content-type": "application/json" },
       method: "POST",
