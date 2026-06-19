@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, FormField, InlineError, PageHeader, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Button, FormField, PageHeader, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
 import { useAuth } from "../../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -17,16 +17,10 @@ interface Member {
   workingHours: WorkingHours;
 }
 
-interface Block {
-  id: string;
-  startsAt: string;
-  endsAt: string;
-  reason?: string;
-}
-
 interface StaffAccess {
   active: boolean;
   email: string;
+  role?: "owner" | "manager" | "receptionist" | "employee" | null;
   user_id?: string | null;
 }
 
@@ -34,21 +28,24 @@ export default function StaffDetailPage() {
   const { staffId } = useParams<{ staffId: string }>();
   const { salon } = useAuth();
   const [member, setMember] = useState<Member>();
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [access, setAccess] = useState<StaffAccess>({ active: true, email: "", user_id: null });
+  const [salonHours, setSalonHours] = useState<WorkingHours>();
+  const [access, setAccess] = useState<StaffAccess>({ active: true, email: "", role: null, user_id: null });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const load = async () => {
     if (!salon) return;
-    const [staffRows, absences, accessResponse] = await Promise.all([
+    const [staffRows, accessResponse, settingsResponse] = await Promise.all([
       fetch(`${api}/api/salons/${salon.id}/staff`, { credentials: "include" }).then((response) => response.json()),
-      fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/availability-blocks`, { credentials: "include" }).then((response) => response.json()),
       fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/access`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/staff-default-hours`, { credentials: "include" }),
     ]);
     setMember(staffRows.find((item: Member) => item.id === staffId));
-    setBlocks(absences);
     if (accessResponse.ok) setAccess(await accessResponse.json() as StaffAccess);
+    if (settingsResponse.ok) {
+      const settings = await settingsResponse.json() as { opening_hours?: WorkingHours };
+      setSalonHours(settings.opening_hours);
+    }
   };
 
   useEffect(() => {
@@ -104,96 +101,84 @@ export default function StaffDetailPage() {
     setMessage("Accesso PWA dipendente salvato.");
   }
 
-  async function addBlock(data: FormData) {
-    if (!salon) return;
-    await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/availability-blocks`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        starts_at: data.get("starts"),
-        ends_at: data.get("ends"),
-        reason: data.get("reason"),
-        recurring: false,
-      }),
-    });
-    await load();
-  }
-
-  async function removeBlock(blockId: string) {
-    if (!salon) return;
-    await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/availability-blocks/${blockId}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    await load();
-  }
-
   if (!member) return <AppPage><SectionCard><div className="h-96 animate-pulse rounded-[2rem] bg-stone-100" /></SectionCard></AppPage>;
 
   return (
-    <AppPage maxWidth="max-w-5xl">
+    <AppPage maxWidth="max-w-[1500px]">
       <SaveToast visible={Boolean(message || error)} variant={error ? "error" : "success"}>{error || message}</SaveToast>
-      <PageHeader eyebrow="Profilo staff" title={member.displayName} subtitle="Anagrafica, accesso PWA dipendente, orari e blocchi disponibilita." />
+      <PageHeader eyebrow="Profilo staff" title={member.displayName} subtitle="Anagrafica, accesso PWA dipendente e orari ricorrenti." />
 
-      <div className="grid gap-5">
-        <SectionCard title="Profilo">
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Nome">
-              <input value={member.displayName} onChange={(event) => setMember({ ...member, displayName: event.target.value })} />
+      <div className="grid gap-5 xl:grid-cols-12">
+        <SectionCard className="xl:col-span-5" title="Profilo" subtitle="Dati visibili nel gestionale e nelle aree collegate al collaboratore.">
+          <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_170px]">
+            <FormField label="Nome collaboratore" required>
+              <input className="w-full" value={member.displayName} onChange={(event) => setMember({ ...member, displayName: event.target.value })} />
             </FormField>
             <FormField label="Colore">
-              <input type="color" value={member.color} onChange={(event) => setMember({ ...member, color: event.target.value })} />
+              <div className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-[#fffafd] px-3">
+                <label className="relative block size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(214_211_209)]" style={{ backgroundColor: member.color }}>
+                  <span className="sr-only">Scegli colore collaboratore</span>
+                  <input aria-label="Colore collaboratore" className="absolute inset-0 size-full cursor-pointer opacity-0" type="color" value={member.color} onChange={(event) => setMember({ ...member, color: event.target.value })} />
+                </label>
+                <span className="text-sm font-bold uppercase text-stone-500">{member.color}</span>
+              </div>
             </FormField>
-            <FormField label="Bio" className="md:col-span-2">
-              <textarea value={member.bio ?? ""} onChange={(event) => setMember({ ...member, bio: event.target.value })} />
+            <FormField label="Biografia" description="Nota interna o breve presentazione del collaboratore." className="sm:col-span-2">
+              <textarea className="min-h-28 w-full resize-y" value={member.bio ?? ""} onChange={(event) => setMember({ ...member, bio: event.target.value })} />
             </FormField>
           </div>
-          <Button onClick={() => void save()} className="mt-4" variant="primary">Salva profilo e orari</Button>
+          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+            <Button onClick={() => void save()} variant="primary">Salva profilo</Button>
+          </div>
         </SectionCard>
 
-        <SectionCard title="Accesso PWA dipendente" subtitle="Credenziali usate dal collaboratore per accedere alla PWA staff separata.">
-          <form action={saveAccess} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-            <FormField label="Email dipendente" required>
-              <input name="email" type="email" required value={access.email} onChange={(event) => setAccess({ ...access, email: event.target.value })} />
-            </FormField>
-            <FormField label={access.user_id ? "Nuova password" : "Password iniziale"} description="Minimo 10 caratteri. Lascia vuoto per non cambiarla se l'accesso esiste.">
-              <input name="password" type="password" minLength={10} />
-            </FormField>
-            <label className="flex min-h-12 items-center gap-2 rounded-2xl border border-[#ead1df] bg-[#fffafd] px-4 text-sm font-bold">
-              <input name="active" type="checkbox" checked={access.active} onChange={(event) => setAccess({ ...access, active: event.target.checked })} />
-              Attivo
-            </label>
-            <div className="md:col-span-3">
+        <SectionCard className="xl:col-span-7" title="Accesso PWA dipendente" subtitle="Credenziali usate dal collaboratore per accedere alla PWA staff separata.">
+          <form action={saveAccess}>
+            <div className="grid gap-5 md:grid-cols-2">
+              <FormField label="Email dipendente" required>
+                <input className="w-full" name="email" type="email" required value={access.email} onChange={(event) => setAccess({ ...access, email: event.target.value })} />
+              </FormField>
+              <FormField label={access.user_id ? "Reimposta password" : "Password iniziale"} description={access.user_id ? "Lascia vuoto per mantenere la password attuale. Minimo 10 caratteri." : "Minimo 10 caratteri."}>
+                <input className="w-full" name="password" type="password" minLength={10} />
+              </FormField>
+              <div className="md:col-span-2">
+                <label className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-[#fbfaf8] px-4">
+                  <span>
+                    <strong className="block text-sm text-stone-900">Accesso PWA attivo</strong>
+                    <span className="mt-1 block text-xs text-stone-500">Consente al collaboratore di accedere alla propria agenda.</span>
+                  </span>
+                  <input disabled={access.role === "owner"} name="active" type="checkbox" checked={access.active} onChange={(event) => setAccess({ ...access, active: event.target.checked })} />
+                </label>
+              </div>
+            </div>
+            {access.role === "owner" && (
+              <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                Questo profilo è collegato al titolare. L’accesso PWA usa lo stesso account senza modificarne ruolo o stato.
+              </p>
+            )}
+            <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
               <Button type="submit" variant="primary">Salva accesso PWA</Button>
             </div>
           </form>
         </SectionCard>
 
-        <SectionCard title="Orari settimanali" subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
+        <SectionCard className="xl:col-span-12" title="Orari settimanali" subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4">
+            <div>
+              <strong className="block text-sm text-stone-900">Orario base del salone</strong>
+              <span className="mt-1 block text-xs text-stone-500">Sostituisce le fasce sottostanti con gli orari di apertura attuali.</span>
+            </div>
+            <Button disabled={!salonHours} onClick={() => salonHours && setMember({ ...member, workingHours: structuredClone(salonHours) })} size="sm" variant="outline">Carica orari salone</Button>
+          </div>
           <ScheduleEditor
             onChange={(workingHours) => setMember({ ...member, workingHours })}
             value={member.workingHours}
           />
-        </SectionCard>
-
-        <SectionCard title="Blocchi disponibilita" subtitle="I blocchi compaiono anche sull'agenda come promemoria operativo.">
-          {error && <InlineError className="mb-3">{error}</InlineError>}
-          <form action={addBlock} className="grid gap-2 rounded-2xl bg-white p-4 md:grid-cols-4">
-            <FormField label="Inizio"><input name="starts" type="datetime-local" required /></FormField>
-            <FormField label="Fine"><input name="ends" type="datetime-local" required /></FormField>
-            <FormField label="Motivo"><input name="reason" /></FormField>
-            <div className="flex items-end"><Button type="submit" variant="primary">Aggiungi blocco</Button></div>
-          </form>
-          <div className="mt-3 space-y-2">
-            {blocks.map((block) => (
-              <article key={block.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4 text-sm ring-1 ring-stone-100">
-                <span>{new Date(block.startsAt).toLocaleString("it-IT")} - {new Date(block.endsAt).toLocaleString("it-IT")} - {block.reason || "Non disponibile"}</span>
-                <Button size="sm" variant="destructive" onClick={() => void removeBlock(block.id)}>Elimina</Button>
-              </article>
-            ))}
+          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+            <Button onClick={() => void save()} variant="primary">Salva orari</Button>
           </div>
         </SectionCard>
+
       </div>
     </AppPage>
   );

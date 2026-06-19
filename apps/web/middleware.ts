@@ -16,6 +16,7 @@ export const config = {
     "/onboarding/:path*",
     "/reports/:path*",
     "/reviews/:path*",
+    "/sales/:path*",
     "/services/:path*",
     "/settings/:path*",
     "/staff/:path*",

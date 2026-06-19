@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -80,21 +80,26 @@ export default function ServiceDetailPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <AppPage maxWidth="max-w-4xl">
+    <AppPage maxWidth="max-w-[1500px]">
       <Breadcrumbs items={[{ href: "/settings/services", label: "Catalogo servizi" }, { label: service?.name ?? "Servizio" }]} />
       {error && <div className="mb-4"><InlineError>{error}</InlineError></div>}
       {!service ? (
         <EmptyState title="Servizio non trovato" description="Potrebbe essere archiviato o non accessibile." />
       ) : (
         <>
-          <PageHeader eyebrow="Servizio" title={service.name} subtitle={service.category} status={<StatusBadge status={service.active ? "active" : "archived"}>{service.active ? "Attivo" : "Archiviato"}</StatusBadge>} />
-          <StatGrid>
-            <StatCard label="Durata" value={`${service.durationMinutes} min`} />
-            <StatCard label="Prezzo info" value={`${(service.priceCents / 100).toFixed(2)} EUR`} />
-            <StatCard label="Categoria" value={service.category} />
-            <StatCard label="Stato" value={service.active ? "Attivo" : "Archiviato"} />
-          </StatGrid>
-          <SectionCard className="mt-5" title="Dati servizio">
+          <PageHeaderMetrics
+            eyebrow="Servizio"
+            metrics={[
+              { detail: "Durata catalogo", label: "Durata", value: `${service.durationMinutes} min` },
+              { detail: "Prezzo informativo", label: "Prezzo", value: `${(service.priceCents / 100).toFixed(2)} EUR` },
+              { detail: "Classificazione", label: "Categoria", value: service.category },
+              { detail: "Disponibilità", label: "Stato", value: service.active ? "Attivo" : "Archiviato" },
+            ]}
+            status={<StatusBadge status={service.active ? "active" : "archived"}>{service.active ? "Attivo" : "Archiviato"}</StatusBadge>}
+            subtitle={service.category}
+            title={service.name}
+          />
+          <SectionCard title="Dati servizio">
             <form action={save} className="grid gap-4">
               <FormField label="Nome servizio" required><input required name="name" defaultValue={service.name} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
               <FormField label="Categoria" required><input required name="category" defaultValue={service.category} className="min-h-12 w-full rounded-xl border px-3" /></FormField>

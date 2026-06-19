@@ -1,7 +1,7 @@
 "use client";
 
 import { MODULE_KEYS, type ModuleKey, useModules } from "@esse-beauty/feature-flags";
-import { AppPage, PageHeader, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import type { ComponentType, SVGProps } from "react";
 
@@ -28,7 +28,7 @@ const features: Array<{ key: ModuleKey; name: string; description: string; desti
   { key: MODULE_KEYS.DOCUMENTS, name: "Documenti e consensi", description: "Consensi informati e privacy collegati ai clienti.", destination: "Impostazioni documenti" },
   { key: MODULE_KEYS.PACKAGES, name: "Pacchetti servizi", description: "Sedute incluse, utilizzate e residue.", destination: "Pacchetti" },
   { key: MODULE_KEYS.MULTI_LOCATION, name: "Multi-sede", description: "Sedi, stanze, risorse e attrezzature.", destination: "Sedi e risorse" },
-  { key: MODULE_KEYS.AUDIT_COMPLIANCE, name: "Audit e compliance", description: "Registro delle azioni sensibili del salone.", destination: "Audit" },
+  { key: MODULE_KEYS.AUDIT_COMPLIANCE, name: "Registro attività", description: "Mostra chi inserisce, modifica, elimina e vende nel salone.", destination: "Attività" },
 ];
 
 const moduleIcons: Record<ModuleKey, ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -50,18 +50,13 @@ export default function ModulesPage() {
   const activeCount = Object.values(state).filter(Boolean).length;
 
   return (
-    <AppPage maxWidth="max-w-5xl">
+    <AppPage maxWidth="max-w-[1500px]">
       <PageHeader
         eyebrow="Piano del salone"
         title="Moduli inclusi"
         subtitle="Qui trovi i moduli disponibili per il tuo salone. I moduli non inclusi non compaiono nella navigazione."
         status={<StatusBadge status={activeCount > 0 ? "active" : "inactive"}>{activeCount} attivi</StatusBadge>}
       />
-      <StatGrid className="mb-6 md:grid-cols-3">
-        <StatCard label="Moduli attivi" value={activeCount} detail="Disponibili nel salone" />
-        <StatCard label="Catalogo" value={features.length} detail="Moduli totali EsseBeauty" />
-        <StatCard label="Aggiornamenti" value="Su richiesta" detail="Per ampliare il piano" />
-      </StatGrid>
       <p className="mb-6 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm font-medium leading-6 text-amber-900">
         Se ti serve un modulo non incluso, aggiorna il piano del salone. Non serve configurare altro da questa schermata.
       </p>

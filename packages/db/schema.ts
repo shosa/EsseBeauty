@@ -36,6 +36,19 @@ export const appointmentSourceEnum = pgEnum("appointment_source", [
   "manual",
   "walk_in",
 ]);
+export const saleStatusEnum = pgEnum("sale_status", ["open", "paid", "void"]);
+export const saleItemTypeEnum = pgEnum("sale_item_type", [
+  "service",
+  "product",
+  "custom",
+]);
+export const paymentMethodEnum = pgEnum("payment_method", [
+  "cash",
+  "card",
+  "bank_transfer",
+  "voucher",
+  "other",
+]);
 export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
   "pending",
@@ -698,6 +711,99 @@ export const appointments = pgTable("appointments", {
     .notNull(),
   ...timestamps,
 });
+
+export const sales = pgTable(
+  "sales",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .references(() => appointments.id, { onDelete: "set null" }),
+    customerId: uuid("customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    staffId: uuid("staff_id").references(() => staff.id, {
+      onDelete: "set null",
+    }),
+    status: saleStatusEnum("status").default("open").notNull(),
+    subtotalCents: integer("subtotal_cents").default(0).notNull(),
+    discountCents: integer("discount_cents").default(0).notNull(),
+    totalCents: integer("total_cents").default(0).notNull(),
+    notes: text("notes"),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedByUserId: uuid("closed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("sales_appointment_unique").on(table.appointmentId),
+    check("sales_subtotal_non_negative", sql`${table.subtotalCents} >= 0`),
+    check("sales_discount_non_negative", sql`${table.discountCents} >= 0`),
+    check("sales_total_non_negative", sql`${table.totalCents} >= 0`),
+  ],
+);
+
+export const saleItems = pgTable(
+  "sale_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    saleId: uuid("sale_id")
+      .notNull()
+      .references(() => sales.id, { onDelete: "cascade" }),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    itemType: saleItemTypeEnum("item_type").notNull(),
+    serviceId: uuid("service_id").references(() => services.id, {
+      onDelete: "set null",
+    }),
+    productId: uuid("product_id").references(() => inventoryProducts.id, {
+      onDelete: "set null",
+    }),
+    staffId: uuid("staff_id").references(() => staff.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    discountCents: integer("discount_cents").default(0).notNull(),
+    totalCents: integer("total_cents").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check("sale_items_quantity_positive", sql`${table.quantity} > 0`),
+    check("sale_items_unit_price_non_negative", sql`${table.unitPriceCents} >= 0`),
+    check("sale_items_discount_non_negative", sql`${table.discountCents} >= 0`),
+    check("sale_items_total_non_negative", sql`${table.totalCents} >= 0`),
+  ],
+);
+
+export const salePayments = pgTable(
+  "sale_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    saleId: uuid("sale_id")
+      .notNull()
+      .references(() => sales.id, { onDelete: "cascade" }),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    method: paymentMethodEnum("method").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    reference: text("reference"),
+    paidAt: timestamp("paid_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check("sale_payments_amount_positive", sql`${table.amountCents} > 0`),
+  ],
+);
 
 export const appointmentNotes = pgTable("appointment_notes", {
   id: uuid("id").defaultRandom().primaryKey(),

@@ -2,7 +2,7 @@
 
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
-import { PERMISSION_KEYS, type PermissionKey } from "@esse-beauty/shared";
+import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, PERMISSION_KEYS, type PermissionKey, type WorkingHours } from "@esse-beauty/shared";
 import { Button, EmptyState, FormField, InlineError, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -18,6 +18,7 @@ interface StaffSession {
     display_name: string;
     id: string;
     job_title?: string | null;
+    working_hours: WorkingHours;
   };
 }
 
@@ -39,6 +40,13 @@ interface AvailabilityRequest {
   review_note?: string | null;
   starts_at: string;
   status: string;
+}
+
+interface CalendarBlock {
+  ends_at: string;
+  id: string;
+  reason?: string | null;
+  starts_at: string;
 }
 
 interface Report {
@@ -83,6 +91,17 @@ function dateTime(value: string) {
   return new Date(value).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" });
 }
 
+const weekdayKeys: Array<keyof WorkingHours> = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+function minutes(value: string) {
+  const [hours = "0", minute = "0"] = value.split(":");
+  return Number(hours) * 60 + Number(minute);
+}
+
+function sameDate(value: string, day: Date) {
+  return new Date(value).toDateString() === day.toDateString();
+}
+
 function Icon({ children }: { children: ReactNode }) {
   return <svg aria-hidden="true" fill="none" height="22" viewBox="0 0 24 24" width="22">{children}</svg>;
 }
@@ -109,6 +128,7 @@ export default function StaffPwaHome() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [todayItems, setTodayItems] = useState<Appointment[]>([]);
   const [availability, setAvailability] = useState<AvailabilityRequest[]>([]);
+  const [calendarBlocks, setCalendarBlocks] = useState<CalendarBlock[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [report, setReport] = useState<Report>();
@@ -117,6 +137,7 @@ export default function StaffPwaHome() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("today");
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => (new Date().getDay() + 6) % 7);
 
   const permissionSet = useMemo(() => new Set(session?.permissions ?? []), [session?.permissions]);
   const canViewAgenda = permissionSet.has(PERMISSION_KEYS.CALENDAR_VIEW_OWN);
@@ -126,6 +147,11 @@ export default function StaffPwaHome() {
   const todayAppointments = todayItems;
   const nextAppointment = todayAppointments.find((item) => new Date(item.ends_at).getTime() > Date.now());
   const selectedWeek = useMemo(() => weekRange(weekOffset), [weekOffset]);
+  const selectedDay = useMemo(() => {
+    const day = new Date(selectedWeek.from);
+    day.setDate(day.getDate() + selectedDayIndex);
+    return day;
+  }, [selectedDayIndex, selectedWeek.from]);
 
   async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${api}${path}`, {
@@ -146,14 +172,16 @@ export default function StaffPwaHome() {
 
   async function loadWork() {
     const todayParams = dayRange(1);
-    const [rows, todayRows, requests] = await Promise.all([
+    const [rows, todayRows, requests, blocks] = await Promise.all([
       request<Appointment[]>(`/api/staff-app/appointments?${selectedWeek.params}`),
       request<Appointment[]>(`/api/staff-app/appointments?${todayParams}`),
       request<AvailabilityRequest[]>("/api/staff-app/availability-requests"),
+      request<CalendarBlock[]>(`/api/staff-app/calendar-blocks?${selectedWeek.params}`),
     ]);
     setAppointments(rows);
     setTodayItems(todayRows);
     setAvailability(requests);
+    setCalendarBlocks(blocks);
     if (canViewReports) setReport(await request<Report>(`/api/staff-app/reports?${selectedWeek.params}`));
   }
 
@@ -165,6 +193,10 @@ export default function StaffPwaHome() {
     if (!session || !canViewAgenda) return;
     void loadWork().catch(() => setError("Agenda non disponibile."));
   }, [session, canViewAgenda, canViewReports, weekOffset]);
+
+  useEffect(() => {
+    setSelectedDayIndex(weekOffset === 0 ? (new Date().getDay() + 6) % 7 : 0);
+  }, [weekOffset]);
 
   useEffect(() => {
     if (!session || tab !== "requests") return;
@@ -255,7 +287,7 @@ export default function StaffPwaHome() {
         <section className="relative w-full max-w-sm rounded-[2.25rem] border border-white/80 bg-white/90 p-7 shadow-[0_30px_90px_rgb(45_29_39_/_0.18)] backdrop-blur">
           <div className="grid size-14 place-items-center rounded-2xl bg-[linear-gradient(135deg,#402334,#8f3a68)] text-xl font-black text-white shadow-[0_16px_34px_rgb(121_47_89_/_0.28)]">E</div>
           <p className="mt-8 text-[11px] font-black uppercase tracking-[.22em] text-[#8f3a68]">EsseBeauty Staff</p>
-          <h1 className="staff-display mt-2 text-4xl font-bold leading-tight text-[#2d1d27]">Il tuo lavoro,<br />senza rumore.</h1>
+          <h1 className="staff-page-title mt-2 text-4xl font-bold leading-tight tracking-[-.025em] text-[#2d1d27]">Il tuo lavoro,<br />senza rumore.</h1>
           <p className="mt-3 text-sm leading-6 text-stone-500">Agenda, clienti e richieste in un’app pensata per la giornata in salone.</p>
           {error && <InlineError className="mt-5">{error}</InlineError>}
           <form className="mt-6 space-y-4" onSubmit={login}>
@@ -282,10 +314,10 @@ export default function StaffPwaHome() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[.15em] text-[#792f59]">{dayLabel(selected.starts_at)} · {time(selected.starts_at)}-{time(selected.ends_at)}</p>
-                <h1 className="staff-display mt-3 text-4xl font-bold leading-none text-[#2d1d27]">{selected.customer_name}</h1>
+                <h1 className="staff-page-title mt-3 text-4xl font-bold leading-none tracking-[-.025em] text-[#2d1d27]">{selected.customer_name}</h1>
                 <p className="mt-2 font-semibold text-stone-500">{selected.service_name}</p>
               </div>
-              <StatusBadge status={selected.status}>{selected.status}</StatusBadge>
+              <StatusBadge status={selected.status}>{appointmentStatusLabel(selected.status)}</StatusBadge>
             </div>
           </Surface>
           <Surface>
@@ -313,7 +345,7 @@ export default function StaffPwaHome() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{session.staff.job_title ?? "Staff"}</p>
-            <h1 className="staff-display mt-1 text-2xl font-bold text-[#2d1d27]">Ciao, {session.staff.display_name.split(" ")[0]}</h1>
+            <h1 className="staff-page-title mt-1 text-2xl font-bold tracking-[-.025em] text-[#2d1d27]">Ciao, {session.staff.display_name.split(" ")[0]}</h1>
           </div>
           <div className="grid size-11 place-items-center rounded-full font-black text-white shadow-md" style={{ backgroundColor: session.staff.color }}>{session.staff.display_name.slice(0, 1)}</div>
         </div>
@@ -328,18 +360,18 @@ export default function StaffPwaHome() {
               <div aria-hidden="true" className="absolute -right-12 -top-12 size-40 rounded-full bg-white/10 blur-2xl" />
               <p className="text-[11px] font-black uppercase tracking-[.2em] text-white/65">La tua giornata</p>
               <div className="mt-5 flex items-end justify-between gap-4">
-                <div><span className="staff-display text-6xl font-bold leading-none">{todayAppointments.length}</span><p className="mt-2 text-sm font-semibold text-white/75">appuntamenti oggi</p></div>
+                <div><span className="text-6xl font-black leading-none tracking-[-.04em]">{todayAppointments.length}</span><p className="mt-2 text-sm font-semibold text-white/75">appuntamenti oggi</p></div>
                 <div className="rounded-2xl bg-white/12 px-4 py-3 text-right backdrop-blur"><b className="block text-xl">{todayAppointments.filter((item) => item.status === "completed").length}</b><span className="text-xs text-white/70">completati</span></div>
               </div>
             </section>
 
             <div>
-              <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">In evidenza</p><h2 className="staff-display text-2xl font-bold">Prossimo cliente</h2></div><button className="text-xs font-black text-[#792f59]" onClick={() => setTab("agenda")}>Vedi agenda</button></div>
+              <div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">In evidenza</p><h2 className="text-xl font-bold tracking-[-.015em]">Prossimo cliente</h2></div><button className="text-xs font-black text-[#792f59]" onClick={() => setTab("agenda")}>Vedi agenda</button></div>
               {!nextAppointment ? <Surface><EmptyState title="Nessun appuntamento imminente" description="La giornata è libera oppure hai già completato tutto." /></Surface> : (
                 <button className="w-full text-left" onClick={() => openAppointment(nextAppointment.id)} type="button">
                   <Surface className="transition active:scale-[.98]">
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-xs font-black text-[#792f59]">{time(nextAppointment.starts_at)} - {time(nextAppointment.ends_at)}</p><h3 className="staff-display mt-2 text-3xl font-bold">{nextAppointment.customer_name}</h3><p className="mt-1 text-sm font-semibold text-stone-500">{nextAppointment.service_name}</p></div>
+                      <div><p className="text-xs font-black text-[#792f59]">{time(nextAppointment.starts_at)} - {time(nextAppointment.ends_at)}</p><h3 className="mt-2 text-2xl font-bold tracking-[-.015em]">{nextAppointment.customer_name}</h3><p className="mt-1 text-sm font-semibold text-stone-500">{nextAppointment.service_name}</p></div>
                       <span className="grid size-11 place-items-center rounded-full bg-[#faf3f7] text-xl text-[#792f59]">›</span>
                     </div>
                   </Surface>
@@ -348,7 +380,7 @@ export default function StaffPwaHome() {
             </div>
 
             <div>
-              <h2 className="staff-display mb-3 text-2xl font-bold">A seguire</h2>
+              <h2 className="mb-3 text-xl font-bold tracking-[-.015em]">A seguire</h2>
               <div className="space-y-2">
                 {todayAppointments.filter((item) => item.id !== nextAppointment?.id).slice(0, 3).map((item) => (
                   <AppointmentRow item={item} key={item.id} onOpen={() => openAppointment(item.id)} />
@@ -368,14 +400,30 @@ export default function StaffPwaHome() {
               </button>
               <button aria-label="Settimana successiva" className="grid min-h-11 place-items-center rounded-xl text-2xl font-bold text-[#792f59] transition active:bg-[#f3e2eb]" onClick={() => setWeekOffset((value) => value + 1)} type="button">›</button>
             </div>
-            {appointments.length === 0 ? <Surface><EmptyState title="Agenda libera" description={`Nessun appuntamento dal ${selectedWeek.label}.`} /></Surface> : (
-              <div className="space-y-5">
-                {Array.from(new Set(appointments.map((item) => new Date(item.starts_at).toDateString()))).map((date) => {
-                  const dayItems = appointments.filter((item) => new Date(item.starts_at).toDateString() === date);
-                  return <section key={date}><h2 className="mb-2 px-1 text-xs font-black uppercase tracking-[.15em] text-stone-400">{dayLabel(dayItems[0]!.starts_at)}</h2><div className="space-y-2">{dayItems.map((item) => <AppointmentRow item={item} key={item.id} onOpen={() => openAppointment(item.id)} />)}</div></section>;
-                })}
-              </div>
-            )}
+            <div className="grid grid-cols-7 gap-1 rounded-[1.4rem] border border-white/80 bg-white/88 p-2 shadow-sm">
+              {Array.from({ length: 7 }, (_, index) => {
+                const day = new Date(selectedWeek.from);
+                day.setDate(day.getDate() + index);
+                const count = appointments.filter((item) => sameDate(item.starts_at, day)).length;
+                const active = selectedDayIndex === index;
+                return (
+                  <button className={`min-w-0 rounded-xl py-2 text-center transition ${active ? "text-white shadow-md" : "text-stone-500"}`} key={day.toISOString()} onClick={() => setSelectedDayIndex(index)} style={active ? { background: session.staff.color } : undefined} type="button">
+                    <span className="block text-[9px] font-black uppercase">{day.toLocaleDateString("it-IT", { weekday: "short" })}</span>
+                    <strong className="mt-1 block text-base">{day.getDate()}</strong>
+                    <span className={`mx-auto mt-1 block size-1.5 rounded-full ${count ? active ? "bg-white" : "bg-[#792f59]" : "bg-transparent"}`} />
+                  </button>
+                );
+              })}
+            </div>
+            <StaffDayTimeline
+              appointments={appointments.filter((item) => sameDate(item.starts_at, selectedDay))}
+              blocks={calendarBlocks.filter((item) => sameDate(item.starts_at, selectedDay))}
+              color={session.staff.color}
+              day={selectedDay}
+              name={session.staff.display_name}
+              onOpen={openAppointment}
+              workingHours={session.staff.working_hours}
+            />
           </>
         )}
 
@@ -391,7 +439,7 @@ export default function StaffPwaHome() {
               </form>
             </Surface>
             <div>
-              <h2 className="staff-display mb-3 text-2xl font-bold">Le tue richieste</h2>
+              <h2 className="mb-3 text-xl font-bold tracking-[-.015em]">Le tue richieste</h2>
               <div className="space-y-2">
                 {availability.length === 0 && <Surface><p className="text-sm text-stone-500">Non hai ancora inviato richieste.</p></Surface>}
                 {availability.map((item) => (
@@ -417,7 +465,7 @@ export default function StaffPwaHome() {
               </div>
             )}
             <Surface>
-              <h2 className="staff-display text-2xl font-bold">Sicurezza</h2>
+              <h2 className="text-xl font-bold tracking-[-.015em]">Sicurezza</h2>
               <p className="mt-1 text-sm text-stone-500">Aggiorna la password del tuo account.</p>
               <form action={changePassword} className="mt-5 space-y-4">
                 <FormField label="Password attuale" required><input name="current_password" required type="password" /></FormField>
@@ -441,22 +489,137 @@ export default function StaffPwaHome() {
   );
 }
 
+function StaffDayTimeline({
+  appointments,
+  blocks,
+  color,
+  day,
+  name,
+  onOpen,
+  workingHours,
+}: {
+  appointments: Appointment[];
+  blocks: CalendarBlock[];
+  color: string;
+  day: Date;
+  name: string;
+  onOpen(id: string): void;
+  workingHours: WorkingHours;
+}) {
+  const dayKey = weekdayKeys[day.getDay()] ?? "mon";
+  const schedule = (workingHours?.[dayKey] ?? [])
+    .map((period) => ({ from: minutes(period.from), to: minutes(period.to) }))
+    .sort((left, right) => left.from - right.from);
+  const eventMinutes = [
+    ...appointments.flatMap((item) => {
+      const start = new Date(item.starts_at);
+      const end = new Date(item.ends_at);
+      return [start.getHours() * 60 + start.getMinutes(), end.getHours() * 60 + end.getMinutes()];
+    }),
+    ...blocks.flatMap((item) => {
+      const start = new Date(item.starts_at);
+      const end = new Date(item.ends_at);
+      return [start.getHours() * 60 + start.getMinutes(), end.getHours() * 60 + end.getMinutes()];
+    }),
+  ];
+  const bounds = [...schedule.flatMap((period) => [period.from, period.to]), ...eventMinutes];
+  const startHour = bounds.length ? Math.max(0, Math.floor(Math.min(...bounds) / 60)) : 9;
+  const endHour = bounds.length ? Math.min(24, Math.ceil(Math.max(...bounds) / 60)) : 19;
+  const safeEndHour = Math.max(startHour + 1, endHour);
+  const hourHeight = 78;
+  const height = (safeEndHour - startHour) * hourHeight;
+  const hours = Array.from({ length: safeEndHour - startHour + 1 }, (_, index) => startHour + index);
+
+  function position(from: number, to: number, minimumHeight = 0) {
+    const top = Math.max(0, (from - startHour * 60) / 60 * hourHeight);
+    const bottom = Math.min(height, (to - startHour * 60) / 60 * hourHeight);
+    return { height: Math.max(minimumHeight, bottom - top), top };
+  }
+
+  function itemPosition(startsAt: string, endsAt: string) {
+    const start = new Date(startsAt);
+    const end = new Date(endsAt);
+    return position(start.getHours() * 60 + start.getMinutes(), end.getHours() * 60 + end.getMinutes(), 40);
+  }
+
+  const gaps: Array<{ from: number; to: number }> = [];
+  let cursor = startHour * 60;
+  for (const period of schedule) {
+    const from = Math.max(cursor, period.from);
+    if (from > cursor) gaps.push({ from: cursor, to: from });
+    cursor = Math.max(cursor, Math.min(safeEndHour * 60, period.to));
+  }
+  if (cursor < safeEndHour * 60) gaps.push({ from: cursor, to: safeEndHour * 60 });
+
+  return (
+    <section className="overflow-hidden rounded-[1.6rem] border border-stone-200 bg-white shadow-[0_18px_50px_rgb(45_29_39_/_0.09)]">
+      <header className="grid grid-cols-[58px_1fr] border-b border-stone-200 bg-white">
+        <span className="border-r border-stone-200 py-4 text-center text-[9px] font-black uppercase tracking-[.16em] text-stone-400">Ora</span>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <span className="grid size-9 place-items-center rounded-full text-sm font-black text-white" style={{ background: color }}>{name.slice(0, 1).toUpperCase()}</span>
+          <div><b className="block text-sm">{name}</b><span className="text-[10px] font-semibold text-stone-400">{appointments.length} appuntamenti</span></div>
+        </div>
+      </header>
+      <div className="grid grid-cols-[58px_1fr]">
+        <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height }}>
+          {hours.map((hour, index) => (
+            <span className="absolute left-0 right-0 pr-2 text-right text-[10px] font-black text-stone-500" key={hour} style={{ top: index === 0 ? 7 : index === hours.length - 1 ? height - 18 : (hour - startHour) * hourHeight - 7 }}>
+              {String(hour).padStart(2, "0")}:00
+            </span>
+          ))}
+        </div>
+        <div className="relative bg-white" style={{ height }}>
+          {hours.slice(0, -1).map((hour) => <span className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: (hour - startHour) * hourHeight }} />)}
+          {hours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => <span className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: ((hour - startHour) * 60 + minute) / 60 * hourHeight }} />))}
+          {gaps.map((gap) => (
+            <div className="absolute left-0 right-0 z-[1] flex items-center justify-center overflow-hidden border-y border-stone-300/80" key={`${gap.from}-${gap.to}`} style={{ ...position(gap.from, gap.to), background: "repeating-linear-gradient(135deg, rgba(120,113,108,.08) 0, rgba(120,113,108,.08) 8px, rgba(120,113,108,.20) 8px, rgba(120,113,108,.20) 10px)" }}>
+              <span className="rounded-full bg-white/90 px-3 py-1 text-[9px] font-black uppercase tracking-[.14em] text-stone-500 shadow-sm">Non lavorativo</span>
+            </div>
+          ))}
+          {blocks.map((block) => (
+            <div className="absolute left-2 right-2 z-10 overflow-hidden rounded-xl border border-amber-300 px-3 py-2 text-[10px] font-black text-amber-950 shadow-sm" key={block.id} style={{ ...itemPosition(block.starts_at, block.ends_at), background: "repeating-linear-gradient(135deg, #fffbeb 0, #fffbeb 8px, #fde68a 8px, #fde68a 11px)" }}>
+              <span>{time(block.starts_at)}–{time(block.ends_at)}</span>
+              <span className="ml-2 uppercase">{block.reason || "Assenza / non disponibile"}</span>
+            </div>
+          ))}
+          {appointments.map((item) => {
+            const duration = (new Date(item.ends_at).getTime() - new Date(item.starts_at).getTime()) / 60000;
+            const short = duration < 30;
+            const confirmed = item.status === "confirmed";
+            const palette = APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE];
+            return (
+              <button className={`absolute left-2 right-2 z-10 overflow-hidden rounded-xl border pr-20 text-left active:scale-[.99] ${confirmed ? "border-white/80 text-white shadow-[0_8px_22px_rgb(45_29_39_/_0.16)]" : "shadow-[0_6px_16px_rgb(68_64_60_/_0.10)]"} ${short ? "flex items-center gap-2 py-1.5 pl-3" : "py-2 pl-3"}`} key={item.id} onClick={() => onOpen(item.id)} style={{ ...itemPosition(item.starts_at, item.ends_at), background: confirmed ? `linear-gradient(135deg, ${color}, color-mix(in srgb, ${color} 72%, white))` : palette?.background, borderColor: confirmed ? undefined : palette?.border, color: confirmed ? undefined : palette?.text }} title={`${time(item.starts_at)}–${time(item.ends_at)} · ${item.customer_name} · ${item.service_name} · ${appointmentStatusLabel(item.status)}`} type="button">
+                <span className="shrink-0 text-[10px] font-black">{time(item.starts_at)}–{time(item.ends_at)}</span>
+                <strong className={`${short ? "min-w-0 truncate text-xs" : "mt-1 block truncate text-sm"} uppercase`}>{item.customer_name}</strong>
+                <span className={`${short ? "hidden min-w-0 truncate text-[10px] font-semibold opacity-75 sm:block" : "mt-1 block truncate text-[10px] font-semibold opacity-75"}`}>{short ? `· ${item.service_name}` : item.service_name}</span>
+                <span className={`absolute right-2 top-1/2 max-w-16 -translate-y-1/2 truncate rounded-full border px-2 py-1 text-[7px] font-black uppercase tracking-[.06em] backdrop-blur-sm ${confirmed ? "border-white/20 bg-black/16 text-white" : "border-current/20 bg-white/55"}`}>{appointmentStatusLabel(item.status)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ScreenTitle({ eyebrow, subtitle, title }: { eyebrow: string; subtitle: string; title: string }) {
-  return <header className="px-1 pt-2"><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p><h1 className="staff-display mt-1 text-4xl font-bold leading-tight text-[#2d1d27]">{title}</h1><p className="mt-2 text-sm text-stone-500">{subtitle}</p></header>;
+  return <header className="px-1 pt-2"><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p><h1 className="staff-page-title mt-1 text-4xl font-bold leading-tight tracking-[-.025em] text-[#2d1d27]">{title}</h1><p className="mt-2 text-sm leading-6 text-stone-500">{subtitle}</p></header>;
 }
 
 function AppointmentRow({ item, onOpen }: { item: Appointment; onOpen(): void }) {
+  const confirmed = item.status === "confirmed";
+  const palette = APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE];
   return (
-    <button className="w-full rounded-[1.4rem] border border-white/80 bg-white/88 p-4 text-left shadow-[0_12px_34px_rgb(45_29_39_/_0.07)] transition active:scale-[.98]" onClick={onOpen} type="button">
+    <button className={`w-full rounded-[1.4rem] border p-4 text-left shadow-[0_12px_34px_rgb(45_29_39_/_0.07)] transition active:scale-[.98] ${confirmed ? "border-white/80 text-white" : ""}`} onClick={onOpen} style={{ background: confirmed ? "linear-gradient(135deg,#792f59,#b85888)" : palette?.background, borderColor: confirmed ? undefined : palette?.border, color: confirmed ? undefined : palette?.text }} type="button">
       <div className="flex items-center gap-4">
-        <div className="w-14 shrink-0 text-center"><b className="staff-display block text-2xl text-[#792f59]">{time(item.starts_at)}</b><span className="text-[10px] font-bold text-stone-400">{time(item.ends_at)}</span></div>
-        <div className="min-w-0 flex-1 border-l border-stone-100 pl-4"><h3 className="truncate font-black text-stone-900">{item.customer_name}</h3><p className="truncate text-xs font-semibold text-stone-500">{item.service_name}</p></div>
-        <span className="text-xl text-stone-300">›</span>
+        <div className="w-14 shrink-0 text-center"><b className="block text-xl font-black tracking-[-.02em]">{time(item.starts_at)}</b><span className="text-[10px] font-bold opacity-65">{time(item.ends_at)}</span></div>
+        <div className="min-w-0 flex-1 border-l border-current/15 pl-4"><h3 className="truncate font-black">{item.customer_name}</h3><p className="truncate text-xs font-semibold opacity-70">{item.service_name}</p></div>
+        <StatusBadge status={item.status}>{appointmentStatusLabel(item.status)}</StatusBadge>
       </div>
     </button>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <Surface className="p-4"><b className="staff-display block text-3xl text-[#2d1d27]">{value}</b><span className="text-xs font-bold text-stone-400">{label}</span></Surface>;
+  return <Surface className="p-4"><b className="block text-3xl font-black tracking-[-.03em] text-[#2d1d27]">{value}</b><span className="text-xs font-bold text-stone-400">{label}</span></Surface>;
 }

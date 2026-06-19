@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, lt, lte, sql } from "drizzle-orm";
 
 import {
   appointments,
+  availabilityBlocks,
   customers,
   services,
   staff,
@@ -69,6 +70,7 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
         display_name: member.displayName,
         id: member.id,
         job_title: member.jobTitle,
+        working_hours: member.workingHours,
       },
       modules: {
         staff_performance: await isModuleEnabled(request.salonId, MODULE_KEYS.STAFF_PERF, app.db),
@@ -112,6 +114,32 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
         ),
       )
       .orderBy(asc(appointments.startsAt));
+  });
+
+  app.get<{
+    Querystring: { from?: string; to?: string };
+  }>("/api/staff-app/calendar-blocks", { preHandler: [authenticate] }, async (request, reply) => {
+    const member = await requireOwnStaff(request, reply);
+    if (!member) return;
+    if (!(await ensurePermission(request, reply, PERMISSION_KEYS.CALENDAR_VIEW_OWN))) return;
+
+    return app.db
+      .select({
+        ends_at: availabilityBlocks.endsAt,
+        id: availabilityBlocks.id,
+        reason: availabilityBlocks.reason,
+        starts_at: availabilityBlocks.startsAt,
+      })
+      .from(availabilityBlocks)
+      .where(
+        and(
+          eq(availabilityBlocks.salonId, request.salonId),
+          eq(availabilityBlocks.staffId, member.id),
+          ...(request.query.from ? [gt(availabilityBlocks.endsAt, new Date(request.query.from))] : []),
+          ...(request.query.to ? [lt(availabilityBlocks.startsAt, new Date(request.query.to))] : []),
+        ),
+      )
+      .orderBy(asc(availabilityBlocks.startsAt));
   });
 
   app.patch<{

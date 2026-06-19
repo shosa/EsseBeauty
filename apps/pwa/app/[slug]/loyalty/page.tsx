@@ -40,7 +40,7 @@ export default function LoyaltyPage() {
       <section className="mx-auto max-w-lg">
         <header className="rounded-[2.2rem] p-6 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>{profile?.salon.name ?? "Programma fedeltà"}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-.03em]">I tuoi punti</h1>
+          <h1 className="mt-3 text-4xl font-bold">I tuoi punti</h1>
           <p className="mt-2 text-sm text-white/75">Consulta saldo, premi e movimenti collegati alla tua email.</p>
         </header>
         <div className="mt-6 rounded-[2rem] border border-white/80 bg-white/86 p-3 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">

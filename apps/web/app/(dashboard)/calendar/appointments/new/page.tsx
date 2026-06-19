@@ -105,7 +105,7 @@ export default function NewAppointmentPage() {
       return;
     }
     const appointment = (await response.json()) as { id: string };
-    router.push(`/calendar/appointments/${appointment.id}`);
+    router.push(`/calendar?appointment=${encodeURIComponent(appointment.id)}`);
   }
 
   if (loading) return <PageSkeleton />;

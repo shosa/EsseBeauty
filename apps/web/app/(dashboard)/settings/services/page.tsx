@@ -62,7 +62,7 @@ export default function SettingsServicesPage() {
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1500px]">
       <PageTransition>
         <PageHeader
           actions={<Link href="/settings/services/new" className="inline-flex min-h-12 items-center rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo servizio</Link>}

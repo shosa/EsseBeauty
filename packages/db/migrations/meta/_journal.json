@@ -99,6 +99,13 @@
       "when": 1781794800000,
       "tag": "0013_salon_plan_text",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781881200000,
+      "tag": "0014_sales_checkout",
+      "breakpoints": true
     }
   ]
 }

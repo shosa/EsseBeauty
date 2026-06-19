@@ -76,8 +76,8 @@ export default function RewardDetailPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <div className="mx-auto max-w-2xl">
+    <main className="p-5 md:p-8">
+      <div className="mx-auto max-w-[1200px]">
         <Breadcrumbs items={[{ href: "/settings/loyalty", label: "Fedeltà" }, { label: reward?.name ?? "Premio" }]} />
         {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
         {!reward ? (

@@ -23,23 +23,38 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("esse:staff-request-count", update);
   }, []);
 
-  const links = [
-    { href: "/settings", label: "Centro controllo" },
-    { href: "/settings/users", label: "Utenti" },
-    { href: "/settings/staff", label: "Staff & disponibilità" },
-    { badge: staffRequestCount, href: "/settings/staff/requests", label: "Richieste staff" },
-    { href: "/settings/services", label: "Catalogo servizi" },
-    { href: "/settings/modules", label: "Moduli" },
-    ...(reminders ? [{ href: "/settings/reminders", label: "Promemoria" }] : []),
-    ...(loyalty ? [{ href: "/settings/loyalty", label: "Fedeltà" }] : []),
-    ...(documents ? [{ href: "/settings/documents", label: "Documenti" }] : []),
-    ...(packages ? [{ href: "/settings/packages", label: "Pacchetti" }] : []),
-    ...(audit ? [{ href: "/settings/audit", label: "Audit" }] : []),
+  const groups = [
+    {
+      label: "Salone",
+      links: [
+        { href: "/settings", label: "Centro controllo" },
+        { href: "/settings/users", label: "Utenti" },
+        { href: "/settings/staff", label: "Staff" },
+        { badge: staffRequestCount, href: "/settings/permissions", label: "Permessi" },
+      ],
+    },
+    {
+      label: "Offerta",
+      links: [
+        { href: "/settings/services", label: "Servizi" },
+        ...(packages ? [{ href: "/settings/packages", label: "Pacchetti" }] : []),
+        ...(loyalty ? [{ href: "/settings/loyalty", label: "Fedeltà" }] : []),
+      ],
+    },
+    {
+      label: "Sistema",
+      links: [
+        { href: "/settings/modules", label: "Moduli" },
+        ...(reminders ? [{ href: "/settings/reminders", label: "Promemoria" }] : []),
+        ...(documents ? [{ href: "/settings/documents", label: "Documenti" }] : []),
+        ...(audit ? [{ href: "/settings/audit", label: "Attività" }] : []),
+      ],
+    },
   ];
 
   return (
     <div className="px-4 pt-5 sm:px-6 md:px-8">
-      <div className="mx-auto max-w-7xl rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)]">
+      <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eee6ea] px-2 pb-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">Sistema</p>
@@ -47,17 +62,20 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
           </div>
           <p className="text-xs text-stone-500">Configurazione, accessi e moduli in un unico spazio</p>
         </div>
-        <div className="mt-2 flex gap-1 overflow-x-auto">
-          {links.map((item) => {
+        <div className="mt-3 grid gap-2 lg:grid-cols-[1.15fr_.85fr_1fr]">
+          {groups.map((group) => <div className="flex min-w-0 items-center gap-1 rounded-xl bg-[#faf7f9] p-1.5" key={group.label}>
+            <span className="hidden shrink-0 px-2 text-[9px] font-black uppercase tracking-[.14em] text-stone-400 2xl:block">{group.label}</span>
+            <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+          {group.links.map((item) => {
             const active = item.href === "/settings"
               ? pathname === item.href
               : item.href === "/settings/staff"
-                ? pathname === item.href || (pathname.startsWith(`${item.href}/`) && !pathname.startsWith("/settings/staff/requests"))
+                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
                 : pathname.startsWith(item.href);
             const badge = "badge" in item ? item.badge ?? 0 : 0;
             return (
               <Link
-                className={`whitespace-nowrap rounded-xl border px-3 py-2 text-sm font-bold transition ${active ? "border-[#d7a6c1] bg-[#f7eaf1] text-[#792f59]" : "border-transparent text-stone-500 hover:bg-[#faf7f9] hover:text-[#792f59]"}`}
+                className={`whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold transition ${active ? "border-[#d7a6c1] bg-white text-[#792f59] shadow-sm" : "border-transparent text-stone-500 hover:bg-white hover:text-[#792f59]"}`}
                 href={item.href}
                 key={item.href}
               >
@@ -68,6 +86,8 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+            </div>
+          </div>)}
         </div>
       </div>
       <div className="-mx-4 sm:-mx-6 md:-mx-8">{children}</div>

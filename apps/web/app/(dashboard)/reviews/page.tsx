@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { AppPage, Button, Dialog, EmptyState, PageHeader, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, Dialog, EmptyState, PageHeaderMetrics, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -62,18 +62,17 @@ export default function ReviewsPage() {
 
   return (
     <AppPage>
-      <PageHeader
+      <PageHeaderMetrics
         eyebrow="Voce dei clienti"
+        metrics={[
+          { detail: "Su 5 stelle", label: "Media", value: average.toFixed(1) },
+          { detail: "Visibili ai clienti", label: "Pubblicate", value: published },
+          { detail: "Senza risposta", label: "Da rispondere", value: unanswered },
+        ]}
         title="Recensioni"
         subtitle="Rispondi ai feedback e scegli cosa rendere pubblico nella pagina del salone."
         status={<StatusBadge status={items.length > 0 ? "active" : "draft"}>{items.length} recensioni</StatusBadge>}
       />
-
-      <StatGrid className="mb-6 md:grid-cols-3">
-        <StatCard label="Media" value={average.toFixed(1)} detail="Su 5 stelle" />
-        <StatCard label="Pubblicate" value={published} detail="Visibili ai clienti" />
-        <StatCard label="Da rispondere" value={unanswered} detail="Senza risposta" />
-      </StatGrid>
 
       <SectionCard title="Distribuzione voti" subtitle="Una lettura rapida della soddisfazione recente.">
         <div className="grid gap-3 md:grid-cols-5">

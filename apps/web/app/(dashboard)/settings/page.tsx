@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, FormField, PageHeader, SaveToast, ScheduleEditor, SectionCard, StatCard, StatGrid, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, FormField, PageHeader, SaveToast, ScheduleEditor, SectionCard, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -199,7 +199,7 @@ export default function GeneralSettingsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-6xl">
+    <AppPage maxWidth="max-w-[1500px]">
       <SaveToast variant={message.includes("non riuscito") ? "error" : "success"} visible={Boolean(message)}>{message}</SaveToast>
       <PageHeader
         eyebrow="Centro controllo"
@@ -207,11 +207,6 @@ export default function GeneralSettingsPage() {
         subtitle="Qui si configurano regole, automazioni, agenda, dati e PWA. Le viste operative consumano queste impostazioni."
       />
 
-      <StatGrid className="mb-6 md:grid-cols-3">
-        <StatCard label="Agenda" value={`${calendar.minSlotMinutes ?? 15} min`} detail="Durata minima slot" />
-        <StatCard label="Buffer" value={`${calendar.bufferMinutes ?? 0} min`} detail="Tra appuntamenti" />
-        <StatCard label="PWA" value={settings.onlineBookingEnabled ? "Attiva" : "Pausa"} detail="Prenotazione online" />
-      </StatGrid>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
         <SectionCard title="Salone" subtitle="Dati principali e orari ufficiali usati da dashboard e PWA.">

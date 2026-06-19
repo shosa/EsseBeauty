@@ -4,17 +4,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, EmptyState, InlineError, PageHeader, PageSkeleton, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type Loadable<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "error" };
-interface Appointment { id: string; starts_at: string; customer_name: string; service_name: string; staff_name: string; color: string; }
+interface Appointment { id: string; starts_at: string; customer_name: string; service_name: string; staff_name: string; color: string; status: string; }
 interface CustomerResponse { total: number; }
 interface StaffMember { id: string; displayName: string; }
 interface LoyaltySummary { leaders: Array<{ customer_id: string; name: string; total_points: number }>; }
-interface NotificationItem { body?: string; category?: string; created_at: string; href?: string | null; id: string; priority?: string; title: string; type: string; }
+interface NotificationItem { body?: string; category?: string; created_at: string; href?: string | null; id: string; priority?: string; title: string; type: string; unread: boolean; }
 interface NotificationResponse { items: NotificationItem[]; unread_count: number; }
 
 function useResource<T>(url: string | null): Loadable<T> {
@@ -68,29 +68,36 @@ export default function DashboardPage() {
   const reviews = useResource<unknown[]>(salonPath && reviewsEnabled ? `${salonPath}/reviews?published=false` : null);
   const waitlist = useResource<unknown[]>(salonPath && waitlistEnabled ? `${salonPath}/waitlist?status=waiting` : null);
   const loyalty = useResource<LoyaltySummary>(salonPath && loyaltyEnabled ? `${salonPath}/loyalty/summary` : null);
+  const operationalToday = todayAppointments.status === "ready"
+    ? todayAppointments.data.filter((item) => item.status === "pending" || item.status === "confirmed")
+    : [];
+  const operationalWeek = weekAppointments.status === "ready"
+    ? weekAppointments.data.filter((item) => item.status === "pending" || item.status === "confirmed")
+    : [];
 
   if (loading) return <AppPage maxWidth="max-w-7xl"><PageSkeleton /></AppPage>;
   if (!user || !salon) return <AppPage><EmptyState action={<Link className="font-bold text-[#792f59]" href="/login">Vai al login</Link>} description="Accedi nuovamente per continuare." title="Sessione non disponibile" /></AppPage>;
 
-  const priorities = notifications.status === "ready" ? notifications.data.items.filter((item) => !item.href || item.type === "staff_availability_request" || item.type === "online_booking_received").slice(0, 5) : [];
+  const priorities = notifications.status === "ready" ? notifications.data.items.filter((item) =>
+    item.unread && (!item.href || item.type === "staff_availability_request" || item.type === "online_booking_received")
+  ).slice(0, 5) : [];
 
   return (
     <AppPage maxWidth="max-w-7xl">
-      <PageHeader
+      <PageHeaderMetrics
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl bg-[#402334] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#5f2447]" href="/calendar/appointments/new">Nuovo appuntamento</Link>}
         eyebrow="Il tuo salone"
+        metrics={[
+          { detail: "Ancora da gestire", label: "Oggi", value: todayAppointments.status === "ready" ? operationalToday.length : "—" },
+          { detail: "Appuntamenti operativi", label: "Settimana", value: weekAppointments.status === "ready" ? operationalWeek.length : "—" },
+          { detail: "Profili nel CRM", label: "Clienti", value: countOf(customers, (item) => item.total) },
+          { detail: "Richiedono attenzione", label: "Da fare", value: notifications.status === "ready" ? notifications.data.unread_count : "—" },
+        ]}
         subtitle={`Bentornato, ${user.full_name}. Agenda, attività e priorità sono raccolte nello stesso spazio.`}
         title={`Oggi da ${salon.name}`}
       />
 
-      <StatGrid className="md:grid-cols-4">
-        <StatCard detail="Appuntamenti in giornata" label="Oggi" value={countOf(todayAppointments, (items) => items.length)} />
-        <StatCard detail="Carico dei prossimi 7 giorni" label="Settimana" value={countOf(weekAppointments, (items) => items.length)} />
-        <StatCard detail="Profili presenti nel CRM" label="Clienti" value={countOf(customers, (item) => item.total)} />
-        <StatCard detail="Richiedono attenzione" label="Da fare" value={notifications.status === "ready" ? notifications.data.unread_count : "—"} />
-      </StatGrid>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.55fr_.8fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.55fr_.8fr]">
         <SectionCard
           actions={<Link className="text-sm font-bold text-[#792f59] hover:underline" href="/calendar">Apri calendario</Link>}
           subtitle="Il lavoro della giornata, in ordine cronologico."
@@ -98,10 +105,10 @@ export default function DashboardPage() {
         >
           {todayAppointments.status === "loading" && <div className="space-y-3">{[1, 2, 3].map((item) => <div className="h-16 animate-pulse rounded-xl bg-stone-100" key={item} />)}</div>}
           {todayAppointments.status === "error" && <InlineError>Non è stato possibile caricare l’agenda.</InlineError>}
-          {todayAppointments.status === "ready" && todayAppointments.data.length === 0 && <EmptyState action={<Link className="font-bold text-[#792f59]" href="/calendar/appointments/new">Crea appuntamento</Link>} description="La giornata è libera." title="Nessun appuntamento oggi" />}
-          {todayAppointments.status === "ready" && todayAppointments.data.length > 0 && (
+          {todayAppointments.status === "ready" && operationalToday.length === 0 && <EmptyState action={<Link className="font-bold text-[#792f59]" href="/calendar/appointments/new">Crea appuntamento</Link>} description="Non ci sono appuntamenti ancora da gestire." title="Agenda operativa libera" />}
+          {todayAppointments.status === "ready" && operationalToday.length > 0 && (
             <div className="divide-y divide-stone-100">
-              {todayAppointments.data.slice(0, 7).map((item) => (
+              {operationalToday.slice(0, 7).map((item) => (
                 <Link className="grid grid-cols-[auto_54px_1fr_auto] items-center gap-3 py-3 transition hover:bg-[#faf7f9] sm:px-2" href={`/calendar/appointments/${item.id}`} key={item.id}>
                   <span className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                   <time className="font-black text-[#402334]">{new Date(item.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</time>

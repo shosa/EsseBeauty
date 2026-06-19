@@ -79,21 +79,25 @@ describe("professional UI regression guard", () => {
     expect(appointmentNew).not.toContain('fetch(`${api}/api/salons/${salon.id}/customers`)');
   });
 
-  it("keeps public booking searchable instead of dumping long lists", () => {
+  it("guides public booking through categories and compact staff choices", () => {
     const booking = readFileSync(join(process.cwd(), "..", "pwa", "app", "[slug]", "book", "page.tsx"), "utf8");
-    expect(booking).toContain("serviceQuery");
-    expect(booking).toContain("Cerca servizio");
-    expect(booking).toContain("Collaboratore preferito");
+    expect(booking).toContain("const [category");
+    expect(booking).toContain("Preferenza staff");
+    expect(booking).toContain("firstName(member.displayName)");
+    expect(booking).not.toContain('<select id="staff"');
   });
 
-  it("uses operational detail patterns on appointment pages", () => {
-    const appointment = readFileSync(join(dashboardRoot, "calendar", "appointments", "[appointmentId]", "page.tsx"), "utf8");
-    expect(appointment).toContain("PageHeader");
+  it("uses operational detail patterns in the appointment curtain", () => {
+    const appointment = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     expect(appointment).toContain("StatusBadge");
-    expect(appointment).toContain("StatGrid");
-    expect(appointment).toContain("ActionBar");
-    expect(appointment).toContain("active={item.status === status}");
+    expect(appointment).toContain("Composizione del conto");
+    expect(appointment).toContain("Dividi pagamento");
+    expect(appointment).toContain("completeCheckout");
+    expect(appointment).toContain("Incassa");
     expect(appointment).toContain("Elimina appuntamento");
+    expect(calendar).toContain("appointment-curtain");
+    expect(calendar).toContain("AppointmentDetailPanel");
   });
 
   it("uses the shared page header on primary dashboard views", () => {
@@ -113,7 +117,7 @@ describe("professional UI regression guard", () => {
     expect(salonModules).toContain("Moduli inclusi");
     expect(platform).toContain("/api/platform/salons");
     expect(platform).toContain("modules/${featureKey}");
-    expect(platform).toContain("Gestisci moduli");
+    expect(platform).toContain("Moduli abilitati");
   });
 
   it("does not auto-open a salon card before an explicit selection", () => {
@@ -215,7 +219,7 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("bufferMinutes");
     expect(calendar).toContain("staff_columns");
     expect(calendar).toContain("StatusBadge");
-    expect(calendar).toContain("StatGrid");
+    expect(calendar).toContain("navigatorDays");
     expect(calendar).toContain("Cerca cliente, servizio o collaboratore");
   });
 
@@ -227,7 +231,7 @@ describe("professional UI regression guard", () => {
 
     expect(staffDetail).toContain("Accesso PWA dipendente");
     expect(staffDetail).toContain("/access");
-    expect(staffDetail).toContain("WEEK_DAYS_IT");
+    expect(staffDetail).toContain("ScheduleEditor");
     expect(staffDetail).not.toContain('["mon", "tue", "wed", "thu", "fri", "sat", "sun"]');
 
     expect(settings).toContain("Giorni di chiusura");

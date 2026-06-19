@@ -6,6 +6,7 @@ import {
   customers,
   loyaltyPoints,
   loyaltySettings,
+  notifications,
   salons,
   services,
   waitlistEntries,
@@ -68,7 +69,7 @@ async function awardLoyalty(
       salonId: appointment.salonId,
       customerId: appointment.customerId,
       delta: points,
-      reason: "appointment_completed",
+      reason: "Appuntamento completato",
       appointmentId: appointment.id,
     })
     .onConflictDoNothing();
@@ -213,6 +214,15 @@ export function registerAppointmentEventHooks(app: FastifyInstance): void {
     const appointment = rows[0];
     if (!appointment || appointment.status !== transition.nextStatus) return;
     try {
+      await app.db.update(notifications).set({
+        archivedAt: new Date(),
+        readAt: new Date(),
+      }).where(and(
+        eq(notifications.salonId, appointment.salonId),
+        eq(notifications.entityType, "appointment"),
+        eq(notifications.entityId, appointment.id),
+        eq(notifications.type, "online_booking_received"),
+      ));
       if (transition.nextStatus === "completed") {
         await Promise.all([
           awardLoyalty(app, appointment),

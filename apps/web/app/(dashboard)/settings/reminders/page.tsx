@@ -29,7 +29,7 @@ export default function ReminderSettingsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-5xl">
+    <AppPage maxWidth="max-w-[1500px]">
       <PageHeader eyebrow="Notifiche" title="Promemoria appuntamenti" subtitle="Canali, tempi di invio e storico dei promemoria recenti." />
       <SectionCard title="Regole promemoria">
         <div className="grid gap-5 md:grid-cols-2">

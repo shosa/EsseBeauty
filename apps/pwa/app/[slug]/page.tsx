@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { formatPrice } from "@esse-beauty/shared";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
@@ -24,7 +23,10 @@ export default function SalonLanding() {
     });
   }, [slug]);
 
-  const groups = useMemo(() => profile ? Map.groupBy(profile.services, (service) => service.category) : new Map<string, Service[]>(), [profile]);
+  const categories = useMemo(
+    () => profile ? [...new Set(profile.services.map((service) => service.category).filter(Boolean))] : [],
+    [profile],
+  );
   const brand = profile?.branding;
   const primary = brand?.primaryColor || "#402334";
   const accent = brand?.accentColor || "#f4d8a8";
@@ -41,28 +43,45 @@ export default function SalonLanding() {
           <div className="relative">
             {brand?.logoUrl ? <img alt="Logo salone" className="mb-5 size-16 rounded-2xl bg-white object-cover p-2" src={brand.logoUrl} /> : <span className="mb-5 grid size-16 place-items-center rounded-2xl bg-white/15 text-2xl font-black">E</span>}
             <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>Benvenuta</p>
-            <h1 className="mt-3 text-4xl font-black tracking-[-.03em]">{brand?.heroTitle || profile?.salon.name || "Esse Beauty"}</h1>
-            <p className="mt-3 text-sm leading-6 text-white/78">{brand?.heroSubtitle || "Scegli il trattamento e trova il momento giusto per te."}</p>
+            <h1 className="mt-3 text-4xl font-bold">{brand?.heroTitle || profile?.salon.name || "Esse Beauty"}</h1>
+            <p className="mt-3 text-sm leading-6 text-white/78">{brand?.heroSubtitle || "Il tuo spazio per prenderti cura di te, con la libertà di prenotare quando vuoi."}</p>
             <Link href={`/${slug}/book`} className="mt-7 inline-grid min-h-12 w-full place-items-center rounded-2xl bg-white font-black text-[#402334] shadow-lg">Prenota ora</Link>
           </div>
         </header>
 
         {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-white/80 bg-white/82 p-5 text-sm leading-6 text-stone-600 shadow-sm">{brand.welcomeText}</p>}
 
-        <section className="mt-7 space-y-6">
-          {[...groups].map(([category, services]) => (
-            <div key={category}>
-              <h2 className="mb-2 text-xs font-black uppercase tracking-[.18em] text-[#792f59]">{category}</h2>
-              <div className="overflow-hidden rounded-3xl border border-white/80 bg-white/88 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]">
-                {services.map((service) => (
-                  <article className="flex items-center justify-between border-b border-stone-100 p-4 last:border-0" key={service.id}>
-                    <div><h3 className="font-bold text-stone-950">{service.name}</h3><p className="text-sm text-stone-500">{service.durationMinutes} minuti</p></div>
-                    <strong className="text-[#792f59]">{formatPrice(service.priceCents, "it-IT")}</strong>
-                  </article>
-                ))}
-              </div>
-            </div>
-          ))}
+        <section className="mt-5 grid grid-cols-2 gap-3">
+          <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]" href={`/${slug}/appointments`}>
+            <span className="grid size-11 place-items-center rounded-2xl text-xl text-white" style={{ background: primary }}>⌁</span>
+            <h2 className="mt-4 text-lg font-bold text-stone-950">I miei appuntamenti</h2>
+            <p className="mt-1 text-sm leading-5 text-stone-500">Consulta le prenotazioni già effettuate.</p>
+          </Link>
+          <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]" href={`/${slug}/book`}>
+            <span className="grid size-11 place-items-center rounded-2xl text-xl font-black" style={{ background: accent, color: primary }}>＋</span>
+            <h2 className="mt-4 text-lg font-bold text-stone-950">Nuova prenotazione</h2>
+            <p className="mt-1 text-sm leading-5 text-stone-500">Trova il trattamento e l’orario giusto.</p>
+          </Link>
+        </section>
+
+        <section className="mt-7">
+          <p className="text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}>Da dove vuoi iniziare?</p>
+          <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un’esperienza</h2>
+          <div className="mt-4 grid gap-3">
+            {categories.map((category, index) => (
+              <Link
+                className="group flex min-h-20 items-center justify-between rounded-3xl border border-white/80 bg-white/88 px-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)] transition hover:-translate-y-0.5"
+                href={`/${slug}/book?category=${encodeURIComponent(category)}`}
+                key={category}
+              >
+                <div className="flex items-center gap-4">
+                  <span className="grid size-10 place-items-center rounded-2xl text-sm font-black" style={{ background: `${index % 2 === 0 ? accent : primary}22`, color: primary }}>{String(index + 1).padStart(2, "0")}</span>
+                  <strong className="text-base text-stone-950">{category}</strong>
+                </div>
+                <span className="text-xl transition group-hover:translate-x-1" style={{ color: primary }}>→</span>
+              </Link>
+            ))}
+          </div>
         </section>
       </div>
     </main>

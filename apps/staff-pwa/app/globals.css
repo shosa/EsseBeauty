@@ -2,9 +2,12 @@
 @source "../../../packages/ui";
 
 :root {
-  color: #211820;
-  background: #f5f1f4;
+  color-scheme: light;
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  text-rendering: geometricPrecision;
+  --esse-ink: #2d1d27;
+  --esse-mulberry: #792f59;
+  --esse-line: rgba(121, 47, 89, 0.14);
 }
 
 * {
@@ -26,20 +29,35 @@ body {
   background:
     radial-gradient(circle at 12% -8%, rgb(248 232 240 / 0.95), transparent 25rem),
     linear-gradient(180deg, #fffafd 0%, #f5f1f4 48%, #eee7ec 100%);
-  color: #211820;
+  color: #1c1917;
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 button:not(:disabled),
-a[href] {
+a[href],
+[role="button"]:not([aria-disabled="true"]) {
   cursor: pointer;
 }
 
 button,
 input,
+select,
 textarea {
   font: inherit;
+}
+
+h1,
+.staff-page-title {
+  font-family: var(--font-display), var(--font-sans), ui-serif, serif;
+  font-variation-settings: "SOFT" 70, "WONK" 0;
+}
+
+h2,
+h3,
+p {
+  text-wrap: pretty;
 }
 
 input,
@@ -68,8 +86,9 @@ textarea:focus {
 }
 
 .staff-display {
-  font-family: var(--font-display), var(--font-sans), serif;
-  font-variation-settings: "SOFT" 55, "WONK" 0;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-variation-settings: normal;
+  letter-spacing: -0.025em;
 }
 
 .staff-shell {

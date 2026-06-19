@@ -168,6 +168,37 @@ table tbody tr {
   background: transparent !important;
 }
 
+.sidebar-nav-active {
+  background: linear-gradient(90deg, #ffffff 0%, #fffafd 62%, #f4f0f2 100%);
+  border-radius: 12px 0 0 12px;
+  box-shadow: -5px 8px 22px rgb(20 10 16 / 0.16);
+  margin-right: -20px;
+  padding-right: 32px;
+}
+
+.sidebar-nav-active::before,
+.sidebar-nav-active::after {
+  background: transparent;
+  content: "";
+  height: 20px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  width: 20px;
+}
+
+.sidebar-nav-active::before {
+  border-radius: 0 0 20px 0;
+  box-shadow: 7px 7px 0 7px #f4f0f2;
+  top: -20px;
+}
+
+.sidebar-nav-active::after {
+  border-radius: 0 20px 0 0;
+  bottom: -20px;
+  box-shadow: 7px -7px 0 7px #f4f0f2;
+}
+
 .esse-workspace main section,
 .esse-workspace main article {
   scroll-margin-top: 5.5rem;
@@ -235,4 +266,46 @@ table tbody tr {
 .platform-admin input[type="checkbox"],
 .platform-admin input[type="radio"] {
   accent-color: #0f766e;
+}
+
+@keyframes appointment-curtain-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-105%);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(1.5%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.appointment-curtain {
+  animation: appointment-curtain-drop 420ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
+  transform-origin: top center;
+}
+
+@keyframes appointment-curtain-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-10px); }
+  40% { transform: translateX(9px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(4px); }
+}
+
+.appointment-curtain.appointment-curtain-shake {
+  animation: appointment-curtain-shake 320ms ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appointment-curtain {
+    animation-duration: 1ms;
+  }
+
+  .appointment-curtain.appointment-curtain-shake {
+    animation-duration: 1ms;
+  }
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, PageTransition, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -18,6 +18,27 @@ interface OperationalStaff {
   id: string;
   next_service?: string | null;
   working_hours: WorkingHours;
+}
+
+const orderedDays: Array<{ key: keyof WorkingHours; label: string }> = [
+  { key: "mon", label: "LUN" },
+  { key: "tue", label: "MAR" },
+  { key: "wed", label: "MER" },
+  { key: "thu", label: "GIO" },
+  { key: "fri", label: "VEN" },
+  { key: "sat", label: "SAB" },
+  { key: "sun", label: "DOM" },
+];
+
+function dailyHours(intervals: WorkingHours[keyof WorkingHours]) {
+  const minutes = intervals.reduce((total, interval) => {
+    const [fromHour = 0, fromMinute = 0] = interval.from.split(":").map(Number);
+    const [toHour = 0, toMinute = 0] = interval.to.split(":").map(Number);
+    return total + Math.max(0, toHour * 60 + toMinute - fromHour * 60 - fromMinute);
+  }, 0);
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
 }
 
 function todayParams() {
@@ -47,9 +68,6 @@ export default function StaffPage() {
   }
 
   useEffect(() => { void load(); }, [salon?.id]);
-
-  const totalAppointments = useMemo(() => staff.reduce((sum, item) => sum + item.appointment_count, 0), [staff]);
-  const completed = useMemo(() => staff.reduce((sum, item) => sum + item.completed_count, 0), [staff]);
 
   async function markAbsence(data: FormData) {
     if (!salon || !selected) return;
@@ -81,12 +99,6 @@ export default function StaffPage() {
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}
-        <StatGrid className="mb-6 md:grid-cols-3">
-          <StatCard label="Collaboratori" value={staff.length} detail="Attivi oggi" />
-          <StatCard label="Appuntamenti" value={totalAppointments} detail="Carico giornaliero" />
-          <StatCard label="Completati" value={completed} detail="Servizi chiusi" />
-        </StatGrid>
-
         {staff.length === 0 ? (
           <EmptyState title="Nessuno staff operativo" description="Controlla configurazione collaboratori in Impostazioni." />
         ) : (
@@ -110,10 +122,14 @@ export default function StaffPage() {
                     <StatusBadge status={member.appointment_count > 0 ? "scheduled" : "inactive"}>{member.appointment_count} oggi</StatusBadge>
                   </div>
                   <div className="mt-5 grid grid-cols-7 gap-1">
-                    {Object.entries(member.working_hours).map(([day, hours]) => (
-                      <div key={day} className="text-center">
-                        <span className="text-[10px] font-bold uppercase text-stone-400">{day}</span>
-                        <div className={`mt-1 h-8 rounded-md ${hours.length ? "bg-rose-100" : "bg-stone-100"}`} />
+                    {orderedDays.map((day) => (
+                      <div key={day.key} className="text-center">
+                        <span className="text-[10px] font-bold uppercase text-stone-400">{day.label}</span>
+                        <div className={`mt-1 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 py-1.5 text-[8px] font-black leading-tight ${member.working_hours[day.key]?.length ? "border border-emerald-200 bg-emerald-50 text-emerald-800" : "border border-stone-200 bg-stone-100 text-stone-400"}`}>
+                          {member.working_hours[day.key]?.length
+                            ? <span className="text-[11px]">{dailyHours(member.working_hours[day.key])}</span>
+                            : <span>CHIUSO</span>}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
@@ -19,10 +20,13 @@ interface Product {
 }
 
 interface Movement {
-  createdAt: string;
+  appointment_id?: string | null;
+  created_at: string;
+  customer_name?: string | null;
   delta: number;
   id: string;
   reason: string;
+  sale_id?: string | null;
 }
 
 export default function InventoryProductPage() {
@@ -120,9 +124,23 @@ export default function InventoryProductPage() {
               <p className="mt-1 text-sm text-stone-600">Scorta attuale: <strong>{product.stockQuantity}</strong></p>
               <div className="mt-4 space-y-3">
                 {movements.length === 0 ? <p className="text-sm text-stone-500">Nessun movimento registrato.</p> : movements.map((movement) => (
-                  <article key={movement.id} className="rounded-2xl bg-stone-50 p-3 text-sm">
-                    <strong>{movement.delta > 0 ? "+" : ""}{movement.delta}</strong> · {movement.reason}
-                    <p className="text-xs text-stone-500">{new Date(movement.createdAt).toLocaleString("it-IT")}</p>
+                  <article key={movement.id} className="rounded-2xl border border-stone-100 bg-stone-50 p-4 text-sm">
+                    <div className="flex items-start gap-3">
+                      <span className={`grid size-10 shrink-0 place-items-center rounded-full text-sm font-black ${movement.delta < 0 ? "bg-[#f3e2eb] text-[#792f59]" : "bg-emerald-100 text-emerald-800"}`}>
+                        {movement.delta > 0 ? "+" : ""}{movement.delta}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <strong className="block text-stone-950">
+                          {movement.sale_id ? `Vendita a ${movement.customer_name || "cliente"}` : movement.reason}
+                        </strong>
+                        <p className="mt-1 text-xs text-stone-500">{new Date(movement.created_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</p>
+                        {movement.appointment_id && (
+                          <Link className="mt-3 inline-flex min-h-9 items-center rounded-xl border border-[#d9a7c2] bg-white px-3 text-xs font-black text-[#792f59] transition hover:border-[#792f59] hover:bg-[#fff8fc]" href={`/calendar/appointments/${movement.appointment_id}`}>
+                            Apri vendita
+                          </Link>
+                        )}
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>

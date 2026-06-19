@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { AppPage, Button, ConfirmDialog, EmptyState, FormField, PageHeader, SaveToast, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, EmptyState, FormField, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -25,11 +25,6 @@ export default function LoyaltySettingsPage() {
   const [confirmDelete, setConfirmDelete] = useState<Reward>();
 
   const activeRewards = useMemo(() => rewards.filter((reward) => reward.active).length, [rewards]);
-  const averageCost = useMemo(
-    () => rewards.length ? Math.round(rewards.reduce((sum, reward) => sum + reward.pointsRequired, 0) / rewards.length) : 0,
-    [rewards],
-  );
-
   async function load() {
     if (!salon) return;
     const [settingsResponse, rewardsResponse] = await Promise.all([
@@ -80,7 +75,7 @@ export default function LoyaltySettingsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-5xl">
+    <AppPage maxWidth="max-w-[1500px]">
       <SaveToast variant={message.includes("non riuscito") ? "error" : "success"} visible={Boolean(message)}>{message}</SaveToast>
       <PageHeader
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/settings/loyalty/rewards/new">Nuovo premio</Link>}
@@ -89,12 +84,6 @@ export default function LoyaltySettingsPage() {
         subtitle="Configura punti e premi riscattabili per trasformare le visite ricorrenti in valore."
         status={<StatusBadge status={activeRewards > 0 ? "active" : "draft"}>{activeRewards} premi attivi</StatusBadge>}
       />
-
-      <StatGrid className="mb-6 md:grid-cols-3">
-        <StatCard label="Punti visita" value={points} detail="Per appuntamento completato" />
-        <StatCard label="Premi attivi" value={activeRewards} detail={`${rewards.length} configurati`} />
-        <StatCard label="Costo medio" value={`${averageCost} pt`} detail="Media premi" />
-      </StatGrid>
 
       <SectionCard title="Accumulo punti" subtitle="Decidi quanti punti assegna ogni appuntamento completato.">
         <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">

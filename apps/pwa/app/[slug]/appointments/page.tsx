@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { appointmentStatusLabel } from "@esse-beauty/shared";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -57,7 +58,7 @@ export default function AppointmentsPage() {
       <section className="mx-auto max-w-md">
         <header className="rounded-[2.2rem] p-6 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>{profile?.salon.name ?? "Area cliente"}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-.03em]">I miei appuntamenti</h1>
+          <h1 className="mt-3 text-4xl font-bold">I miei appuntamenti</h1>
           <p className="mt-2 text-sm text-white/75">Consulta le prossime prenotazioni usando la tua email.</p>
         </header>
         <div className="mt-6 rounded-[2rem] border border-white/80 bg-white/86 p-3 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
@@ -72,7 +73,7 @@ export default function AppointmentsPage() {
             <article key={item.id} className="rounded-[1.7rem] border border-white/80 bg-white/86 p-5 shadow-sm">
               <p className="text-sm font-black" style={{ color: primary }}>{new Date(item.starts_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
               <h2 className="mt-2 text-xl font-black text-stone-950">{item.service_name}</h2>
-              <p className="mt-1 text-sm text-stone-500">con {item.staff_name} · {item.status}</p>
+              <p className="mt-1 text-sm text-stone-500">con {item.staff_name} · {appointmentStatusLabel(item.status)}</p>
               <div className="mt-4 rounded-2xl bg-stone-50 p-3">
                 <label className="block text-xs font-black uppercase tracking-[.12em] text-stone-500">
                   Richiedi nuovo orario

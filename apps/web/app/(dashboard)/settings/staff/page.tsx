@@ -62,13 +62,13 @@ export default function SettingsStaffPage() {
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1500px]">
       <PageTransition>
         <PageHeader
           actions={<Link href="/settings/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
           eyebrow="Core"
-          title="Staff & Disponibilità"
-          subtitle="Configurazione collaboratori, orari contrattuali ricorrenti, ruoli operativi e blocchi disponibilità."
+          title="Staff"
+          subtitle="Profili collaboratori, accessi PWA e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
           status={<StatusBadge status="active">{staff.length} profili</StatusBadge>}
         />
         {error && <InlineError className="mb-5">{error}</InlineError>}
@@ -85,7 +85,7 @@ export default function SettingsStaffPage() {
                 </div>
                 <Switch checked={member.active} onCheckedChange={() => void toggle(member)} />
               </div>
-              <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per orari e blocchi di disponibilità."}</p>
+              <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per accesso e orari."}</p>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Link href={`/settings/staff/${member.id}`} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]">Configura</Link>
                 <Button onClick={() => setConfirmDelete(member)} variant="destructive">Disattiva</Button>

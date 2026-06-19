@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 
-import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, sales, salons, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { authenticate } from "../../middleware/auth.js";
 
@@ -202,7 +202,10 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     const rows = await request.server.db.select({
       id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
       status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
-      customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
+      customer_id: appointments.customerId, customer_name: customers.fullName,
+      customer_email: customers.email, customer_phone: customers.phone,
+      service_id: appointments.serviceId, service_name: services.name, service_price_cents: services.priceCents,
+      staff_name: staff.displayName, color: staff.color,
     }).from(appointments)
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
@@ -211,18 +214,31 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
   });
 
-  app.patch<{ Params: { id: string; appointmentId: string }; Body: { starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
+  app.patch<{ Params: { id: string; appointmentId: string }; Body: { duration_minutes?: number; starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
     "/api/salons/:id/appointments/:appointmentId", { preHandler: [authenticate] }, async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
       const rows = await request.server.db.select().from(appointments).where(and(eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId)));
       const item = rows[0];
       if (!item) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
       if (!(await canManage(request, item.staffId))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      if (request.body.status && request.body.status !== item.status) {
+        const paidSales = await request.server.db.select({ id: sales.id }).from(sales).where(and(
+          eq(sales.appointmentId, item.id),
+          eq(sales.salonId, request.salonId),
+          eq(sales.status, "paid"),
+        ));
+        if (paidSales.length > 0) return reply.code(409).send({ error: "APPOINTMENT_STATUS_LOCKED_BY_SALE" });
+      }
       const startsAt = request.body.starts_at ? new Date(request.body.starts_at) : item.startsAt;
-      const duration = item.endsAt.getTime() - item.startsAt.getTime();
-      const endsAt = new Date(startsAt.getTime() + duration);
+      if (Number.isNaN(startsAt.getTime())) return reply.code(400).send({ error: "INVALID_STARTS_AT" });
+      const requestedDuration = request.body.duration_minutes;
+      if (requestedDuration !== undefined && (!Number.isInteger(requestedDuration) || requestedDuration < 5 || requestedDuration > 720)) {
+        return reply.code(400).send({ error: "INVALID_DURATION" });
+      }
+      const durationMinutes = requestedDuration ?? Math.round((item.endsAt.getTime() - item.startsAt.getTime()) / 60_000);
+      const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
       const rules = await getCalendarRules(request.server.db, request.salonId);
-      if (request.body.starts_at && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules))
+      if ((request.body.starts_at || requestedDuration !== undefined) && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules))
         return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
       const updated = await request.server.db.update(appointments).set({
         startsAt, endsAt, ...(request.body.status && { status: request.body.status }),

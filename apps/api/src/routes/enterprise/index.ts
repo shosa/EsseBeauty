@@ -10,6 +10,7 @@ import {
   servicePackageUsages,
   servicePackages,
   staffAvailabilityRequests,
+  users,
 } from "@esse-beauty/db/schema";
 import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -284,8 +285,22 @@ export async function registerEnterpriseModuleRoutes(app: FastifyInstance) {
       const denied = ensureSalon(request, reply);
       if (denied) return denied;
       return app.db
-        .select()
+        .select({
+          action: activityLog.action,
+          actorAvatarUrl: users.avatarUrl,
+          actorName: users.fullName,
+          actorRole: users.role,
+          actorUserId: activityLog.actorUserId,
+          createdAt: activityLog.createdAt,
+          diff: activityLog.diff,
+          entityId: activityLog.entityId,
+          entityType: activityLog.entityType,
+          id: activityLog.id,
+          payload: activityLog.payload,
+          summary: activityLog.summary,
+        })
         .from(activityLog)
+        .leftJoin(users, eq(users.id, activityLog.actorUserId))
         .where(eq(activityLog.salonId, request.salonId))
         .orderBy(desc(activityLog.createdAt))
         .limit(200);

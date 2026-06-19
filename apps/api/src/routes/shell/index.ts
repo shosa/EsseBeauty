@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 
 import {
   appointments,
@@ -194,6 +194,24 @@ export async function registerShellRoutes(app: FastifyInstance) {
     async (request, reply) => {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const resolvedAppointments = await app.db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(and(
+          eq(appointments.salonId, request.salonId),
+          inArray(appointments.status, ["confirmed", "completed", "cancelled", "no_show"]),
+        ));
+      if (resolvedAppointments.length > 0) {
+        await app.db.update(notifications).set({
+          archivedAt: new Date(),
+          readAt: new Date(),
+        }).where(and(
+          eq(notifications.salonId, request.salonId),
+          eq(notifications.entityType, "appointment"),
+          eq(notifications.type, "online_booking_received"),
+          inArray(notifications.entityId, resolvedAppointments.map((item) => item.id)),
+        ));
       }
       const rows = await app.db
         .insert(userInterfacePreferences)

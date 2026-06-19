@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 
-import { appointments, authSessions, availabilityBlocks, notifications, services, staff, staffAvailabilityRequests, userCredentials, users } from "@esse-beauty/db/schema";
+import { appointments, authSessions, availabilityBlocks, notifications, salons, services, staff, staffAvailabilityRequests, userCredentials, users } from "@esse-beauty/db/schema";
 import { hasPermission, PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
 import { createNotification } from "../../jobs/notifications.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
@@ -13,7 +13,7 @@ interface StaffBody {
   display_name: string;
   bio?: string;
   specializations?: string[];
-  working_hours: WorkingHours;
+  working_hours?: WorkingHours;
   color: string;
   active?: boolean;
 }
@@ -25,6 +25,14 @@ interface StaffAccessBody {
 }
 
 export async function registerStaffRoutes(app: FastifyInstance) {
+  app.get<{ Params: { id: string } }>("/api/salons/:id/staff-default-hours", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await request.server.db.select({ opening_hours: salons.openingHours }).from(salons).where(eq(salons.id, request.salonId));
+    return rows[0] ?? reply.code(404).send({ error: "SALON_NOT_FOUND" });
+  });
+
   app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string } }>(
     "/api/salons/:id/operations/staff",
     { preHandler: [authenticate] },
@@ -106,13 +114,16 @@ export async function registerStaffRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
     const body = request.body;
+    const salonRows = body.working_hours
+      ? []
+      : await request.server.db.select({ openingHours: salons.openingHours }).from(salons).where(eq(salons.id, request.salonId));
     const rows = await request.server.db.insert(staff).values({
       salonId: request.salonId,
       userId: body.user_id,
       displayName: body.display_name,
       bio: body.bio,
       specializations: body.specializations ?? [],
-      workingHours: body.working_hours,
+      workingHours: body.working_hours ?? salonRows[0]?.openingHours ?? { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
       color: body.color,
       active: body.active ?? true,
     }).returning();
@@ -258,6 +269,23 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     .orderBy(asc(availabilityBlocks.startsAt));
   });
 
+  app.get<{ Params: { id: string } }>("/api/salons/:id/staff-availability-blocks", {
+    preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
+  }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    return request.server.db.select({
+      ends_at: availabilityBlocks.endsAt,
+      id: availabilityBlocks.id,
+      reason: availabilityBlocks.reason,
+      staff_id: availabilityBlocks.staffId,
+      staff_name: staff.displayName,
+      starts_at: availabilityBlocks.startsAt,
+    }).from(availabilityBlocks)
+      .innerJoin(staff, eq(staff.id, availabilityBlocks.staffId))
+      .where(eq(availabilityBlocks.salonId, request.salonId))
+      .orderBy(asc(availabilityBlocks.startsAt));
+  });
+
   app.get<{ Params: { id: string; staffId: string } }>("/api/salons/:id/staff/:staffId/access", {
     preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
   }, async (request, reply) => {
@@ -266,13 +294,14 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       .select({
         active: users.active,
         email: users.email,
+        role: users.role,
         user_id: users.id,
       })
       .from(staff)
       .leftJoin(users, eq(users.id, staff.userId))
       .where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId)));
     if (!rows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
-    return rows[0].user_id ? rows[0] : { active: false, email: "", user_id: null };
+    return rows[0].user_id ? rows[0] : { active: false, email: "", role: null, user_id: null };
   });
 
   app.patch<{ Body: StaffAccessBody; Params: { id: string; staffId: string } }>("/api/salons/:id/staff/:staffId/access", {
@@ -297,13 +326,19 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       return reply.code(409).send({ error: "EMAIL_ALREADY_USED" });
     }
 
+    const linkedUserRows = member.userId
+      ? await request.server.db
+        .select({ active: users.active, role: users.role })
+        .from(users)
+        .where(and(eq(users.id, member.userId), eq(users.salonId, request.salonId)))
+      : [];
+    const linkedUser = linkedUserRows[0];
     const userId = member.userId ?? randomUUID();
     if (member.userId) {
       await request.server.db.update(users).set({
-        active: request.body.active ?? true,
+        active: linkedUser?.role === "owner" ? true : request.body.active ?? true,
         email,
         fullName: member.displayName,
-        role: "employee",
       }).where(and(eq(users.id, member.userId), eq(users.salonId, request.salonId)));
     } else {
       if (!request.body.password) return reply.code(400).send({ error: "PASSWORD_REQUIRED" });
@@ -338,7 +373,12 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     }
 
     await request.server.db.update(staff).set({ email }).where(eq(staff.id, member.id));
-    return { active: request.body.active ?? true, email, user_id: userId };
+    return {
+      active: linkedUser?.role === "owner" ? true : request.body.active ?? true,
+      email,
+      role: linkedUser?.role ?? "employee",
+      user_id: userId,
+    };
   });
 
   app.post<{ Params: { id: string; staffId: string }; Body: { starts_at: string; ends_at: string; reason?: string; recurring?: boolean; recurrence_rule?: string } }>(

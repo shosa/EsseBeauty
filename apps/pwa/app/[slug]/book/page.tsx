@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { formatPrice } from "@esse-beauty/shared";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -46,6 +46,10 @@ function ics(value: string) {
   return new Date(value).toISOString().replace(/[-:]/g, "").replace(".000", "");
 }
 
+function firstName(value: string) {
+  return value.trim().split(/\s+/)[0] || value;
+}
+
 function saveCalendar(item: Booking) {
   const body = [
     "BEGIN:VCALENDAR",
@@ -57,7 +61,7 @@ function saveCalendar(item: Booking) {
     `DTSTART:${ics(item.startsAt)}`,
     `DTEND:${ics(item.endsAt)}`,
     `SUMMARY:${item.service_name} - ${item.salon_name}`,
-    `DESCRIPTION:Con ${item.staff_name}`,
+    `DESCRIPTION:Con ${firstName(item.staff_name)}`,
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
@@ -71,9 +75,10 @@ function saveCalendar(item: Booking) {
 
 export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
   const [profile, setProfile] = useState<Profile>();
   const [step, setStep] = useState(1);
-  const [serviceQuery, setServiceQuery] = useState("");
+  const [category, setCategory] = useState(searchParams.get("category") ?? "");
   const [serviceId, setServiceId] = useState("");
   const [staffId, setStaffId] = useState("");
   const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
@@ -99,11 +104,14 @@ export default function BookingPage() {
   }, [slug]);
 
   const selectedService = profile?.services.find((service) => service.id === serviceId);
-  const filteredServices = useMemo(() => {
-    const query = serviceQuery.trim().toLowerCase();
-    if (!profile || query.length < 2) return profile?.services ?? [];
-    return profile.services.filter((service) => `${service.name} ${service.category ?? ""}`.toLowerCase().includes(query));
-  }, [profile, serviceQuery]);
+  const categories = useMemo(
+    () => profile ? [...new Set(profile.services.map((service) => service.category).filter((value): value is string => Boolean(value)))] : [],
+    [profile],
+  );
+  const filteredServices = useMemo(
+    () => profile?.services.filter((service) => service.category === category) ?? [],
+    [category, profile],
+  );
   const brand = profile?.branding;
   const primary = brand?.primaryColor || "#402334";
   const accent = brand?.accentColor || "#f4d8a8";
@@ -159,7 +167,7 @@ export default function BookingPage() {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5">
         <section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl">
-          <h1 className="text-3xl font-black">Prenotazioni non disponibili</h1>
+          <h1 className="text-3xl font-bold">Prenotazioni non disponibili</h1>
           <p className="mt-3 text-stone-600">Il salone ha sospeso temporaneamente le prenotazioni online.</p>
         </section>
       </main>
@@ -171,8 +179,8 @@ export default function BookingPage() {
       <main className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top, ${accent}55, transparent 20rem), #f6f2f4` }}>
         <section className="mx-auto max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
-          <h1 className="mt-5 text-3xl font-black">Prenotazione inviata</h1>
-          <p className="mt-3 text-stone-600">{booking.service_name} con {booking.staff_name}</p>
+          <h1 className="mt-5 text-3xl font-bold">Prenotazione inviata</h1>
+          <p className="mt-3 text-stone-600">{booking.service_name} con {firstName(booking.staff_name)}</p>
           <p className="mt-1 text-sm font-bold text-[#792f59]">{new Date(booking.startsAt).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
           <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}>Aggiungi al calendario</button>
           <Link className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-stone-100 font-black text-stone-700" href={`/${slug}`}>Torna alla home</Link>
@@ -188,14 +196,14 @@ export default function BookingPage() {
       <div className="mx-auto max-w-md">
         <header className="rounded-[2.2rem] p-6 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>{profile.salon.name}</p>
-          <h1 className="mt-3 text-4xl font-black tracking-[-.03em]">Prenota</h1>
-          <p className="mt-2 text-sm text-white/75">{selectedService ? selectedService.name : "Scegli servizio, orario e lascia i tuoi dati."}</p>
+          <h1 className="mt-3 text-4xl font-bold">Prenota</h1>
+          <p className="mt-2 text-sm text-white/75">{selectedService ? selectedService.name : "Parti dalla categoria, scegli il trattamento e trova il tuo orario."}</p>
         </header>
 
         {error && <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
 
         <div className="my-5 grid grid-cols-3 gap-2">
-          {["Servizio", "Orario", "Dati"].map((label, index) => (
+          {["Trattamento", "Orario", "Dati"].map((label, index) => (
             <span key={label} className={`rounded-2xl py-3 text-center text-xs font-black ${step >= index + 1 ? "text-white" : "bg-white text-stone-400"}`} style={step >= index + 1 ? { background: primary } : undefined}>
               {label}
             </span>
@@ -204,22 +212,59 @@ export default function BookingPage() {
 
         {step === 1 && (
           <section className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
-            <label className="block text-sm font-black text-stone-800" htmlFor="service-search">Servizio</label>
-            <input id="service-search" value={serviceQuery} onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca servizio" className="w-full" />
-            <div className="max-h-80 space-y-2 overflow-auto pr-1">
-              {filteredServices.map((service) => (
-                <button key={service.id} onClick={() => setServiceId(service.id)} className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}>
-                  <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
-                  <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
-                </button>
-              ))}
-              {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun servizio trovato.</p>}
+            <div>
+              <p className="text-sm font-black text-stone-800">Categoria</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {categories.map((item) => (
+                  <button
+                    className={`min-h-14 rounded-2xl border px-3 text-sm font-black transition ${category === item ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
+                    key={item}
+                    onClick={() => {
+                      setCategory(item);
+                      setServiceId("");
+                      setStartsAt("");
+                    }}
+                    style={category === item ? { background: primary, borderColor: primary } : undefined}
+                    type="button"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
-            <label className="block text-sm font-black text-stone-800" htmlFor="staff">Collaboratore preferito</label>
-            <select id="staff" value={staffId} onChange={(event) => setStaffId(event.target.value)} className="w-full">
-              <option value="">Nessuna preferenza</option>
-              {profile.staff.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
-            </select>
+
+            {category && (
+              <div>
+                <p className="text-sm font-black text-stone-800">Trattamento</p>
+                <div className="mt-2 space-y-2">
+                  {filteredServices.map((service) => (
+                    <button key={service.id} onClick={() => setServiceId(service.id)} type="button" className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7] shadow-sm" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}>
+                      <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
+                      <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
+                    </button>
+                  ))}
+                  {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="text-sm font-black text-stone-800">Preferenza staff</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setStaffId("")} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
+                {profile.staff.map((member) => (
+                  <button
+                    className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                    key={member.id}
+                    onClick={() => setStaffId(member.id)}
+                    style={staffId === member.id ? { background: primary, borderColor: primary } : undefined}
+                    type="button"
+                  >
+                    {firstName(member.displayName)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="block text-sm font-black text-stone-800" htmlFor="booking-date">Data</label>
             <input id="booking-date" min={new Date().toISOString().slice(0, 10)} type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full" />
             <button disabled={!serviceId || loadingSlots} onClick={() => void next()} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>{loadingSlots ? "Cerco orari..." : "Mostra orari"}</button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 import type { WorkingHours } from "@esse-beauty/shared";
@@ -14,6 +14,16 @@ export default function NewStaffPage() {
   const { salon } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
+  const [salonHours, setSalonHours] = useState<WorkingHours>(emptyHours);
+
+  useEffect(() => {
+    if (!salon) return;
+    void fetch(`${api}/api/salons/${salon.id}/staff-default-hours`, { credentials: "include" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((settings: { opening_hours?: WorkingHours } | null) => {
+        if (settings?.opening_hours) setSalonHours(settings.opening_hours);
+      });
+  }, [salon]);
 
   async function create(data: FormData) {
     if (!salon) return;
@@ -24,7 +34,7 @@ export default function NewStaffPage() {
       body: JSON.stringify({
         display_name: data.get("display_name"),
         bio: data.get("bio") || undefined,
-        working_hours: emptyHours,
+        working_hours: salonHours,
         color: "#be6b7b",
       }),
     });
@@ -37,8 +47,8 @@ export default function NewStaffPage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <form action={create} className="mx-auto grid max-w-3xl gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <main className="p-5 md:p-8">
+      <form action={create} className="mx-auto grid max-w-[1000px] gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
         <Breadcrumbs items={[{ href: "/settings/staff", label: "Staff & disponibilità" }, { label: "Nuovo collaboratore" }]} />
         <h1 className="text-3xl font-bold">Nuovo collaboratore</h1>
         {error && <InlineError>{error}</InlineError>}

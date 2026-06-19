@@ -4,6 +4,7 @@ import type {
   MouseEvent,
   ReactNode,
 } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 export const designTokens = {
@@ -211,6 +212,43 @@ export function PageHeader({
   );
 }
 
+export function PageHeaderMetrics({
+  actions,
+  eyebrow,
+  metrics,
+  status,
+  subtitle,
+  title,
+}: {
+  actions?: ReactNode;
+  eyebrow?: string;
+  metrics: Array<{ detail?: ReactNode; label: string; value: ReactNode }>;
+  status?: ReactNode;
+  subtitle?: ReactNode;
+  title: ReactNode;
+}) {
+  return (
+    <header className="relative mb-6 grid items-end gap-6 border-b border-[#e5d9df] pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(520px,.85fr)]">
+      <div className="min-w-0">
+        {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p>}
+        <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
+        {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
+        {(status || actions) && <div className="mt-3 flex flex-wrap items-center gap-2">{status}{actions}</div>}
+      </div>
+      <div className="grid grid-cols-2 border-y border-[#e5d9df] py-4 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none lg:border-y-0 lg:py-0">
+        {metrics.map((metric, index) => (
+          <div className={`px-2 py-3 sm:px-5 sm:py-1 ${index > 0 ? "border-l border-[#e5d9df]" : ""} ${index > 1 ? "border-t border-[#e5d9df] sm:border-t-0" : ""}`} key={metric.label}>
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8f3a68]">{metric.label}</p>
+            <strong className="mt-1 block text-3xl font-black leading-none text-[#2d1d27]">{metric.value}</strong>
+            {metric.detail && <p className="mt-2 text-xs font-medium text-stone-500">{metric.detail}</p>}
+          </div>
+        ))}
+      </div>
+      <span aria-hidden="true" className="absolute -bottom-px left-0 h-0.5 w-[72px] bg-[linear-gradient(90deg,#792f59,#d99aba_55%,transparent)]" />
+    </header>
+  );
+}
+
 const statusStyles: Record<string, string> = {
   active: "border-emerald-200 bg-emerald-50 text-emerald-800",
   archived: "border-stone-200 bg-stone-100 text-stone-600",
@@ -234,7 +272,7 @@ const statusLabels: Record<string, string> = {
   archived: "Archiviato",
   booked: "Prenotato",
   cancelled: "Annullato",
-  completed: "Completato",
+  completed: "Completo",
   confirmed: "Confermato",
   draft: "Bozza",
   failed: "Fallito",
@@ -482,25 +520,47 @@ export function SaveToast({
   variant?: "error" | "info" | "success" | "warning";
   visible: boolean;
 }) {
+  const [dismissed, setDismissed] = useState(false);
   const variants = {
-    error: "border-red-200 bg-red-600 text-white shadow-[0_20px_54px_rgb(185_28_28_/_0.25)]",
-    info: "border-blue-200 bg-blue-600 text-white shadow-[0_20px_54px_rgb(37_99_235_/_0.25)]",
-    success: "border-emerald-200 bg-emerald-600 text-white shadow-[0_20px_54px_rgb(5_150_105_/_0.25)]",
-    warning: "border-amber-200 bg-amber-500 text-amber-950 shadow-[0_20px_54px_rgb(217_119_6_/_0.22)]",
+    error: "border-red-300 bg-red-50 text-red-800 shadow-[0_16px_42px_rgb(185_28_28_/_0.16)]",
+    info: "border-sky-300 bg-sky-50 text-sky-800 shadow-[0_16px_42px_rgb(2_132_199_/_0.16)]",
+    success: "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-[0_16px_42px_rgb(5_150_105_/_0.16)]",
+    warning: "border-amber-300 bg-amber-50 text-amber-900 shadow-[0_16px_42px_rgb(217_119_6_/_0.16)]",
   };
+
+  useEffect(() => {
+    if (!visible) {
+      setDismissed(false);
+      return;
+    }
+    setDismissed(false);
+    const timeout = window.setTimeout(() => setDismissed(true), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [visible, children]);
 
   return (
     <AnimatePresence>
-      {visible && (
+      {visible && !dismissed && (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className={`fixed right-5 top-5 z-50 rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
-          exit={{ opacity: 0, y: -8 }}
-          initial={{ opacity: 0, y: -8 }}
+          aria-live="polite"
+          className={`fixed bottom-5 right-5 z-50 flex max-w-[min(420px,calc(100vw-2rem))] items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
+          exit={{ opacity: 0, y: 10, scale: 0.98 }}
+          initial={{ opacity: 0, y: 10, scale: 0.98 }}
           role="status"
           transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
         >
-          {children}
+          <span className="min-w-0 flex-1">{children}</span>
+          <button
+            aria-label="Chiudi notifica"
+            className="grid size-7 shrink-0 place-items-center rounded-lg border border-current/20 transition hover:bg-black/5"
+            onClick={() => setDismissed(true)}
+            type="button"
+          >
+            <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
         </motion.div>
       )}
     </AnimatePresence>
@@ -819,12 +879,14 @@ export function ScheduleEditor({
 }
 
 export function Breadcrumbs({
+  className,
   items,
 }: {
+  className?: string;
   items: Array<{ href?: string; label: string }>;
 }) {
   return (
-    <nav aria-label="Breadcrumb" className="mb-5 inline-flex max-w-full flex-wrap items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-1 text-xs font-bold text-stone-500 shadow-sm ring-1 ring-stone-950/5 backdrop-blur">
+    <nav aria-label="Breadcrumb" className={`${className ?? "mb-5"} inline-flex max-w-full flex-wrap items-center gap-1 rounded-full border border-white/70 bg-white/75 px-2 py-1 text-xs font-bold text-stone-500 shadow-sm ring-1 ring-stone-950/5 backdrop-blur`}>
       {items.map((item, index) => (
         <span key={`${item.label}-${index}`} className="flex items-center gap-1">
           {index > 0 && <span aria-hidden="true" className="text-stone-300">›</span>}

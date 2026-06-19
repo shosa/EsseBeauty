@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { AppPage, EmptyState, PageHeader, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, PageHeaderMetrics, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -38,19 +38,18 @@ export default function MarketingPage() {
 
   return (
     <AppPage>
-      <PageHeader
+      <PageHeaderMetrics
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/marketing/new">Nuova campagna</Link>}
         eyebrow="Marketing"
+        metrics={[
+          { detail: "Invii pianificati", label: "In programma", value: scheduled },
+          { detail: "Comunicazioni concluse", label: "Inviate", value: sent },
+          { detail: "Da completare", label: "Bozze", value: drafts },
+        ]}
         title="Campagne"
         subtitle="Prepara comunicazioni mirate per clienti, liste e promozioni senza perdere il controllo dello stato."
         status={<StatusBadge status={items.length > 0 ? "active" : "draft"}>{items.length} campagne</StatusBadge>}
       />
-
-      <StatGrid className="mb-6 md:grid-cols-3">
-        <StatCard label="In programma" value={scheduled} detail="Invii pianificati" />
-        <StatCard label="Inviate" value={sent} detail="Comunicazioni concluse" />
-        <StatCard label="Bozze" value={drafts} detail="Da completare" />
-      </StatGrid>
 
       <SectionCard title="Archivio campagne" subtitle="Ogni card mostra canale, pubblico e prossima data utile.">
         {items.length === 0 ? (

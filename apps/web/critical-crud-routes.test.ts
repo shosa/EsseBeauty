@@ -10,6 +10,7 @@ const requiredRoutes = [
   "inventory/new/page.tsx",
   "inventory/[productId]/page.tsx",
   "marketing/[campaignId]/page.tsx",
+  "sales/page.tsx",
 ];
 
 describe("critical CRUD route contracts", () => {

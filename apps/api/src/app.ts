@@ -11,6 +11,7 @@ import type { DrizzleDB } from "@esse-beauty/db";
 import { salonModules } from "@esse-beauty/db/schema";
 import { authenticate } from "./middleware/auth.js";
 import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
+import { registerAuditLogHooks } from "./jobs/audit-log.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
@@ -24,6 +25,7 @@ import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerReminderRoutes } from "./routes/reminders/index.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
 import { registerReviewRoutes } from "./routes/reviews/index.js";
+import { registerSalesRoutes } from "./routes/sales/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerSettingsRoutes } from "./routes/settings/index.js";
 import { registerShellRoutes } from "./routes/shell/index.js";
@@ -80,6 +82,7 @@ export function createApp({
   });
 
   registerAppointmentEventHooks(app);
+  registerAuditLogHooks(app);
 
   const bindSalon: preHandlerHookHandler = async (request, reply) => {
     const params = request.params as SalonParams;
@@ -108,6 +111,7 @@ export function createApp({
   void registerMarketingRoutes(app);
   void registerOnboardingRoutes(app);
   void registerInventoryRoutes(app);
+  void registerSalesRoutes(app);
   void registerReportRoutes(app);
   void registerSettingsRoutes(app);
   void registerShellRoutes(app);

@@ -33,8 +33,8 @@ export default function InviteUserPage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <form action={invite} className="mx-auto grid max-w-2xl gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <main className="p-5 md:p-8">
+      <form action={invite} className="mx-auto grid max-w-[1000px] gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
         <Breadcrumbs items={[{ href: "/settings/users", label: "Utenti" }, { label: "Invita" }]} />
         <h1 className="text-3xl font-bold">Invita utente</h1>
         {error && <InlineError>{error}</InlineError>}

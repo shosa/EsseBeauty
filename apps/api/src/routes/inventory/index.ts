@@ -2,8 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import {
+  appointments,
+  customers,
   inventoryMovements,
   inventoryProducts,
+  sales,
 } from "@esse-beauty/db/schema";
 import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -185,8 +188,19 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
       return app.db
-        .select()
+        .select({
+          appointment_id: inventoryMovements.appointmentId,
+          created_at: inventoryMovements.createdAt,
+          customer_name: customers.fullName,
+          delta: inventoryMovements.delta,
+          id: inventoryMovements.id,
+          reason: inventoryMovements.reason,
+          sale_id: sales.id,
+        })
         .from(inventoryMovements)
+        .leftJoin(appointments, eq(appointments.id, inventoryMovements.appointmentId))
+        .leftJoin(customers, eq(customers.id, appointments.customerId))
+        .leftJoin(sales, eq(sales.appointmentId, appointments.id))
         .where(
           and(
             eq(inventoryMovements.productId, request.params.productId),

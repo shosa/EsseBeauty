@@ -278,7 +278,8 @@ export default function PlatformPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("name"));
     const ownerEmail = String(form.get("owner_email"));
     const ownerName = String(form.get("owner_full_name"));
@@ -299,11 +300,11 @@ export default function PlatformPage() {
         }),
         method: "POST",
       });
-      event.currentTarget.reset();
+      formElement.reset();
+      await loadSalons();
       setSelectedSalonId(created.id);
       setPanel("features");
       setSuccess("Salone creato. Ora scegli i moduli da includere.");
-      await loadSalons();
       await loadFeatures(created.id);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Creazione salone non riuscita.");
@@ -382,13 +383,14 @@ export default function PlatformPage() {
     if (!selectedSalon) return;
     setError("");
     setSuccess("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       await request(`/api/platform/salons/${selectedSalon.id}/owner-access/reset-password`, {
         body: JSON.stringify({ password: String(form.get("owner_password")) }),
         method: "POST",
       });
-      event.currentTarget.reset();
+      formElement.reset();
       setOwner((current) => current ? { ...current, must_change_password: true } : current);
       setSuccess("Password reimpostata. Le sessioni del titolare sono state chiuse.");
     } catch (caught) {
@@ -416,27 +418,27 @@ export default function PlatformPage() {
 
   if (!session) {
     return (
-      <AppPage className="platform-admin" maxWidth="max-w-xl">
+      <AppPage className="platform-admin" maxWidth="max-w-2xl">
         <PageHeader
           eyebrow="Area centrale"
           title={bootstrapRequired ? "Crea il primo amministratore" : "Accedi alla gestione centrale"}
           subtitle={bootstrapRequired ? "Configura l'accesso principale per gestire saloni e licenze." : "Accesso riservato alla gestione dei saloni."}
         />
         {error && <InlineError className="mb-5">{error}</InlineError>}
-        <SectionCard>
-          <form className="space-y-4" onSubmit={submitAuth}>
+        <SectionCard className="p-6 md:p-8">
+          <form className="grid gap-5" onSubmit={submitAuth}>
             {bootstrapRequired && (
               <FormField label="Nome amministratore" required>
-                <input name="full_name" required />
+                <input autoComplete="name" className="w-full" name="full_name" required />
               </FormField>
             )}
             <FormField label="Email" required>
-              <input name="email" required type="email" />
+              <input autoComplete="email" className="w-full" name="email" required type="email" />
             </FormField>
             <FormField label="Password" required description="Almeno 10 caratteri.">
-              <input name="password" required type="password" />
+              <input autoComplete={bootstrapRequired ? "new-password" : "current-password"} className="w-full" minLength={10} name="password" required type="password" />
             </FormField>
-            <Button className={`w-full ${adminPrimaryButton}`} type="submit" variant="primary">
+            <Button className={`mt-1 w-full ${adminPrimaryButton}`} type="submit" variant="primary">
               {bootstrapRequired ? "Crea accesso" : "Entra"}
             </Button>
           </form>
@@ -718,7 +720,11 @@ export default function PlatformPage() {
                           </div>
                           <Switch
                             checked={enabled}
-                            className={enabled ? "!border-teal-700 !bg-[linear-gradient(135deg,#083344,#06b6d4)]" : ""}
+                            className={`h-7 w-12 shrink-0 self-start ${
+                              enabled
+                                ? "!border-teal-700 !bg-[linear-gradient(135deg,#083344,#06b6d4)]"
+                                : "!border-slate-300 !bg-slate-200"
+                            }`}
                             disabled={busy}
                             onCheckedChange={(checked) => void toggleFeature(item.key, checked)}
                           />

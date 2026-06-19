@@ -19,6 +19,7 @@ export const notificationTypeLabels = {
   booking_created: "Nuova prenotazione",
   campaign_failed: "Campagna fallita",
   inventory_low_stock: "Scorta bassa",
+  inventory_negative_stock: "Giacenza negativa",
   reminder_failed: "Promemoria fallito",
   review_pending: "Recensione da gestire",
   waitlist_match: "Slot per lista d'attesa",

@@ -166,7 +166,7 @@ export default function UserPermissionsPage() {
   const defaults = new Set(DEFAULT_PERMISSIONS[user.role]);
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
+    <main className="mx-auto max-w-[1200px] p-5 md:p-8">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold">{user.full_name}</h1>

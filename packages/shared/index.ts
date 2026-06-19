@@ -8,6 +8,29 @@ export const APPOINTMENT_STATUSES = [
 
 export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
 
+export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
+  cancelled: "Annullato",
+  completed: "Completo",
+  confirmed: "Confermato",
+  no_show: "No-show",
+  pending: "In attesa",
+};
+
+export const APPOINTMENT_STATUS_PALETTE: Record<Exclude<AppointmentStatus, "confirmed">, {
+  background: string;
+  border: string;
+  text: string;
+}> = {
+  cancelled: { background: "#fee2e2", border: "#fca5a5", text: "#7f1d1d" },
+  completed: { background: "#e7e5e4", border: "#a8a29e", text: "#292524" },
+  no_show: { background: "#ffedd5", border: "#fdba74", text: "#7c2d12" },
+  pending: { background: "#fef3c7", border: "#fcd34d", text: "#78350f" },
+};
+
+export function appointmentStatusLabel(status: string): string {
+  return APPOINTMENT_STATUS_LABELS[status as AppointmentStatus] ?? status;
+}
+
 export const WEEK_DAYS_IT = [
   { key: "mon", label: "Lunedi", shortLabel: "LUN" },
   { key: "tue", label: "Martedi", shortLabel: "MAR" },

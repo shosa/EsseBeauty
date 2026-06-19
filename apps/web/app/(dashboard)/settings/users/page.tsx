@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { PERMISSION_KEYS, type UserRole } from "@esse-beauty/shared";
-import { Badge, InlineError, PageTransition, Switch } from "@esse-beauty/ui";
+import { AppPage, Badge, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -59,15 +59,9 @@ export default function UsersPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl p-8">
+    <AppPage maxWidth="max-w-[1500px]">
       <PageTransition>
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-black">Utenti e accessi</h1>
-            <p className="mt-2 text-neutral-600">Gestisci ruoli, stato account e permessi individuali.</p>
-          </div>
-          {canManageUsers ? <Link href="/settings/users/invite" className="rounded-xl bg-stone-950 px-5 py-3 font-bold text-white shadow-sm transition hover:-translate-y-0.5">Invita utente</Link> : <span className="rounded-xl bg-stone-200 px-5 py-3 font-bold text-stone-500">Invita utente</span>}
-        </div>
+        <PageHeader actions={canManageUsers ? <Link href="/settings/users/invite" className="rounded-xl bg-stone-950 px-5 py-3 font-bold text-white shadow-sm transition hover:-translate-y-0.5">Invita utente</Link> : undefined} eyebrow="Accessi" title="Utenti e accessi" subtitle="Gestisci ruoli, stato account e permessi individuali." />
         {error && <InlineError className="mb-5">{error}</InlineError>}
         {loading ? (
           <p>Caricamento...</p>
@@ -105,6 +99,6 @@ export default function UsersPage() {
           </div>
         )}
       </PageTransition>
-    </main>
+    </AppPage>
   );
 }

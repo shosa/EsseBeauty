@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   AppPage,
@@ -11,8 +11,6 @@ import {
   PageHeader,
   SaveToast,
   SectionCard,
-  StatCard,
-  StatGrid,
   StatusBadge,
   Switch,
 } from "@esse-beauty/ui";
@@ -38,11 +36,6 @@ export default function PackagesSettingsPage() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState<{ message: string; variant: "error" | "success" }>();
   const [form, setForm] = useState({ active: true, description: "", included_sessions: 5, name: "", validity_days: 90 });
-
-  const stats = useMemo(() => ({
-    active: items.filter((item) => item.active).length,
-    sessions: items.reduce((sum, item) => sum + Number(item.includedSessions ?? 0), 0),
-  }), [items]);
 
   function load() {
     if (!salon?.id) return;
@@ -75,18 +68,13 @@ export default function PackagesSettingsPage() {
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1500px]">
       <PageHeader
         eyebrow="Moduli"
         subtitle="Configura percorsi acquistabili in piÃ¹ sedute e consumabili dagli appuntamenti."
         title="Pacchetti servizi"
       />
       {error && <InlineError className="mb-5">{error}</InlineError>}
-      <StatGrid className="mb-5">
-        <StatCard label="Pacchetti attivi" value={stats.active} />
-        <StatCard label="Sedute configurate" value={stats.sessions} />
-        <StatCard label="Catalogo" value={items.length} />
-      </StatGrid>
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
         <SectionCard title="Nuovo pacchetto" subtitle="Definisci numero sedute, validitÃ  e regole operative visibili al team.">
           <div className="grid gap-4">

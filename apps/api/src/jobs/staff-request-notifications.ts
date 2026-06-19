@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gt, ne } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import {
   appointments,
@@ -82,7 +82,7 @@ export async function ensureOnlineBookingNotifications(
     .where(and(
       eq(appointments.salonId, salonId),
       eq(appointments.source, "online"),
-      ne(appointments.status, "cancelled"),
+      eq(appointments.status, "pending"),
       gt(appointments.endsAt, new Date()),
       ...(appointmentId ? [eq(appointments.id, appointmentId)] : []),
     ));

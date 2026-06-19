@@ -36,8 +36,8 @@ export default function NewServicePage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <form action={create} className="mx-auto grid max-w-3xl gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <main className="p-5 md:p-8">
+      <form action={create} className="mx-auto grid max-w-[1000px] gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
         <Breadcrumbs items={[{ href: "/settings/services", label: "Catalogo servizi" }, { label: "Nuovo servizio" }]} />
         <h1 className="text-3xl font-bold">Nuovo servizio</h1>
         {error && <InlineError>{error}</InlineError>}

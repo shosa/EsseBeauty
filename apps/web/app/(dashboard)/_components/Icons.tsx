@@ -39,6 +39,7 @@ export const LoyaltyIcon = (props: IconProps) => <Icon {...props}><path {...stro
 export const MarketingIcon = (props: IconProps) => <Icon {...props}><path {...stroke} d="M4 13h3l9 4V7L7 11H4v2Zm3 0v5h3l-2-5m8-3 4-2m-4 6 4 2" /></Icon>;
 export const InventoryIcon = (props: IconProps) => <Icon {...props}><path {...stroke} d="M4 8 12 4l8 4-8 4-8-4Zm0 0v8l8 4 8-4V8M12 12v8" /></Icon>;
 export const ReportsIcon = (props: IconProps) => <Icon {...props}><path {...stroke} d="M5 19V5m0 14h15M9 16v-5m4 5V8m4 8v-3" /></Icon>;
+export const SalesIcon = (props: IconProps) => <Icon {...props}><path {...stroke} d="M4 6h16v13H4zM4 10h16M8 15h3m6-10V3m-10 2V3" /></Icon>;
 export const LogoutIcon = (props: IconProps) => <Icon {...props}><path {...stroke} d="M10 5H4v14h6m4-4 4-3-4-3m4 3H9" /></Icon>;
 export const GripIcon = (props: IconProps) => <Icon {...props}><circle cx="8" cy="7" r="1" fill="currentColor" /><circle cx="16" cy="7" r="1" fill="currentColor" /><circle cx="8" cy="12" r="1" fill="currentColor" /><circle cx="16" cy="12" r="1" fill="currentColor" /><circle cx="8" cy="17" r="1" fill="currentColor" /><circle cx="16" cy="17" r="1" fill="currentColor" /></Icon>;
 export const BellIcon = (props: IconProps) => <Icon {...props}><path {...stroke} d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" /><path {...stroke} d="M10 21h4" /></Icon>;

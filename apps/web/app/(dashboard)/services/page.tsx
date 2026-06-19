@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { formatPrice } from "@esse-beauty/shared";
-import { AppPage, EmptyState, FormField, InlineError, PageHeader, PageTransition, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, FormField, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -44,9 +44,6 @@ export default function ServicesPage() {
 
   useEffect(() => { void load(); }, [salon?.id, query]);
 
-  const categories = useMemo(() => new Set(items.map((item) => item.category)).size, [items]);
-  const averageDuration = useMemo(() => items.length ? Math.round(items.reduce((sum, item) => sum + item.durationMinutes, 0) / items.length) : 0, [items]);
-
   return (
     <AppPage>
       <PageTransition>
@@ -58,12 +55,6 @@ export default function ServicesPage() {
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}
-        <StatGrid className="mb-6 md:grid-cols-3">
-          <StatCard label="Servizi attivi" value={items.length} />
-          <StatCard label="Categorie" value={categories} />
-          <StatCard label="Durata media" value={`${averageDuration} min`} />
-        </StatGrid>
-
         <SectionCard className="mb-5" title="Ricerca catalogo" subtitle="Nessuna modifica strutturale da questa vista.">
           <FormField label="Cerca servizio o categoria">
             <input className="w-full" onChange={(event) => setQuery(event.target.value)} placeholder="Es. piega, colore, ceretta..." value={query} />

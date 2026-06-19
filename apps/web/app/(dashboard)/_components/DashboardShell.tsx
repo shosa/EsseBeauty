@@ -22,6 +22,7 @@ import {
   RemindersIcon,
   ReportsIcon,
   ReviewsIcon,
+  SalesIcon,
   ServicesIcon,
   SidebarToggleIcon,
   SettingsIcon,
@@ -36,6 +37,7 @@ type IconComponent = ComponentType<{ className?: string }>;
 const primary: Array<{ href: string; icon: IconComponent; label: string; section: string }> = [
   { href: "/", icon: DashboardIcon, label: "Home", section: "Operativita" },
   { href: "/calendar", icon: CalendarIcon, label: "Agenda", section: "Operativita" },
+  { href: "/sales", icon: SalesIcon, label: "Cassa", section: "Operativita" },
   { href: "/clients", icon: ClientsIcon, label: "Clienti", section: "Archivio" },
   { href: "/services", icon: ServicesIcon, label: "Servizi", section: "Archivio" },
   { href: "/staff", icon: StaffIcon, label: "Staff", section: "Archivio" },
@@ -51,18 +53,18 @@ const moduleLinks = [
   { moduleKey: MODULE_KEYS.STAFF_PERF, href: "/reports", icon: ReportsIcon, label: "Report" },
   { moduleKey: MODULE_KEYS.DOCUMENTS, href: "/settings/documents", icon: ModuleIcon, label: "Consensi" },
   { moduleKey: MODULE_KEYS.PACKAGES, href: "/settings/packages", icon: ServicesIcon, label: "Pacchetti" },
-  { moduleKey: MODULE_KEYS.AUDIT_COMPLIANCE, href: "/settings/audit", icon: ReportsIcon, label: "Audit" },
+  { moduleKey: MODULE_KEYS.AUDIT_COMPLIANCE, href: "/settings/audit", icon: ReportsIcon, label: "Attività" },
 ];
 
 const settingsLinks = [
   { href: "/settings", icon: SettingsIcon, label: "Centro controllo" },
   { href: "/settings/users", icon: StaffIcon, label: "Utenti" },
-  { href: "/settings/staff/requests", icon: RemindersIcon, label: "Richieste staff" },
+  { href: "/settings/permissions", icon: RemindersIcon, label: "Permessi e assenze" },
   { href: "/settings/modules", icon: ModuleIcon, label: "Moduli" },
 ];
 
 const workspaceSections = [
-  { label: "Oggi", paths: ["/", "/calendar"] },
+  { label: "Oggi", paths: ["/", "/calendar", "/sales"] },
   { label: "Relazioni", paths: ["/clients", "/staff", "/services"] },
   { label: "Operatività", paths: ["/inventory", "/reviews", "/waitlist", "/marketing", "/reports"] },
   { label: "Sistema", paths: ["/settings"] },
@@ -75,6 +77,7 @@ function currentSection(pathname: string) {
   )?.label ?? "Workspace";
   const labels: Array<[string, string, string]> = [
     ["/calendar", "Oggi", "Agenda"],
+    ["/sales", "Oggi", "Cassa e movimenti"],
     ["/clients", "Relazioni", "Clienti"],
     ["/staff", "Relazioni", "Staff"],
     ["/services", "Relazioni", "Servizi"],
@@ -120,14 +123,14 @@ function NavigationLink({ badge = 0, collapsed = false, href, icon: Icon, label,
   return (
     <Link
       aria-label={label}
-      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} relative rounded-xl text-sm font-bold transition ${active ? "bg-white text-[#5f2447] shadow-[0_8px_22px_rgb(20_10_16_/_0.22)]" : "text-white/68 hover:bg-white/10 hover:text-white"}`}
+      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} relative text-sm font-bold transition ${active ? collapsed ? "rounded-xl bg-white text-[#5f2447] shadow-[0_8px_22px_rgb(20_10_16_/_0.22)]" : "sidebar-nav-active text-[#5f2447]" : "rounded-xl text-white/68 hover:bg-white/10 hover:text-white"}`}
       href={href}
       onClick={onClick}
       title={label}
     >
-      <Icon className="shrink-0" />
-      {!collapsed && <span>{label}</span>}
-      {badge > 0 && <span className={`${collapsed ? "absolute -right-1 -top-1" : "ml-auto"} grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white`}>{Math.min(badge, 9)}</span>}
+      <Icon className="relative z-10 shrink-0" />
+      {!collapsed && <span className="relative z-10">{label}</span>}
+      {badge > 0 && <span className={`${collapsed ? "absolute -right-1 -top-1" : "relative z-10 ml-auto"} grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white`}>{Math.min(badge, 9)}</span>}
     </Link>
   );
 }
@@ -353,7 +356,7 @@ function UnifiedSideNavigation({
         >
           <div ref={scrollContentRef}>
             <nav className="space-y-1">
-              {sectionLinks.map((item) => <NavigationLink badge={item.href === "/settings/staff/requests" ? staffRequestCount : 0} collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
+              {sectionLinks.map((item) => <NavigationLink badge={item.href === "/settings/permissions" ? staffRequestCount : 0} collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
             </nav>
 
             <div className="mt-6 border-t border-stone-100 pt-5">
@@ -543,7 +546,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-50 bg-[#2d1d27]/40 backdrop-blur-sm md:hidden" onClick={() => setMoreOpen(false)}>
           <aside className="absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-[#35212e] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Navigazione</h2><button className="text-white/65" onClick={() => setMoreOpen(false)}>Chiudi</button></div>
-            <nav className="mt-6 space-y-1">{primary.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <NavigationLink badge={item.href === "/settings/staff/requests" ? staffRequestCount : 0} href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
+            <nav className="mt-6 space-y-1">{primary.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <NavigationLink badge={item.href === "/settings/permissions" ? staffRequestCount : 0} href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
             <button className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 py-3 font-semibold text-red-700" onClick={() => void logout()}><LogoutIcon />Esci</button>
           </aside>
         </div>
