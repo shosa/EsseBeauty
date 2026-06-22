@@ -14,6 +14,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const documents = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const packages = useModuleEnabled(MODULE_KEYS.PACKAGES);
   const audit = useModuleEnabled(MODULE_KEYS.AUDIT_COMPLIANCE);
+  const multiLocation = useModuleEnabled(MODULE_KEYS.MULTI_LOCATION);
   useEffect(() => {
     setStaffRequestCount(Number(document.documentElement.dataset.staffPendingCount ?? 0));
     function update(event: Event) {
@@ -32,6 +33,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         { href: "/settings/staff", label: "Staff" },
         { badge: staffRequestCount, href: "/settings/permissions", label: "Permessi" },
         { href: "/settings/pwa", label: "App Clienti" },
+        { href: "/settings/locations", label: multiLocation ? "Sedi e cabine" : "Cabine" },
       ],
     },
     {

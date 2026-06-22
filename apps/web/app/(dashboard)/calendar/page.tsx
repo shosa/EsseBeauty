@@ -19,6 +19,7 @@ interface Appointment {
   customer_name: string;
   ends_at: string;
   id: string;
+  location_id?: string | null;
   service_name: string;
   staff_id: string;
   staff_name: string;
@@ -30,6 +31,7 @@ interface AvailabilityBlock {
   color: string;
   ends_at: string;
   id: string;
+  location_id?: string | null;
   reason?: string | null;
   staff_id: string;
   staff_name: string;
@@ -47,6 +49,7 @@ interface StaffOption {
   color: string;
   display_name: string;
   id: string;
+  location_id?: string | null;
   working_hours: WorkingHours;
 }
 
@@ -137,6 +140,58 @@ function clockMinutes(value: string) {
   return Number(hours) * 60 + Number(minutes);
 }
 
+interface LocationOption {
+  id: string;
+  name: string;
+}
+
+function collisionLayout<T extends { id: string }>(
+  items: T[],
+  startOf: (item: T) => number,
+  endOf: (item: T) => number,
+) {
+  const result = new Map<string, { column: number; columnCount: number }>();
+  const sorted = [...items].sort((left, right) =>
+    startOf(left) - startOf(right) || endOf(left) - endOf(right),
+  );
+  const groups: T[][] = [];
+  let current: T[] = [];
+  let currentEnd = -Infinity;
+
+  for (const item of sorted) {
+    const start = startOf(item);
+    if (current.length > 0 && start >= currentEnd) {
+      groups.push(current);
+      current = [];
+      currentEnd = -Infinity;
+    }
+    current.push(item);
+    currentEnd = Math.max(currentEnd, endOf(item));
+  }
+  if (current.length > 0) groups.push(current);
+
+  for (const group of groups) {
+    const columnEnds: number[] = [];
+    const assignments = new Map<string, number>();
+    for (const item of group) {
+      const start = startOf(item);
+      let column = columnEnds.findIndex((end) => end <= start);
+      if (column === -1) {
+        column = columnEnds.length;
+        columnEnds.push(endOf(item));
+      } else {
+        columnEnds[column] = endOf(item);
+      }
+      assignments.set(item.id, column);
+    }
+    const columnCount = Math.max(1, columnEnds.length);
+    for (const item of group) {
+      result.set(item.id, { column: assignments.get(item.id) ?? 0, columnCount });
+    }
+  }
+  return result;
+}
+
 export default function CalendarPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -150,6 +205,8 @@ export default function CalendarPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [staffFilter, setStaffFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [locations, setLocations] = useState<LocationOption[]>([]);
   const [rules, setRules] = useState<CalendarRules>({
     allowOverbooking: false,
     bufferMinutes: 0,
@@ -188,6 +245,14 @@ export default function CalendarPage() {
         setView(defaultView);
       });
   }, [salon]);
+
+  useEffect(() => {
+    if (!salon) return;
+    void fetch(`${api}/api/salons/${salon.id}/settings/locations`, { credentials: "include" })
+      .then(async (response) => {
+        if (response.ok) setLocations(await response.json() as LocationOption[]);
+      });
+  }, [salon?.id]);
 
   const range = useMemo(() => {
     const now = new Date();
@@ -254,8 +319,11 @@ export default function CalendarPage() {
   }
 
   const filteredItems = useMemo(
-    () => items.filter((item) => appointmentMatches(item, query.trim(), statusFilter, staffFilter)),
-    [items, query, staffFilter, statusFilter],
+    () => items.filter((item) =>
+      (!locationFilter || item.location_id === locationFilter)
+      && appointmentMatches(item, query.trim(), statusFilter, staffFilter),
+    ),
+    [items, locationFilter, query, staffFilter, statusFilter],
   );
   const days = useMemo(() => {
     if (view === "day" || view === "staff_columns") return [range.from];
@@ -268,9 +336,9 @@ export default function CalendarPage() {
   }, [range.from, view]);
   const staffOptions = useMemo(
     () => staffMembers.length
-      ? staffMembers.map((item) => [item.id, item.display_name] as [string, string])
+      ? staffMembers.filter((item) => !locationFilter || item.location_id === locationFilter).map((item) => [item.id, item.display_name] as [string, string])
       : Array.from(new Map(items.map((item) => [item.staff_id, item.staff_name])).entries()),
-    [items, staffMembers],
+    [items, locationFilter, staffMembers],
   );
   const visibleStaff = staffFilter ? staffOptions.filter(([id]) => id === staffFilter) : staffOptions;
   const navigatorWeekStart = useMemo(() => startOfWeek(range.from), [range.from]);
@@ -314,6 +382,7 @@ export default function CalendarPage() {
   function blocksForDay(day: Date) {
     return availabilityBlocks.filter((item) =>
       (!staffFilter || item.staff_id === staffFilter) &&
+      (!locationFilter || item.location_id === locationFilter) &&
       sameDay(new Date(item.starts_at), day) &&
       (!query.trim() || `${item.reason ?? "Non disponibile"} ${item.staff_name}`.toLowerCase().includes(query.trim().toLowerCase())),
     );
@@ -452,6 +521,10 @@ export default function CalendarPage() {
               placeholder="Cerca cliente, servizio o collaboratore"
               value={query}
             />
+            {locations.length > 1 && <div className="flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-white p-1">
+              <button className={`min-h-9 rounded-lg px-3 text-xs font-black ${!locationFilter ? "bg-[#faf3f7] text-[#792f59]" : "text-stone-500"}`} onClick={() => { setLocationFilter(""); setStaffFilter(""); }} type="button">Tutte le sedi</button>
+              {locations.map((location) => <button className={`min-h-9 rounded-lg px-3 text-xs font-black ${locationFilter === location.id ? "bg-[#faf3f7] text-[#792f59]" : "text-stone-500"}`} key={location.id} onClick={() => { setLocationFilter(location.id); setStaffFilter(""); }} type="button">{location.name}</button>)}
+            </div>}
             <select aria-label="Filtra per stato" className="min-h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
               <option value="">Tutti gli stati</option>
               {statuses.map((status) => <option key={status} value={status}>{appointmentStatusLabel(status)}</option>)}
@@ -472,6 +545,7 @@ export default function CalendarPage() {
               setQuery("");
               setStatusFilter("");
               setStaffFilter("");
+              setLocationFilter("");
               setPeriodOffset(0);
             }} type="button">Oggi · Azzera</button>
           </div>
@@ -521,7 +595,17 @@ export default function CalendarPage() {
                     </div>
                   ))}
                 </div>
-                {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId]) => (
+                {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId]) => {
+                  const staffAppointments = filteredItems.filter((item) => item.staff_id === staffId);
+                  const layouts = collisionLayout(
+                    staffAppointments,
+                    (item) => timelinePosition(item.starts_at, item.ends_at).top,
+                    (item) => {
+                      const position = timelinePosition(item.starts_at, item.ends_at);
+                      return position.top + position.height;
+                    },
+                  );
+                  return (
                   <div className="relative border-r border-stone-100 bg-white last:border-r-0" key={staffId} style={{ height: (timelineEndHour - timelineStartHour) * hourHeight }}>
                     {timelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: (hour - timelineStartHour) * hourHeight }} />)}
                     {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: ((hour - timelineStartHour) * 60 + minute) / 60 * hourHeight }} />))}
@@ -541,22 +625,30 @@ export default function CalendarPage() {
                       const position = timelinePosition(item.starts_at, item.ends_at);
                       return <div className="absolute left-2 right-2 z-10 overflow-hidden rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-950 shadow-sm" key={item.id} style={{ ...position, background: "repeating-linear-gradient(135deg, #fffbeb 0, #fffbeb 8px, #fde68a 8px, #fde68a 11px)" }}><span className="block">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span><span className="mt-1 block truncate uppercase">{item.reason || "Assenza / non disponibile"}</span></div>;
                     })}
-                    {filteredItems.filter((item) => item.staff_id === staffId).map((item) => {
+                    {staffAppointments.map((item) => {
                       const position = timelinePosition(item.starts_at, item.ends_at);
+                      const layout = layouts.get(item.id) ?? { column: 0, columnCount: 1 };
                       const short = minutesBetween(item.starts_at, item.ends_at) < 30;
                       const confirmed = item.status === "confirmed";
                       const palette = APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE];
+                      const horizontal = layout.columnCount === 1
+                        ? { left: "8px", right: "8px" }
+                        : {
+                          left: `calc(${layout.column / layout.columnCount * 100}% + 4px)`,
+                          right: `calc(${(layout.columnCount - layout.column - 1) / layout.columnCount * 100}% + 4px)`,
+                        };
                       return (
-                        <Link className={`absolute left-2 right-2 z-10 overflow-hidden rounded-lg border pr-24 text-xs transition hover:z-20 hover:-translate-y-0.5 hover:shadow-lg ${confirmed ? "border-white/80 text-white shadow-sm" : "shadow-sm"} ${short ? "flex items-center gap-2 py-1.5 pl-3" : "py-2 pl-3"}`} href={appointmentHref(item.id)} key={item.id} scroll={false} style={{ ...position, background: confirmed ? `linear-gradient(135deg, ${item.color || "#792f59"} 0%, color-mix(in srgb, ${item.color || "#792f59"} 72%, white) 100%)` : palette?.background, borderColor: confirmed ? undefined : palette?.border, color: confirmed ? undefined : palette?.text }} title={`${formatTime(item.starts_at)}–${formatTime(item.ends_at)} · ${item.customer_name} · ${item.service_name} · ${appointmentStatusLabel(item.status ?? "confirmed")}`}>
+                        <Link className={`absolute z-10 overflow-hidden rounded-lg border text-xs transition hover:z-20 hover:-translate-y-0.5 hover:shadow-lg ${confirmed ? "border-white/80 text-white shadow-sm" : "shadow-sm"} ${layout.columnCount > 1 ? "px-2" : "pr-24"} ${short ? "flex items-center gap-2 py-1.5 pl-3" : "py-2 pl-3"}`} href={appointmentHref(item.id)} key={item.id} scroll={false} style={{ ...position, ...horizontal, background: confirmed ? `linear-gradient(135deg, ${item.color || "#792f59"} 0%, color-mix(in srgb, ${item.color || "#792f59"} 72%, white) 100%)` : palette?.background, borderColor: confirmed ? undefined : palette?.border, color: confirmed ? undefined : palette?.text }} title={`${formatTime(item.starts_at)}–${formatTime(item.ends_at)} · ${item.customer_name} · ${item.service_name} · ${appointmentStatusLabel(item.status ?? "confirmed")}`}>
                           <span className="shrink-0 font-black">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span>
                           <strong className={`${short ? "min-w-0 truncate text-sm" : "mt-1 block truncate text-sm"} uppercase`}>{item.customer_name}</strong>
                           <span className={`${short ? "hidden min-w-0 truncate font-semibold opacity-75 xl:block" : "mt-1 block truncate font-semibold opacity-75"}`}>{short ? `· ${item.service_name}` : item.service_name}</span>
-                          <span className={`absolute right-2 top-1/2 max-w-20 -translate-y-1/2 truncate rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[.08em] backdrop-blur-sm ${confirmed ? "border-white/20 bg-black/16 text-white" : "border-current/20 bg-white/55"}`}>{appointmentStatusLabel(item.status ?? "confirmed")}</span>
+                          {layout.columnCount === 1 && <span className={`absolute right-2 top-1/2 max-w-20 -translate-y-1/2 truncate rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[.08em] backdrop-blur-sm ${confirmed ? "border-white/20 bg-black/16 text-white" : "border-current/20 bg-white/55"}`}>{appointmentStatusLabel(item.status ?? "confirmed")}</span>}
                         </Link>
                       );
                     })}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

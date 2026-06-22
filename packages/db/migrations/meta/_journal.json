@@ -134,6 +134,20 @@
       "when": 1782136516150,
       "tag": "0018_kind_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782153931922,
+      "tag": "0019_closed_firedrake",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782157500000,
+      "tag": "0020_operational_multisite",
+      "breakpoints": true
     }
   ]
 }

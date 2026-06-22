@@ -242,6 +242,19 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("Cerca cliente, servizio o collaboratore");
   });
 
+  it("uses scalable appointment choices and lays overlapping events side by side", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    const appointmentForm = readFileSync(join(dashboardRoot, "calendar", "appointments", "new", "page.tsx"), "utf8");
+    expect(appointmentForm).toContain("service-categories?active=true");
+    expect(appointmentForm).toContain("ServiceCategoryIcon");
+    expect(appointmentForm).toContain("Cerca servizio");
+    expect(appointmentForm).toContain("Cerca collaboratore");
+    expect(appointmentForm).not.toContain("<select");
+    expect(calendar).toContain("collisionLayout");
+    expect(calendar).toContain("columnCount");
+    expect(calendar).toContain("...horizontal");
+  });
+
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {
     const staffDetail = readFileSync(join(dashboardRoot, "settings", "staff", "[staffId]", "page.tsx"), "utf8");
     const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");

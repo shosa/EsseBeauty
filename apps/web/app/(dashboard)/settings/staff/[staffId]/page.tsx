@@ -24,6 +24,21 @@ interface StaffAccess {
   user_id?: string | null;
 }
 
+interface StaffService {
+  active: boolean;
+  category: string;
+  enabled: boolean;
+  id: string;
+  name: string;
+}
+
+interface Location {
+  active: boolean;
+  address?: string | null;
+  id: string;
+  name: string;
+}
+
 export default function StaffDetailPage() {
   const { staffId } = useParams<{ staffId: string }>();
   const { salon } = useAuth();
@@ -32,19 +47,33 @@ export default function StaffDetailPage() {
   const [access, setAccess] = useState<StaffAccess>({ active: true, email: "", role: null, user_id: null });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [services, setServices] = useState<StaffService[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [locationId, setLocationId] = useState<string | null>(null);
 
   const load = async () => {
     if (!salon) return;
-    const [staffRows, accessResponse, settingsResponse] = await Promise.all([
+    const [staffRows, accessResponse, settingsResponse, capabilityResponse] = await Promise.all([
       fetch(`${api}/api/salons/${salon.id}/staff`, { credentials: "include" }).then((response) => response.json()),
       fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/access`, { credentials: "include" }),
       fetch(`${api}/api/salons/${salon.id}/staff-default-hours`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/services`, { credentials: "include" }),
     ]);
     setMember(staffRows.find((item: Member) => item.id === staffId));
     if (accessResponse.ok) setAccess(await accessResponse.json() as StaffAccess);
     if (settingsResponse.ok) {
       const settings = await settingsResponse.json() as { opening_hours?: WorkingHours };
       setSalonHours(settings.opening_hours);
+    }
+    if (capabilityResponse.ok) {
+      const data = await capabilityResponse.json() as {
+        location_id?: string | null;
+        locations: Location[];
+        services: StaffService[];
+      };
+      setServices(data.services);
+      setLocations(data.locations);
+      setLocationId(data.location_id ?? null);
     }
   };
 
@@ -99,6 +128,23 @@ export default function StaffDetailPage() {
     }
     setAccess(await response.json() as StaffAccess);
     setMessage("Accesso App Staff salvato.");
+  }
+
+  async function saveCapabilities() {
+    if (!salon) return;
+    const serviceIds = services.filter((service) => service.enabled).map((service) => service.id);
+    if (serviceIds.length === 0) {
+      setError("Abilita almeno un servizio per il collaboratore.");
+      return;
+    }
+    const response = await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/services`, {
+      body: JSON.stringify({ location_id: locationId, service_ids: serviceIds }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PUT",
+    });
+    setMessage(response.ok ? "Sede e competenze salvate." : "");
+    setError(response.ok ? "" : "Sede e competenze non salvate.");
   }
 
   if (!member) return <AppPage maxWidth="max-w-[1600px]"><SectionCard><div className="h-96 animate-pulse rounded-2xl bg-stone-100" /></SectionCard></AppPage>;
@@ -176,6 +222,59 @@ export default function StaffDetailPage() {
           />
           <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
             <Button onClick={() => void save()} variant="primary">Salva orari</Button>
+          </div>
+        </SectionCard>
+
+        <SectionCard className="xl:col-span-12" title="Sede e servizi abilitati" subtitle="Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.">
+          {locations.length > 0 && (
+            <div>
+              <p className="text-sm font-bold text-stone-900">Sede di lavoro</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {locations.filter((location) => location.active).map((location) => (
+                  <button
+                    className={`rounded-xl border p-4 text-left transition ${locationId === location.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}
+                    key={location.id}
+                    onClick={() => setLocationId(location.id)}
+                    type="button"
+                  >
+                    <strong className="block">{location.name}</strong>
+                    <span className="mt-1 block text-xs text-stone-500">{location.address || "Indirizzo non specificato"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className={locations.length > 0 ? "mt-6 border-t border-stone-100 pt-6" : ""}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-stone-900">Competenze operative</p>
+                <p className="mt-1 text-xs text-stone-500">I servizi non abilitati non compariranno tra le scelte disponibili per questo collaboratore.</p>
+              </div>
+              <Button onClick={() => setServices(services.map((service) => ({ ...service, enabled: service.active })))} size="sm" variant="outline">Seleziona tutti</Button>
+            </div>
+            <div className="mt-4 space-y-4">
+              {Array.from(new Set(services.map((service) => service.category))).map((category) => (
+                <div key={category}>
+                  <p className="mb-2 text-[11px] font-black uppercase tracking-[.16em] text-stone-400">{category}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {services.filter((service) => service.category === category).map((service) => (
+                      <button
+                        className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${service.enabled ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-500"}`}
+                        disabled={!service.active}
+                        key={service.id}
+                        onClick={() => setServices(services.map((item) => item.id === service.id ? { ...item, enabled: !item.enabled } : item))}
+                        type="button"
+                      >
+                        {service.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+            <Button onClick={() => void saveCapabilities()} variant="primary">Salva sede e competenze</Button>
           </div>
         </SectionCard>
 

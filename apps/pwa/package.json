@@ -13,6 +13,7 @@
     "@esse-beauty/feature-flags": "workspace:*",
     "@esse-beauty/shared": "workspace:*",
     "@esse-beauty/ui": "workspace:*",
+    "lucide-react": "^1.21.0",
     "next": "^15.3.4",
     "next-pwa": "^5.6.0",
     "react": "^19.1.0",

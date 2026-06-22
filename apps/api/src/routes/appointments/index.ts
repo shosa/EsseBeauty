@@ -3,6 +3,7 @@ import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 
 import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, sales, salons, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
 import { authenticate } from "../../middleware/auth.js";
 
 async function ownStaffId(request: any): Promise<string | undefined> {
@@ -79,6 +80,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     return request.server.db.select({
       id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
       status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
+      location_id: appointments.locationId, resource_id: appointments.resourceId,
       customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
     }).from(appointments)
       .innerJoin(customers, eq(customers.id, appointments.customerId))
@@ -103,6 +105,9 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     ]);
     const member = staffRows[0], service = serviceRows[0], salon = salonRows[0];
     if (!member || !service || !salon) return reply.code(404).send({ error: "NOT_FOUND" });
+    if (!(await isStaffQualified(request.server.db, request.salonId, service.id, member.id))) {
+      return reply.code(409).send({ error: "STAFF_NOT_QUALIFIED" });
+    }
     if (await isSalonClosed(request.server.db, request.salonId, request.query.date)) {
       return [];
     }
@@ -115,8 +120,20 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       request.server.db.select({ startsAt: availabilityBlocks.startsAt, endsAt: availabilityBlocks.endsAt }).from(availabilityBlocks).where(and(
         eq(availabilityBlocks.staffId, member.id), lt(availabilityBlocks.startsAt, dayEnd), gt(availabilityBlocks.endsAt, dayStart))),
     ]);
-    return computeAvailableSlots({ date: request.query.date, timezone: salon.timezone, workingHours: member.workingHours,
+    const slots = computeAvailableSlots({ date: request.query.date, timezone: salon.timezone, workingHours: member.workingHours,
       durationMinutes: service.durationMinutes, appointments: busy, blocks });
+    return Promise.all(slots.map(async (slot) => {
+      if (!slot.available) return slot;
+      const resource = await availableResourceFor(
+        request.server.db,
+        request.salonId,
+        service.id,
+        new Date(slot.starts_at),
+        new Date(slot.ends_at),
+        member.locationId,
+      );
+      return { ...slot, available: !resource.required || Boolean(resource.resource) };
+    }));
   });
 
   app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string; staffId?: string; status?: string } }>("/api/salons/:id/calendar-events", {
@@ -133,6 +150,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     const appointmentRows = await request.server.db.select({
       id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
       status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
+      location_id: appointments.locationId, resource_id: appointments.resourceId,
       customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
     }).from(appointments)
       .innerJoin(customers, eq(customers.id, appointments.customerId))
@@ -149,6 +167,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       ends_at: availabilityBlocks.endsAt,
       id: availabilityBlocks.id,
       reason: availabilityBlocks.reason,
+      location_id: staff.locationId,
       staff_id: availabilityBlocks.staffId,
       staff_name: staff.displayName,
       starts_at: availabilityBlocks.startsAt,
@@ -182,15 +201,38 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const serviceRows = await request.server.db.select().from(services).where(and(eq(services.id, request.body.service_id), eq(services.salonId, request.salonId)));
       const service = serviceRows[0];
       if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
+      const staffRows = await request.server.db.select().from(staff).where(and(
+        eq(staff.id, request.body.staff_id),
+        eq(staff.salonId, request.salonId),
+        eq(staff.active, true),
+      ));
+      const member = staffRows[0];
+      if (!member) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      if (!(await isStaffQualified(request.server.db, request.salonId, service.id, member.id))) {
+        return reply.code(409).send({ error: "STAFF_NOT_QUALIFIED" });
+      }
       const startsAt = new Date(request.body.starts_at);
       const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
       const rules = await getCalendarRules(request.server.db, request.salonId);
       if (await hasAppointmentConflict(request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt, undefined, rules))
         return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      const resource = await availableResourceFor(
+        request.server.db,
+        request.salonId,
+        service.id,
+        startsAt,
+        endsAt,
+        member.locationId,
+      );
+      if (resource.required && !resource.resource) {
+        return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+      }
       const rows = await request.server.db.insert(appointments).values({
         salonId: request.salonId, customerId: request.body.customer_id, staffId: request.body.staff_id,
         serviceId: request.body.service_id, startsAt, endsAt, status: "confirmed",
         internalNotes: request.body.notes, source: request.body.source ?? "manual",
+        locationId: member.locationId,
+        resourceId: resource.resource?.id,
       }).returning();
       return reply.code(201).send(rows[0]);
     });
@@ -240,9 +282,22 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const rules = await getCalendarRules(request.server.db, request.salonId);
       if ((request.body.starts_at || requestedDuration !== undefined) && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules))
         return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      const resource = await availableResourceFor(
+        request.server.db,
+        request.salonId,
+        item.serviceId,
+        startsAt,
+        endsAt,
+        item.locationId,
+        item.id,
+      );
+      if (resource.required && !resource.resource) {
+        return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+      }
       const updated = await request.server.db.update(appointments).set({
         startsAt, endsAt, ...(request.body.status && { status: request.body.status }),
         ...(request.body.notes !== undefined && { internalNotes: request.body.notes }),
+        ...(resource.required && { resourceId: resource.resource?.id }),
       }).where(eq(appointments.id, item.id)).returning();
       return updated[0];
     });

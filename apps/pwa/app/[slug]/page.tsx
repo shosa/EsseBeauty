@@ -5,10 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiBaseUrl } from "../../lib/api";
+import { ServiceCategoryIcon } from "../_components/ServiceCategoryIcon";
 import { InstallAppButton } from "./_components/InstallAppButton";
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
+interface Category { icon: string; id: string; name: string; }
 interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; installPromptEnabled?: boolean; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
-interface Profile { branding?: Branding | null; salon: { name: string }; services: Service[]; }
+interface Profile { branding?: Branding | null; categories: Category[]; salon: { name: string }; services: Service[]; }
 
 export default function SalonLanding() {
   const { slug } = useParams<{ slug: string }>();
@@ -24,10 +26,9 @@ export default function SalonLanding() {
     });
   }, [slug]);
 
-  const categories = useMemo(
-    () => profile ? [...new Set(profile.services.map((service) => service.category).filter(Boolean))] : [],
-    [profile],
-  );
+  const categories = useMemo(() => profile?.categories.filter((category) =>
+    profile.services.some((service) => service.category === category.name),
+  ) ?? [], [profile]);
   const brand = profile?.branding;
   const primary = brand?.primaryColor || "#402334";
   const accent = brand?.accentColor || "#f4d8a8";
@@ -70,15 +71,17 @@ export default function SalonLanding() {
           <p className="text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}>Da dove vuoi iniziare?</p>
           <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un’esperienza</h2>
           <div className="mt-4 grid gap-3">
-            {categories.map((category, index) => (
+            {categories.map((category) => (
               <Link
                 className="group flex min-h-20 items-center justify-between rounded-3xl border border-white/80 bg-white/88 px-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)] transition hover:-translate-y-0.5"
-                href={`/${slug}/book?category=${encodeURIComponent(category)}`}
-                key={category}
+                href={`/${slug}/book?category=${encodeURIComponent(category.name)}`}
+                key={category.id}
               >
                 <div className="flex items-center gap-4">
-                  <span className="grid size-10 place-items-center rounded-2xl text-sm font-black" style={{ background: `${index % 2 === 0 ? accent : primary}22`, color: primary }}>{String(index + 1).padStart(2, "0")}</span>
-                  <strong className="text-base text-stone-950">{category}</strong>
+                  <span className="grid size-11 place-items-center rounded-2xl" style={{ background: `${primary}12`, color: primary }}>
+                    <ServiceCategoryIcon className="size-5" name={category.icon} />
+                  </span>
+                  <strong className="text-base text-stone-950">{category.name}</strong>
                 </div>
                 <span className="text-xl transition group-hover:translate-x-1" style={{ color: primary }}>→</span>
               </Link>

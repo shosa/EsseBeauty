@@ -10,6 +10,7 @@ import {
   salonClosures,
   salonLocations,
   salonResources,
+  serviceResources,
   salons,
   salonSettings,
   type WorkingHours,
@@ -54,6 +55,13 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
       opening_hours: WorkingHours;
       cancellation_policy_hours: number;
       online_booking_enabled: boolean;
+      address: string | null;
+      city: string | null;
+      country: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      postal_code: string | null;
+      province: string | null;
     }>;
   }>(
     "/api/salons/:id/settings",
@@ -86,6 +94,13 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
           ...(request.body.online_booking_enabled !== undefined && {
             onlineBookingEnabled: request.body.online_booking_enabled,
           }),
+          ...(request.body.address !== undefined && { address: request.body.address?.trim() || null }),
+          ...(request.body.city !== undefined && { city: request.body.city?.trim() || null }),
+          ...(request.body.country !== undefined && { country: request.body.country?.trim() || null }),
+          ...(request.body.latitude !== undefined && { latitude: request.body.latitude }),
+          ...(request.body.longitude !== undefined && { longitude: request.body.longitude }),
+          ...(request.body.postal_code !== undefined && { postalCode: request.body.postal_code?.trim() || null }),
+          ...(request.body.province !== undefined && { province: request.body.province?.trim() || null }),
         })
         .where(eq(salons.id, request.salonId))
         .returning();
@@ -496,6 +511,42 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
   );
 
   app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/settings/locations",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      return app.db.select().from(salonLocations)
+        .where(eq(salonLocations.salonId, request.salonId))
+        .orderBy(asc(salonLocations.displayOrder), asc(salonLocations.name));
+    },
+  );
+
+  app.patch<{
+    Body: { active?: boolean; address?: string; email?: string; name?: string; phone?: string; timezone?: string };
+    Params: { id: string; locationId: string };
+  }>(
+    "/api/salons/:id/settings/locations/:locationId",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const rows = await app.db.update(salonLocations).set({
+        ...(request.body.active !== undefined && { active: request.body.active }),
+        ...(request.body.address !== undefined && { address: request.body.address }),
+        ...(request.body.email !== undefined && { email: request.body.email }),
+        ...(request.body.name !== undefined && { name: request.body.name }),
+        ...(request.body.phone !== undefined && { phone: request.body.phone }),
+        ...(request.body.timezone !== undefined && { timezone: request.body.timezone }),
+      }).where(and(
+        eq(salonLocations.id, request.params.locationId),
+        eq(salonLocations.salonId, request.salonId),
+      )).returning();
+      return rows[0] ?? reply.code(404).send({ error: "LOCATION_NOT_FOUND" });
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
     "/api/salons/:id/settings/closures",
     {
       preHandler: [
@@ -550,6 +601,82 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         })
         .returning();
       return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { locationId?: string } }>(
+    "/api/salons/:id/settings/resources",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      return app.db.select().from(salonResources).where(and(
+        eq(salonResources.salonId, request.salonId),
+        ...(request.query.locationId ? [eq(salonResources.locationId, request.query.locationId)] : []),
+      )).orderBy(asc(salonResources.name));
+    },
+  );
+
+  app.patch<{
+    Body: { active?: boolean; capacity?: number; location_id?: string | null; metadata?: Record<string, unknown>; name?: string; type?: string };
+    Params: { id: string; resourceId: string };
+  }>(
+    "/api/salons/:id/settings/resources/:resourceId",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const rows = await app.db.update(salonResources).set({
+        ...(request.body.active !== undefined && { active: request.body.active }),
+        ...(request.body.capacity !== undefined && { capacity: request.body.capacity }),
+        ...(request.body.location_id !== undefined && { locationId: request.body.location_id }),
+        ...(request.body.metadata !== undefined && { metadata: request.body.metadata }),
+        ...(request.body.name !== undefined && { name: request.body.name }),
+        ...(request.body.type !== undefined && { type: request.body.type }),
+      }).where(and(
+        eq(salonResources.id, request.params.resourceId),
+        eq(salonResources.salonId, request.salonId),
+      )).returning();
+      return rows[0] ?? reply.code(404).send({ error: "RESOURCE_NOT_FOUND" });
+    },
+  );
+
+  app.get<{ Params: { id: string; resourceId: string } }>(
+    "/api/salons/:id/settings/resources/:resourceId/services",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      return app.db.select({ service_id: serviceResources.serviceId }).from(serviceResources).where(and(
+        eq(serviceResources.salonId, request.salonId),
+        eq(serviceResources.resourceId, request.params.resourceId),
+      ));
+    },
+  );
+
+  app.put<{
+    Body: { service_ids: string[] };
+    Params: { id: string; resourceId: string };
+  }>(
+    "/api/salons/:id/settings/resources/:resourceId/services",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      await app.db.transaction(async (tx) => {
+        await tx.delete(serviceResources).where(and(
+          eq(serviceResources.salonId, request.salonId),
+          eq(serviceResources.resourceId, request.params.resourceId),
+        ));
+        if (request.body.service_ids.length > 0) {
+          await tx.insert(serviceResources).values(request.body.service_ids.map((serviceId) => ({
+            resourceId: request.params.resourceId,
+            salonId: request.salonId,
+            serviceId,
+          })));
+        }
+      });
+      return { ok: true };
     },
   );
 

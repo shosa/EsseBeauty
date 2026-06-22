@@ -2,9 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 
-import { appointments, authSessions, availabilityBlocks, notifications, salons, services, staff, staffAvailabilityRequests, userCredentials, users } from "@esse-beauty/db/schema";
+import { appointments, authSessions, availabilityBlocks, notifications, salonLocations, salons, services, serviceStaff, staff, staffAvailabilityRequests, userCredentials, users } from "@esse-beauty/db/schema";
 import { hasPermission, PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
 import { createNotification } from "../../jobs/notifications.js";
+import { qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { hashPassword } from "../auth/local-auth.js";
 
@@ -16,6 +17,7 @@ interface StaffBody {
   working_hours?: WorkingHours;
   color: string;
   active?: boolean;
+  location_id?: string | null;
 }
 
 interface StaffAccessBody {
@@ -33,7 +35,7 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     return rows[0] ?? reply.code(404).send({ error: "SALON_NOT_FOUND" });
   });
 
-  app.get<{ Params: { id: string }; Querystring: { from?: string; to?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { from?: string; serviceId?: string; to?: string } }>(
     "/api/salons/:id/operations/staff",
     { preHandler: [authenticate] },
     async (request, reply) => {
@@ -48,7 +50,7 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       const from = request.query.from ? new Date(request.query.from) : new Date(new Date().setHours(0, 0, 0, 0));
       const to = request.query.to ? new Date(request.query.to) : new Date(from.getTime() + 24 * 60 * 60_000);
 
-      return request.server.db
+      const rows = await request.server.db
         .select({
           active: staff.active,
           appointment_count: sql<number>`count(${appointments.id})::int`,
@@ -56,6 +58,7 @@ export async function registerStaffRoutes(app: FastifyInstance) {
           completed_count: sql<number>`count(*) filter (where ${appointments.status} = 'completed')::int`,
           display_name: staff.displayName,
           id: staff.id,
+          location_id: staff.locationId,
           next_service: sql<string | null>`min(${services.name}) filter (where ${appointments.startsAt} >= now())`,
           working_hours: staff.workingHours,
         })
@@ -76,6 +79,9 @@ export async function registerStaffRoutes(app: FastifyInstance) {
         ))
         .groupBy(staff.id)
         .orderBy(asc(staff.displayName));
+      if (!request.query.serviceId) return rows;
+      const qualified = await qualifiedStaffIds(request.server.db, request.salonId, request.query.serviceId);
+      return qualified ? rows.filter((member) => qualified.has(member.id)) : rows;
     },
   );
 
@@ -125,6 +131,7 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       specializations: body.specializations ?? [],
       workingHours: body.working_hours ?? salonRows[0]?.openingHours ?? { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
       color: body.color,
+      locationId: body.location_id,
       active: body.active ?? true,
     }).returning();
     return reply.code(201).send(rows[0]);
@@ -143,9 +150,71 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       ...(body.working_hours !== undefined && { workingHours: body.working_hours }),
       ...(body.color !== undefined && { color: body.color }),
       ...(body.active !== undefined && { active: body.active }),
+      ...(body.location_id !== undefined && { locationId: body.location_id }),
     }).where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId))).returning();
     return rows[0] ?? reply.code(404).send({ error: "STAFF_NOT_FOUND" });
   });
+
+  app.get<{ Params: { id: string; staffId: string } }>(
+    "/api/salons/:id/staff/:staffId/services",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const [memberRows, serviceRows, assignmentRows, locationRows] = await Promise.all([
+        request.server.db.select().from(staff).where(and(
+          eq(staff.id, request.params.staffId),
+          eq(staff.salonId, request.salonId),
+        )),
+        request.server.db.select().from(services).where(eq(services.salonId, request.salonId)).orderBy(asc(services.category), asc(services.name)),
+        request.server.db.select({ serviceId: serviceStaff.serviceId }).from(serviceStaff).where(and(
+          eq(serviceStaff.salonId, request.salonId),
+          eq(serviceStaff.staffId, request.params.staffId),
+        )),
+        request.server.db.select().from(salonLocations).where(eq(salonLocations.salonId, request.salonId)).orderBy(asc(salonLocations.displayOrder), asc(salonLocations.name)),
+      ]);
+      if (!memberRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      const enabled = new Set(assignmentRows.map((row) => row.serviceId));
+      const unrestricted = assignmentRows.length === 0;
+      return {
+        location_id: memberRows[0].locationId,
+        locations: locationRows,
+        services: serviceRows.map((service) => ({ ...service, enabled: unrestricted || enabled.has(service.id) })),
+      };
+    },
+  );
+
+  app.put<{
+    Body: { location_id?: string | null; service_ids: string[] };
+    Params: { id: string; staffId: string };
+  }>(
+    "/api/salons/:id/staff/:staffId/services",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const memberRows = await request.server.db.select({ id: staff.id }).from(staff).where(and(
+        eq(staff.id, request.params.staffId),
+        eq(staff.salonId, request.salonId),
+      ));
+      if (!memberRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      await request.server.db.transaction(async (tx) => {
+        await tx.delete(serviceStaff).where(and(
+          eq(serviceStaff.salonId, request.salonId),
+          eq(serviceStaff.staffId, request.params.staffId),
+        ));
+        if (request.body.service_ids.length > 0) {
+          await tx.insert(serviceStaff).values(request.body.service_ids.map((serviceId) => ({
+            salonId: request.salonId,
+            serviceId,
+            staffId: request.params.staffId,
+          })));
+        }
+        if (request.body.location_id !== undefined) {
+          await tx.update(staff).set({ locationId: request.body.location_id }).where(eq(staff.id, request.params.staffId));
+        }
+      });
+      return { ok: true };
+    },
+  );
 
   app.delete<{ Params: { id: string; staffId: string } }>("/api/salons/:id/staff/:staffId", {
     preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],

@@ -81,6 +81,9 @@ importers:
       '@esse-beauty/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      lucide-react:
+        specifier: ^1.21.0
+        version: 1.21.0(react@19.2.7)
       next:
         specifier: ^15.3.4
         version: 15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

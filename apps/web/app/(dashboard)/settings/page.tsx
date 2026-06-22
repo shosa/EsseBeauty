@@ -10,11 +10,18 @@ import { useAuth } from "../../../lib/auth-context";
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Settings {
+  address?: string | null;
   cancellationPolicyHours: number;
+  city?: string | null;
+  country?: string | null;
+  latitude?: number | null;
   locale: string;
+  longitude?: number | null;
   name: string;
   onlineBookingEnabled: boolean;
   openingHours?: WorkingHours;
+  postalCode?: string | null;
+  province?: string | null;
   timezone: string;
 }
 
@@ -64,6 +71,7 @@ export default function GeneralSettingsPage() {
   const [branding, setBranding] = useState<BrandingControl>({});
   const [closures, setClosures] = useState<SalonClosure[]>([]);
   const [message, setMessage] = useState("");
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!salon) return;
@@ -118,6 +126,49 @@ export default function GeneralSettingsPage() {
       }),
     });
     setMessage(response.ok ? "Dati salone salvati." : "Salvataggio non riuscito.");
+  }
+
+  async function saveLocation() {
+    if (!settings || !salon) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/settings`, {
+      body: JSON.stringify({
+        address: settings.address,
+        city: settings.city,
+        country: settings.country,
+        latitude: settings.latitude,
+        longitude: settings.longitude,
+        postal_code: settings.postalCode,
+        province: settings.province,
+      }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    setMessage(response.ok ? "Posizione del salone salvata." : "Salvataggio non riuscito.");
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setMessage("Geolocalizzazione non disponibile su questo dispositivo.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setSettings((current) => current ? {
+          ...current,
+          latitude: Number(position.coords.latitude.toFixed(7)),
+          longitude: Number(position.coords.longitude.toFixed(7)),
+        } : current);
+        setLocating(false);
+        setMessage("Coordinate rilevate. Salva la posizione per confermare.");
+      },
+      () => {
+        setLocating(false);
+        setMessage("Non è stato possibile rilevare la posizione.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
   }
 
   async function saveCalendar() {
@@ -226,6 +277,36 @@ export default function GeneralSettingsPage() {
             <label className="flex items-center justify-between rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm font-bold text-stone-800">Vista risorse<Switch checked={Boolean(calendar.enableResourceView)} onCheckedChange={(enableResourceView) => setCalendar({ ...calendar, enableResourceView })} /></label>
           </div>
           <Button className="mt-5" onClick={() => void saveCalendar()} variant="primary">Salva regole agenda</Button>
+        </SectionCard>
+
+        <SectionCard title="Indirizzo e geolocalizzazione" subtitle="Questi dati permettono ai clienti di trovare il salone dall’App Clienti.">
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField className="md:col-span-2" label="Indirizzo">
+              <input className="w-full" onChange={(event) => setSettings({ ...settings, address: event.target.value })} value={settings.address ?? ""} />
+            </FormField>
+            <FormField label="CAP">
+              <input className="w-full" inputMode="numeric" onChange={(event) => setSettings({ ...settings, postalCode: event.target.value })} value={settings.postalCode ?? ""} />
+            </FormField>
+            <FormField label="Città">
+              <input className="w-full" onChange={(event) => setSettings({ ...settings, city: event.target.value })} value={settings.city ?? ""} />
+            </FormField>
+            <FormField label="Provincia">
+              <input className="w-full" maxLength={2} onChange={(event) => setSettings({ ...settings, province: event.target.value.toUpperCase() })} value={settings.province ?? ""} />
+            </FormField>
+            <FormField label="Paese">
+              <input className="w-full" onChange={(event) => setSettings({ ...settings, country: event.target.value })} value={settings.country ?? "Italia"} />
+            </FormField>
+            <FormField label="Latitudine">
+              <input className="w-full" onChange={(event) => setSettings({ ...settings, latitude: event.target.value ? Number(event.target.value) : null })} step="any" type="number" value={settings.latitude ?? ""} />
+            </FormField>
+            <FormField label="Longitudine">
+              <input className="w-full" onChange={(event) => setSettings({ ...settings, longitude: event.target.value ? Number(event.target.value) : null })} step="any" type="number" value={settings.longitude ?? ""} />
+            </FormField>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button disabled={locating} onClick={useCurrentLocation} variant="outline">{locating ? "Rilevamento..." : "Usa posizione attuale"}</Button>
+            <Button onClick={() => void saveLocation()} variant="primary">Salva posizione</Button>
+          </div>
         </SectionCard>
 
         <SectionCard title="Giorni di chiusura" subtitle="Festivita, ferie e chiusure straordinarie bloccano la prenotazione online e sono visibili in agenda.">

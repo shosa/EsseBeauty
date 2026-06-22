@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { formatPrice } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
+import { ServiceCategoryIcon } from "../../_components/ServiceCategoryIcon";
 
 interface Branding {
   accentColor?: string;
@@ -15,14 +16,22 @@ interface Branding {
 }
 interface Service {
   category?: string;
+  categoryIcon?: string | null;
+  categoryId?: string | null;
   durationMinutes: number;
   id: string;
   name: string;
   priceCents: number;
 }
+interface Category {
+  icon: string;
+  id: string;
+  name: string;
+}
 interface Member {
   displayName: string;
   id: string;
+  serviceIds?: string[];
 }
 interface Slot {
   available: boolean;
@@ -30,6 +39,7 @@ interface Slot {
 }
 interface Profile {
   branding?: Branding | null;
+  categories: Category[];
   pwa?: {
     allowStaffPreference?: boolean;
     bookingDefaultStatus?: "confirmed" | "pending";
@@ -114,13 +124,21 @@ export default function BookingPage() {
 
   const selectedService = profile?.services.find((service) => service.id === serviceId);
   const categories = useMemo(
-    () => profile ? [...new Set(profile.services.map((service) => service.category).filter((value): value is string => Boolean(value)))] : [],
+    () => profile?.categories.filter((item) => profile.services.some((service) => service.category === item.name)) ?? [],
     [profile],
   );
   const filteredServices = useMemo(
     () => profile?.services.filter((service) => service.category === category) ?? [],
     [category, profile],
   );
+  const qualifiedStaff = useMemo(
+    () => profile?.staff.filter((member) => !serviceId || !member.serviceIds?.length || member.serviceIds.includes(serviceId)) ?? [],
+    [profile, serviceId],
+  );
+
+  useEffect(() => {
+    if (staffId && !qualifiedStaff.some((member) => member.id === staffId)) setStaffId("");
+  }, [qualifiedStaff, staffId]);
   const brand = profile?.branding;
   const primary = brand?.primaryColor || "#402334";
   const accent = brand?.accentColor || "#f4d8a8";
@@ -227,17 +245,18 @@ export default function BookingPage() {
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {categories.map((item) => (
                   <button
-                    className={`min-h-14 rounded-2xl border px-3 text-sm font-black transition ${category === item ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
-                    key={item}
+                    className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black transition ${category === item.name ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
+                    key={item.id}
                     onClick={() => {
-                      setCategory(item);
+                      setCategory(item.name);
                       setServiceId("");
                       setStartsAt("");
                     }}
-                    style={category === item ? { background: primary, borderColor: primary } : undefined}
+                    style={category === item.name ? { background: primary, borderColor: primary } : undefined}
                     type="button"
                   >
-                    {item}
+                    <ServiceCategoryIcon className="size-6" name={item.icon} />
+                    <span>{item.name}</span>
                   </button>
                 ))}
               </div>
@@ -262,7 +281,7 @@ export default function BookingPage() {
               <p className="text-sm font-black text-stone-800">Preferenza staff</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setStaffId("")} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
-                {profile.staff.map((member) => (
+                {qualifiedStaff.map((member) => (
                   <button
                     className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
                     key={member.id}

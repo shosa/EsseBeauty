@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, ilike, lt, ne, or } from "drizzle-orm";
 
-import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, salonClosures, salons, salonSettings, services, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, salonClosures, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { ensureOnlineBookingNotifications } from "../../jobs/staff-request-notifications.js";
+import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {
   const rows = await app.db.select().from(salons).where(and(eq(salons.slug, slug), eq(salons.active, true)));
@@ -40,8 +41,20 @@ async function slotsFor(app: FastifyInstance, salon: any, member: any, service: 
     app.db.select({ startsAt: availabilityBlocks.startsAt, endsAt: availabilityBlocks.endsAt }).from(availabilityBlocks).where(and(
       eq(availabilityBlocks.staffId, member.id), lt(availabilityBlocks.startsAt, dayEnd), gt(availabilityBlocks.endsAt, dayStart))),
   ]);
-  return computeAvailableSlots({ date, timezone: salon.timezone, workingHours: member.workingHours,
+  const slots = computeAvailableSlots({ date, timezone: salon.timezone, workingHours: member.workingHours,
     durationMinutes: service.durationMinutes, appointments: busy, blocks });
+  return Promise.all(slots.map(async (slot) => {
+    if (!slot.available) return slot;
+    const resource = await availableResourceFor(
+      app.db,
+      salon.id,
+      service.id,
+      new Date(slot.starts_at),
+      new Date(slot.ends_at),
+      member.locationId,
+    );
+    return { ...slot, available: !resource.required || Boolean(resource.resource) };
+  }));
 }
 
 async function isSalonClosed(app: FastifyInstance, salonId: string, date: string) {
@@ -49,22 +62,128 @@ async function isSalonClosed(app: FastifyInstance, salonId: string, date: string
   return closures.some((closure) => closure.date === date || (closure.recurringYearly && closure.date.slice(5) === date.slice(5)));
 }
 
+function distanceKm(latitude: number, longitude: number, targetLatitude: number, targetLongitude: number) {
+  const radius = 6371;
+  const latitudeDelta = (targetLatitude - latitude) * Math.PI / 180;
+  const longitudeDelta = (targetLongitude - longitude) * Math.PI / 180;
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(latitude * Math.PI / 180) * Math.cos(targetLatitude * Math.PI / 180)
+    * Math.sin(longitudeDelta / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export async function registerPublicRoutes(app: FastifyInstance) {
+  app.get<{ Querystring: { lat?: string; lng?: string; q?: string } }>(
+    "/api/public/salons/search",
+    async (request) => {
+      const query = request.query.q?.trim().toLocaleLowerCase("it-IT") ?? "";
+      const latitude = Number(request.query.lat);
+      const longitude = Number(request.query.lng);
+      const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+      const [salonRows, brandingRows] = await Promise.all([
+        app.db.select({
+          address: salons.address,
+          city: salons.city,
+          country: salons.country,
+          id: salons.id,
+          latitude: salons.latitude,
+          longitude: salons.longitude,
+          name: salons.name,
+          postalCode: salons.postalCode,
+          province: salons.province,
+          slug: salons.slug,
+        }).from(salons).where(and(
+          eq(salons.active, true),
+          eq(salons.onlineBookingEnabled, true),
+        )).orderBy(asc(salons.name)),
+        app.db.select({
+          logoUrl: pwaBrandingSettings.logoUrl,
+          primaryColor: pwaBrandingSettings.primaryColor,
+          salonId: pwaBrandingSettings.salonId,
+        }).from(pwaBrandingSettings),
+      ]);
+      const branding = new Map(brandingRows.map((item) => [item.salonId, item]));
+      return salonRows
+        .map((salon) => ({
+          ...salon,
+          ...branding.get(salon.id),
+          distanceKm: hasCoordinates && salon.latitude !== null && salon.longitude !== null
+            ? distanceKm(latitude, longitude, salon.latitude, salon.longitude)
+            : null,
+        }))
+        .filter((salon) => !query || [
+          salon.name,
+          salon.address,
+          salon.city,
+          salon.postalCode,
+          salon.province,
+          salon.country,
+        ].some((value) => value?.toLocaleLowerCase("it-IT").includes(query)))
+        .sort((left, right) => {
+          if (left.distanceKm !== null && right.distanceKm !== null) return left.distanceKm - right.distanceKm;
+          if (left.distanceKm !== null) return -1;
+          if (right.distanceKm !== null) return 1;
+          return left.name.localeCompare(right.name, "it");
+        })
+        .slice(0, 30);
+    },
+  );
+
   app.get<{ Params: { slug: string } }>("/api/public/:slug", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
     if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
     if (!salon.onlineBookingEnabled) {
       return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
     }
-    const [serviceRows, staffRows, brandingRows, pwa] = await Promise.all([
-      app.db.select().from(services).where(and(eq(services.salonId, salon.id), eq(services.active, true)))
+    const [serviceRows, categoryRows, staffRows, staffServiceRows, brandingRows, pwa] = await Promise.all([
+      app.db.select({
+        category: services.category,
+        categoryIcon: serviceCategories.icon,
+        categoryId: services.categoryId,
+        durationMinutes: services.durationMinutes,
+        id: services.id,
+        name: services.name,
+        priceCents: services.priceCents,
+      }).from(services)
+        .leftJoin(serviceCategories, eq(serviceCategories.id, services.categoryId))
+        .where(and(eq(services.salonId, salon.id), eq(services.active, true)))
         .orderBy(asc(services.category), asc(services.displayOrder)),
+      app.db.select({
+        icon: serviceCategories.icon,
+        id: serviceCategories.id,
+        name: serviceCategories.name,
+      }).from(serviceCategories).where(and(
+        eq(serviceCategories.salonId, salon.id),
+        eq(serviceCategories.active, true),
+      )).orderBy(asc(serviceCategories.displayOrder), asc(serviceCategories.name)),
       app.db.select().from(staff).where(and(eq(staff.salonId, salon.id), eq(staff.active, true)))
         .orderBy(asc(staff.displayName)),
+      app.db.select({
+        serviceId: serviceStaff.serviceId,
+        staffId: serviceStaff.staffId,
+      }).from(serviceStaff).where(eq(serviceStaff.salonId, salon.id)),
       app.db.select().from(pwaBrandingSettings).where(eq(pwaBrandingSettings.salonId, salon.id)),
       getPwaOptions(app, salon.id),
     ]);
-    return { branding: brandingRows[0] ?? null, pwa, salon, services: serviceRows, staff: pwa.allowStaffPreference ? staffRows : [], opening_hours: salon.openingHours };
+    return {
+      branding: brandingRows[0] ?? null,
+      categories: categoryRows,
+      pwa,
+      salon,
+      services: serviceRows,
+      staff: pwa.allowStaffPreference
+        ? staffRows.map((member) => ({
+          ...member,
+          serviceIds: serviceRows
+            .filter((service) => {
+              const assignments = staffServiceRows.filter((row) => row.serviceId === service.id);
+              return assignments.length === 0 || assignments.some((row) => row.staffId === member.id);
+            })
+            .map((service) => service.id),
+        }))
+        : [],
+      opening_hours: salon.openingHours,
+    };
   });
 
   app.get<{ Params: { slug: string }; Querystring: { serviceId: string; staffId?: string; date: string } }>(
@@ -85,10 +204,12 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         eq(services.id, request.query.serviceId), eq(services.salonId, salon.id), eq(services.active, true)));
       const service = serviceRows[0];
       if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
-      const staffRows = await app.db.select().from(staff).where(and(
+      const qualified = await qualifiedStaffIds(app.db, salon.id, service.id);
+      const staffRows = (await app.db.select().from(staff).where(and(
         eq(staff.salonId, salon.id), eq(staff.active, true),
         ...(request.query.staffId ? [eq(staff.id, request.query.staffId)] : []),
-      )).orderBy(asc(staff.displayName));
+      )).orderBy(asc(staff.displayName)))
+        .filter((member) => !qualified || qualified.has(member.id));
       if (request.query.staffId && !staffRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
       for (const member of staffRows) {
         const earliestStart = Date.now() + pwa.minBookingNoticeHours * 3600000;
@@ -133,10 +254,12 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
       const date = new Intl.DateTimeFormat("en-CA", { timeZone: salon.timezone }).format(new Date(request.body.starts_at));
       if (await isSalonClosed(app, salon.id, date)) return reply.code(409).send({ error: "SALON_CLOSED" });
-      const candidates = await app.db.select().from(staff).where(and(
+      const qualified = await qualifiedStaffIds(app.db, salon.id, service.id);
+      const candidates = (await app.db.select().from(staff).where(and(
         eq(staff.salonId, salon.id), eq(staff.active, true),
         ...(request.body.staff_id ? [eq(staff.id, request.body.staff_id)] : []),
-      )).orderBy(asc(staff.displayName));
+      )).orderBy(asc(staff.displayName)))
+        .filter((member) => !qualified || qualified.has(member.id));
       let selected = candidates[0];
       for (const member of candidates) {
         const slots = await slotsFor(app, salon, member, service, date);
@@ -152,10 +275,24 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       }).returning();
       const customer = customerRows[0]!;
       const startsAt = new Date(request.body.starts_at);
+      const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+      const resource = await availableResourceFor(
+        app.db,
+        salon.id,
+        service.id,
+        startsAt,
+        endsAt,
+        selected.locationId,
+      );
+      if (resource.required && !resource.resource) {
+        return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+      }
       const rows = await app.db.insert(appointments).values({
         salonId: salon.id, customerId: customer.id, staffId: selected.id, serviceId: service.id,
-        startsAt, endsAt: new Date(startsAt.getTime() + service.durationMinutes * 60_000),
+        startsAt, endsAt,
         status: pwa.bookingDefaultStatus, internalNotes: request.body.notes, source: "online",
+        locationId: selected.locationId,
+        resourceId: resource.resource?.id,
       }).returning();
       const appointment = rows[0]!;
       await ensureOnlineBookingNotifications(app, salon.id, appointment.id);
