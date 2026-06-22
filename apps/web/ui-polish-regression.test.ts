@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -127,13 +127,13 @@ describe("professional UI regression guard", () => {
     }
   });
 
-  it("keeps salon module settings read-only and delegates activation to the central configurator", () => {
-    const salonModules = readFileSync(join(dashboardRoot, "settings", "modules", "page.tsx"), "utf8");
+  it("keeps module activation in the central configurator", () => {
+    const settingsLayout = readFileSync(join(dashboardRoot, "settings", "layout.tsx"), "utf8");
+    const dashboardShell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
     const platform = readFileSync(join(process.cwd(), "app", "platform", "page.tsx"), "utf8");
-    expect(salonModules).not.toContain("method: \"PATCH\"");
-    expect(salonModules).not.toContain("setModule(");
-    expect(salonModules).toContain("aggiorna il piano del salone");
-    expect(salonModules).toContain("Moduli inclusi");
+    expect(existsSync(join(dashboardRoot, "settings", "modules", "page.tsx"))).toBe(false);
+    expect(settingsLayout).not.toContain("/settings/modules");
+    expect(dashboardShell).not.toContain("/settings/modules");
     expect(platform).toContain("/api/platform/salons");
     expect(platform).toContain("modules/${featureKey}");
     expect(platform).toContain("Moduli abilitati");

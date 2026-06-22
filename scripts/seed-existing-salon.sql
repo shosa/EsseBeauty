@@ -15,11 +15,30 @@ BEGIN
   END IF;
 END $$;
 
+INSERT INTO service_categories (
+  salon_id, name, icon, active, display_order
+)
+SELECT c.salon_id, v.name, v.icon, true, v.display_order
+FROM seed_context c
+CROSS JOIN (VALUES
+  ('Capelli', 'scissors', 10),
+  ('Colore', 'brush', 20),
+  ('Trattamenti capelli', 'droplets', 30),
+  ('Mani e piedi', 'hand', 40),
+  ('Viso', 'sparkles', 50),
+  ('Massaggi', 'flower-2', 60),
+  ('Depilazione', 'zap', 70)
+) AS v(name, icon, display_order)
+ON CONFLICT (salon_id, name) DO UPDATE SET
+  icon = EXCLUDED.icon,
+  active = true,
+  display_order = EXCLUDED.display_order;
+
 INSERT INTO services (
-  salon_id, name, category, description, duration_minutes, price_cents,
+  salon_id, name, category, category_id, description, duration_minutes, price_cents,
   online_booking_enabled, color, display_order
 )
-SELECT c.salon_id, v.name, v.category, v.description, v.duration_minutes, v.price_cents,
+SELECT c.salon_id, v.name, v.category, category.id, v.description, v.duration_minutes, v.price_cents,
        true, v.color, v.display_order
 FROM seed_context c
 CROSS JOIN (VALUES
@@ -44,9 +63,23 @@ CROSS JOIN (VALUES
   ('Ceretta gambe completa', 'Depilazione', 'Epilazione completa delle gambe.', 45, 3000, '#E2A35E', 70),
   ('Ceretta inguine', 'Depilazione', 'Epilazione inguine personalizzata.', 20, 1500, '#E2A35E', 71)
 ) AS v(name, category, description, duration_minutes, price_cents, color, display_order)
+CROSS JOIN LATERAL (
+  SELECT id
+  FROM service_categories category
+  WHERE category.salon_id = c.salon_id
+    AND category.name = v.category
+) category
 WHERE NOT EXISTS (
   SELECT 1 FROM services s WHERE s.salon_id = c.salon_id AND lower(s.name) = lower(v.name)
 );
+
+UPDATE services service
+SET category_id = category.id
+FROM service_categories category
+WHERE service.salon_id = (SELECT salon_id FROM seed_context)
+  AND category.salon_id = service.salon_id
+  AND lower(category.name) = lower(service.category)
+  AND service.category_id IS DISTINCT FROM category.id;
 
 INSERT INTO service_staff (salon_id, service_id, staff_id)
 SELECT s.salon_id, s.id, st.id

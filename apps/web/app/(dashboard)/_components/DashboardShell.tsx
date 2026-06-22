@@ -61,7 +61,6 @@ const settingsLinks = [
   { href: "/settings", icon: SettingsIcon, label: "Centro controllo" },
   { href: "/settings/users", icon: StaffIcon, label: "Utenti" },
   { href: "/settings/permissions", icon: RemindersIcon, label: "Permessi e assenze" },
-  { href: "/settings/modules", icon: ModuleIcon, label: "Moduli" },
 ];
 
 const workspaceSections = [

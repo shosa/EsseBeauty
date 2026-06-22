@@ -47,7 +47,6 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     {
       label: "Sistema",
       links: [
-        { href: "/settings/modules", label: "Moduli" },
         ...(reminders ? [{ href: "/settings/reminders", label: "Promemoria" }] : []),
         ...(documents ? [{ href: "/settings/documents", label: "Documenti" }] : []),
         ...(audit ? [{ href: "/settings/audit", label: "Attività" }] : []),
@@ -57,7 +56,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="px-4 pt-5 sm:px-6 md:px-8">
-      <div className="mx-auto max-w-[1500px] rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)]">
+      <div className="mx-auto max-w-[1600px] rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eee6ea] px-2 pb-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">Sistema</p>
@@ -78,11 +77,11 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
             const badge = "badge" in item ? item.badge ?? 0 : 0;
             return (
               <Link
-                className={`whitespace-nowrap rounded-lg border px-3 py-2 text-xs font-bold transition ${active ? "border-[#d7a6c1] bg-white text-[#792f59] shadow-sm" : "border-transparent text-stone-500 hover:bg-white hover:text-[#792f59]"}`}
+                className={`min-w-max flex-1 whitespace-nowrap rounded-lg border px-3 py-2 text-center text-xs font-bold transition ${active ? "border-[#d7a6c1] bg-white text-[#792f59] shadow-sm" : "border-transparent text-stone-500 hover:bg-white hover:text-[#792f59]"}`}
                 href={item.href}
                 key={item.href}
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center justify-center gap-2">
                   {item.label}
                   {badge > 0 && <span className="grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(badge, 9)}</span>}
                 </span>
