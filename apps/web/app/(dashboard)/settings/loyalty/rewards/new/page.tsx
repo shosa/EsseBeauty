@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../../lib/auth-context";
 
@@ -34,8 +34,8 @@ export default function NewRewardPage() {
   }
 
   return (
-    <main className="p-5 md:p-8">
-      <form action={create} className="mx-auto grid max-w-[1000px] gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <AppPage maxWidth="max-w-[1600px]">
+      <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
         <Breadcrumbs items={[{ href: "/settings/loyalty", label: "Fedeltà" }, { label: "Nuovo premio" }]} />
         <h1 className="text-3xl font-bold">Nuovo premio</h1>
         {error && <InlineError>{error}</InlineError>}
@@ -44,6 +44,6 @@ export default function NewRewardPage() {
         <FormField label="Descrizione"><textarea name="description" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
         <Button type="submit">Salva</Button>
       </form>
-    </main>
+    </AppPage>
   );
 }

@@ -121,7 +121,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeader
         actions={hasPermission(PERMISSION_KEYS.REPORTS_EXPORT) ? <Button onClick={exportCsv} variant="primary">Esporta CSV</Button> : undefined}
         eyebrow="Andamento"
@@ -179,7 +179,7 @@ export default function ReportsPage() {
           {staffRows.length === 0 ? (
             <EmptyState title="Nessun dato nel periodo" description="Cambia intervallo o attendi nuovi appuntamenti." />
           ) : (
-            <div className="overflow-x-auto rounded-[1.75rem] border border-white/80 bg-white/90 ring-1 ring-stone-950/5">
+            <div className="overflow-x-auto rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
               <table className="w-full min-w-[850px] text-left text-sm">
                 <thead className="bg-[#faf3f7] text-xs uppercase tracking-wider text-[#792f59]">
                   <tr>{["Staff", "Appuntamenti", "Completati", "No-show", "Cancellati", "Clienti unici", "Servizio top"].map((label) => <th key={label} className="p-4">{label}</th>)}</tr>

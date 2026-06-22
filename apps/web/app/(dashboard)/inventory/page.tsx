@@ -58,7 +58,7 @@ export default function InventoryPage() {
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeaderMetrics
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/inventory/new">Aggiungi prodotto</Link>}
         eyebrow="Magazzino"
@@ -89,7 +89,7 @@ export default function InventoryPage() {
             title={lowOnly ? "Scorte sotto controllo" : "Nessun prodotto"}
           />
         ) : (
-          <div className="overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/90 shadow-[0_18px_48px_rgb(45_29_39_/_0.08)] ring-1 ring-stone-950/5">
+          <div className="overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
             <div className="grid min-w-[760px] grid-cols-[1.4fr_.8fr_.7fr_.7fr_1fr_auto] bg-[#faf3f7] px-4 py-3 text-xs font-black uppercase tracking-[.08em] text-[#792f59]">
               <span>Prodotto</span>
               <span>SKU</span>

@@ -59,14 +59,14 @@ export default function UsersPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader actions={canManageUsers ? <Link href="/settings/users/invite" className="rounded-xl bg-stone-950 px-5 py-3 font-bold text-white shadow-sm transition hover:-translate-y-0.5">Invita utente</Link> : undefined} eyebrow="Accessi" title="Utenti e accessi" subtitle="Gestisci ruoli, stato account e permessi individuali." />
         {error && <InlineError className="mb-5">{error}</InlineError>}
         {loading ? (
           <p>Caricamento...</p>
         ) : (
-          <div className="overflow-hidden rounded-3xl border border-white/70 bg-white shadow-sm ring-1 ring-stone-950/5">
+          <div className="overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
             <table className="w-full text-left">
               <thead className="bg-neutral-50 text-sm text-neutral-600">
                 <tr>

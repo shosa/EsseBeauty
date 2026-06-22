@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -111,10 +111,10 @@ export default function NewAppointmentPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <div className="mx-auto max-w-3xl">
+    <AppPage maxWidth="max-w-[1600px]">
+      <div>
         <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Nuovo appuntamento" }]} />
-        <form action={createAppointment} className="mt-5 grid gap-5 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+        <form action={createAppointment} className="mt-5 grid gap-5 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
           <div>
             <p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Agenda</p>
             <h1 className="mt-2 text-3xl font-bold">Nuovo appuntamento</h1>
@@ -178,6 +178,6 @@ export default function NewAppointmentPage() {
           </div>
         </form>
       </div>
-    </main>
+    </AppPage>
   );
 }

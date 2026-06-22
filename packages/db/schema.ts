@@ -550,6 +550,27 @@ export const staff = pgTable("staff", {
   ...timestamps,
 });
 
+export const serviceCategories = pgTable(
+  "service_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    icon: text("icon").default("sparkles").notNull(),
+    active: boolean("active").default(true).notNull(),
+    displayOrder: integer("display_order").default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("service_categories_salon_name_unique").on(
+      table.salonId,
+      table.name,
+    ),
+  ],
+);
+
 export const services = pgTable("services", {
   id: uuid("id").defaultRandom().primaryKey(),
   salonId: uuid("salon_id")
@@ -557,6 +578,9 @@ export const services = pgTable("services", {
     .references(() => salons.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   category: text("category").notNull(),
+  categoryId: uuid("category_id").references(() => serviceCategories.id, {
+    onDelete: "set null",
+  }),
   description: text("description"),
   durationMinutes: integer("duration_minutes").notNull(),
   priceCents: integer("price_cents").notNull(),
@@ -797,6 +821,12 @@ export const salePayments = pgTable(
     method: paymentMethodEnum("method").notNull(),
     amountCents: integer("amount_cents").notNull(),
     reference: text("reference"),
+    voucherId: uuid("voucher_id").references(
+      (): AnyPgColumn => purchaseVouchers.id,
+      {
+      onDelete: "set null",
+      },
+    ),
     paidAt: timestamp("paid_at", { withTimezone: true }).defaultNow().notNull(),
     ...timestamps,
   },
@@ -804,6 +834,59 @@ export const salePayments = pgTable(
     check("sale_payments_amount_positive", sql`${table.amountCents} > 0`),
   ],
 );
+
+export const purchaseVouchers = pgTable(
+  "purchase_vouchers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    code: text("code").notNull(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "restrict" }),
+    purchaserCustomerId: uuid("purchaser_customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    issuedSaleId: uuid("issued_sale_id").references(() => sales.id, {
+      onDelete: "set null",
+    }),
+    originalAmountCents: integer("original_amount_cents").notNull(),
+    balanceCents: integer("balance_cents").notNull(),
+    status: text("status").default("active").notNull(),
+    message: text("message"),
+    issuedByUserId: uuid("issued_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    exhaustedAt: timestamp("exhausted_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("purchase_vouchers_salon_code_unique").on(table.salonId, table.code),
+    check("purchase_vouchers_original_positive", sql`${table.originalAmountCents} > 0`),
+    check("purchase_vouchers_balance_non_negative", sql`${table.balanceCents} >= 0`),
+  ],
+);
+
+export const purchaseVoucherMovements = pgTable("purchase_voucher_movements", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  voucherId: uuid("voucher_id")
+    .notNull()
+    .references(() => purchaseVouchers.id, { onDelete: "cascade" }),
+  saleId: uuid("sale_id").references(() => sales.id, { onDelete: "set null" }),
+  deltaCents: integer("delta_cents").notNull(),
+  balanceAfterCents: integer("balance_after_cents").notNull(),
+  reason: text("reason").notNull(),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  ...timestamps,
+});
 
 export const appointmentNotes = pgTable("appointment_notes", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1175,6 +1258,30 @@ export const loyaltyRewards = pgTable("loyalty_rewards", {
   active: boolean("active").default(true).notNull(),
 });
 
+export const loyaltyEarningRules = pgTable(
+  "loyalty_earning_rules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    action: text("action").notNull(),
+    points: integer("points").default(0).notNull(),
+    active: boolean("active").default(false).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("loyalty_earning_rules_salon_action_unique").on(
+      table.salonId,
+      table.action,
+    ),
+    check("loyalty_earning_rules_points_non_negative", sql`${table.points} >= 0`),
+  ],
+);
+
 export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   salonId: uuid("salon_id")
@@ -1211,6 +1318,10 @@ export const loyaltyPoints = pgTable(
     appointmentId: uuid("appointment_id").references(() => appointments.id, {
       onDelete: "set null",
     }),
+    saleId: uuid("sale_id").references(() => sales.id, {
+      onDelete: "set null",
+    }),
+    ruleKey: text("rule_key"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     expiredAt: timestamp("expired_at", { withTimezone: true }),
     adjustmentReasonId: uuid("adjustment_reason_id").references(
@@ -1225,6 +1336,7 @@ export const loyaltyPoints = pgTable(
   },
   (table) => [
     uniqueIndex("loyalty_points_appointment_unique").on(table.appointmentId),
+    uniqueIndex("loyalty_points_sale_rule_unique").on(table.saleId, table.ruleKey),
   ],
 );
 
@@ -1436,11 +1548,33 @@ export const servicePackages = pgTable(
       onDelete: "set null",
     }),
     includedSessions: integer("included_sessions").notNull(),
+    priceCents: integer("price_cents").default(0).notNull(),
     validityDays: integer("validity_days"),
     active: boolean("active").default(true).notNull(),
     ...timestamps,
   },
   (table) => [uniqueIndex("service_packages_salon_name_unique").on(table.salonId, table.name)],
+);
+
+export const servicePackageItems = pgTable(
+  "service_package_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    packageId: uuid("package_id")
+      .notNull()
+      .references(() => servicePackages.id, { onDelete: "cascade" }),
+    itemType: saleItemTypeEnum("item_type").notNull(),
+    serviceId: uuid("service_id").references(() => services.id, { onDelete: "restrict" }),
+    productId: uuid("product_id").references(() => inventoryProducts.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").default(1).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check("service_package_items_quantity_positive", sql`${table.quantity} > 0`),
+  ],
 );
 
 export const customerServicePackages = pgTable("customer_service_packages", {
@@ -1460,8 +1594,38 @@ export const customerServicePackages = pgTable("customer_service_packages", {
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   active: boolean("active").default(true).notNull(),
   notes: text("notes"),
+  purchaseSaleId: uuid("purchase_sale_id").references(() => sales.id, {
+    onDelete: "set null",
+  }),
   ...timestamps,
 });
+
+export const customerPackageItemBalances = pgTable(
+  "customer_package_item_balances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerPackageId: uuid("customer_package_id")
+      .notNull()
+      .references(() => customerServicePackages.id, { onDelete: "cascade" }),
+    packageItemId: uuid("package_item_id")
+      .notNull()
+      .references(() => servicePackageItems.id, { onDelete: "restrict" }),
+    totalQuantity: integer("total_quantity").notNull(),
+    usedQuantity: integer("used_quantity").default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("customer_package_item_balances_package_item_unique").on(
+      table.customerPackageId,
+      table.packageItemId,
+    ),
+    check("customer_package_item_balances_total_positive", sql`${table.totalQuantity} > 0`),
+    check("customer_package_item_balances_used_non_negative", sql`${table.usedQuantity} >= 0`),
+  ],
+);
 
 export const servicePackageUsages = pgTable("service_package_usages", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1474,6 +1638,12 @@ export const servicePackageUsages = pgTable("service_package_usages", {
   appointmentId: uuid("appointment_id").references(() => appointments.id, {
     onDelete: "set null",
   }),
+  saleId: uuid("sale_id").references(() => sales.id, { onDelete: "set null" }),
+  saleItemId: uuid("sale_item_id").references(() => saleItems.id, { onDelete: "set null" }),
+  packageItemId: uuid("package_item_id").references(() => servicePackageItems.id, {
+    onDelete: "restrict",
+  }),
+  quantityUsed: integer("quantity_used").default(1).notNull(),
   sessionsUsed: integer("sessions_used").default(1).notNull(),
   note: text("note"),
   createdByUserId: uuid("created_by_user_id").references(() => users.id, {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 import type { WorkingHours } from "@esse-beauty/shared";
 
 import { useAuth } from "../../../../../lib/auth-context";
@@ -47,8 +47,8 @@ export default function NewStaffPage() {
   }
 
   return (
-    <main className="p-5 md:p-8">
-      <form action={create} className="mx-auto grid max-w-[1000px] gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <AppPage maxWidth="max-w-[1600px]">
+      <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
         <Breadcrumbs items={[{ href: "/settings/staff", label: "Staff & disponibilità" }, { label: "Nuovo collaboratore" }]} />
         <h1 className="text-3xl font-bold">Nuovo collaboratore</h1>
         {error && <InlineError>{error}</InlineError>}
@@ -59,6 +59,6 @@ export default function NewStaffPage() {
           <Button type="submit">Crea</Button>
         </div>
       </form>
-    </main>
+    </AppPage>
   );
 }

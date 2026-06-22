@@ -111,14 +111,14 @@ export default function PermissionsPage() {
   const activeBlocks = blocks.filter((item) => new Date(item.ends_at).getTime() >= Date.now());
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message)}>{message}</SaveToast>
       <PageHeader eyebrow="Organizzazione" title="Permessi e assenze" subtitle="Gestisci richieste, ferie, permessi e indisponibilità di tutto il team in un unico spazio." status={<StatusBadge status="pending">{pending.length} da revisionare</StatusBadge>} />
       {error && <InlineError className="mb-4">{error}</InlineError>}
 
       <div className="grid gap-5 xl:grid-cols-12">
-      <SectionCard className="xl:col-span-7" title={`Da revisionare (${pending.length})`} subtitle="Le richieste inviate dalla PWA restano qui finché non vengono approvate o rifiutate.">
-        {pending.length === 0 ? <EmptyState title="Nessuna richiesta in attesa" description="Le nuove richieste inviate dalla PWA staff appariranno qui." /> : (
+      <SectionCard className="xl:col-span-7" title={`Da revisionare (${pending.length})`} subtitle="Le richieste inviate dall’App Staff restano qui finché non vengono approvate o rifiutate.">
+        {pending.length === 0 ? <EmptyState title="Nessuna richiesta in attesa" description="Le nuove richieste inviate dall’App Staff appariranno qui." /> : (
           <div className="space-y-4">
             {pending.map((item) => (
               <article className="rounded-2xl border border-[#ead1df] bg-[#fffafd] p-5" key={item.id}>

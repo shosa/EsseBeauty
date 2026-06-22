@@ -7,7 +7,7 @@ import { appointmentStatusLabel } from "@esse-beauty/shared";
 import { apiBaseUrl } from "../../../lib/api";
 
 interface Branding { accentColor?: string; primaryColor?: string; }
-interface Profile { branding?: Branding | null; salon: { name: string }; }
+interface Profile { branding?: Branding | null; pwa?: { allowCancellation?: boolean; allowReschedule?: boolean }; salon: { name: string }; }
 interface Item { id: string; starts_at: string; service_name: string; staff_name: string; status: string; }
 
 export default function AppointmentsPage() {
@@ -74,16 +74,18 @@ export default function AppointmentsPage() {
               <p className="text-sm font-black" style={{ color: primary }}>{new Date(item.starts_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
               <h2 className="mt-2 text-xl font-black text-stone-950">{item.service_name}</h2>
               <p className="mt-1 text-sm text-stone-500">con {item.staff_name} · {appointmentStatusLabel(item.status)}</p>
-              <div className="mt-4 rounded-2xl bg-stone-50 p-3">
+              {(profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && <div className="mt-4 rounded-2xl bg-stone-50 p-3">
+                {profile?.pwa?.allowReschedule !== false && <>
                 <label className="block text-xs font-black uppercase tracking-[.12em] text-stone-500">
                   Richiedi nuovo orario
                   <input className="mt-2 w-full" type="datetime-local" value={requestedStartsAt} onChange={(event) => setRequestedStartsAt(event.target.value)} />
                 </label>
+                </>}
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button disabled={!requestedStartsAt} onClick={() => void requestReschedule(item.id)} className="min-h-11 rounded-2xl bg-white px-3 text-xs font-black text-stone-700 disabled:opacity-40">Invia richiesta</button>
-                  <button onClick={() => void cancel(item.id)} className="min-h-11 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700">Annulla</button>
+                  {profile?.pwa?.allowReschedule !== false && <button disabled={!requestedStartsAt} onClick={() => void requestReschedule(item.id)} className="min-h-11 rounded-2xl bg-white px-3 text-xs font-black text-stone-700 disabled:opacity-40">Invia richiesta</button>}
+                  {profile?.pwa?.allowCancellation !== false && <button onClick={() => void cancel(item.id)} className="min-h-11 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700">Annulla</button>}
                 </div>
-              </div>
+              </div>}
             </article>
           ))}
           {searched && items.length === 0 && <p className="rounded-[1.7rem] bg-white/86 p-5 text-sm font-semibold text-stone-600 shadow-sm">Nessun appuntamento futuro trovato per questa email.</p>}

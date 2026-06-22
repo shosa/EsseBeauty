@@ -26,7 +26,7 @@ export default function WaitlistPage() {
   async function remove(id: string) { await fetch(`${api}/api/salons/${salon?.id}/waitlist/${id}`, { method: "DELETE", credentials: "include" }); await load(); }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
           eyebrow="Disponibilita"

@@ -94,6 +94,159 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
   );
 
   app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/settings/pwa",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+      ],
+    },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const [salonRows, calendarRows, brandingRows, categoryRows] = await Promise.all([
+        app.db.select().from(salons).where(eq(salons.id, request.salonId)),
+        app.db.select().from(calendarSettings).where(eq(calendarSettings.salonId, request.salonId)),
+        app.db.select().from(pwaBrandingSettings).where(eq(pwaBrandingSettings.salonId, request.salonId)),
+        app.db.select().from(salonSettings).where(and(
+          eq(salonSettings.salonId, request.salonId),
+          eq(salonSettings.category, "pwa"),
+        )),
+      ]);
+      const salon = salonRows[0];
+      const calendar = calendarRows[0];
+      const options = categoryRows[0]?.settings ?? {};
+      return {
+        allowCancellation: options.allowCancellation ?? true,
+        allowReschedule: options.allowReschedule ?? true,
+        allowStaffPreference: options.allowStaffPreference ?? true,
+        bookingDefaultStatus: options.bookingDefaultStatus ?? "pending",
+        branding: brandingRows[0] ?? null,
+        cancellationPolicyHours: calendar?.cancellationPolicyHours ?? salon?.cancellationPolicyHours ?? 24,
+        maxAdvanceDays: options.maxAdvanceDays ?? 90,
+        minBookingNoticeHours: calendar?.minBookingNoticeHours ?? 2,
+        onlineBookingEnabled: salon?.onlineBookingEnabled ?? false,
+        requireEmail: options.requireEmail ?? true,
+        requirePhone: options.requirePhone ?? false,
+      };
+    },
+  );
+
+  app.put<{
+    Body: {
+      accent_color?: string;
+      allow_cancellation: boolean;
+      allow_reschedule: boolean;
+      allow_staff_preference: boolean;
+      booking_default_status: "confirmed" | "pending";
+      booking_success_text?: string;
+      cancellation_policy_hours: number;
+      hero_subtitle?: string;
+      hero_title?: string;
+      install_prompt_enabled: boolean;
+      logo_url?: string;
+      max_advance_days: number;
+      min_booking_notice_hours: number;
+      online_booking_enabled: boolean;
+      primary_color?: string;
+      require_email: boolean;
+      require_phone: boolean;
+      welcome_text?: string;
+    };
+    Params: { id: string };
+  }>(
+    "/api/salons/:id/settings/pwa",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+      ],
+    },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      if (
+        !["pending", "confirmed"].includes(request.body.booking_default_status) ||
+        request.body.min_booking_notice_hours < 0 ||
+        request.body.cancellation_policy_hours < 0 ||
+        request.body.max_advance_days < 1
+      ) return reply.code(400).send({ error: "INVALID_PWA_SETTINGS" });
+      await app.db.transaction(async (tx) => {
+        await tx.update(salons).set({
+          cancellationPolicyHours: request.body.cancellation_policy_hours,
+          onlineBookingEnabled: request.body.online_booking_enabled,
+        }).where(eq(salons.id, request.salonId));
+        await tx.insert(calendarSettings).values({
+          cancellationPolicyHours: request.body.cancellation_policy_hours,
+          minBookingNoticeHours: request.body.min_booking_notice_hours,
+          salonId: request.salonId,
+        }).onConflictDoUpdate({
+          target: calendarSettings.salonId,
+          set: {
+            cancellationPolicyHours: request.body.cancellation_policy_hours,
+            minBookingNoticeHours: request.body.min_booking_notice_hours,
+            updatedAt: new Date(),
+          },
+        });
+        await tx.insert(pwaBrandingSettings).values({
+          accentColor: request.body.accent_color,
+          bookingSuccessText: request.body.booking_success_text,
+          heroSubtitle: request.body.hero_subtitle,
+          heroTitle: request.body.hero_title,
+          installPromptEnabled: request.body.install_prompt_enabled,
+          logoUrl: request.body.logo_url,
+          primaryColor: request.body.primary_color,
+          salonId: request.salonId,
+          welcomeText: request.body.welcome_text,
+        }).onConflictDoUpdate({
+          target: pwaBrandingSettings.salonId,
+          set: {
+            accentColor: request.body.accent_color,
+            bookingSuccessText: request.body.booking_success_text,
+            heroSubtitle: request.body.hero_subtitle,
+            heroTitle: request.body.hero_title,
+            installPromptEnabled: request.body.install_prompt_enabled,
+            logoUrl: request.body.logo_url,
+            primaryColor: request.body.primary_color,
+            updatedAt: new Date(),
+            welcomeText: request.body.welcome_text,
+          },
+        });
+        await tx.insert(salonSettings).values({
+          category: "pwa",
+          salonId: request.salonId,
+          settings: {
+            allowCancellation: request.body.allow_cancellation,
+            allowReschedule: request.body.allow_reschedule,
+            allowStaffPreference: request.body.allow_staff_preference,
+            bookingDefaultStatus: request.body.booking_default_status,
+            maxAdvanceDays: request.body.max_advance_days,
+            requireEmail: request.body.require_email,
+            requirePhone: request.body.require_phone,
+          },
+          updatedByUserId: request.user.id,
+        }).onConflictDoUpdate({
+          target: [salonSettings.salonId, salonSettings.category],
+          set: {
+            settings: {
+              allowCancellation: request.body.allow_cancellation,
+              allowReschedule: request.body.allow_reschedule,
+              allowStaffPreference: request.body.allow_staff_preference,
+              bookingDefaultStatus: request.body.booking_default_status,
+              maxAdvanceDays: request.body.max_advance_days,
+              requireEmail: request.body.require_email,
+              requirePhone: request.body.require_phone,
+            },
+            updatedAt: new Date(),
+            updatedByUserId: request.user.id,
+          },
+        });
+      });
+      return { ok: true };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
     "/api/salons/:id/settings/control-center",
     {
       preHandler: [

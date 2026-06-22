@@ -70,7 +70,7 @@ export default function DocumentsSettingsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeader
         eyebrow="Moduli"
         meta={<><StatusBadge status="active">{activeCount} attivi</StatusBadge><StatusBadge status="waiting">{items.length} versioni</StatusBadge></>}

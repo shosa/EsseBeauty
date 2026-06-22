@@ -31,6 +31,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         { href: "/settings/users", label: "Utenti" },
         { href: "/settings/staff", label: "Staff" },
         { badge: staffRequestCount, href: "/settings/permissions", label: "Permessi" },
+        { href: "/settings/pwa", label: "App Clienti" },
       ],
     },
     {

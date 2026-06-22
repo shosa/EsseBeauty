@@ -17,9 +17,24 @@ interface Reward {
   pointsRequired: number;
 }
 
+type EarningAction = "appointment_completed" | "service_purchased" | "product_purchased" | "euro_spent";
+interface EarningRule { action: EarningAction; active: boolean; points: number; }
+const ruleMeta: Record<EarningAction, { description: string; label: string; unit: string }> = {
+  appointment_completed: { description: "Una volta quando l’appuntamento viene portato a Completo.", label: "Appuntamento completato", unit: "punti per appuntamento" },
+  service_purchased: { description: "Calcolati sulla quantità di servizi presenti nella vendita.", label: "Acquisto servizi", unit: "punti per servizio" },
+  product_purchased: { description: "Calcolati sulla quantità di prodotti acquistati in cassa.", label: "Acquisto prodotti", unit: "punti per prodotto" },
+  euro_spent: { description: "Applicati agli euro interi spesi in servizi e prodotti.", label: "Valore della vendita", unit: "punti per euro" },
+};
+const defaultRules: EarningRule[] = [
+  { action: "appointment_completed", active: true, points: 10 },
+  { action: "service_purchased", active: false, points: 5 },
+  { action: "product_purchased", active: false, points: 1 },
+  { action: "euro_spent", active: false, points: 1 },
+];
+
 export default function LoyaltySettingsPage() {
   const { salon } = useAuth();
-  const [points, setPoints] = useState(10);
+  const [rules, setRules] = useState<EarningRule[]>(defaultRules);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [message, setMessage] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Reward>();
@@ -32,8 +47,14 @@ export default function LoyaltySettingsPage() {
       fetch(`${api}/api/salons/${salon.id}/loyalty/rewards`, { credentials: "include" }),
     ]);
     if (settingsResponse.ok) {
-      const settings = (await settingsResponse.json()) as { pointsPerAppointment: number };
-      setPoints(settings.pointsPerAppointment);
+      const settings = (await settingsResponse.json()) as { earningRules?: EarningRule[]; pointsPerAppointment: number };
+      setRules(defaultRules.map((fallback) => {
+        const rule = settings.earningRules?.find((item) => item.action === fallback.action);
+        return rule ? { action: rule.action, active: rule.active, points: rule.points } : {
+          ...fallback,
+          points: fallback.action === "appointment_completed" ? settings.pointsPerAppointment : fallback.points,
+        };
+      }));
     }
     if (rewardsResponse.ok) setRewards(await rewardsResponse.json() as Reward[]);
   }
@@ -45,13 +66,17 @@ export default function LoyaltySettingsPage() {
     return () => window.clearTimeout(timeout);
   }, [message]);
 
-  async function savePoints() {
+  async function saveRules() {
     if (!salon) return;
+    const appointmentRule = rules.find((rule) => rule.action === "appointment_completed");
     const response = await fetch(`${api}/api/salons/${salon.id}/loyalty/settings`, {
       method: "PATCH",
       credentials: "include",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ points_per_appointment: points }),
+      body: JSON.stringify({
+        earning_rules: rules,
+        points_per_appointment: appointmentRule?.points ?? 0,
+      }),
     });
     setMessage(response.ok ? "Impostazioni salvate." : "Salvataggio non riuscito.");
   }
@@ -75,23 +100,45 @@ export default function LoyaltySettingsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <SaveToast variant={message.includes("non riuscito") ? "error" : "success"} visible={Boolean(message)}>{message}</SaveToast>
       <PageHeader
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/settings/loyalty/rewards/new">Nuovo premio</Link>}
         eyebrow="Modulo"
         title="Programma fedelta"
-        subtitle="Configura punti e premi riscattabili per trasformare le visite ricorrenti in valore."
+        subtitle="Collega l’accumulo punti alle azioni reali del cliente: appuntamenti, servizi, prodotti e spesa."
         status={<StatusBadge status={activeRewards > 0 ? "active" : "draft"}>{activeRewards} premi attivi</StatusBadge>}
       />
 
-      <SectionCard title="Accumulo punti" subtitle="Decidi quanti punti assegna ogni appuntamento completato.">
-        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
-          <FormField label="Punti per appuntamento completato">
-            <input min={0} onChange={(event) => setPoints(Number(event.target.value))} type="number" value={points} />
-          </FormField>
-          <Button onClick={() => void savePoints()} variant="primary">Salva punti</Button>
+      <SectionCard title="Regole di accumulo" subtitle="Le regole attive si sommano. Puoi premiare una visita, ciò che viene acquistato oppure il valore complessivo della vendita.">
+        <div className="grid gap-4 xl:grid-cols-2">
+          {rules.map((rule) => {
+            const meta = ruleMeta[rule.action];
+            return <article className={`rounded-2xl border p-5 transition ${rule.active ? "border-teal-300 bg-teal-50/70" : "border-stone-200 bg-stone-50"}`} key={rule.action}>
+              <div className="flex items-start justify-between gap-4">
+                <div><h3 className="font-black text-stone-950">{meta.label}</h3><p className="mt-1 text-sm leading-6 text-stone-500">{meta.description}</p></div>
+                <button
+                  aria-label={`${rule.active ? "Disattiva" : "Attiva"} ${meta.label}`}
+                  className={`relative h-7 w-12 shrink-0 rounded-full transition ${rule.active ? "bg-teal-600" : "bg-stone-300"}`}
+                  onClick={() => setRules((current) => current.map((item) => item.action === rule.action ? { ...item, active: !item.active } : item))}
+                  type="button"
+                >
+                  <span className={`absolute top-1 size-5 rounded-full bg-white shadow transition ${rule.active ? "left-6" : "left-1"}`} />
+                </button>
+              </div>
+              <FormField className="mt-5" label={meta.unit}>
+                <input
+                  disabled={!rule.active}
+                  min={0}
+                  onChange={(event) => setRules((current) => current.map((item) => item.action === rule.action ? { ...item, points: Math.max(0, Number(event.target.value)) } : item))}
+                  type="number"
+                  value={rule.points}
+                />
+              </FormField>
+            </article>;
+          })}
         </div>
+        <div className="mt-5 flex justify-end"><Button onClick={() => void saveRules()} variant="primary">Salva regole</Button></div>
       </SectionCard>
 
       <SectionCard className="mt-6" title="Premi" subtitle="Mantieni pochi premi chiari, facili da spiegare in salone.">

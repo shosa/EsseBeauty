@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiBaseUrl } from "../../lib/api";
+import { InstallAppButton } from "./_components/InstallAppButton";
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
-interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
+interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; installPromptEnabled?: boolean; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
 interface Profile { branding?: Branding | null; salon: { name: string }; services: Service[]; }
 
 export default function SalonLanding() {
@@ -50,6 +51,7 @@ export default function SalonLanding() {
         </header>
 
         {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-white/80 bg-white/82 p-5 text-sm leading-6 text-stone-600 shadow-sm">{brand.welcomeText}</p>}
+        <InstallAppButton accent={accent} enabled={brand?.installPromptEnabled !== false} primary={primary} />
 
         <section className="mt-5 grid grid-cols-2 gap-3">
           <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]" href={`/${slug}/appointments`}>

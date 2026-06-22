@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -48,8 +48,8 @@ export default function NewCampaignPage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <form action={create} className="mx-auto max-w-3xl rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <AppPage maxWidth="max-w-[1600px]">
+      <form action={create} className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
         <Breadcrumbs items={[{ href: "/marketing", label: "Marketing" }, { label: "Nuova campagna" }]} />
         <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-rose-700">Nuova campagna</p>
         <h1 className="mt-2 text-3xl font-bold">Prepara il messaggio</h1>
@@ -94,6 +94,6 @@ export default function NewCampaignPage() {
         </label>
         <Button className="mt-7 min-h-12 w-full" type="submit">Salva bozza</Button>
       </form>
-    </main>
+    </AppPage>
   );
 }

@@ -9,7 +9,7 @@ import {
   type PermissionKey,
   type UserRole,
 } from "@esse-beauty/shared";
-import { Badge, Switch } from "@esse-beauty/ui";
+import { AppPage, Badge, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -160,13 +160,13 @@ export default function UserPermissionsPage() {
   }
 
   if (!user) {
-    return <main className="p-8">Caricamento...</main>;
+    return <AppPage maxWidth="max-w-[1600px]">Caricamento...</AppPage>;
   }
 
   const defaults = new Set(DEFAULT_PERMISSIONS[user.role]);
 
   return (
-    <main className="mx-auto max-w-[1200px] p-5 md:p-8">
+    <AppPage maxWidth="max-w-[1600px]">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold">{user.full_name}</h1>
@@ -223,6 +223,6 @@ export default function UserPermissionsPage() {
           </section>
         ))}
       </div>
-    </main>
+    </AppPage>
   );
 }

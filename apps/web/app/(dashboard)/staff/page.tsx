@@ -49,10 +49,27 @@ function todayParams() {
   return new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
 }
 
+function dateTimeInputValue(date: Date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function defaultAbsenceRange() {
+  const start = new Date();
+  start.setMinutes(Math.ceil(start.getMinutes() / 15) * 15, 0, 0);
+  const end = new Date(start.getTime() + 2 * 60 * 60_000);
+  return { end: dateTimeInputValue(end), start: dateTimeInputValue(start) };
+}
+
 export default function StaffPage() {
+  const initialRange = defaultAbsenceRange();
   const [staff, setStaff] = useState<OperationalStaff[]>([]);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<OperationalStaff>();
+  const [absenceStart, setAbsenceStart] = useState(initialRange.start);
+  const [absenceEnd, setAbsenceEnd] = useState(initialRange.end);
+  const [absenceReason, setAbsenceReason] = useState("");
+  const [savingAbsence, setSavingAbsence] = useState(false);
   const { salon } = useAuth();
 
   async function load() {
@@ -71,6 +88,14 @@ export default function StaffPage() {
 
   async function markAbsence(data: FormData) {
     if (!salon || !selected) return;
+    const startsAt = new Date(String(data.get("starts_at")));
+    const endsAt = new Date(String(data.get("ends_at")));
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+      setError("La fine dell’assenza deve essere successiva all’inizio.");
+      return;
+    }
+    setSavingAbsence(true);
+    setError("");
     const response = await fetch(`${api}/api/salons/${salon.id}/operations/staff/${selected.id}/absence`, {
       body: JSON.stringify({
         ends_at: data.get("ends_at"),
@@ -83,13 +108,19 @@ export default function StaffPage() {
     });
     if (!response.ok) {
       setError("Assenza non registrata.");
+      setSavingAbsence(false);
       return;
     }
+    const nextRange = defaultAbsenceRange();
+    setAbsenceStart(nextRange.start);
+    setAbsenceEnd(nextRange.end);
+    setAbsenceReason("");
     await load();
+    setSavingAbsence(false);
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
           eyebrow="Team operativo"
@@ -106,7 +137,7 @@ export default function StaffPage() {
             <section className="grid gap-4 md:grid-cols-2">
               {staff.map((member) => (
                 <button
-                  className={`rounded-3xl border p-5 text-left shadow-sm ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:shadow-md ${selected?.id === member.id ? "border-[#792f59] bg-[#fffafd]" : "border-white/70 bg-white"}`}
+                  className={`rounded-2xl border p-5 text-left shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] transition hover:-translate-y-0.5 hover:shadow-md ${selected?.id === member.id ? "border-[#792f59] bg-[#fffafd]" : "border-[#e8dfe4] bg-white"}`}
                   key={member.id}
                   onClick={() => setSelected(member)}
                   type="button"
@@ -137,13 +168,36 @@ export default function StaffPage() {
               ))}
             </section>
 
-            <SectionCard title="Assenza last-minute" subtitle="Azione operativa rapida: non modifica orari contrattuali o ruoli.">
-              <form action={markAbsence} className="grid gap-3">
-                <p className="rounded-2xl bg-[#fffafd] p-4 text-sm font-bold text-[#792f59]">{selected?.display_name ?? "Seleziona collaboratore"}</p>
-                <FormField label="Inizio" required><input name="starts_at" required type="datetime-local" /></FormField>
-                <FormField label="Fine" required><input name="ends_at" required type="datetime-local" /></FormField>
-                <FormField label="Motivo"><input name="reason" placeholder="Malattia, emergenza, permesso..." /></FormField>
-                <Button disabled={!selected} type="submit" variant="primary">Segna assenza</Button>
+            <SectionCard className="self-start lg:sticky lg:top-24" title="Assenza last-minute" subtitle="Registra rapidamente un’indisponibilità senza modificare gli orari contrattuali.">
+              <form action={markAbsence} className="grid gap-5">
+                <div className="flex items-center gap-3 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-full font-black text-white" style={{ background: selected?.color ?? "#792f59" }}>
+                    {selected?.display_name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("") ?? "—"}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8f3a68]">Collaboratore selezionato</p>
+                    <strong className="mt-1 block truncate text-lg text-stone-950">{selected?.display_name ?? "Seleziona un collaboratore"}</strong>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <FormField label="Inizio assenza" required>
+                    <input className="w-full" name="starts_at" onChange={(event) => setAbsenceStart(event.target.value)} required step={900} type="datetime-local" value={absenceStart} />
+                  </FormField>
+                  <FormField label="Fine assenza" required>
+                    <input className="w-full" min={absenceStart} name="ends_at" onChange={(event) => setAbsenceEnd(event.target.value)} required step={900} type="datetime-local" value={absenceEnd} />
+                  </FormField>
+                </div>
+
+                <FormField label="Motivo" description="Nota interna visibile nella gestione delle disponibilità.">
+                  <textarea className="min-h-24 w-full" name="reason" onChange={(event) => setAbsenceReason(event.target.value)} placeholder="Descrivi brevemente il motivo dell’assenza" value={absenceReason} />
+                </FormField>
+
+                <div className="flex justify-end border-t border-stone-100 pt-4">
+                  <Button className="min-w-44" disabled={!selected || savingAbsence} type="submit" variant="primary">
+                    {savingAbsence ? "Registrazione…" : "Registra assenza"}
+                  </Button>
+                </div>
               </form>
             </SectionCard>
           </div>

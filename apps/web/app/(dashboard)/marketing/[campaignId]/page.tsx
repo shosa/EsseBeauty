@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -91,7 +91,7 @@ export default function CampaignDetailPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
+    <AppPage maxWidth="max-w-[1600px]">
       <div className="mx-auto max-w-5xl">
         <Breadcrumbs items={[{ href: "/marketing", label: "Marketing" }, { label: campaign?.name ?? "Campagna" }]} />
         {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
@@ -99,7 +99,7 @@ export default function CampaignDetailPage() {
           <EmptyState title="Campagna non trovata" description="Potrebbe essere stata rimossa o non essere accessibile." />
         ) : (
           <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
-            <form action={save} className="grid gap-4 rounded-3xl bg-white p-6 shadow-sm">
+            <form action={save} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Campagna</p>
                 <h1 className="mt-2 text-3xl font-bold">{campaign.name}</h1>
@@ -114,7 +114,7 @@ export default function CampaignDetailPage() {
                 <Button type="button" onClick={() => setConfirmSend(true)}>Conferma invio</Button>
               </div>
             </form>
-            <aside className="rounded-3xl bg-white p-6 shadow-sm">
+            <aside className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
               <h2 className="text-xl font-bold">Riepilogo</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <div><dt className="font-bold">Canale</dt><dd>{campaign.channel.toUpperCase()}</dd></div>
@@ -136,6 +136,6 @@ export default function CampaignDetailPage() {
         title="Confermare invio campagna?"
         description="L'invio partirà solo dopo questa conferma esplicita."
       />
-    </main>
+    </AppPage>
   );
 }

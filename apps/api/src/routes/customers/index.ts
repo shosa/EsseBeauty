@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
 import {
   appointments,
@@ -64,17 +64,6 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
           phone: customers.phone,
           tags: customers.tags,
           blocked: customers.blocked,
-          last_visit: sql<Date | null>`(
-            select max(a.starts_at) from appointments a
-            where a.customer_id = ${customers.id} and a.status = 'completed'
-          )`,
-          total_appointments: sql<number>`(
-            select count(*) from appointments a where a.customer_id = ${customers.id}
-          )`,
-          loyalty_points: sql<number>`(
-            select coalesce(sum(lp.delta), 0) from loyalty_points lp
-            where lp.customer_id = ${customers.id}
-          )`,
         })
         .from(customers)
         .where(and(...conditions))
@@ -86,8 +75,46 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
         .from(customers)
         .where(and(...conditions)),
     ]);
+    const customerIds = rows.map((row) => row.id);
+    const [appointmentCounters, loyaltyCounters] = customerIds.length
+      ? await Promise.all([
+          app.db
+            .select({
+              customer_id: appointments.customerId,
+              last_visit: sql<Date | null>`max(${appointments.endsAt}) filter (
+                where ${appointments.status} = 'completed' and ${appointments.endsAt} <= now()
+              )`,
+              total_appointments: sql<number>`count(*)::int`,
+            })
+            .from(appointments)
+            .where(and(
+              eq(appointments.salonId, request.salonId),
+              inArray(appointments.customerId, customerIds),
+            ))
+            .groupBy(appointments.customerId),
+          app.db
+            .select({
+              customer_id: loyaltyPoints.customerId,
+              loyalty_points: sql<number>`coalesce(sum(${loyaltyPoints.delta}), 0)::int`,
+            })
+            .from(loyaltyPoints)
+            .where(and(
+              eq(loyaltyPoints.salonId, request.salonId),
+              inArray(loyaltyPoints.customerId, customerIds),
+              sql`${loyaltyPoints.expiredAt} is null`,
+            ))
+            .groupBy(loyaltyPoints.customerId),
+        ])
+      : [[], []];
+    const appointmentByCustomer = new Map(appointmentCounters.map((row) => [row.customer_id, row]));
+    const loyaltyByCustomer = new Map(loyaltyCounters.map((row) => [row.customer_id, row]));
     return {
-      items: rows,
+      items: rows.map((row) => ({
+        ...row,
+        last_visit: appointmentByCustomer.get(row.id)?.last_visit ?? null,
+        loyalty_points: Number(loyaltyByCustomer.get(row.id)?.loyalty_points ?? 0),
+        total_appointments: Number(appointmentByCustomer.get(row.id)?.total_appointments ?? 0),
+      })),
       page,
       page_size: 20,
       total: Number(totalRows[0]?.count ?? 0),

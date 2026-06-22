@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -39,8 +39,8 @@ export default function NewInventoryProductPage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-100 p-5 md:p-10">
-      <form action={create} className="mx-auto grid max-w-3xl gap-4 rounded-3xl bg-white p-6 shadow-sm md:grid-cols-2 md:p-8">
+    <AppPage maxWidth="max-w-[1600px]">
+      <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:grid-cols-2">
         <div className="md:col-span-2">
           <Breadcrumbs items={[{ href: "/inventory", label: "Inventario" }, { label: "Nuovo prodotto" }]} />
           <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-rose-700">Magazzino</p>
@@ -65,6 +65,6 @@ export default function NewInventoryProductPage() {
           <Button type="submit">Salva</Button>
         </div>
       </form>
-    </main>
+    </AppPage>
   );
 }

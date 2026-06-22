@@ -283,7 +283,7 @@ function OnboardingWizard() {
 
           {step === 4 && <>
             <h2 className="mt-2 text-3xl font-bold text-[#2d1d27]">Chi lavora in salone?</h2>
-            <p className="mt-2 text-stone-500">Creiamo i profili operativi. Le credenziali della PWA staff si potranno attivare in seguito.</p>
+            <p className="mt-2 text-stone-500">Creiamo i profili operativi. Le credenziali dell’App Staff si potranno attivare in seguito.</p>
             <label className="mt-7 flex items-center gap-3 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 font-bold">
               <input checked={linkOwner} onChange={(event) => setLinkOwner(event.target.checked)} type="checkbox" />
               Il primo profilo corrisponde al titolare

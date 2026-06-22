@@ -61,7 +61,7 @@ export default function ReviewsPage() {
   }
 
   return (
-    <AppPage>
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeaderMetrics
         eyebrow="Voce dei clienti"
         metrics={[

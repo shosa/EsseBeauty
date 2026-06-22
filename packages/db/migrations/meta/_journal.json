@@ -106,6 +106,34 @@
       "when": 1781881200000,
       "tag": "0014_sales_checkout",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782114027509,
+      "tag": "0015_familiar_mulholland_black",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782115616543,
+      "tag": "0016_cloudy_shockwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782115998411,
+      "tag": "0017_freezing_captain_flint",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782136516150,
+      "tag": "0018_kind_pride",
+      "breakpoints": true
     }
   ]
 }

@@ -379,7 +379,7 @@ export default function CalendarPage() {
       key={item.id}
       href={appointmentHref(item.id)}
       scroll={false}
-      className={`group block rounded-2xl border p-3 text-left shadow-[0_10px_28px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgb(45_29_39_/_0.14)] ${item.status === "confirmed" ? "text-white" : ""}`}
+      className={`group block rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${item.status === "confirmed" ? "text-white" : ""}`}
       style={item.status === "confirmed"
         ? { background: `linear-gradient(135deg, ${item.color || "#792f59"}, color-mix(in srgb, ${item.color || "#792f59"} 72%, white))`, borderColor: item.color || "#792f59" }
         : { background: APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE]?.background, borderColor: APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE]?.border, color: APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE]?.text }}
@@ -397,7 +397,7 @@ export default function CalendarPage() {
   const blockCard = (item: AvailabilityBlock, compact = false) => (
     <div
       key={item.id}
-      className="rounded-2xl border border-amber-200 bg-amber-50/90 p-3 text-left shadow-sm"
+      className="rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-left shadow-sm"
       style={{ borderLeft: `5px solid ${item.color || "#92400e"}` }}
     >
       <strong className="text-xs font-black text-amber-800">{formatTime(item.starts_at)} - {formatTime(item.ends_at)}</strong>
@@ -407,7 +407,7 @@ export default function CalendarPage() {
   );
 
   const closureCard = (item: SalonClosure) => (
-    <div key={item.id} className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm shadow-sm">
+    <div key={item.id} className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm shadow-sm">
       <b className="block text-red-800">Chiusura salone</b>
       <span className="text-red-700">{item.reason || "Giorno non prenotabile"}{item.recurringYearly ? " - ogni anno" : ""}</span>
     </div>
@@ -425,7 +425,7 @@ export default function CalendarPage() {
 
         {error && <InlineError className="mb-4">{error}</InlineError>}
 
-        <section className="mb-4 overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white shadow-[0_18px_55px_rgb(45_29_39_/_0.08)]">
+        <section className="mb-4 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
           <div className="grid grid-cols-[48px_1fr_48px] items-stretch border-b border-stone-200">
             <button aria-label="Settimana precedente" className="grid place-items-center border-r border-stone-200 text-2xl font-black text-[#792f59] transition hover:bg-[#faf3f7]" onClick={() => setPeriodOffset((value) => value - 7)} type="button">‹</button>
             <div className="grid grid-cols-7">
@@ -485,7 +485,7 @@ export default function CalendarPage() {
             {availabilityBlocks.filter((block) => !staffFilter || block.staff_id === staffFilter).map((block) => blockCard(block))}
           </div>
         ) : view === "staff_columns" || view === "day" ? (
-          <div className="overflow-x-auto rounded-[2rem] border border-stone-200 bg-white shadow-[0_24px_70px_rgb(45_29_39_/_0.10)]">
+          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
             <div className="min-w-[980px]">
               <div className="sticky top-0 z-20 grid border-b border-stone-200 bg-white" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
                 <div className="border-r border-stone-200 p-3 text-center text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Ora</div>
@@ -539,7 +539,7 @@ export default function CalendarPage() {
                     ))}
                     {availabilityBlocks.filter((item) => item.staff_id === staffId).map((item) => {
                       const position = timelinePosition(item.starts_at, item.ends_at);
-                      return <div className="absolute left-2 right-2 z-10 overflow-hidden rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold text-amber-950 shadow-sm" key={item.id} style={{ ...position, background: "repeating-linear-gradient(135deg, #fffbeb 0, #fffbeb 8px, #fde68a 8px, #fde68a 11px)" }}><span className="block">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span><span className="mt-1 block truncate uppercase">{item.reason || "Assenza / non disponibile"}</span></div>;
+                      return <div className="absolute left-2 right-2 z-10 overflow-hidden rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-950 shadow-sm" key={item.id} style={{ ...position, background: "repeating-linear-gradient(135deg, #fffbeb 0, #fffbeb 8px, #fde68a 8px, #fde68a 11px)" }}><span className="block">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span><span className="mt-1 block truncate uppercase">{item.reason || "Assenza / non disponibile"}</span></div>;
                     })}
                     {filteredItems.filter((item) => item.staff_id === staffId).map((item) => {
                       const position = timelinePosition(item.starts_at, item.ends_at);
@@ -547,7 +547,7 @@ export default function CalendarPage() {
                       const confirmed = item.status === "confirmed";
                       const palette = APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE];
                       return (
-                        <Link className={`absolute left-2 right-2 z-10 overflow-hidden rounded-xl border pr-24 text-xs transition hover:z-20 hover:-translate-y-0.5 hover:shadow-xl ${confirmed ? "border-white/80 text-white shadow-[0_8px_22px_rgb(45_29_39_/_0.16)]" : "shadow-[0_6px_16px_rgb(68_64_60_/_0.10)]"} ${short ? "flex items-center gap-2 py-1.5 pl-3" : "py-2 pl-3"}`} href={appointmentHref(item.id)} key={item.id} scroll={false} style={{ ...position, background: confirmed ? `linear-gradient(135deg, ${item.color || "#792f59"} 0%, color-mix(in srgb, ${item.color || "#792f59"} 72%, white) 100%)` : palette?.background, borderColor: confirmed ? undefined : palette?.border, color: confirmed ? undefined : palette?.text }} title={`${formatTime(item.starts_at)}–${formatTime(item.ends_at)} · ${item.customer_name} · ${item.service_name} · ${appointmentStatusLabel(item.status ?? "confirmed")}`}>
+                        <Link className={`absolute left-2 right-2 z-10 overflow-hidden rounded-lg border pr-24 text-xs transition hover:z-20 hover:-translate-y-0.5 hover:shadow-lg ${confirmed ? "border-white/80 text-white shadow-sm" : "shadow-sm"} ${short ? "flex items-center gap-2 py-1.5 pl-3" : "py-2 pl-3"}`} href={appointmentHref(item.id)} key={item.id} scroll={false} style={{ ...position, background: confirmed ? `linear-gradient(135deg, ${item.color || "#792f59"} 0%, color-mix(in srgb, ${item.color || "#792f59"} 72%, white) 100%)` : palette?.background, borderColor: confirmed ? undefined : palette?.border, color: confirmed ? undefined : palette?.text }} title={`${formatTime(item.starts_at)}–${formatTime(item.ends_at)} · ${item.customer_name} · ${item.service_name} · ${appointmentStatusLabel(item.status ?? "confirmed")}`}>
                           <span className="shrink-0 font-black">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span>
                           <strong className={`${short ? "min-w-0 truncate text-sm" : "mt-1 block truncate text-sm"} uppercase`}>{item.customer_name}</strong>
                           <span className={`${short ? "hidden min-w-0 truncate font-semibold opacity-75 xl:block" : "mt-1 block truncate font-semibold opacity-75"}`}>{short ? `· ${item.service_name}` : item.service_name}</span>
@@ -561,7 +561,7 @@ export default function CalendarPage() {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-[2rem] border border-white/80 bg-white/75 p-3 shadow-[0_22px_70px_rgb(45_29_39_/_0.10)] ring-1 ring-stone-950/5 backdrop-blur">
+          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
             <div className={`grid min-w-[920px] gap-3 ${view === "month" ? "grid-cols-7" : "grid-cols-7"}`}>
               {days.map((day) => {
                 const dayItems = itemsForDay(day);
@@ -569,7 +569,7 @@ export default function CalendarPage() {
                 const dayClosures = closuresForDay(day);
                 const outsideMonth = view === "month" && day.getMonth() !== range.from.getMonth();
                 return (
-                  <section key={day.toISOString()} className={`${view === "month" ? "min-h-[170px]" : "min-h-[620px]"} rounded-3xl border border-stone-100 bg-white/82 p-3 ${outsideMonth ? "opacity-45" : ""}`}>
+                  <section key={day.toISOString()} className={`${view === "month" ? "min-h-[170px]" : "min-h-[620px]"} rounded-xl border border-stone-100 bg-white p-3 ${outsideMonth ? "opacity-45" : ""}`}>
                     <header className="mb-3 flex items-center justify-between gap-2 border-b border-stone-100 pb-3">
                       <div>
                         <p className="text-[11px] font-black uppercase tracking-[.18em] text-stone-400">{weekdayShortLabel(day)}</p>
@@ -593,7 +593,7 @@ export default function CalendarPage() {
         <div aria-label="Dettaglio appuntamento" aria-modal="true" className="fixed inset-x-0 bottom-0 top-[57px] z-30 bg-[#201820]/28 p-2 backdrop-blur-[2px] md:left-[var(--shell-nav-width)] md:px-4 md:pb-4" onMouseDown={(event) => {
           if (event.target === event.currentTarget) rejectBackdropClose();
         }} role="dialog">
-          <div className={`appointment-curtain mx-auto h-full max-w-[1540px] overflow-y-auto rounded-[1.35rem] border border-white/80 bg-[#f7f6f3] shadow-[0_34px_110px_rgb(32_24_32_/_0.34)] ${curtainShake ? "appointment-curtain-shake" : ""}`} onAnimationEnd={() => setCurtainShake(false)}>
+          <div className={`appointment-curtain mx-auto h-full max-w-[1540px] overflow-y-auto rounded-xl border border-white/80 bg-[#f7f6f3] shadow-[0_24px_72px_rgb(32_24_32_/_0.28)] ${curtainShake ? "appointment-curtain-shake" : ""}`} onAnimationEnd={() => setCurtainShake(false)}>
             <AppointmentDetailPanel appointmentId={selectedAppointmentId} onChanged={() => setRefreshToken((value) => value + 1)} onClose={closeAppointment} />
           </div>
         </div>

@@ -21,6 +21,20 @@ type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 
 const statusActions: AppointmentStatus[] = ["pending", "confirmed", "completed", "no_show", "cancelled"];
 
+function statusActionPalette(status: AppointmentStatus, active = false) {
+  const strong: Record<AppointmentStatus, { background: string; border: string; text: string }> = {
+    cancelled: { background: "#dc2626", border: "#991b1b", text: "#ffffff" },
+    completed: { background: "#16a34a", border: "#166534", text: "#ffffff" },
+    confirmed: { background: "#0284c7", border: "#075985", text: "#ffffff" },
+    no_show: { background: "#ea580c", border: "#9a3412", text: "#ffffff" },
+    pending: { background: "#f59e0b", border: "#b45309", text: "#451a03" },
+  };
+  if (active) return strong[status];
+  if (status === "confirmed") return { background: "#e0f2fe", border: "#7dd3fc", text: "#075985" };
+  if (status === "completed") return { background: "#dcfce7", border: "#86efac", text: "#166534" };
+  return APPOINTMENT_STATUS_PALETTE[status as Exclude<AppointmentStatus, "confirmed">];
+}
+
 function StatusActionIcon({ status }: { status: AppointmentStatus }) {
   if (status === "pending") return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>;
   if (status === "confirmed") return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><path d="m6 12 4 4 8-9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" /></svg>;
@@ -55,9 +69,13 @@ interface CatalogItem {
 }
 
 interface CheckoutLine {
+  customer_package_id?: string;
   description: string;
   discount_cents: number;
   item_type: ItemType;
+  package_item_id?: string;
+  package_name?: string;
+  package_quantity?: number;
   product_id?: string;
   quantity: number;
   service_id?: string;
@@ -68,7 +86,19 @@ interface CheckoutLine {
 interface PaymentDraft {
   amount_cents: number;
   method: PaymentMethod;
+  voucher_balance_cents?: number;
+  voucher_code?: string;
+  voucher_customer_name?: string;
 }
+
+interface VoucherLookup {
+  balance_cents: number;
+  code: string;
+  customer_id: string;
+  customer_name: string;
+  id: string;
+}
+interface CustomerPackage { id: string; items: Array<{ itemType: ItemType; packageItemId: string; productId?: string | null; remainingQuantity: number; serviceId?: string | null }>; name: string; }
 
 interface CheckoutResponse {
   appointment: Appointment;
@@ -93,13 +123,14 @@ interface CheckoutResponse {
   };
 }
 
-const paymentLabels: Record<PaymentMethod, string> = {
-  bank_transfer: "Bonifico",
-  card: "Carta",
-  cash: "Contanti",
-  other: "Altro",
-  voucher: "Voucher",
-};
+const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
+  { label: "Contanti", value: "cash" },
+  { label: "Carta", value: "card" },
+  { label: "Voucher", value: "voucher" },
+  { label: "Bonifico", value: "bank_transfer" },
+  { label: "Altro", value: "other" },
+];
+const paymentLabels: Record<PaymentMethod, string> = Object.fromEntries(paymentMethods.map((method) => [method.value, method.label])) as Record<PaymentMethod, string>;
 
 function euro(cents: number) {
   return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
@@ -148,7 +179,9 @@ export default function AppointmentDetailPanel({
   const { salon } = useAuth();
   const [data, setData] = useState<CheckoutResponse>();
   const [lines, setLines] = useState<CheckoutLine[]>([]);
-  const [payments, setPayments] = useState<PaymentDraft[]>([{ amount_cents: 0, method: "card" }]);
+  const [payments, setPayments] = useState<PaymentDraft[]>([{ amount_cents: 0, method: "cash" }]);
+  const [customerVouchers, setCustomerVouchers] = useState<VoucherLookup[]>([]);
+  const [customerPackages, setCustomerPackages] = useState<CustomerPackage[]>([]);
   const [discountCents, setDiscountCents] = useState(0);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -175,6 +208,11 @@ export default function AppointmentDetailPanel({
     }
     const next = await response.json() as CheckoutResponse;
     setData(next);
+    const voucherResponse = await fetch(`${api}/api/salons/${salon.id}/vouchers?${new URLSearchParams({ customer_id: next.appointment.customer_id, status: "active" })}`, { credentials: "include" });
+    setCustomerVouchers(voucherResponse.ok ? await voucherResponse.json() as VoucherLookup[] : []);
+    const packageResponse = await fetch(`${api}/api/salons/${salon.id}/customer-service-packages?${new URLSearchParams({ customer_id: next.appointment.customer_id })}`, { credentials: "include" });
+    const packages = packageResponse.ok ? await packageResponse.json() as CustomerPackage[] : [];
+    setCustomerPackages(packages);
     setAppointmentDate(dateInputValue(next.appointment.starts_at));
     setAppointmentTime(timeInputValue(next.appointment.starts_at));
     setAppointmentDuration(String(minutesBetween(next.appointment.starts_at, next.appointment.ends_at)));
@@ -206,6 +244,7 @@ export default function AppointmentDetailPanel({
       setDiscountCents(0);
       setNotes("");
     }
+    if (packages.length) window.setTimeout(() => applyPackages(packages), 0);
     setError("");
     setLoading(false);
   }
@@ -213,7 +252,7 @@ export default function AppointmentDetailPanel({
   useEffect(() => { void load(); }, [salon?.id, appointmentId]);
 
   const subtotalCents = useMemo(() => lines.reduce((total, line) => {
-    const gross = line.quantity * line.unit_price_cents;
+    const gross = (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents;
     return total + Math.max(0, gross - line.discount_cents);
   }, 0), [lines]);
   const totalCents = Math.max(0, subtotalCents - discountCents);
@@ -323,7 +362,7 @@ export default function AppointmentDetailPanel({
         discount_cents: discountCents,
         items: lines,
         notes,
-        payments,
+        payments: payments.map(({ amount_cents, method, voucher_code }) => ({ amount_cents, method, voucher_code })),
       }),
       credentials: "include",
       headers: { "content-type": "application/json" },
@@ -335,6 +374,11 @@ export default function AppointmentDetailPanel({
         APPOINTMENT_NOT_CONFIRMED: "La cassa è disponibile solo per un appuntamento confermato.",
         PAYMENT_TOTAL_MISMATCH: "Il totale dei pagamenti non coincide con il conto.",
         SALE_ALREADY_CLOSED: "Questo conto è già stato chiuso.",
+        VOUCHER_CODE_REQUIRED: "Inserisci il codice del buono.",
+        VOUCHER_CUSTOMER_MISMATCH: "Il buono non appartiene a questo cliente.",
+        VOUCHER_EXHAUSTED: "Il buono è già esaurito.",
+        VOUCHER_INSUFFICIENT_BALANCE: "Il buono non ha saldo sufficiente per questo importo.",
+        VOUCHER_NOT_FOUND: "Buono non trovato.",
       };
       setError(messages[body.error ?? ""] ?? "Checkout non completato. Controlla i dati.");
       setSaving(false);
@@ -343,6 +387,43 @@ export default function AppointmentDetailPanel({
     await load();
     onChanged?.();
     setSaving(false);
+  }
+
+  function applyPackages(packages = customerPackages) {
+    const remaining = new Map<string, number>();
+    packages.forEach((pack) => pack.items.forEach((item) => remaining.set(`${pack.id}:${item.packageItemId}`, item.remainingQuantity)));
+    setLines((current) => current.map((line) => {
+      if (line.item_type !== "service" && line.item_type !== "product") return line;
+      const match = packages.flatMap((pack) => pack.items.map((item) => ({ ...item, customerPackageId: pack.id, packageName: pack.name }))).find((item) =>
+        item.remainingQuantity > 0 &&
+        item.itemType === line.item_type &&
+        (line.item_type === "service" ? item.serviceId === line.service_id : item.productId === line.product_id)
+      );
+      if (!match) return { ...line, customer_package_id: undefined, package_item_id: undefined, package_name: undefined, package_quantity: undefined };
+      const key = `${match.customerPackageId}:${match.packageItemId}`;
+      const available = remaining.get(key) ?? 0;
+      const covered = Math.min(line.quantity, available);
+      remaining.set(key, available - covered);
+      return { ...line, customer_package_id: match.customerPackageId, package_item_id: match.packageItemId, package_name: match.packageName, package_quantity: covered };
+    }));
+  }
+
+  function applyVoucher(voucher: VoucherLookup, paymentIndex?: number) {
+    const voucherAmount = Math.min(totalCents, voucher.balance_cents);
+    const voucherPayment: PaymentDraft = {
+      amount_cents: voucherAmount,
+      method: "voucher",
+      voucher_balance_cents: voucher.balance_cents,
+      voucher_code: voucher.code,
+      voucher_customer_name: voucher.customer_name,
+    };
+    if (paymentIndex !== undefined) {
+      setPayments((current) => current.map((payment, index) => index === paymentIndex ? voucherPayment : payment));
+      return;
+    }
+    const remainder = totalCents - voucherAmount;
+    setPayments(remainder > 0 ? [voucherPayment, { amount_cents: remainder, method: "cash" }] : [voucherPayment]);
+    setError("");
   }
 
   async function remove() {
@@ -375,26 +456,30 @@ export default function AppointmentDetailPanel({
           <div aria-label="Cambia stato appuntamento" className="flex flex-wrap items-center justify-end gap-1.5">
             {statusActions.map((status) => {
               const active = appointment.status === status;
-              const confirmed = status === "confirmed";
-              const palette = status === "confirmed" ? undefined : APPOINTMENT_STATUS_PALETTE[status];
+              const palette = statusActionPalette(status, active);
               return (
                 <button
                   aria-label={appointmentStatusLabel(status)}
                   aria-pressed={active}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-black transition ${active ? "shadow-md ring-2 ring-stone-950/10" : "opacity-70 hover:-translate-y-0.5 hover:opacity-100"} disabled:cursor-not-allowed disabled:opacity-35`}
+                  className={`relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-black transition ${active ? "z-10 scale-105 border-[3px] px-4 shadow-[0_10px_24px_rgb(0_0_0_/_0.24)] ring-4 ring-current/15 disabled:opacity-100" : "opacity-70 hover:-translate-y-0.5 hover:opacity-100 disabled:opacity-35"} disabled:cursor-not-allowed`}
                   disabled={isClosed || statusUpdating || active}
                   key={status}
                   onClick={() => void updateStatus(status)}
-                  style={{
-                    background: confirmed ? "linear-gradient(135deg,#402334,#b85888)" : palette?.background,
-                    borderColor: confirmed ? "#792f59" : palette?.border,
-                    color: confirmed ? "white" : palette?.text,
-                  }}
+                   style={{
+                     background: palette?.background,
+                     borderColor: palette?.border,
+                     color: palette?.text,
+                   }}
                   title={isClosed ? "Stato bloccato: vendita registrata" : appointmentStatusLabel(status)}
                   type="button"
                 >
                   <span className="grid size-5 place-items-center [&_svg]:size-5"><StatusActionIcon status={status} /></span>
                   <span>{appointmentStatusLabel(status)}</span>
+                  {active && <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -bottom-[11px] left-1/2 size-5 -translate-x-1/2 rotate-45 border-b-[3px] border-r-[3px] shadow-[4px_4px_7px_rgb(0_0_0_/_0.12)]"
+                    style={{ background: palette?.background, borderColor: palette?.border }}
+                  />}
                 </button>
               );
             })}
@@ -409,7 +494,10 @@ export default function AppointmentDetailPanel({
         <EmptyState title="Appuntamento non trovato" description="Potrebbe essere stato eliminato o non essere accessibile." />
       ) : (
         <div className="overflow-hidden border-y border-stone-200 bg-[#f7f6f3] shadow-[0_30px_90px_rgb(38_25_32_/_0.12)]">
-          <header className="grid gap-5 bg-[#201820] px-6 py-6 text-white lg:grid-cols-[1fr_auto] lg:px-8">
+          <header
+            className="grid gap-5 border-t-[7px] bg-[#201820] px-6 py-6 text-white transition-colors lg:grid-cols-[1fr_auto] lg:px-8"
+            style={{ borderTopColor: statusActionPalette(appointment.status as AppointmentStatus, true).background }}
+          >
             <div className="flex min-w-0 items-center gap-4">
               <Link
                 aria-label={`Apri anagrafica di ${appointment.customer_name}`}
@@ -442,7 +530,7 @@ export default function AppointmentDetailPanel({
                   ["Collaboratore", appointment.staff_name],
                   ["Stato", appointmentStatusLabel(appointment.status)],
                 ].map(([label, value]) => (
-                  <div className="rounded-2xl border border-stone-200 bg-white p-4" key={label}>
+                  <div className="rounded-xl border border-stone-200 bg-white p-4" key={label}>
                     <p className="text-[11px] font-black uppercase tracking-[.16em] text-stone-400">{label}</p>
                     <p className="mt-2 font-black text-stone-950">{value}</p>
                   </div>
@@ -450,7 +538,7 @@ export default function AppointmentDetailPanel({
               </section>
 
               {editingAppointment && !isClosed && (
-                <section className="rounded-[1.6rem] border border-[#d9a7c2] bg-[#fff9fc] p-5 shadow-[0_12px_35px_rgb(121_47_89_/_0.08)]">
+                <section className="rounded-xl border border-[#d9a7c2] bg-[#fff9fc] p-5 shadow-sm">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[.18em] text-[#792f59]">Modifica appuntamento</p>
@@ -487,7 +575,7 @@ export default function AppointmentDetailPanel({
                 </section>
               )}
 
-              <section className="rounded-[1.6rem] border border-stone-200 bg-white p-5">
+              <section className="rounded-xl border border-stone-200 bg-white p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <Link className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f3e2eb] font-black text-[#792f59]" href={`/clients/${data.appointment.customer_id}`}>{initials(appointment.customer_name)}</Link>
@@ -505,19 +593,19 @@ export default function AppointmentDetailPanel({
                 </div>
               </section>
 
-              <section className="rounded-[1.6rem] border border-stone-200 bg-white p-5">
+              <section className="rounded-xl border border-stone-200 bg-white p-5">
                 <div className="mb-5 flex items-end justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[.18em] text-[#792f59]">Prestazioni e prodotti</p>
                     <h2 className="mt-1 text-2xl font-black text-stone-950">Composizione del conto</h2>
                   </div>
-                  {checkoutEnabled && <Button onClick={() => setLines((current) => [...current, { description: "", discount_cents: 0, item_type: "custom", quantity: 1, unit_price_cents: 0 }])} size="sm" variant="outline">Riga libera</Button>}
+                  <div className="flex gap-2">{checkoutEnabled && customerPackages.some((pack) => pack.items.some((item) => item.remainingQuantity > 0)) && <Button onClick={() => applyPackages()} size="sm" variant="outline">Applica pacchetto</Button>}{checkoutEnabled && <Button onClick={() => setLines((current) => [...current, { description: "", discount_cents: 0, item_type: "custom", quantity: 1, unit_price_cents: 0 }])} size="sm" variant="outline">Riga libera</Button>}</div>
                 </div>
 
                 <div className="space-y-3">
                   {lines.map((line, index) => (
-                    <div className="grid gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 md:grid-cols-[minmax(180px,1fr)_90px_125px_125px_auto]" key={`${line.item_type}-${index}`}>
-                      <label className="text-xs font-bold text-stone-500">Descrizione
+                    <div className="rounded-xl border border-stone-200 bg-[#fbfaf8] p-4" key={`${line.item_type}-${index}`}>
+                      <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_90px_125px_125px_auto]"><label className="text-xs font-bold text-stone-500">Descrizione
                         <input className="mt-1 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold disabled:bg-stone-100" disabled={!checkoutEnabled} onChange={(event) => updateLine(index, { description: event.target.value })} value={line.description} />
                       </label>
                       <label className="text-xs font-bold text-stone-500">Quantità
@@ -531,14 +619,15 @@ export default function AppointmentDetailPanel({
                       </label>
                       <div className="flex items-end">
                         {checkoutEnabled && <button className="min-h-11 px-2 text-sm font-black text-red-700" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))} type="button">Rimuovi</button>}
-                      </div>
+                      </div></div>
+                      {(line.package_quantity ?? 0) > 0 && <p className="mt-3 rounded-xl bg-violet-100 px-3 py-2 text-xs font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name} · importo azzerato</p>}
                     </div>
                   ))}
                 </div>
 
                 {checkoutEnabled && (
                   <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                    <div className="rounded-2xl bg-[#f7eef3] p-4">
+                    <div className="rounded-xl bg-[#f7eef3] p-4">
                       <label className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">Aggiungi servizio</label>
                       <select className="mt-2 min-h-11 w-full rounded-xl border border-[#e4c4d5] bg-white px-3 text-sm font-semibold" defaultValue="" onChange={(event) => {
                         const item = data.catalog.services.find((entry) => entry.id === event.target.value);
@@ -549,7 +638,7 @@ export default function AppointmentDetailPanel({
                         {data.catalog.services.map((item) => <option key={item.id} value={item.id}>{item.name} · {euro(item.price_cents)}</option>)}
                       </select>
                     </div>
-                    <div className="rounded-2xl bg-[#eef7f5] p-4">
+                    <div className="rounded-xl bg-[#eef7f5] p-4">
                       <label className="text-xs font-black uppercase tracking-[.14em] text-teal-800">Aggiungi prodotto</label>
                       <select className="mt-2 min-h-11 w-full rounded-xl border border-teal-200 bg-white px-3 text-sm font-semibold" defaultValue="" onChange={(event) => {
                         const item = data.catalog.products.find((entry) => entry.id === event.target.value);
@@ -583,14 +672,45 @@ export default function AppointmentDetailPanel({
                     <h3 className="font-black text-stone-950">Pagamenti</h3>
                     {checkoutEnabled && <button className="text-sm font-black text-[#792f59]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])} type="button">Dividi pagamento</button>}
                   </div>
+                  {checkoutEnabled && customerVouchers.length > 0 && <section className="mt-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-teal-800">Buoni disponibili</p><p className="mt-1 text-xs text-teal-950">Credito associato a {data.appointment.customer_name}</p></div>
+                      <strong className="text-teal-950">{euro(customerVouchers.reduce((sum, voucher) => sum + voucher.balance_cents, 0))}</strong>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {customerVouchers.map((voucher) => <button className="rounded-xl border border-teal-300 bg-white px-3 py-2 text-left text-xs hover:bg-teal-100" key={voucher.id ?? voucher.code} onClick={() => applyVoucher(voucher)} type="button">
+                        <strong className="block">Usa {euro(voucher.balance_cents)}</strong>
+                        <span className="font-mono text-[10px] text-teal-700">•••• {voucher.code.slice(-4)}</span>
+                      </button>)}
+                    </div>
+                  </section>}
                   <div className="mt-3 space-y-3">
                     {payments.map((payment, index) => (
-                      <div className="grid grid-cols-[1fr_130px_auto] gap-2" key={index}>
-                        <select className="min-h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold disabled:bg-stone-100" disabled={!checkoutEnabled} onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, method: event.target.value as PaymentMethod } : entry))} value={payment.method}>
-                          {Object.entries(paymentLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                        </select>
-                        <input className="min-h-11 rounded-xl border border-stone-200 px-3 text-right text-sm font-black disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, amount_cents: inputCents(event.target.value) } : entry))} step=".01" type="number" value={(payment.amount_cents / 100).toFixed(2)} />
-                        {checkoutEnabled && payments.length > 1 && <button className="px-1 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))} type="button">×</button>}
+                      <div className="rounded-xl border border-stone-200 p-3" key={index}>
+                        <div className="grid grid-cols-[1fr_130px_auto] gap-2">
+                          <select
+                            className="min-h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold disabled:bg-stone-100"
+                            disabled={!checkoutEnabled}
+                            onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? {
+                              amount_cents: entry.amount_cents,
+                              method: event.target.value as PaymentMethod,
+                            } : entry))}
+                            value={payment.method}
+                          >
+                            {paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
+                          </select>
+                          <input className="min-h-11 rounded-xl border border-stone-200 px-3 text-right text-sm font-black disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, amount_cents: inputCents(event.target.value) } : entry))} step=".01" type="number" value={(payment.amount_cents / 100).toFixed(2)} />
+                          {checkoutEnabled && payments.length > 1 && <button className="px-1 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))} type="button">×</button>}
+                        </div>
+                        {payment.method === "voucher" && <div className="mt-3">
+                          {customerVouchers.length === 0 && <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600">Il cliente non ha buoni attivi.</p>}
+                          {customerVouchers.length > 0 && <div className="grid gap-2">
+                            {customerVouchers.map((voucher) => <button className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${payment.voucher_code === voucher.code ? "border-teal-500 bg-teal-50" : "border-stone-200 bg-white hover:border-teal-300"}`} key={voucher.code} onClick={() => applyVoucher(voucher, index)} type="button">
+                              <span><strong className="block">Buono •••• {voucher.code.slice(-4)}</strong><span className="text-stone-500">Disponibile {euro(voucher.balance_cents)}</span></span>
+                              <span className="font-black text-teal-800">{payment.voucher_code === voucher.code ? "Selezionato" : "Usa"}</span>
+                            </button>)}
+                          </div>}
+                        </div>}
                       </div>
                     ))}
                   </div>
@@ -604,15 +724,15 @@ export default function AppointmentDetailPanel({
                 </label>
 
                 {isClosed ? (
-                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
+                  <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
                     Vendita registrata nella contabilità gestionale. Nessun documento fiscale viene emesso.
                   </div>
                 ) : !checkoutEnabled ? (
-                  <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
                     La cassa è disabilitata. Imposta l’appuntamento come Confermato per registrare la vendita.
                   </div>
                 ) : (
-                  <Button className="mt-5 min-h-14 w-full text-base" disabled={saving || lines.length === 0 || paidCents !== totalCents} onClick={() => void completeCheckout()} variant="primary">
+                  <Button className="mt-5 min-h-14 w-full text-base" disabled={saving || lines.length === 0 || paidCents !== totalCents || payments.some((payment) => payment.method === "voucher" && (!payment.voucher_code || payment.voucher_balance_cents === undefined || payment.amount_cents > payment.voucher_balance_cents))} onClick={() => void completeCheckout()} variant="primary">
                     {saving ? "Registrazione…" : `Incassa ${euro(totalCents)}`}
                   </Button>
                 )}

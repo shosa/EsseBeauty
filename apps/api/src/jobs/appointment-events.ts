@@ -4,8 +4,6 @@ import { and, asc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import {
   appointments,
   customers,
-  loyaltyPoints,
-  loyaltySettings,
   notifications,
   salons,
   services,
@@ -13,6 +11,7 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
+import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
 import { createNotification, sendEmail, sendSms } from "./notifications.js";
 import { getQueue, QUEUE_NAMES } from "./queues.js";
 import type { ReviewRequestJob } from "./reviews.js";
@@ -58,21 +57,11 @@ async function awardLoyalty(
   ) {
     return;
   }
-  const settings = await app.db
-    .select()
-    .from(loyaltySettings)
-    .where(eq(loyaltySettings.salonId, appointment.salonId));
-  const points = settings[0]?.pointsPerAppointment ?? 10;
-  await app.db
-    .insert(loyaltyPoints)
-    .values({
-      salonId: appointment.salonId,
-      customerId: appointment.customerId,
-      delta: points,
-      reason: "Appuntamento completato",
-      appointmentId: appointment.id,
-    })
-    .onConflictDoNothing();
+  await awardAppointmentCompletion(app.db, {
+    appointmentId: appointment.id,
+    customerId: appointment.customerId,
+    salonId: appointment.salonId,
+  });
 }
 
 async function notifyAppointmentTransition(

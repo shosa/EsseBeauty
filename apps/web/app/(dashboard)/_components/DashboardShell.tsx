@@ -39,6 +39,7 @@ const primary: Array<{ href: string; icon: IconComponent; label: string; section
   { href: "/calendar", icon: CalendarIcon, label: "Agenda", section: "Operativita" },
   { href: "/sales", icon: SalesIcon, label: "Cassa", section: "Operativita" },
   { href: "/clients", icon: ClientsIcon, label: "Clienti", section: "Archivio" },
+  { href: "/vouchers", icon: LoyaltyIcon, label: "Buoni acquisto", section: "Archivio" },
   { href: "/services", icon: ServicesIcon, label: "Servizi", section: "Archivio" },
   { href: "/staff", icon: StaffIcon, label: "Staff", section: "Archivio" },
 ];
@@ -65,7 +66,7 @@ const settingsLinks = [
 
 const workspaceSections = [
   { label: "Oggi", paths: ["/", "/calendar", "/sales"] },
-  { label: "Relazioni", paths: ["/clients", "/staff", "/services"] },
+  { label: "Relazioni", paths: ["/clients", "/vouchers", "/staff", "/services"] },
   { label: "Operatività", paths: ["/inventory", "/reviews", "/waitlist", "/marketing", "/reports"] },
   { label: "Sistema", paths: ["/settings"] },
 ] as const;
@@ -79,6 +80,7 @@ function currentSection(pathname: string) {
     ["/calendar", "Oggi", "Agenda"],
     ["/sales", "Oggi", "Cassa e movimenti"],
     ["/clients", "Relazioni", "Clienti"],
+    ["/vouchers", "Relazioni", "Buoni acquisto"],
     ["/staff", "Relazioni", "Staff"],
     ["/services", "Relazioni", "Servizi"],
     ["/inventory", "Operatività", "Inventario"],
@@ -123,14 +125,14 @@ function NavigationLink({ badge = 0, collapsed = false, href, icon: Icon, label,
   return (
     <Link
       aria-label={label}
-      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} relative text-sm font-bold transition ${active ? collapsed ? "rounded-xl bg-white text-[#5f2447] shadow-[0_8px_22px_rgb(20_10_16_/_0.22)]" : "sidebar-nav-active text-[#5f2447]" : "rounded-xl text-white/68 hover:bg-white/10 hover:text-white"}`}
+      className={`${collapsed ? "grid size-12 place-items-center" : "flex min-h-11 items-center gap-3 px-3"} relative rounded-xl text-sm font-bold transition ${active ? "bg-white text-[#5f2447] shadow-[0_8px_22px_rgb(20_10_16_/_0.22)]" : "text-white/68 hover:bg-white/10 hover:text-white"}`}
       href={href}
       onClick={onClick}
       title={label}
     >
-      <Icon className="relative z-10 shrink-0" />
-      {!collapsed && <span className="relative z-10">{label}</span>}
-      {badge > 0 && <span className={`${collapsed ? "absolute -right-1 -top-1" : "relative z-10 ml-auto"} grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white`}>{Math.min(badge, 9)}</span>}
+      <Icon className="shrink-0" />
+      {!collapsed && <span>{label}</span>}
+      {badge > 0 && <span className={`${collapsed ? "absolute -right-1 -top-1" : "ml-auto"} grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white`}>{Math.min(badge, 9)}</span>}
     </Link>
   );
 }
@@ -151,11 +153,23 @@ function QuickCreateMenu() {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
-      <Button onClick={() => setOpen((value) => !value)} size="sm" variant="primary">Crea</Button>
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Crea nuovo"
+        className="grid size-10 place-items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] text-white shadow-[0_10px_24px_rgb(121_47_89_/_0.24)] transition hover:-translate-y-0.5"
+        onClick={() => setOpen((value) => !value)}
+        title="Crea nuovo"
+        type="button"
+      >
+        <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.2" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)] ring-1 ring-stone-950/5 backdrop-blur">
+        <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)] ring-1 ring-stone-950/5 backdrop-blur" role="menu">
           {quickCreateActions.map((action) => (
-            <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" href={action.href} key={action.key} onClick={() => setOpen(false)}>
+            <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" href={action.href} key={action.key} onClick={() => setOpen(false)} role="menuitem">
               {action.label}
             </Link>
           ))}

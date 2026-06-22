@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 
 import {
   appointments,
@@ -74,6 +74,7 @@ export async function ensureOnlineBookingNotifications(
       serviceName: services.name,
       staffName: staff.displayName,
       startsAt: appointments.startsAt,
+      status: appointments.status,
     })
     .from(appointments)
     .innerJoin(customers, eq(customers.id, appointments.customerId))
@@ -82,7 +83,7 @@ export async function ensureOnlineBookingNotifications(
     .where(and(
       eq(appointments.salonId, salonId),
       eq(appointments.source, "online"),
-      eq(appointments.status, "pending"),
+      inArray(appointments.status, ["pending", "confirmed"]),
       gt(appointments.endsAt, new Date()),
       ...(appointmentId ? [eq(appointments.id, appointmentId)] : []),
     ));
@@ -107,10 +108,10 @@ export async function ensureOnlineBookingNotifications(
         entityId: booking.id,
         entityType: "appointment",
         payload: { href: `/calendar/appointments/${booking.id}` },
-        priority: "high",
+        priority: booking.status === "pending" ? "high" : "normal",
         salonId,
         targetRole: role,
-        title: "Nuova prenotazione online",
+        title: booking.status === "pending" ? "Prenotazione online da confermare" : "Prenotazione online confermata",
         type: "online_booking_received",
       }).onConflictDoNothing();
     }

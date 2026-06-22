@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../../lib/auth-context";
 
@@ -76,14 +76,14 @@ export default function RewardDetailPage() {
   if (loading) return <PageSkeleton />;
 
   return (
-    <main className="p-5 md:p-8">
-      <div className="mx-auto max-w-[1200px]">
+    <AppPage maxWidth="max-w-[1600px]">
+      <div>
         <Breadcrumbs items={[{ href: "/settings/loyalty", label: "Fedeltà" }, { label: reward?.name ?? "Premio" }]} />
         {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
         {!reward ? (
           <EmptyState title="Premio non trovato" description="Potrebbe essere stato eliminato o non accessibile." />
         ) : (
-          <form action={save} className="mt-5 grid gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+          <form action={save} className="mt-5 grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
             <h1 className="text-3xl font-bold">{reward.name}</h1>
             <FormField label="Nome premio" required><input required name="name" defaultValue={reward.name} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
             <FormField label="Punti richiesti" required><input required name="points" type="number" min="1" defaultValue={reward.pointsRequired} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
@@ -96,6 +96,6 @@ export default function RewardDetailPage() {
         )}
       </div>
       <ConfirmDialog open={confirmDelete} destructive title="Eliminare premio?" description="Il premio non sarà più disponibile nel programma fedeltà." confirmLabel="Elimina" onCancel={() => setConfirmDelete(false)} onConfirm={() => void remove()} />
-    </main>
+    </AppPage>
   );
 }

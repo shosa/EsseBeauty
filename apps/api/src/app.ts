@@ -32,6 +32,7 @@ import { registerShellRoutes } from "./routes/shell/index.js";
 import { registerStaffAppRoutes } from "./routes/staff-app/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
 import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
+import { registerVoucherRoutes } from "./routes/vouchers/index.js";
 
 interface ApiEnvironment {
   API_CORS_ORIGIN: string;
@@ -70,7 +71,7 @@ export function createApp({
   void app.register(cookie);
   void app.register(cors, {
     credentials: true,
-    methods: ["GET", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"],
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     origin: parseOrigins(env.API_CORS_ORIGIN),
   });
   void app.register(helmet);
@@ -107,6 +108,7 @@ export function createApp({
   void registerReminderRoutes(app);
   void registerReviewRoutes(app);
   void registerWaitlistRoutes(app);
+  void registerVoucherRoutes(app);
   void registerLoyaltyRoutes(app);
   void registerMarketingRoutes(app);
   void registerOnboardingRoutes(app);

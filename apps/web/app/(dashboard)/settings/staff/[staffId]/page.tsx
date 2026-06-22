@@ -94,19 +94,19 @@ export default function StaffDetailPage() {
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({ error: "ACCESS_NOT_SAVED" }));
-      setError(payload.error === "PASSWORD_REQUIRED" ? "Inserisci una password per creare il primo accesso." : "Accesso PWA non salvato.");
+      setError(payload.error === "PASSWORD_REQUIRED" ? "Inserisci una password per creare il primo accesso." : "Accesso App Staff non salvato.");
       return;
     }
     setAccess(await response.json() as StaffAccess);
-    setMessage("Accesso PWA dipendente salvato.");
+    setMessage("Accesso App Staff salvato.");
   }
 
-  if (!member) return <AppPage><SectionCard><div className="h-96 animate-pulse rounded-[2rem] bg-stone-100" /></SectionCard></AppPage>;
+  if (!member) return <AppPage maxWidth="max-w-[1600px]"><SectionCard><div className="h-96 animate-pulse rounded-2xl bg-stone-100" /></SectionCard></AppPage>;
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message || error)} variant={error ? "error" : "success"}>{error || message}</SaveToast>
-      <PageHeader eyebrow="Profilo staff" title={member.displayName} subtitle="Anagrafica, accesso PWA dipendente e orari ricorrenti." />
+      <PageHeader eyebrow="Profilo staff" title={member.displayName} subtitle="Anagrafica, accesso App Staff e orari ricorrenti." />
 
       <div className="grid gap-5 xl:grid-cols-12">
         <SectionCard className="xl:col-span-5" title="Profilo" subtitle="Dati visibili nel gestionale e nelle aree collegate al collaboratore.">
@@ -132,7 +132,7 @@ export default function StaffDetailPage() {
           </div>
         </SectionCard>
 
-        <SectionCard className="xl:col-span-7" title="Accesso PWA dipendente" subtitle="Credenziali usate dal collaboratore per accedere alla PWA staff separata.">
+        <SectionCard className="xl:col-span-7" title="Accesso App Staff" subtitle="Credenziali usate dal collaboratore per accedere alla propria app operativa.">
           <form action={saveAccess}>
             <div className="grid gap-5 md:grid-cols-2">
               <FormField label="Email dipendente" required>
@@ -144,7 +144,7 @@ export default function StaffDetailPage() {
               <div className="md:col-span-2">
                 <label className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-[#fbfaf8] px-4">
                   <span>
-                    <strong className="block text-sm text-stone-900">Accesso PWA attivo</strong>
+                    <strong className="block text-sm text-stone-900">Accesso App Staff attivo</strong>
                     <span className="mt-1 block text-xs text-stone-500">Consente al collaboratore di accedere alla propria agenda.</span>
                   </span>
                   <input disabled={access.role === "owner"} name="active" type="checkbox" checked={access.active} onChange={(event) => setAccess({ ...access, active: event.target.checked })} />
@@ -153,11 +153,11 @@ export default function StaffDetailPage() {
             </div>
             {access.role === "owner" && (
               <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-                Questo profilo è collegato al titolare. L’accesso PWA usa lo stesso account senza modificarne ruolo o stato.
+                Questo profilo è collegato al titolare. L’accesso all’App Staff usa lo stesso account senza modificarne ruolo o stato.
               </p>
             )}
             <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-              <Button type="submit" variant="primary">Salva accesso PWA</Button>
+              <Button type="submit" variant="primary">Salva accesso App Staff</Button>
             </div>
           </form>
         </SectionCard>

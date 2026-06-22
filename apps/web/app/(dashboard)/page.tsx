@@ -75,15 +75,15 @@ export default function DashboardPage() {
     ? weekAppointments.data.filter((item) => item.status === "pending" || item.status === "confirmed")
     : [];
 
-  if (loading) return <AppPage maxWidth="max-w-7xl"><PageSkeleton /></AppPage>;
-  if (!user || !salon) return <AppPage><EmptyState action={<Link className="font-bold text-[#792f59]" href="/login">Vai al login</Link>} description="Accedi nuovamente per continuare." title="Sessione non disponibile" /></AppPage>;
+  if (loading) return <AppPage maxWidth="max-w-[1600px]"><PageSkeleton /></AppPage>;
+  if (!user || !salon) return <AppPage maxWidth="max-w-[1600px]"><EmptyState action={<Link className="font-bold text-[#792f59]" href="/login">Vai al login</Link>} description="Accedi nuovamente per continuare." title="Sessione non disponibile" /></AppPage>;
 
   const priorities = notifications.status === "ready" ? notifications.data.items.filter((item) =>
     item.unread && (!item.href || item.type === "staff_availability_request" || item.type === "online_booking_received")
   ).slice(0, 5) : [];
 
   return (
-    <AppPage maxWidth="max-w-7xl">
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeaderMetrics
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl bg-[#402334] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#5f2447]" href="/calendar/appointments/new">Nuovo appuntamento</Link>}
         eyebrow="Il tuo salone"

@@ -50,7 +50,7 @@ export default function ModulesPage() {
   const activeCount = Object.values(state).filter(Boolean).length;
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeader
         eyebrow="Piano del salone"
         title="Moduli inclusi"

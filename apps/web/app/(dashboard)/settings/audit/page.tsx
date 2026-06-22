@@ -190,7 +190,7 @@ export default function AuditSettingsPage() {
   const selectedDiscount = Number(selectedBody?.discount_cents) || 0;
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <Drawer onClose={() => setSelectedActivity(undefined)} open={Boolean(selectedActivity)} title="Dettaglio attività">
         {selectedActivity && <div className="space-y-5">
           <section className={`rounded-2xl p-5 ${kindStyle(activityKind(selectedActivity))}`}>

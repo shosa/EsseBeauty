@@ -9,6 +9,7 @@ import { apiBaseUrl } from "../../../lib/api";
 
 interface Branding {
   accentColor?: string;
+  bookingSuccessText?: string;
   heroTitle?: string;
   primaryColor?: string;
 }
@@ -29,6 +30,13 @@ interface Slot {
 }
 interface Profile {
   branding?: Branding | null;
+  pwa?: {
+    allowStaffPreference?: boolean;
+    bookingDefaultStatus?: "confirmed" | "pending";
+    maxAdvanceDays?: number;
+    requireEmail?: boolean;
+    requirePhone?: boolean;
+  };
   salon: { name: string };
   services: Service[];
   staff: Member[];
@@ -40,6 +48,7 @@ interface Booking {
   service_name: string;
   staff_name: string;
   startsAt: string;
+  status?: string;
 }
 
 function ics(value: string) {
@@ -179,7 +188,8 @@ export default function BookingPage() {
       <main className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top, ${accent}55, transparent 20rem), #f6f2f4` }}>
         <section className="mx-auto max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
-          <h1 className="mt-5 text-3xl font-bold">Prenotazione inviata</h1>
+          <h1 className="mt-5 text-3xl font-bold">{booking.status === "confirmed" ? "Prenotazione confermata" : "Richiesta inviata"}</h1>
+          <p className="mt-2 text-sm text-stone-500">{brand?.bookingSuccessText || (booking.status === "confirmed" ? "Il tuo appuntamento è confermato." : "Il salone deve ancora confermare la richiesta.")}</p>
           <p className="mt-3 text-stone-600">{booking.service_name} con {firstName(booking.staff_name)}</p>
           <p className="mt-1 text-sm font-bold text-[#792f59]">{new Date(booking.startsAt).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
           <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}>Aggiungi al calendario</button>
@@ -248,7 +258,7 @@ export default function BookingPage() {
               </div>
             )}
 
-            <div>
+            {profile.pwa?.allowStaffPreference !== false && <div>
               <p className="text-sm font-black text-stone-800">Preferenza staff</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setStaffId("")} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
@@ -264,9 +274,9 @@ export default function BookingPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
             <label className="block text-sm font-black text-stone-800" htmlFor="booking-date">Data</label>
-            <input id="booking-date" min={new Date().toISOString().slice(0, 10)} type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full" />
+            <input id="booking-date" max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)} min={new Date().toISOString().slice(0, 10)} type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full" />
             <button disabled={!serviceId || loadingSlots} onClick={() => void next()} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>{loadingSlots ? "Cerco orari..." : "Mostra orari"}</button>
           </section>
         )}
@@ -296,7 +306,7 @@ export default function BookingPage() {
             ].map(([name, label, type]) => (
               <label key={name} className="block text-sm font-black text-stone-800">
                 {label}
-                <input name={name} type={type} required={name === "name"} className="mt-2 w-full" />
+                <input name={name} type={type} required={name === "name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} className="mt-2 w-full" />
               </label>
             ))}
             <button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>

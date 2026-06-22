@@ -1,8 +1,16 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const dashboardRoot = join(process.cwd(), "app", "(dashboard)");
+
+function dashboardPages(directory = dashboardRoot): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return dashboardPages(path);
+    return entry.name === "page.tsx" ? [path] : [];
+  });
+}
 
 const checkedFiles = [
   "calendar/page.tsx",
@@ -18,6 +26,17 @@ const checkedFiles = [
 ];
 
 describe("professional UI regression guard", () => {
+  it("keeps every dashboard page aligned to the cash-register workspace and dashboard radii", () => {
+    for (const page of dashboardPages()) {
+      const source = readFileSync(page, "utf8");
+      if (source.includes("redirect(") && !source.includes("return (")) continue;
+      expect(source, page).not.toContain("<main className=");
+      expect(source, page).not.toContain("rounded-3xl");
+      expect(source, page).not.toMatch(/rounded-\[(?!2rem)[^\]]+\]/);
+      expect(source, page).toContain('maxWidth="max-w-[1600px]"');
+    }
+  });
+
   it("uses the refreshed brand typography and breadcrumb treatment", () => {
     const layout = readFileSync(join(process.cwd(), "app", "layout.tsx"), "utf8");
     const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
@@ -229,7 +248,7 @@ describe("professional UI regression guard", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     const shared = readFileSync(join(process.cwd(), "..", "..", "packages", "shared", "index.ts"), "utf8");
 
-    expect(staffDetail).toContain("Accesso PWA dipendente");
+    expect(staffDetail).toContain("Accesso App Staff");
     expect(staffDetail).toContain("/access");
     expect(staffDetail).toContain("ScheduleEditor");
     expect(staffDetail).not.toContain('["mon", "tue", "wed", "thu", "fri", "sat", "sun"]');

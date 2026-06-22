@@ -62,13 +62,13 @@ export default function SettingsStaffPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
           actions={<Link href="/settings/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
           eyebrow="Core"
           title="Staff"
-          subtitle="Profili collaboratori, accessi PWA e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
+          subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
           status={<StatusBadge status="active">{staff.length} profili</StatusBadge>}
         />
         {error && <InlineError className="mb-5">{error}</InlineError>}

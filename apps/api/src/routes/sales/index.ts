@@ -3,16 +3,19 @@ import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 import {
   appointments,
+  customerPackageItemBalances,
+  customerServicePackages,
   customers,
   inventoryMovements,
   inventoryProducts,
-  loyaltyPoints,
-  loyaltySettings,
   notifications,
   saleItems,
   salePayments,
   sales,
   services,
+  servicePackageItems,
+  servicePackageUsages,
+  servicePackages,
   staff,
   users,
 } from "@esse-beauty/db/schema";
@@ -20,15 +23,20 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate } from "../../middleware/auth.js";
+import { awardSaleLoyalty } from "../../lib/loyalty-engine.js";
+import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
 
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 type ItemType = "service" | "product" | "custom";
 
 interface CheckoutItem {
+  customer_package_id?: string;
   description: string;
   discount_cents?: number;
   item_type: ItemType;
   product_id?: string;
+  package_item_id?: string;
+  package_quantity?: number;
   quantity: number;
   service_id?: string;
   staff_id?: string;
@@ -39,7 +47,15 @@ interface CheckoutPayment {
   amount_cents: number;
   method: PaymentMethod;
   reference?: string;
+  voucher_code?: string;
 }
+
+interface IssuedVoucher {
+  amount_cents: number;
+  message?: string;
+  recipient_customer_id: string;
+}
+interface AssignedPackage { package_id: string; }
 
 async function ownStaffId(request: any) {
   const rows = await request.server.db
@@ -77,17 +93,217 @@ async function canUsePos(request: any) {
 
 function normalizedLine(item: CheckoutItem) {
   const quantity = Math.max(1, Math.trunc(item.quantity));
+  const packageQuantity = Math.min(quantity, Math.max(0, Math.trunc(item.package_quantity ?? 0)));
   const unitPriceCents = Math.max(0, Math.trunc(item.unit_price_cents));
-  const gross = quantity * unitPriceCents;
+  const gross = (quantity - packageQuantity) * unitPriceCents;
   const discountCents = Math.min(gross, Math.max(0, Math.trunc(item.discount_cents ?? 0)));
   return {
     ...item,
     description: item.description.trim(),
     discountCents,
+    packageQuantity,
     quantity,
     totalCents: gross - discountCents,
     unitPriceCents,
   };
+}
+
+async function consumePackageItems(
+  tx: any,
+  input: {
+    appointmentId?: string;
+    customerId?: string | null;
+    lines: ReturnType<typeof normalizedLine>[];
+    saleId: string;
+    saleItemIds: string[];
+    salonId: string;
+    userId: string;
+  },
+) {
+  for (let index = 0; index < input.lines.length; index += 1) {
+    const line = input.lines[index]!;
+    if (!line.packageQuantity) continue;
+    if (!input.customerId || !line.customer_package_id || !line.package_item_id) throw new Error("PACKAGE_COVERAGE_INVALID");
+    const balances = await tx.select({
+      active: customerServicePackages.active,
+      customerId: customerServicePackages.customerId,
+      expiresAt: customerServicePackages.expiresAt,
+      itemType: servicePackageItems.itemType,
+      productId: servicePackageItems.productId,
+      remaining: sql<number>`${customerPackageItemBalances.totalQuantity} - ${customerPackageItemBalances.usedQuantity}`,
+      serviceId: servicePackageItems.serviceId,
+    }).from(customerPackageItemBalances)
+      .innerJoin(customerServicePackages, eq(customerServicePackages.id, customerPackageItemBalances.customerPackageId))
+      .innerJoin(servicePackageItems, eq(servicePackageItems.id, customerPackageItemBalances.packageItemId))
+      .where(and(
+        eq(customerPackageItemBalances.customerPackageId, line.customer_package_id),
+        eq(customerPackageItemBalances.packageItemId, line.package_item_id),
+        eq(customerPackageItemBalances.salonId, input.salonId),
+      )).for("update");
+    const balance = balances[0];
+    if (
+      !balance ||
+      !balance.active ||
+      balance.customerId !== input.customerId ||
+      (balance.expiresAt && balance.expiresAt < new Date()) ||
+      balance.remaining < line.packageQuantity ||
+      (line.item_type === "service" && balance.serviceId !== line.service_id) ||
+      (line.item_type === "product" && balance.productId !== line.product_id)
+    ) throw new Error("PACKAGE_COVERAGE_INVALID");
+    await tx.update(customerPackageItemBalances).set({
+      usedQuantity: sql`${customerPackageItemBalances.usedQuantity} + ${line.packageQuantity}`,
+    }).where(and(
+      eq(customerPackageItemBalances.customerPackageId, line.customer_package_id),
+      eq(customerPackageItemBalances.packageItemId, line.package_item_id),
+    ));
+    await tx.insert(servicePackageUsages).values({
+      appointmentId: input.appointmentId,
+      createdByUserId: input.userId,
+      customerPackageId: line.customer_package_id,
+      note: `${line.description} coperto dal pacchetto`,
+      packageItemId: line.package_item_id,
+      quantityUsed: line.packageQuantity,
+      saleId: input.saleId,
+      saleItemId: input.saleItemIds[index],
+      salonId: input.salonId,
+      sessionsUsed: line.packageQuantity,
+    });
+    await tx.update(customerServicePackages).set({
+      usedSessions: sql`${customerServicePackages.usedSessions} + ${line.packageQuantity}`,
+    }).where(eq(customerServicePackages.id, line.customer_package_id));
+    const remainingRows = await tx.select({
+      remaining: sql<number>`sum(${customerPackageItemBalances.totalQuantity} - ${customerPackageItemBalances.usedQuantity})`,
+    }).from(customerPackageItemBalances).where(eq(customerPackageItemBalances.customerPackageId, line.customer_package_id));
+    if (Number(remainingRows[0]?.remaining ?? 0) <= 0) {
+      await tx.update(customerServicePackages).set({ active: false }).where(eq(customerServicePackages.id, line.customer_package_id));
+    }
+  }
+}
+
+function validateIssuedVouchers(lines: ReturnType<typeof normalizedLine>[], vouchers: IssuedVoucher[] = []) {
+  const issuedTotal = vouchers.reduce((total, voucher) => total + Math.max(0, Math.trunc(voucher.amount_cents)), 0);
+  const voucherLineTotal = lines
+    .filter((line) => line.item_type === "custom" && line.description.toLowerCase().startsWith("buono acquisto"))
+    .reduce((total, line) => total + line.totalCents, 0);
+  if (vouchers.some((voucher) => !voucher.recipient_customer_id || voucher.amount_cents <= 0)) return false;
+  return issuedTotal === voucherLineTotal;
+}
+
+async function savePayments(
+  tx: any,
+  input: {
+    customerId?: string | null;
+    payments: CheckoutPayment[];
+    saleId: string;
+    salonId: string;
+    userId: string;
+  },
+) {
+  const rows = [];
+  for (const payment of input.payments) {
+    if (payment.method === "voucher") {
+      const code = payment.voucher_code?.replace(/\D/g, "") || payment.reference?.replace(/\D/g, "");
+      if (!code) throw new Error("VOUCHER_CODE_REQUIRED");
+      const voucher = await redeemPurchaseVoucher(tx, {
+        amountCents: payment.amount_cents,
+        code,
+        createdByUserId: input.userId,
+        customerId: input.customerId,
+        saleId: input.saleId,
+        salonId: input.salonId,
+      });
+      rows.push({
+        amountCents: payment.amount_cents,
+        method: payment.method,
+        reference: voucher.code,
+        saleId: input.saleId,
+        salonId: input.salonId,
+        voucherId: voucher.id,
+      });
+    } else {
+      rows.push({
+        amountCents: payment.amount_cents,
+        method: payment.method,
+        reference: payment.reference?.trim() || null,
+        saleId: input.saleId,
+        salonId: input.salonId,
+      });
+    }
+  }
+  if (rows.length) await tx.insert(salePayments).values(rows);
+}
+
+async function issueVouchers(
+  tx: any,
+  input: {
+    issuedVouchers?: IssuedVoucher[];
+    purchaserCustomerId?: string | null;
+    saleId: string;
+    salonId: string;
+    userId: string;
+  },
+) {
+  const issued = [];
+  for (const voucher of input.issuedVouchers ?? []) {
+    const customerRows = await tx.select({ id: customers.id }).from(customers).where(and(
+      eq(customers.id, voucher.recipient_customer_id),
+      eq(customers.salonId, input.salonId),
+      eq(customers.blocked, false),
+    ));
+    if (!customerRows[0]) throw new Error("VOUCHER_RECIPIENT_NOT_FOUND");
+    issued.push(await issuePurchaseVoucher(tx, {
+      amountCents: Math.trunc(voucher.amount_cents),
+      customerId: voucher.recipient_customer_id,
+      issuedByUserId: input.userId,
+      issuedSaleId: input.saleId,
+      message: voucher.message,
+      purchaserCustomerId: input.purchaserCustomerId || undefined,
+      salonId: input.salonId,
+    }));
+  }
+  return issued;
+}
+
+async function assignPurchasedPackages(
+  tx: any,
+  input: {
+    assignedPackages?: AssignedPackage[];
+    customerId?: string | null;
+    saleId: string;
+    salonId: string;
+  },
+) {
+  if (!input.assignedPackages?.length) return [];
+  if (!input.customerId) throw new Error("PACKAGE_CUSTOMER_REQUIRED");
+  const assigned = [];
+  for (const entry of input.assignedPackages) {
+    const packageRows = await tx.select().from(servicePackages).where(and(
+      eq(servicePackages.id, entry.package_id),
+      eq(servicePackages.salonId, input.salonId),
+      eq(servicePackages.active, true),
+    ));
+    const packageItem = packageRows[0];
+    if (!packageItem) throw new Error("PACKAGE_NOT_FOUND");
+    const items = await tx.select().from(servicePackageItems).where(eq(servicePackageItems.packageId, packageItem.id)) as Array<typeof servicePackageItems.$inferSelect>;
+    if (!items.length) throw new Error("PACKAGE_EMPTY");
+    const expiresAt = packageItem.validityDays ? new Date(Date.now() + packageItem.validityDays * 86400000) : null;
+    const rows = await tx.insert(customerServicePackages).values({
+      customerId: input.customerId,
+      expiresAt,
+      packageId: packageItem.id,
+      purchaseSaleId: input.saleId,
+      salonId: input.salonId,
+      totalSessions: items.reduce((sum, item) => sum + item.quantity, 0),
+    }).returning();
+    await tx.insert(customerPackageItemBalances).values(items.map((item) => ({
+      customerPackageId: rows[0]!.id,
+      packageItemId: item.id,
+      salonId: input.salonId,
+      totalQuantity: item.quantity,
+    })));
+    assigned.push(rows[0]!);
+  }
+  return assigned;
 }
 
 async function notifyNegativeStock(
@@ -126,7 +342,8 @@ export async function registerSalesRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>("/api/salons/:id/pos-catalog", { preHandler: [authenticate] }, async (request, reply) => {
     if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
     if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
-    const [serviceRows, productRows, staffRows] = await Promise.all([
+    const packagesEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.PACKAGES, app.db);
+    const [serviceRows, productRows, staffRows, packageRows] = await Promise.all([
       app.db.select({
         category: services.category,
         id: services.id,
@@ -144,8 +361,15 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         id: staff.id,
         name: staff.displayName,
       }).from(staff).where(and(eq(staff.salonId, request.salonId), eq(staff.active, true))),
+      packagesEnabled
+        ? app.db.select({
+            id: servicePackages.id,
+            name: servicePackages.name,
+            price_cents: servicePackages.priceCents,
+          }).from(servicePackages).where(and(eq(servicePackages.salonId, request.salonId), eq(servicePackages.active, true)))
+        : Promise.resolve([]),
     ]);
-    return { products: productRows, services: serviceRows, staff: staffRows };
+    return { packages: packageRows, products: productRows, services: serviceRows, staff: staffRows };
   });
 
   app.get<{
@@ -176,7 +400,9 @@ export async function registerSalesRoutes(app: FastifyInstance) {
   app.post<{
     Body: {
       customer_id?: string;
+      assigned_packages?: AssignedPackage[];
       discount_cents?: number;
+      issued_vouchers?: IssuedVoucher[];
       items: CheckoutItem[];
       notes?: string;
       payments: CheckoutPayment[];
@@ -188,6 +414,16 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
     const lines = request.body.items.map(normalizedLine).filter((item) => item.description && item.totalCents >= 0);
     if (lines.length === 0) return reply.code(400).send({ error: "EMPTY_CHECKOUT" });
+    if (!validateIssuedVouchers(lines, request.body.issued_vouchers)) {
+      return reply.code(400).send({ error: "VOUCHER_ISSUE_TOTAL_MISMATCH" });
+    }
+    const packageLineIds = lines.filter((line) => line.item_type === "custom" && line.description.toLowerCase().startsWith("pacchetto ·")).map((line) => line.description.split("·")[1]?.trim());
+    if ((request.body.assigned_packages?.length ?? 0) !== packageLineIds.length) {
+      return reply.code(400).send({ error: "PACKAGE_ASSIGNMENT_MISMATCH" });
+    }
+    if ((request.body.issued_vouchers?.length ?? 0) > 0 && (request.body.discount_cents ?? 0) > 0) {
+      return reply.code(400).send({ error: "VOUCHER_CANNOT_BE_DISCOUNTED" });
+    }
     const serviceIds = [...new Set(lines.flatMap((item) => item.item_type === "service" && item.service_id ? [item.service_id] : []))];
     const productIds = [...new Set(lines.flatMap((item) => item.item_type === "product" && item.product_id ? [item.product_id] : []))];
     if (lines.some((item) => item.item_type === "service" && !item.service_id) || lines.some((item) => item.item_type === "product" && !item.product_id)) {
@@ -220,6 +456,8 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       .filter((payment) => payment.amount_cents > 0);
     const paidCents = payments.reduce((total, payment) => total + payment.amount_cents, 0);
     if (paidCents !== totalCents) return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH" });
+    const loyaltyEnabled = Boolean(request.body.customer_id) &&
+      await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db);
 
     const result = await app.db.transaction(async (tx) => {
       const saleRows = await tx.insert(sales).values({
@@ -235,7 +473,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         closedByUserId: request.user.id,
       }).returning();
       const sale = saleRows[0]!;
-      await tx.insert(saleItems).values(lines.map((item) => ({
+      const insertedItems = await tx.insert(saleItems).values(lines.map((item) => ({
         description: item.description,
         discountCents: item.discountCents,
         itemType: item.item_type,
@@ -247,16 +485,22 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         staffId: item.staff_id ?? request.body.staff_id,
         totalCents: item.totalCents,
         unitPriceCents: item.unitPriceCents,
-      })));
-      if (payments.length) {
-        await tx.insert(salePayments).values(payments.map((payment) => ({
-          amountCents: payment.amount_cents,
-          method: payment.method,
-          reference: payment.reference?.trim() || null,
-          saleId: sale.id,
-          salonId: request.salonId,
-        })));
-      }
+      }))).returning({ id: saleItems.id });
+      await consumePackageItems(tx, {
+        customerId: request.body.customer_id,
+        lines,
+        saleId: sale.id,
+        saleItemIds: insertedItems.map((item) => item.id),
+        salonId: request.salonId,
+        userId: request.user.id,
+      });
+      await savePayments(tx, {
+        customerId: request.body.customer_id,
+        payments,
+        saleId: sale.id,
+        salonId: request.salonId,
+        userId: request.user.id,
+      });
       for (const line of lines.filter((item) => item.item_type === "product" && item.product_id)) {
         const productRows = await tx.select().from(inventoryProducts).where(and(
           eq(inventoryProducts.id, line.product_id!),
@@ -282,7 +526,29 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           stockAfter,
         });
       }
-      return sale;
+      const issuedVouchers = await issueVouchers(tx, {
+        issuedVouchers: request.body.issued_vouchers,
+        purchaserCustomerId: request.body.customer_id,
+        saleId: sale.id,
+        salonId: request.salonId,
+        userId: request.user.id,
+      });
+      const assignedPackages = await assignPurchasedPackages(tx, {
+        assignedPackages: request.body.assigned_packages,
+        customerId: request.body.customer_id,
+        saleId: sale.id,
+        salonId: request.salonId,
+      });
+      if (loyaltyEnabled) {
+        await awardSaleLoyalty(tx, {
+          customerId: request.body.customer_id,
+          discountCents,
+          items: lines,
+          saleId: sale.id,
+          salonId: request.salonId,
+        });
+      }
+      return { assigned_packages: assignedPackages, issued_vouchers: issuedVouchers, sale };
     }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "CHECKOUT_FAILED" }));
     if ("error" in result) return reply.code(400).send({ error: result.error });
     return reply.code(201).send(result);
@@ -352,6 +618,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
   app.post<{
     Body: {
       discount_cents?: number;
+      issued_vouchers?: IssuedVoucher[];
       items: CheckoutItem[];
       notes?: string;
       payments: CheckoutPayment[];
@@ -377,6 +644,12 @@ export async function registerSalesRoutes(app: FastifyInstance) {
 
       const lines = request.body.items.map(normalizedLine).filter((item) => item.description && item.totalCents >= 0);
       if (lines.length === 0) return reply.code(400).send({ error: "EMPTY_CHECKOUT" });
+      if (!validateIssuedVouchers(lines, request.body.issued_vouchers)) {
+        return reply.code(400).send({ error: "VOUCHER_ISSUE_TOTAL_MISMATCH" });
+      }
+      if ((request.body.issued_vouchers?.length ?? 0) > 0 && (request.body.discount_cents ?? 0) > 0) {
+        return reply.code(400).send({ error: "VOUCHER_CANNOT_BE_DISCOUNTED" });
+      }
       const subtotalCents = lines.reduce((total, item) => total + item.totalCents, 0);
       const discountCents = Math.min(subtotalCents, Math.max(0, Math.trunc(request.body.discount_cents ?? 0)));
       const totalCents = subtotalCents - discountCents;
@@ -388,10 +661,6 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH", expected_cents: totalCents, paid_cents: paidCents });
       }
       const loyaltyEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db);
-      const loyaltyRows = loyaltyEnabled
-        ? await app.db.select().from(loyaltySettings).where(eq(loyaltySettings.salonId, request.salonId))
-        : [];
-      const loyaltyPointsPerAppointment = loyaltyRows[0]?.pointsPerAppointment ?? 10;
 
       const result = await app.db.transaction(async (tx) => {
         const existingRows = await tx.select().from(sales).where(and(
@@ -429,7 +698,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         const sale = saleRows[0]!;
         await tx.delete(saleItems).where(eq(saleItems.saleId, sale.id));
         await tx.delete(salePayments).where(eq(salePayments.saleId, sale.id));
-        await tx.insert(saleItems).values(lines.map((item) => ({
+        const insertedItems = await tx.insert(saleItems).values(lines.map((item) => ({
           description: item.description,
           discountCents: item.discountCents,
           itemType: item.item_type,
@@ -441,16 +710,23 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           staffId: item.staff_id ?? appointment.staffId,
           totalCents: item.totalCents,
           unitPriceCents: item.unitPriceCents,
-        })));
-        if (payments.length > 0) {
-          await tx.insert(salePayments).values(payments.map((payment) => ({
-            amountCents: payment.amount_cents,
-            method: payment.method,
-            reference: payment.reference?.trim() || null,
-            saleId: sale.id,
-            salonId: request.salonId,
-          })));
-        }
+        }))).returning({ id: saleItems.id });
+        await consumePackageItems(tx, {
+          appointmentId: appointment.id,
+          customerId: appointment.customerId,
+          lines,
+          saleId: sale.id,
+          saleItemIds: insertedItems.map((item) => item.id),
+          salonId: request.salonId,
+          userId: request.user.id,
+        });
+        await savePayments(tx, {
+          customerId: appointment.customerId,
+          payments,
+          saleId: sale.id,
+          salonId: request.salonId,
+          userId: request.user.id,
+        });
 
         for (const line of lines.filter((item) => item.item_type === "product" && item.product_id)) {
           const productRows = await tx.select().from(inventoryProducts).where(and(
@@ -491,16 +767,24 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           eq(notifications.entityId, appointment.id),
           eq(notifications.type, "online_booking_received"),
         ));
-        if (loyaltyEnabled && loyaltyPointsPerAppointment > 0) {
-          await tx.insert(loyaltyPoints).values({
+        if (loyaltyEnabled) {
+          await awardSaleLoyalty(tx, {
             appointmentId: appointment.id,
             customerId: appointment.customerId,
-            delta: loyaltyPointsPerAppointment,
-            reason: "Appuntamento completato",
+            discountCents,
+            items: lines,
+            saleId: sale.id,
             salonId: request.salonId,
-          }).onConflictDoNothing();
+          });
         }
-        return { conflict: false as const, sale };
+        const issuedVouchers = await issueVouchers(tx, {
+          issuedVouchers: request.body.issued_vouchers,
+          purchaserCustomerId: appointment.customerId,
+          saleId: sale.id,
+          salonId: request.salonId,
+          userId: request.user.id,
+        });
+        return { conflict: false as const, issuedVouchers, sale };
       }).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : "CHECKOUT_FAILED";
         return { conflict: false as const, error: message };

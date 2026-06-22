@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -33,8 +33,8 @@ export default function InviteUserPage() {
   }
 
   return (
-    <main className="p-5 md:p-8">
-      <form action={invite} className="mx-auto grid max-w-[1000px] gap-4 rounded-3xl bg-white p-6 shadow-sm md:p-8">
+    <AppPage maxWidth="max-w-[1600px]">
+      <form action={invite} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
         <Breadcrumbs items={[{ href: "/settings/users", label: "Utenti" }, { label: "Invita" }]} />
         <h1 className="text-3xl font-bold">Invita utente</h1>
         {error && <InlineError>{error}</InlineError>}
@@ -51,6 +51,6 @@ export default function InviteUserPage() {
           <Button type="submit">Crea utente</Button>
         </div>
       </form>
-    </main>
+    </AppPage>
   );
 }

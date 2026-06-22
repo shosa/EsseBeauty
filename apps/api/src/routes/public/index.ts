@@ -1,13 +1,32 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, ilike, lt, ne, or } from "drizzle-orm";
 
-import { appointmentRescheduleRequests, appointments, availabilityBlocks, customers, pwaBrandingSettings, salonClosures, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, salonClosures, salons, salonSettings, services, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { ensureOnlineBookingNotifications } from "../../jobs/staff-request-notifications.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {
   const rows = await app.db.select().from(salons).where(and(eq(salons.slug, slug), eq(salons.active, true)));
   return rows[0];
+}
+
+async function getPwaOptions(app: FastifyInstance, salonId: string) {
+  const [categoryRows, calendarRows] = await Promise.all([
+    app.db.select().from(salonSettings).where(and(eq(salonSettings.salonId, salonId), eq(salonSettings.category, "pwa"))),
+    app.db.select().from(calendarSettings).where(eq(calendarSettings.salonId, salonId)),
+  ]);
+  const settings = categoryRows[0]?.settings ?? {};
+  return {
+    allowCancellation: settings.allowCancellation ?? true,
+    allowReschedule: settings.allowReschedule ?? true,
+    allowStaffPreference: settings.allowStaffPreference ?? true,
+    bookingDefaultStatus: settings.bookingDefaultStatus === "confirmed" ? "confirmed" as const : "pending" as const,
+    cancellationPolicyHours: calendarRows[0]?.cancellationPolicyHours ?? 24,
+    maxAdvanceDays: Number(settings.maxAdvanceDays ?? 90),
+    minBookingNoticeHours: calendarRows[0]?.minBookingNoticeHours ?? 2,
+    requireEmail: settings.requireEmail ?? true,
+    requirePhone: settings.requirePhone ?? false,
+  };
 }
 
 async function slotsFor(app: FastifyInstance, salon: any, member: any, service: any, date: string) {
@@ -37,14 +56,15 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     if (!salon.onlineBookingEnabled) {
       return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
     }
-    const [serviceRows, staffRows, brandingRows] = await Promise.all([
+    const [serviceRows, staffRows, brandingRows, pwa] = await Promise.all([
       app.db.select().from(services).where(and(eq(services.salonId, salon.id), eq(services.active, true)))
         .orderBy(asc(services.category), asc(services.displayOrder)),
       app.db.select().from(staff).where(and(eq(staff.salonId, salon.id), eq(staff.active, true)))
         .orderBy(asc(staff.displayName)),
       app.db.select().from(pwaBrandingSettings).where(eq(pwaBrandingSettings.salonId, salon.id)),
+      getPwaOptions(app, salon.id),
     ]);
-    return { branding: brandingRows[0] ?? null, salon, services: serviceRows, staff: staffRows, opening_hours: salon.openingHours };
+    return { branding: brandingRows[0] ?? null, pwa, salon, services: serviceRows, staff: pwa.allowStaffPreference ? staffRows : [], opening_hours: salon.openingHours };
   });
 
   app.get<{ Params: { slug: string }; Querystring: { serviceId: string; staffId?: string; date: string } }>(
@@ -54,6 +74,13 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       if (!salon.onlineBookingEnabled) {
         return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
       }
+      const pwa = await getPwaOptions(app, salon.id);
+      const requestedDate = new Date(`${request.query.date}T12:00:00`);
+      const latestDate = new Date(Date.now() + pwa.maxAdvanceDays * 86400000);
+      if (requestedDate.getTime() < new Date().setHours(0, 0, 0, 0) || requestedDate > latestDate) {
+        return reply.code(400).send({ error: "BOOKING_DATE_OUT_OF_RANGE" });
+      }
+      if (!pwa.allowStaffPreference && request.query.staffId) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
       const serviceRows = await app.db.select().from(services).where(and(
         eq(services.id, request.query.serviceId), eq(services.salonId, salon.id), eq(services.active, true)));
       const service = serviceRows[0];
@@ -64,7 +91,11 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       )).orderBy(asc(staff.displayName));
       if (request.query.staffId && !staffRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
       for (const member of staffRows) {
-        const slots = await slotsFor(app, salon, member, service, request.query.date);
+        const earliestStart = Date.now() + pwa.minBookingNoticeHours * 3600000;
+        const slots = (await slotsFor(app, salon, member, service, request.query.date)).map((slot) => ({
+          ...slot,
+          available: slot.available && new Date(slot.starts_at).getTime() >= earliestStart,
+        }));
         if (request.query.staffId || slots.some((slot) => slot.available)) return { staff_id: member.id, slots };
       }
       return { staff_id: null, slots: [] };
@@ -77,7 +108,16 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       if (!salon.onlineBookingEnabled) {
         return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
       }
+      const pwa = await getPwaOptions(app, salon.id);
       const customerInput = request.body.customer;
+      if (pwa.requireEmail && !customerInput.email?.trim()) return reply.code(400).send({ error: "EMAIL_REQUIRED" });
+      if (pwa.requirePhone && !customerInput.phone?.trim()) return reply.code(400).send({ error: "PHONE_REQUIRED" });
+      if (!pwa.allowStaffPreference && request.body.staff_id) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
+      const requestedStart = new Date(request.body.starts_at);
+      if (
+        requestedStart < new Date(Date.now() + pwa.minBookingNoticeHours * 3600000) ||
+        requestedStart > new Date(Date.now() + pwa.maxAdvanceDays * 86400000)
+      ) return reply.code(400).send({ error: "BOOKING_DATE_OUT_OF_RANGE" });
       let customerRows = customerInput.email || customerInput.phone
         ? await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), or(
           ...(customerInput.email ? [ilike(customers.email, customerInput.email)] : []),
@@ -115,7 +155,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       const rows = await app.db.insert(appointments).values({
         salonId: salon.id, customerId: customer.id, staffId: selected.id, serviceId: service.id,
         startsAt, endsAt: new Date(startsAt.getTime() + service.durationMinutes * 60_000),
-        status: "pending", internalNotes: request.body.notes, source: "online",
+        status: pwa.bookingDefaultStatus, internalNotes: request.body.notes, source: "online",
       }).returning();
       const appointment = rows[0]!;
       await ensureOnlineBookingNotifications(app, salon.id, appointment.id);
@@ -143,8 +183,10 @@ export async function registerPublicRoutes(app: FastifyInstance) {
   }>("/api/public/:slug/appointments/:appointmentId/cancel", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
     if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const pwa = await getPwaOptions(app, salon.id);
+    if (!pwa.allowCancellation) return reply.code(403).send({ error: "CANCELLATION_DISABLED" });
     const rows = await app.db
-      .select({ id: appointments.id })
+      .select({ id: appointments.id, startsAt: appointments.startsAt })
       .from(appointments)
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .where(and(
@@ -155,6 +197,9 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         gt(appointments.startsAt, new Date()),
       ));
     if (!rows[0]) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+    if (rows[0].startsAt.getTime() - Date.now() < pwa.cancellationPolicyHours * 3600000) {
+      return reply.code(409).send({ error: "CANCELLATION_WINDOW_CLOSED" });
+    }
     const updated = await app.db
       .update(appointments)
       .set({
@@ -174,6 +219,8 @@ export async function registerPublicRoutes(app: FastifyInstance) {
   }>("/api/public/:slug/appointments/:appointmentId/reschedule-requests", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
     if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const pwa = await getPwaOptions(app, salon.id);
+    if (!pwa.allowReschedule) return reply.code(403).send({ error: "RESCHEDULE_DISABLED" });
     const requestedStartsAt = new Date(request.body.requested_starts_at);
     if (!request.body.email || Number.isNaN(requestedStartsAt.getTime())) {
       return reply.code(400).send({ error: "INVALID_RESCHEDULE_REQUEST" });

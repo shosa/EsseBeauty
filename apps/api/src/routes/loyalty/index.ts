@@ -4,6 +4,7 @@ import { and, desc, eq, gte, ilike, sql } from "drizzle-orm";
 import {
   appointments,
   customers,
+  loyaltyEarningRules,
   loyaltyPoints,
   loyaltyRewards,
   loyaltySettings,
@@ -17,6 +18,7 @@ import {
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { ensureLoyaltyRules, LOYALTY_RULE_DEFAULTS, type LoyaltyRuleAction } from "../../lib/loyalty-engine.js";
 
 const guard = [
   authenticate,
@@ -73,25 +75,33 @@ export async function registerLoyaltyRoutes(app: FastifyInstance) {
         .values({ salonId: request.salonId })
         .onConflictDoNothing()
         .returning();
-      if (rows[0]) return rows[0];
-      const existing = await app.db
+      const settings = rows[0] ?? (await app.db
         .select()
         .from(loyaltySettings)
-        .where(eq(loyaltySettings.salonId, request.salonId));
-      return existing[0];
+        .where(eq(loyaltySettings.salonId, request.salonId)))[0];
+      const rules = await ensureLoyaltyRules(app.db, request.salonId, settings?.pointsPerAppointment ?? 10);
+      return { ...settings, earningRules: rules };
     },
   );
 
   app.patch<{
     Params: { id: string };
-    Body: { points_per_appointment: number };
+    Body: {
+      points_per_appointment?: number;
+      earning_rules?: Array<{ action: LoyaltyRuleAction; active: boolean; points: number }>;
+    };
   }>(
     "/api/salons/:id/loyalty/settings",
     { preHandler: guard },
     async (request, reply) => {
       if (
         request.params.id !== request.salonId ||
-        request.body.points_per_appointment < 0
+        (request.body.points_per_appointment !== undefined && request.body.points_per_appointment < 0) ||
+        request.body.earning_rules?.some((rule) =>
+          !LOYALTY_RULE_DEFAULTS.some((allowed) => allowed.action === rule.action) ||
+          !Number.isInteger(rule.points) ||
+          rule.points < 0
+        )
       ) {
         return reply.code(400).send({ error: "INVALID_SETTINGS" });
       }
@@ -99,18 +109,32 @@ export async function registerLoyaltyRoutes(app: FastifyInstance) {
         .insert(loyaltySettings)
         .values({
           salonId: request.salonId,
-          pointsPerAppointment: request.body.points_per_appointment,
+          pointsPerAppointment: request.body.points_per_appointment ?? 10,
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           target: loyaltySettings.salonId,
           set: {
-            pointsPerAppointment: request.body.points_per_appointment,
+            ...(request.body.points_per_appointment !== undefined && {
+              pointsPerAppointment: request.body.points_per_appointment,
+            }),
             updatedAt: new Date(),
           },
         })
         .returning();
-      return rows[0];
+      for (const rule of request.body.earning_rules ?? []) {
+        await app.db.insert(loyaltyEarningRules).values({
+          action: rule.action,
+          active: rule.active,
+          points: rule.points,
+          salonId: request.salonId,
+        }).onConflictDoUpdate({
+          target: [loyaltyEarningRules.salonId, loyaltyEarningRules.action],
+          set: { active: rule.active, points: rule.points, updatedAt: new Date() },
+        });
+      }
+      const rules = await ensureLoyaltyRules(app.db, request.salonId, rows[0]?.pointsPerAppointment ?? 10);
+      return { ...rows[0], earningRules: rules };
     },
   );
 
