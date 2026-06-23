@@ -31,6 +31,26 @@ export function appointmentStatusLabel(status: string): string {
   return APPOINTMENT_STATUS_LABELS[status as AppointmentStatus] ?? status;
 }
 
+const APPOINTMENT_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
+  cancelled: ["pending", "confirmed"],
+  completed: [],
+  confirmed: ["completed", "no_show", "cancelled"],
+  no_show: ["pending", "confirmed"],
+  pending: ["confirmed", "cancelled"],
+};
+
+export function nextAppointmentStatuses(status: string): AppointmentStatus[] {
+  return APPOINTMENT_STATUS_TRANSITIONS[status as AppointmentStatus] ?? [];
+}
+
+export function canTransitionAppointmentStatus(from: string, to: string): boolean {
+  return nextAppointmentStatuses(from).includes(to as AppointmentStatus);
+}
+
+export function isAppointmentDragDisabled(status?: string): boolean {
+  return status === "completed" || status === "no_show" || status === "cancelled";
+}
+
 export const WEEK_DAYS_IT = [
   { key: "mon", label: "Lunedi", shortLabel: "LUN" },
   { key: "tue", label: "Martedi", shortLabel: "MAR" },

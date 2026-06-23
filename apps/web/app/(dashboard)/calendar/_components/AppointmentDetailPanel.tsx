@@ -11,7 +11,7 @@ import {
   PageSkeleton,
   StatusBadge,
 } from "@esse-beauty/ui";
-import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, type AppointmentStatus } from "@esse-beauty/shared";
+import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, nextAppointmentStatuses, type AppointmentStatus } from "@esse-beauty/shared";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -513,7 +513,7 @@ export default function AppointmentDetailPanel({
                   aria-label={appointmentStatusLabel(status)}
                   aria-pressed={active}
                   className={`relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-black transition ${active ? "z-10 scale-105 border-[3px] px-4 shadow-[0_10px_24px_rgb(0_0_0_/_0.24)] ring-4 ring-current/15 disabled:opacity-100" : "opacity-70 hover:-translate-y-0.5 hover:opacity-100 disabled:opacity-35"} disabled:cursor-not-allowed`}
-                  disabled={isClosed || statusUpdating || active}
+                  disabled={isClosed || statusUpdating || active || !nextAppointmentStatuses(appointment.status).includes(status)}
                   key={status}
                   onClick={() => void updateStatus(status)}
                    style={{
@@ -521,7 +521,7 @@ export default function AppointmentDetailPanel({
                      borderColor: palette?.border,
                      color: palette?.text,
                    }}
-                  title={isClosed ? "Stato bloccato: vendita registrata" : appointmentStatusLabel(status)}
+                  title={isClosed ? "Stato bloccato: vendita registrata" : !active && !nextAppointmentStatuses(appointment.status).includes(status) ? "Transizione non consentita" : appointmentStatusLabel(status)}
                   type="button"
                 >
                   <span className="grid size-5 place-items-center [&_svg]:size-5"><StatusActionIcon status={status} /></span>
@@ -568,7 +568,20 @@ export default function AppointmentDetailPanel({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {!isClosed && <Button onClick={() => setEditingAppointment((value) => !value)} variant="secondary">{editingAppointment ? "Chiudi modifica" : "Modifica appuntamento"}</Button>}
+              {!isClosed && (editingAppointment ? (
+                <button
+                  aria-label="Annulla modifica appuntamento"
+                  className="grid size-10 place-items-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-sm transition hover:scale-105 hover:bg-stone-950 hover:text-white"
+                  onClick={() => setEditingAppointment(false)}
+                  type="button"
+                >
+                  <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
+                    <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
+                  </svg>
+                </button>
+              ) : (
+                <Button onClick={() => setEditingAppointment(true)} variant="secondary">Modifica appuntamento</Button>
+              ))}
             </div>
           </header>
 

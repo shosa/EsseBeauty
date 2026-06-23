@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const dashboardRoot = join(process.cwd(), "app", "(dashboard)");
+const sharedUi = join(process.cwd(), "..", "..", "packages", "ui", "index.tsx");
 
 function dashboardPages(directory = dashboardRoot): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -26,6 +27,14 @@ const checkedFiles = [
 ];
 
 describe("professional UI regression guard", () => {
+  it("uses an X instead of the Chiudi text in standard dialogs", () => {
+    const ui = readFileSync(sharedUi, "utf8");
+    const dialog = ui.slice(ui.indexOf("export function Dialog"), ui.indexOf("export function Drawer"));
+    expect(dialog).toContain('aria-label="Chiudi"');
+    expect(dialog).toContain('d="m7 7 10 10M17 7 7 17"');
+    expect(dialog).not.toMatch(/>\s*Chiudi\s*</);
+  });
+
   it("keeps every dashboard page aligned to the cash-register workspace and dashboard radii", () => {
     for (const page of dashboardPages()) {
       const source = readFileSync(page, "utf8");
@@ -115,6 +124,9 @@ describe("professional UI regression guard", () => {
     expect(appointment).toContain("completeCheckout");
     expect(appointment).toContain("Incassa");
     expect(appointment).toContain("Elimina appuntamento");
+    expect(appointment).toContain('aria-label="Annulla modifica appuntamento"');
+    expect(appointment).not.toContain('editingAppointment ? "Chiudi modifica"');
+    expect(appointment).not.toContain('title="Chiudi modifica"');
     expect(calendar).toContain("appointment-curtain");
     expect(calendar).toContain("AppointmentDetailPanel");
   });
@@ -257,6 +269,86 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("collisionLayout");
     expect(calendar).toContain("columnCount");
     expect(calendar).toContain("...horizontal");
+    expect(calendar).toContain('{ key: "resources", label: "Cabine" }');
+    expect(calendar).toContain("resource_name");
+    expect(calendar).toContain("resourceColumns");
+    expect(calendar).toContain("formatResourceLabel");
+    expect(calendar).not.toContain('borderLeft: `4px solid');
+    expect(calendar).toContain("confirmedAppointment");
+    expect(calendar).toContain("linear-gradient(135deg");
+    expect(calendar).toContain("palette?.background");
+    expect(calendar).toContain("appointmentStatusInitial");
+    expect(calendar).toContain('confirmed: "C"');
+    expect(calendar).toContain('pending: "A"');
+    expect(calendar).toContain('no_show: "N"');
+    expect(calendar).toContain('cancelled: "X"');
+    expect(calendar).not.toContain("{appointmentStatusLabel(item.status ?? \"confirmed\")}</span>");
+    expect(calendar).toContain("const hourHeight = 112");
+    expect(calendar).toContain("min-h-14");
+  });
+
+  it("requires confirmation for drag moves and exposes contextual agenda actions", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("DndContext");
+    expect(calendar).toContain("pendingMove");
+    expect(calendar).toContain("Conferma spostamento");
+    expect(calendar).toContain("Nuovo appuntamento qui");
+    expect(calendar).toContain("Duplica");
+    expect(calendar).toContain("Cambia stato");
+    expect(calendar).toContain("Elimina");
+  });
+
+  it("opens a dedicated move editor from the appointment context menu", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("moveDraft");
+    expect(calendar).toContain('title="Sposta appuntamento"');
+    expect(calendar).toContain('aria-label="Nuova data"');
+    expect(calendar).toContain('aria-label="Nuovo orario"');
+    expect(calendar).toContain('aria-label="Nuovo collaboratore"');
+    expect(calendar).toContain('aria-label="Nuova cabina"');
+    expect(calendar).toContain("prepareMoveConfirmation");
+    expect(calendar).toMatch(/>\s*Continua\s*</);
+  });
+
+  it("shows the dragged appointment, resolves the real drop position, and isolates context menus", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("translate3d");
+    expect(calendar).toContain("event.active.rect.current.translated");
+    expect(calendar).toContain("event.over.rect.top");
+    expect(calendar).toContain("event.stopPropagation()");
+    expect(calendar).toContain('onContextMenu={(event) => event.preventDefault()}');
+  });
+
+  it("closes contextual menus after actions and when the pointer leaves", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("onMouseLeave={() => setContextMenu(undefined)}");
+    expect(calendar).toContain("closeContextMenuAnd");
+  });
+
+  it("suppresses the synthetic click emitted after dragging an appointment", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("suppressClickUntilRef");
+    expect(calendar).toContain("onDragStart");
+    expect(calendar).toContain("onClickCapture");
+    expect(calendar).toContain("Date.now() < suppressClickUntilRef.current");
+    expect(calendar).toContain("event.preventDefault()");
+  });
+
+  it("keeps drag movement immediate while animating lift and shadow", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    expect(calendar).toContain("translate3d");
+    expect(calendar).toContain("scale(1.025)");
+    expect(calendar).toContain('transition: draggable.isDragging ? "box-shadow 140ms ease, opacity 140ms ease"');
+    expect(calendar).toContain('willChange: "transform"');
+  });
+
+  it("shares status workflow rules and disables dragging final appointments", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    const detail = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
+    expect(calendar).toContain("nextAppointmentStatuses");
+    expect(calendar).toContain("isAppointmentDragDisabled");
+    expect(calendar).toContain("disabled: isAppointmentDragDisabled(item.status)");
+    expect(detail).toContain("nextAppointmentStatuses");
   });
 
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {

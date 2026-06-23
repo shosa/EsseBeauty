@@ -603,8 +603,10 @@ export function Dialog({
           >
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-xl font-bold text-stone-950">{title}</h2>
-              <button className="rounded-lg px-2 py-1 text-sm font-semibold text-stone-500 hover:bg-stone-100" onClick={onClose} type="button">
-                Chiudi
+              <button aria-label="Chiudi" className="grid size-9 shrink-0 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-950" onClick={onClose} type="button">
+                <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
+                  <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
+                </svg>
               </button>
             </div>
             <div className="mt-5">{children}</div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppPage, Breadcrumbs, Button, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
@@ -40,6 +40,13 @@ interface CustomerOption {
   phone: string | null;
 }
 
+interface ResourceOption {
+  active: boolean;
+  id: string;
+  name: string;
+  serviceIds: string[];
+}
+
 interface AppointmentOverlap {
   customer_name: string;
   ends_at: string;
@@ -48,12 +55,19 @@ interface AppointmentOverlap {
   starts_at: string;
 }
 
+interface SchedulingConflict {
+  code: string;
+  forceable: boolean;
+  message: string;
+}
+
 function euro(cents: number) {
   return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
 }
 
 export default function NewAppointmentPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { salon } = useAuth();
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
@@ -61,9 +75,11 @@ export default function NewAppointmentPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [resources, setResources] = useState<ResourceOption[]>([]);
   const [categoryId, setCategoryId] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [staffId, setStaffId] = useState("");
+  const [resourceId, setResourceId] = useState("");
   const [serviceQuery, setServiceQuery] = useState("");
   const [staffQuery, setStaffQuery] = useState("");
   const [startsAt, setStartsAt] = useState("");
@@ -73,6 +89,7 @@ export default function NewAppointmentPage() {
   const [customerLoading, setCustomerLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
+  const [schedulingWarnings, setSchedulingWarnings] = useState<SchedulingConflict[]>([]);
 
   useEffect(() => {
     if (!salon) return;
@@ -82,34 +99,79 @@ export default function NewAppointmentPage() {
       fetch(`${api}/api/salons/${salon.id}/service-categories?active=true`, { credentials: "include" }),
       fetch(`${api}/api/salons/${salon.id}/operations/services`, { credentials: "include" }),
       fetch(`${api}/api/salons/${salon.id}/operations/staff`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/settings/resources`, { credentials: "include" }),
     ])
-      .then(async ([categoriesResponse, servicesResponse, staffResponse]) => {
-        if (!categoriesResponse.ok || !servicesResponse.ok || !staffResponse.ok) throw new Error();
+      .then(async ([categoriesResponse, servicesResponse, staffResponse, resourcesResponse]) => {
+        if (!categoriesResponse.ok || !servicesResponse.ok || !staffResponse.ok || !resourcesResponse.ok) throw new Error();
         const categoryData = await categoriesResponse.json() as Category[];
         const serviceData = await servicesResponse.json() as Service[];
         const staffData = await staffResponse.json() as Array<{ color?: string | null; display_name: string; id: string }>;
+        const resourceData = await resourcesResponse.json() as Array<{ active: boolean; id: string; name: string }>;
+        const resourcesWithServices = await Promise.all(resourceData.filter((item) => item.active).map(async (resource) => {
+          const response = await fetch(`${api}/api/salons/${salon.id}/settings/resources/${resource.id}/services`, { credentials: "include" });
+          const links = response.ok ? await response.json() as Array<{ service_id: string }> : [];
+          return { ...resource, serviceIds: links.map((link) => link.service_id) };
+        }));
         const availableCategories = categoryData.filter((category) =>
           serviceData.some((service) => service.categoryId === category.id),
         );
         setCategories(availableCategories);
         setServices(serviceData);
         setStaff(staffData.map((item) => ({ color: item.color, id: item.id, name: item.display_name })));
+        setResources(resourcesWithServices);
       })
       .catch(() => setError("Configura almeno una categoria, un servizio e un collaboratore prima di creare un appuntamento."))
       .finally(() => setLoading(false));
   }, [salon]);
 
   useEffect(() => {
+    const startsAtParam = searchParams.get("startsAt");
+    if (startsAtParam) {
+      const date = new Date(startsAtParam);
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+      setStartsAt(local);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const duplicateId = searchParams.get("duplicate");
+    if (!salon || !duplicateId || services.length === 0) return;
+    void fetch(`${api}/api/salons/${salon.id}/appointments/${duplicateId}`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        const item = await response.json() as {
+          customer_email: string | null;
+          customer_id: string;
+          customer_name: string;
+          customer_phone: string | null;
+          notes?: string | null;
+          service_id: string;
+        };
+        const service = services.find((candidate) => candidate.id === item.service_id);
+        if (!service) return;
+        setSelectedCustomer({ email: item.customer_email, id: item.customer_id, name: item.customer_name, phone: item.customer_phone });
+        setCustomerQuery(item.customer_name);
+        setCategoryId(service.categoryId ?? "");
+        setServiceId(service.id);
+        setNotes(item.notes ?? "");
+      })
+      .catch(() => setError("Impossibile duplicare l’appuntamento selezionato."));
+  }, [salon, searchParams, services]);
+
+  useEffect(() => {
     if (!salon || !serviceId) return;
+    const requestedStaffId = searchParams.get("staffId") ?? "";
     setStaffId("");
-    void fetch(`${api}/api/salons/${salon.id}/operations/staff?serviceId=${serviceId}`, { credentials: "include" })
+    setResourceId("");
+    void fetch(`${api}/api/salons/${salon.id}/operations/staff?serviceId=${serviceId}&strictAssignments=true`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) throw new Error();
         const rows = await response.json() as Array<{ color?: string | null; display_name: string; id: string }>;
         setStaff(rows.map((item) => ({ color: item.color, id: item.id, name: item.display_name })));
+        if (rows.some((item) => item.id === requestedStaffId)) setStaffId(requestedStaffId);
       })
       .catch(() => setError("Impossibile caricare i collaboratori abilitati per questo servizio."));
-  }, [salon?.id, serviceId]);
+  }, [salon?.id, searchParams, serviceId]);
 
   useEffect(() => {
     if (!salon || selectedCustomer) return;
@@ -136,6 +198,15 @@ export default function NewAppointmentPage() {
   const selectedCategory = categories.find((item) => item.id === categoryId);
   const selectedService = services.find((item) => item.id === serviceId);
   const selectedStaff = staff.find((item) => item.id === staffId);
+  const compatibleResources = resources.filter((item) => item.serviceIds.includes(serviceId));
+  const selectedResource = compatibleResources.find((item) => item.id === resourceId);
+
+  useEffect(() => {
+    if (!serviceId) return;
+    const requestedResourceId = searchParams.get("resourceId") ?? "";
+    if (compatibleResources.some((item) => item.id === requestedResourceId)) setResourceId(requestedResourceId);
+    else if (compatibleResources.length === 1) setResourceId(compatibleResources[0]!.id);
+  }, [compatibleResources, searchParams, serviceId]);
   const visibleServices = useMemo(() => {
     const query = serviceQuery.trim().toLowerCase();
     return services.filter((item) =>
@@ -156,13 +227,14 @@ export default function NewAppointmentPage() {
     return "Seleziona il cliente corretto dai risultati.";
   }, [customerLoading, customerQuery, customerResults.length, selectedCustomer]);
 
-  async function createAppointment(confirmOverlap = false) {
+  async function createAppointment(confirmOverlap = false, forceConflicts = false) {
     if (!salon || saving) return;
     setError("");
     if (!selectedCustomer) return setError("Seleziona un cliente dalla ricerca.");
     if (!selectedCategory) return setError("Seleziona una categoria.");
     if (!selectedService) return setError("Seleziona un servizio.");
     if (!selectedStaff) return setError("Seleziona un collaboratore.");
+    if (compatibleResources.length > 0 && !selectedResource) return setError("Seleziona una cabina.");
     if (!startsAt) return setError("Inserisci data e ora dell’appuntamento.");
 
     setSaving(true);
@@ -171,7 +243,9 @@ export default function NewAppointmentPage() {
         body: JSON.stringify({
           customer_id: selectedCustomer.id,
           confirm_overlap: confirmOverlap,
+          force_conflicts: forceConflicts,
           notes: notes || undefined,
+          resource_id: selectedResource?.id,
           service_id: selectedService.id,
           staff_id: selectedStaff.id,
           starts_at: new Date(startsAt).toISOString(),
@@ -181,10 +255,14 @@ export default function NewAppointmentPage() {
         method: "POST",
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[]; error?: string };
+        const payload = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[] | SchedulingConflict[]; error?: string };
         if (response.status === 409) {
           if (payload.error === "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED") {
-            setOverlaps(payload.conflicts ?? []);
+            setOverlaps((payload.conflicts ?? []) as AppointmentOverlap[]);
+            return;
+          }
+          if (payload.error === "SCHEDULING_CONFLICTS") {
+            setSchedulingWarnings((payload.conflicts ?? []) as SchedulingConflict[]);
             return;
           }
           throw new Error(payload.error === "APPOINTMENT_CONFLICT"
@@ -195,6 +273,7 @@ export default function NewAppointmentPage() {
       }
       const appointment = await response.json() as { id: string };
       setOverlaps([]);
+      setSchedulingWarnings([]);
       router.push(`/calendar?appointment=${encodeURIComponent(appointment.id)}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Appuntamento non creato.");
@@ -210,16 +289,23 @@ export default function NewAppointmentPage() {
       <Dialog
         footer={
           <>
-            <Button onClick={() => setOverlaps([])} variant="outline">Modifica orario</Button>
-            <Button disabled={saving} onClick={() => void createAppointment(true)} variant="primary">
-              {saving ? "Creazione..." : "Conferma affiancamento"}
+            <Button onClick={() => { setOverlaps([]); setSchedulingWarnings([]); }} variant="outline">Modifica orario</Button>
+            <Button disabled={saving || schedulingWarnings.some((warning) => !warning.forceable)} onClick={() => void createAppointment(true, schedulingWarnings.length > 0)} variant="primary">
+              {saving ? "Creazione..." : schedulingWarnings.length ? "Forza e crea" : "Conferma affiancamento"}
             </Button>
           </>
         }
-        onClose={() => setOverlaps([])}
-        open={overlaps.length > 0}
-        title="Appuntamenti sovrapposti"
+        onClose={() => { setOverlaps([]); setSchedulingWarnings([]); }}
+        open={overlaps.length > 0 || schedulingWarnings.length > 0}
+        title={schedulingWarnings.length ? "Avvisi di pianificazione" : "Appuntamenti sovrapposti"}
       >
+        {schedulingWarnings.length > 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <p className="font-bold">Puoi forzare gli avvisi consentiti.</p>
+            <ul className="mt-2 list-disc pl-5">{schedulingWarnings.map((warning) => <li key={warning.code}>{warning.message}{!warning.forceable ? " (non forzabile)" : ""}</li>)}</ul>
+          </div>
+        ) : (
+        <>
         <p className="text-sm leading-6 text-stone-600">
           Il collaboratore ha già un appuntamento in questa fascia. Confermando, gli appuntamenti verranno mostrati affiancati in agenda.
         </p>
@@ -247,6 +333,8 @@ export default function NewAppointmentPage() {
             </p>
           )}
         </div>
+        </>
+        )}
       </Dialog>
       <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Nuovo appuntamento" }]} />
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -335,6 +423,30 @@ export default function NewAppointmentPage() {
                       {member.name}
                     </button>
                   ))}
+                  {visibleStaff.length === 0 && (
+                    <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                      Nessun collaboratore assegnato a questo servizio. Configura le assegnazioni nella scheda Staff.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {selectedService && compatibleResources.length > 0 && (
+              <div>
+                <p className="text-sm font-bold text-stone-900">Cabina <span className="text-red-700">*</span></p>
+                <p className="mt-1 text-xs text-stone-500">Mostriamo solo le cabine collegate al servizio scelto.</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {compatibleResources.map((resource) => (
+                    <button
+                      className={`min-h-11 rounded-xl border px-4 text-sm font-black uppercase transition ${resourceId === resource.id ? "border-[#792f59] bg-[#faf3f7] text-[#642744]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}
+                      key={resource.id}
+                      onClick={() => setResourceId(resource.id)}
+                      type="button"
+                    >
+                      {resource.name}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -358,6 +470,7 @@ export default function NewAppointmentPage() {
             <div className="py-3"><dt className="text-stone-500">Categoria</dt><dd className="mt-1 font-bold">{selectedCategory?.name ?? "Da selezionare"}</dd></div>
             <div className="py-3"><dt className="text-stone-500">Servizio</dt><dd className="mt-1 font-bold">{selectedService ? `${selectedService.name} · ${selectedService.durationMinutes} min` : "Da selezionare"}</dd></div>
             <div className="py-3"><dt className="text-stone-500">Collaboratore</dt><dd className="mt-1 font-bold">{selectedStaff?.name ?? "Da selezionare"}</dd></div>
+            <div className="py-3"><dt className="text-stone-500">Cabina</dt><dd className="mt-1 font-bold">{selectedResource?.name ?? (compatibleResources.length ? "Da selezionare" : "Non richiesta")}</dd></div>
             <div className="py-3"><dt className="text-stone-500">Inizio</dt><dd className="mt-1 font-bold">{startsAt ? new Date(startsAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }) : "Da inserire"}</dd></div>
           </dl>
           <Button className="mt-5 w-full" disabled={saving} onClick={() => void createAppointment()} variant="primary">{saving ? "Creazione..." : "Crea appuntamento"}</Button>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APPOINTMENT_STATUSES, APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel } from "./index";
+import { APPOINTMENT_STATUSES, APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, canTransitionAppointmentStatus, nextAppointmentStatuses } from "./index";
 
 describe("appointmentStatusLabel", () => {
   it("provides one consistent Italian label for every appointment status", () => {
@@ -24,5 +24,15 @@ describe("appointmentStatusLabel", () => {
       "no_show",
       "pending",
     ]);
+  });
+
+  it("enforces the appointment workflow while allowing no-show and cancelled reactivation", () => {
+    expect(nextAppointmentStatuses("pending")).toEqual(["confirmed", "cancelled"]);
+    expect(nextAppointmentStatuses("confirmed")).toEqual(["completed", "no_show", "cancelled"]);
+    expect(nextAppointmentStatuses("completed")).toEqual([]);
+    expect(nextAppointmentStatuses("no_show")).toEqual(["pending", "confirmed"]);
+    expect(nextAppointmentStatuses("cancelled")).toEqual(["pending", "confirmed"]);
+    expect(canTransitionAppointmentStatus("completed", "confirmed")).toBe(false);
+    expect(canTransitionAppointmentStatus("cancelled", "confirmed")).toBe(true);
   });
 });

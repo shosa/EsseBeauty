@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 
-import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, sales, salons, services, staff } from "@esse-beauty/db/schema";
-import { computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, salonResources, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
+import { canTransitionAppointmentStatus, computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
 import { authenticate } from "../../middleware/auth.js";
 
@@ -83,6 +83,83 @@ export async function inspectAppointmentConflicts(db: any, salonId: string, staf
   };
 }
 
+type SchedulingConflictCode =
+  | "STAFF_OVERLAP"
+  | "STAFF_AVAILABILITY_BLOCK"
+  | "STAFF_OUTSIDE_WORKING_HOURS"
+  | "RESOURCE_OCCUPIED"
+  | "SALON_CLOSED";
+
+interface SchedulingConflict {
+  code: SchedulingConflictCode;
+  forceable: boolean;
+  message: string;
+}
+
+function isWithinWorkingHours(workingHours: any, startsAt: Date, endsAt: Date, timezone: string) {
+  const partsFor = (date: Date) => Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      hour: "2-digit", hour12: false, minute: "2-digit", timeZone: timezone, weekday: "short",
+    }).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]),
+  ) as Record<string, string>;
+  const start = partsFor(startsAt);
+  const end = partsFor(endsAt);
+  if (start.weekday !== end.weekday) return false;
+  const keyByDay: Record<string, string> = { Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat", Sun: "sun" };
+  const dayKey = keyByDay[start.weekday ?? ""];
+  if (!dayKey) return false;
+  const periods = workingHours?.[dayKey] ?? [];
+  const toMinutes = (hour: string, minute: string) => Number(hour) * 60 + Number(minute);
+  const startMinutes = toMinutes(start.hour ?? "0", start.minute ?? "0");
+  const endMinutes = toMinutes(end.hour ?? "0", end.minute ?? "0");
+  return periods.some((period: { from: string; to: string }) =>
+    startMinutes >= Number(period.from.slice(0, 2)) * 60 + Number(period.from.slice(3, 5))
+    && endMinutes <= Number(period.to.slice(0, 2)) * 60 + Number(period.to.slice(3, 5)),
+  );
+}
+
+async function selectedResourceFor(
+  db: any,
+  salonId: string,
+  serviceId: string,
+  resourceId: string | undefined,
+  startsAt: Date,
+  endsAt: Date,
+  locationId?: string | null,
+  excludeAppointmentId?: string,
+) {
+  if (!resourceId) return availableResourceFor(db, salonId, serviceId, startsAt, endsAt, locationId, excludeAppointmentId);
+  const rows = await db.select({
+    id: salonResources.id,
+    locationId: salonResources.locationId,
+    name: salonResources.name,
+  }).from(serviceResources)
+    .innerJoin(salonResources, eq(salonResources.id, serviceResources.resourceId))
+    .where(and(
+      eq(serviceResources.salonId, salonId),
+      eq(serviceResources.serviceId, serviceId),
+      eq(serviceResources.resourceId, resourceId),
+      eq(salonResources.active, true),
+    ));
+  const resource = rows[0];
+  if (!resource || (locationId && resource.locationId && resource.locationId !== locationId)) {
+    return { invalid: true as const, required: true as const, resource: null };
+  }
+  const occupied = await db.select({ id: appointments.id }).from(appointments).where(and(
+    eq(appointments.salonId, salonId),
+    eq(appointments.resourceId, resource.id),
+    ne(appointments.status, "cancelled"),
+    lt(appointments.startsAt, endsAt),
+    gt(appointments.endsAt, startsAt),
+    ...(excludeAppointmentId ? [ne(appointments.id, excludeAppointmentId)] : []),
+  ));
+  return { invalid: false as const, occupied: occupied.length > 0, required: true as const, resource };
+}
+
+function conflictResponse(conflicts: SchedulingConflict[]) {
+  return { conflicts, error: "SCHEDULING_CONFLICTS" };
+}
+
 export async function hasAppointmentConflict(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string, rules?: AppointmentConflictRules) {
   const conflicts = await inspectAppointmentConflicts(db, salonId, staffId, startsAt, endsAt, excludeId, rules);
   return conflicts.hasAvailabilityBlock
@@ -103,11 +180,13 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
       status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
       location_id: appointments.locationId, resource_id: appointments.resourceId,
+      resource_name: salonResources.name,
       customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
     }).from(appointments)
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
       .innerJoin(staff, eq(staff.id, appointments.staffId))
+      .leftJoin(salonResources, eq(salonResources.id, appointments.resourceId))
       .where(and(eq(appointments.salonId, request.salonId),
         ...(selectedStaff ? [eq(appointments.staffId, selectedStaff)] : []),
         ...(request.query.status ? [eq(appointments.status, request.query.status as any)] : []),
@@ -173,11 +252,13 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt,
       status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
       location_id: appointments.locationId, resource_id: appointments.resourceId,
+      resource_name: salonResources.name,
       customer_name: customers.fullName, service_name: services.name, staff_name: staff.displayName, color: staff.color,
     }).from(appointments)
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
       .innerJoin(staff, eq(staff.id, appointments.staffId))
+      .leftJoin(salonResources, eq(salonResources.id, appointments.resourceId))
       .where(and(eq(appointments.salonId, request.salonId),
         ...(selectedStaff ? [eq(appointments.staffId, selectedStaff)] : []),
         ...(request.query.status ? [eq(appointments.status, request.query.status as any)] : []),
@@ -216,7 +297,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     };
   });
 
-  app.post<{ Params: { id: string }; Body: { confirm_overlap?: boolean; customer_id: string; staff_id: string; service_id: string; starts_at: string; notes?: string; source?: "manual" | "walk_in" } }>(
+  app.post<{ Params: { id: string }; Body: { confirm_overlap?: boolean; force_conflicts?: boolean; customer_id: string; staff_id: string; service_id: string; resource_id?: string; starts_at: string; notes?: string; source?: "manual" | "walk_in" } }>(
     "/api/salons/:id/appointments", { preHandler: [authenticate] }, async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
       if (!(await canManage(request, request.body.staff_id))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
@@ -235,28 +316,49 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       }
       const startsAt = new Date(request.body.starts_at);
       const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
+      const salonRows = await request.server.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, request.salonId));
+      const timezone = salonRows[0]?.timezone ?? "Europe/Rome";
+      if (await isSalonClosed(request.server.db, request.salonId, startsAt.toISOString().slice(0, 10))) {
+        return reply.code(409).send(conflictResponse([{ code: "SALON_CLOSED", forceable: false, message: "Il salone è chiuso in questa data." }]));
+      }
       const rules = await getCalendarRules(request.server.db, request.salonId);
       const conflicts = await inspectAppointmentConflicts(
         request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt, undefined, rules,
       );
-      if (conflicts.hasAvailabilityBlock || (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap))
-        return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      const schedulingConflicts: SchedulingConflict[] = [];
+      if (!isWithinWorkingHours(member.workingHours, startsAt, endsAt, timezone)) schedulingConflicts.push({
+        code: "STAFF_OUTSIDE_WORKING_HOURS", forceable: true, message: "L’orario è fuori dal turno configurato del collaboratore.",
+      });
+      if (conflicts.hasAvailabilityBlock) schedulingConflicts.push({
+        code: "STAFF_AVAILABILITY_BLOCK", forceable: true, message: "Il collaboratore risulta assente o non disponibile.",
+      });
+      if (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap) schedulingConflicts.push({
+        code: "STAFF_OVERLAP", forceable: true, message: "Il collaboratore ha già un appuntamento in questa fascia.",
+      });
+      if (schedulingConflicts.length > 0 && !request.body.force_conflicts) {
+        return reply.code(409).send(conflictResponse(schedulingConflicts));
+      }
       if (conflicts.canConfirmOverlap && !request.body.confirm_overlap) {
         return reply.code(409).send({
           conflicts: conflicts.appointmentRows,
           error: "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED",
         });
       }
-      const resource = await availableResourceFor(
+      const resource = await selectedResourceFor(
         request.server.db,
         request.salonId,
         service.id,
+        request.body.resource_id,
         startsAt,
         endsAt,
         member.locationId,
       );
+      if ("invalid" in resource && resource.invalid) return reply.code(409).send({ error: "RESOURCE_NOT_COMPATIBLE" });
+      if ("occupied" in resource && resource.occupied && !request.body.force_conflicts) {
+        return reply.code(409).send(conflictResponse([{ code: "RESOURCE_OCCUPIED", forceable: true, message: "La cabina è già occupata in questa fascia." }]));
+      }
       if (resource.required && !resource.resource) {
-        return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+        return reply.code(409).send(conflictResponse([{ code: "RESOURCE_OCCUPIED", forceable: true, message: "Nessuna cabina compatibile è libera." }]));
       }
       const rows = await request.server.db.insert(appointments).values({
         salonId: request.salonId, customerId: request.body.customer_id, staffId: request.body.staff_id,
@@ -277,6 +379,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       status: appointments.status, notes: appointments.internalNotes, staff_id: appointments.staffId,
       customer_id: appointments.customerId, customer_name: customers.fullName,
       customer_email: customers.email, customer_phone: customers.phone,
+      resource_id: appointments.resourceId,
       service_id: appointments.serviceId, service_name: services.name, service_price_cents: services.priceCents,
       staff_name: staff.displayName, color: staff.color,
     }).from(appointments)
@@ -287,14 +390,26 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
   });
 
-  app.patch<{ Params: { id: string; appointmentId: string }; Body: { confirm_overlap?: boolean; duration_minutes?: number; starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
+  app.patch<{ Params: { id: string; appointmentId: string }; Body: { confirm_overlap?: boolean; force_conflicts?: boolean; duration_minutes?: number; resource_id?: string | null; staff_id?: string; starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
     "/api/salons/:id/appointments/:appointmentId", { preHandler: [authenticate] }, async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
       const rows = await request.server.db.select().from(appointments).where(and(eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId)));
       const item = rows[0];
       if (!item) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
-      if (!(await canManage(request, item.staffId))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const targetStaffId = request.body.staff_id ?? item.staffId;
+      if (!(await canManage(request, item.staffId)) || !(await canManage(request, targetStaffId))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const targetStaffRows = await request.server.db.select().from(staff).where(and(
+        eq(staff.id, targetStaffId), eq(staff.salonId, request.salonId), eq(staff.active, true),
+      ));
+      const targetStaff = targetStaffRows[0];
+      if (!targetStaff) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      if (!(await isStaffQualified(request.server.db, request.salonId, item.serviceId, targetStaffId))) {
+        return reply.code(409).send({ error: "STAFF_NOT_QUALIFIED" });
+      }
       if (request.body.status && request.body.status !== item.status) {
+        if (!canTransitionAppointmentStatus(item.status, request.body.status)) {
+          return reply.code(409).send({ error: "INVALID_APPOINTMENT_STATUS_TRANSITION" });
+        }
         const paidSales = await request.server.db.select({ id: sales.id }).from(sales).where(and(
           eq(sales.appointmentId, item.id),
           eq(sales.salonId, request.salonId),
@@ -310,13 +425,29 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       }
       const durationMinutes = requestedDuration ?? Math.round((item.endsAt.getTime() - item.startsAt.getTime()) / 60_000);
       const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+      const schedulingChanged = Boolean(request.body.starts_at || requestedDuration !== undefined || request.body.staff_id || request.body.resource_id !== undefined);
+      const salonRows = await request.server.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, request.salonId));
+      const timezone = salonRows[0]?.timezone ?? "Europe/Rome";
+      if (schedulingChanged && await isSalonClosed(request.server.db, request.salonId, startsAt.toISOString().slice(0, 10))) {
+        return reply.code(409).send(conflictResponse([{ code: "SALON_CLOSED", forceable: false, message: "Il salone è chiuso in questa data." }]));
+      }
       const rules = await getCalendarRules(request.server.db, request.salonId);
-      if (request.body.starts_at || requestedDuration !== undefined) {
+      if (schedulingChanged) {
         const conflicts = await inspectAppointmentConflicts(
-          request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules,
+          request.server.db, request.salonId, targetStaffId, startsAt, endsAt, item.id, rules,
         );
-        if (conflicts.hasAvailabilityBlock || (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap)) {
-          return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+        const schedulingConflicts: SchedulingConflict[] = [];
+        if (!isWithinWorkingHours(targetStaff.workingHours, startsAt, endsAt, timezone)) schedulingConflicts.push({
+          code: "STAFF_OUTSIDE_WORKING_HOURS", forceable: true, message: "L’orario è fuori dal turno configurato del collaboratore.",
+        });
+        if (conflicts.hasAvailabilityBlock) schedulingConflicts.push({
+          code: "STAFF_AVAILABILITY_BLOCK", forceable: true, message: "Il collaboratore risulta assente o non disponibile.",
+        });
+        if (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap) schedulingConflicts.push({
+          code: "STAFF_OVERLAP", forceable: true, message: "Il collaboratore ha già un appuntamento in questa fascia.",
+        });
+        if (schedulingConflicts.length > 0 && !request.body.force_conflicts) {
+          return reply.code(409).send(conflictResponse(schedulingConflicts));
         }
         if (conflicts.canConfirmOverlap && !request.body.confirm_overlap) {
           return reply.code(409).send({
@@ -325,22 +456,32 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
           });
         }
       }
-      const resource = await availableResourceFor(
-        request.server.db,
-        request.salonId,
-        item.serviceId,
-        startsAt,
-        endsAt,
-        item.locationId,
-        item.id,
-      );
-      if (resource.required && !resource.resource) {
-        return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+      let nextResourceId = item.resourceId;
+      if (schedulingChanged) {
+        const resource = await selectedResourceFor(
+          request.server.db,
+          request.salonId,
+          item.serviceId,
+          request.body.resource_id === null ? undefined : request.body.resource_id ?? item.resourceId ?? undefined,
+          startsAt,
+          endsAt,
+          targetStaff.locationId,
+          item.id,
+        );
+        if ("invalid" in resource && resource.invalid) return reply.code(409).send({ error: "RESOURCE_NOT_COMPATIBLE" });
+        if ("occupied" in resource && resource.occupied && !request.body.force_conflicts) {
+          return reply.code(409).send(conflictResponse([{ code: "RESOURCE_OCCUPIED", forceable: true, message: "La cabina è già occupata in questa fascia." }]));
+        }
+        if (resource.required && !resource.resource) {
+          return reply.code(409).send(conflictResponse([{ code: "RESOURCE_OCCUPIED", forceable: true, message: "Nessuna cabina compatibile è libera." }]));
+        }
+        nextResourceId = resource.resource?.id ?? null;
       }
       const updated = await request.server.db.update(appointments).set({
-        startsAt, endsAt, ...(request.body.status && { status: request.body.status }),
+        startsAt, endsAt, staffId: targetStaffId, locationId: targetStaff.locationId,
+        ...(request.body.status && { status: request.body.status }),
         ...(request.body.notes !== undefined && { internalNotes: request.body.notes }),
-        ...(resource.required && { resourceId: resource.resource?.id }),
+        resourceId: nextResourceId,
       }).where(eq(appointments.id, item.id)).returning();
       return updated[0];
     });

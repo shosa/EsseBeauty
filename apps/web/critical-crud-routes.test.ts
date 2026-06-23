@@ -32,5 +32,16 @@ describe("critical CRUD route contracts", () => {
     expect(source).toContain("Conferma affiancamento");
     expect(source).toContain("Anteprima agenda");
     expect(source).toContain("Dialog");
+    expect(source).toContain("strictAssignments=true");
+    expect(source).toContain("Nessun collaboratore assegnato a questo servizio");
+  });
+
+  it("lets the wizard choose a compatible cabin and consume agenda prefill", () => {
+    const source = readFileSync(join(appRoot, "calendar/appointments/new/page.tsx"), "utf8");
+    expect(source).toContain("useSearchParams");
+    expect(source).toContain("resourceId");
+    expect(source).toContain("Cabina");
+    expect(source).toContain("settings/resources");
+    expect(source).toContain("resource_id");
   });
 });

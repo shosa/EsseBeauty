@@ -35,7 +35,7 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     return rows[0] ?? reply.code(404).send({ error: "SALON_NOT_FOUND" });
   });
 
-  app.get<{ Params: { id: string }; Querystring: { from?: string; serviceId?: string; to?: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { from?: string; serviceId?: string; strictAssignments?: string; to?: string } }>(
     "/api/salons/:id/operations/staff",
     { preHandler: [authenticate] },
     async (request, reply) => {
@@ -81,7 +81,10 @@ export async function registerStaffRoutes(app: FastifyInstance) {
         .orderBy(asc(staff.displayName));
       if (!request.query.serviceId) return rows;
       const qualified = await qualifiedStaffIds(request.server.db, request.salonId, request.query.serviceId);
-      return qualified ? rows.filter((member) => qualified.has(member.id)) : rows;
+      const allowed = request.query.strictAssignments === "true"
+        ? qualified ?? new Set<string>()
+        : qualified;
+      return allowed ? rows.filter((member) => allowed.has(member.id)) : rows;
     },
   );
 

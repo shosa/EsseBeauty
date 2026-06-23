@@ -11,3 +11,11 @@ describe("staff access role preservation", () => {
     expect(source).toContain('role: linkedUser?.role ?? "employee"');
   });
 });
+
+describe("appointment wizard staff filtering", () => {
+  it("supports strict service assignments for proposed staff", () => {
+    const source = readFileSync(join(process.cwd(), "src", "routes", "staff", "index.ts"), "utf8");
+    expect(source).toContain("strictAssignments");
+    expect(source).toContain("qualified ?? new Set<string>()");
+  });
+});
