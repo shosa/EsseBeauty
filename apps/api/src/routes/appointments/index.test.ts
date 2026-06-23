@@ -1,34 +1,42 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { hasAppointmentConflict } from "./index.js";
+import { inspectAppointmentConflicts } from "./index.js";
 
 function databaseWith(results: unknown[][]) {
   const where = vi.fn();
   for (const result of results) where.mockResolvedValueOnce(result);
+  const query = {
+    innerJoin: () => query,
+    where,
+  };
   return {
     select: () => ({
-      from: () => ({ where }),
+      from: () => query,
     }),
   };
 }
 
 describe("appointment conflicts", () => {
-  it("detects an already-booked slot so the route can return 409", async () => {
+  it("returns overlapping appointments as a confirmable side-by-side warning", async () => {
     const db = databaseWith([[{ id: "existing" }], []]);
-    await expect(hasAppointmentConflict(
+    await expect(inspectAppointmentConflicts(
       db,
       "salon",
       "staff",
       new Date("2026-06-15T08:00:00Z"),
       new Date("2026-06-15T08:30:00Z"),
       undefined,
-      { allowOverbooking: false, bufferMinutes: 0, overbookingLimit: 0 },
-    )).resolves.toBe(true);
+      { allowOverbooking: true, bufferMinutes: 0, overbookingLimit: 1 },
+    )).resolves.toEqual({
+      appointmentRows: [{ id: "existing" }],
+      canConfirmOverlap: true,
+      hasAvailabilityBlock: false,
+    });
   });
 
   it("allows a free slot", async () => {
     const db = databaseWith([[], []]);
-    await expect(hasAppointmentConflict(
+    await expect(inspectAppointmentConflicts(
       db,
       "salon",
       "staff",
@@ -36,25 +44,29 @@ describe("appointment conflicts", () => {
       new Date("2026-06-15T08:30:00Z"),
       undefined,
       { allowOverbooking: false, bufferMinutes: 0, overbookingLimit: 0 },
-    )).resolves.toBe(false);
+    )).resolves.toEqual({
+      appointmentRows: [],
+      canConfirmOverlap: false,
+      hasAvailabilityBlock: false,
+    });
   });
 
-  it("allows controlled overbooking within the configured limit", async () => {
+  it("does not make overlaps confirmable when overbooking is disabled", async () => {
     const db = databaseWith([[{ id: "existing" }], []]);
-    await expect(hasAppointmentConflict(
+    await expect(inspectAppointmentConflicts(
       db,
       "salon",
       "staff",
       new Date("2026-06-15T08:00:00Z"),
       new Date("2026-06-15T08:30:00Z"),
       undefined,
-      { allowOverbooking: true, bufferMinutes: 10, overbookingLimit: 1 },
-    )).resolves.toBe(false);
+      { allowOverbooking: false, bufferMinutes: 10, overbookingLimit: 1 },
+    )).resolves.toMatchObject({ canConfirmOverlap: false });
   });
 
   it("keeps availability blocks authoritative even when overbooking is enabled", async () => {
     const db = databaseWith([[{ id: "existing" }], [{ id: "block" }]]);
-    await expect(hasAppointmentConflict(
+    await expect(inspectAppointmentConflicts(
       db,
       "salon",
       "staff",
@@ -62,6 +74,9 @@ describe("appointment conflicts", () => {
       new Date("2026-06-15T08:30:00Z"),
       undefined,
       { allowOverbooking: true, bufferMinutes: 10, overbookingLimit: 5 },
-    )).resolves.toBe(true);
+    )).resolves.toMatchObject({
+      canConfirmOverlap: false,
+      hasAvailabilityBlock: true,
+    });
   });
 });

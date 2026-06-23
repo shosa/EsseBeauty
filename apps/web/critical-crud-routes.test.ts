@@ -25,4 +25,12 @@ describe("critical CRUD route contracts", () => {
     expect(source).not.toContain("/send");
     expect(source).toContain("router.push(`/marketing/${campaign.id}`)");
   });
+
+  it("confirms permitted appointment overlaps with a visual side-by-side preview", () => {
+    const source = readFileSync(join(appRoot, "calendar/appointments/new/page.tsx"), "utf8");
+    expect(source).toContain("confirm_overlap");
+    expect(source).toContain("Conferma affiancamento");
+    expect(source).toContain("Anteprima agenda");
+    expect(source).toContain("Dialog");
+  });
 });

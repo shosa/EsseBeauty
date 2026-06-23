@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Button,
   ConfirmDialog,
+  Dialog,
   EmptyState,
   InlineError,
   PageSkeleton,
@@ -89,6 +90,14 @@ interface PaymentDraft {
   voucher_balance_cents?: number;
   voucher_code?: string;
   voucher_customer_name?: string;
+}
+
+interface AppointmentOverlap {
+  customer_name: string;
+  ends_at: string;
+  id: string;
+  service_name: string;
+  starts_at: string;
 }
 
 interface VoucherLookup {
@@ -195,6 +204,7 @@ export default function AppointmentDetailPanel({
   const [savingAppointment, setSavingAppointment] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
 
   async function load() {
     if (!salon) return;
@@ -313,7 +323,7 @@ export default function AppointmentDetailPanel({
     setStatusUpdating(false);
   }
 
-  async function saveAppointment() {
+  async function saveAppointment(confirmOverlap = false) {
     if (!salon || !data || !appointmentDate || !appointmentTime) return;
     const durationMinutes = Number(appointmentDuration);
     if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 720) {
@@ -325,6 +335,7 @@ export default function AppointmentDetailPanel({
     const startsAt = new Date(`${appointmentDate}T${appointmentTime}`);
     const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${appointmentId}`, {
       body: JSON.stringify({
+        confirm_overlap: confirmOverlap,
         duration_minutes: durationMinutes,
         notes: appointmentNotes,
         starts_at: startsAt.toISOString(),
@@ -333,10 +344,15 @@ export default function AppointmentDetailPanel({
       headers: { "content-type": "application/json" },
       method: "PATCH",
     });
-    const body = await response.json().catch(() => ({})) as { error?: string };
+    const body = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[]; error?: string };
     if (!response.ok) {
+      if (body.error === "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED") {
+        setOverlaps(body.conflicts ?? []);
+        setSavingAppointment(false);
+        return;
+      }
       setError(body.error === "APPOINTMENT_CONFLICT"
-        ? "Il nuovo orario o la nuova durata si sovrappongono a un altro appuntamento o a un blocco dello staff."
+        ? "Il nuovo orario coincide con un blocco o supera il limite di affiancamento configurato."
         : body.error === "INVALID_DURATION"
           ? "La durata deve essere compresa tra 5 e 720 minuti."
           : "Appuntamento non aggiornato.");
@@ -344,6 +360,7 @@ export default function AppointmentDetailPanel({
       return;
     }
     await load();
+    setOverlaps([]);
     onChanged?.();
     setEditingAppointment(false);
     setSavingAppointment(false);
@@ -446,6 +463,40 @@ export default function AppointmentDetailPanel({
 
   return (
     <div className="min-h-full bg-[#f7f6f3]">
+      <Dialog
+        footer={
+          <>
+            <Button onClick={() => setOverlaps([])} variant="outline">Modifica orario</Button>
+            <Button disabled={savingAppointment} onClick={() => void saveAppointment(true)} variant="primary">
+              {savingAppointment ? "Salvataggio..." : "Conferma affiancamento"}
+            </Button>
+          </>
+        }
+        onClose={() => setOverlaps([])}
+        open={overlaps.length > 0}
+        title="Appuntamenti sovrapposti"
+      >
+        <p className="text-sm leading-6 text-stone-600">
+          Confermando, gli appuntamenti verranno mostrati affiancati in agenda.
+        </p>
+        <div className="mt-5 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[#8f3a68]">Anteprima agenda</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-white p-3 shadow-sm">
+              <p className="text-xs font-bold text-[#792f59]">{appointmentTime}</p>
+              <p className="mt-1 truncate text-sm font-bold">{appointment?.customer_name}</p>
+              <p className="truncate text-xs text-stone-500">{appointment?.service_name}</p>
+            </div>
+            <div className="min-w-0 rounded-xl border-l-4 border-amber-500 bg-white p-3 shadow-sm">
+              <p className="text-xs font-bold text-amber-700">
+                {overlaps[0] && formatTime(overlaps[0].starts_at)}
+              </p>
+              <p className="mt-1 truncate text-sm font-bold">{overlaps[0]?.customer_name}</p>
+              <p className="truncate text-xs text-stone-500">{overlaps[0]?.service_name}</p>
+            </div>
+          </div>
+        </div>
+      </Dialog>
       <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-white/96 px-5 py-3 shadow-sm backdrop-blur lg:px-8">
         <div>
           <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Agenda · Scheda appuntamento</p>

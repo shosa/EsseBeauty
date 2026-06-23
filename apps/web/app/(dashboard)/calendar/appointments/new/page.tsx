@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../../../services/ServiceCategoryIcon";
@@ -40,6 +40,14 @@ interface CustomerOption {
   phone: string | null;
 }
 
+interface AppointmentOverlap {
+  customer_name: string;
+  ends_at: string;
+  id: string;
+  service_name: string;
+  starts_at: string;
+}
+
 function euro(cents: number) {
   return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
 }
@@ -64,6 +72,7 @@ export default function NewAppointmentPage() {
   const [loading, setLoading] = useState(true);
   const [customerLoading, setCustomerLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
 
   useEffect(() => {
     if (!salon) return;
@@ -147,7 +156,7 @@ export default function NewAppointmentPage() {
     return "Seleziona il cliente corretto dai risultati.";
   }, [customerLoading, customerQuery, customerResults.length, selectedCustomer]);
 
-  async function createAppointment() {
+  async function createAppointment(confirmOverlap = false) {
     if (!salon || saving) return;
     setError("");
     if (!selectedCustomer) return setError("Seleziona un cliente dalla ricerca.");
@@ -161,6 +170,7 @@ export default function NewAppointmentPage() {
       const response = await fetch(`${api}/api/salons/${salon.id}/appointments`, {
         body: JSON.stringify({
           customer_id: selectedCustomer.id,
+          confirm_overlap: confirmOverlap,
           notes: notes || undefined,
           service_id: selectedService.id,
           staff_id: selectedStaff.id,
@@ -171,15 +181,20 @@ export default function NewAppointmentPage() {
         method: "POST",
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => ({})) as { error?: string };
+        const payload = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[]; error?: string };
         if (response.status === 409) {
+          if (payload.error === "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED") {
+            setOverlaps(payload.conflicts ?? []);
+            return;
+          }
           throw new Error(payload.error === "APPOINTMENT_CONFLICT"
-            ? "Questo orario si sovrappone a un altro impegno. Abilita l’overbooking oppure scegli un altro orario."
+            ? "Questo orario coincide con un blocco o supera il limite di affiancamento configurato."
             : "L’orario selezionato non è disponibile.");
         }
         throw new Error("Appuntamento non creato.");
       }
       const appointment = await response.json() as { id: string };
+      setOverlaps([]);
       router.push(`/calendar?appointment=${encodeURIComponent(appointment.id)}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Appuntamento non creato.");
@@ -192,6 +207,47 @@ export default function NewAppointmentPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
+      <Dialog
+        footer={
+          <>
+            <Button onClick={() => setOverlaps([])} variant="outline">Modifica orario</Button>
+            <Button disabled={saving} onClick={() => void createAppointment(true)} variant="primary">
+              {saving ? "Creazione..." : "Conferma affiancamento"}
+            </Button>
+          </>
+        }
+        onClose={() => setOverlaps([])}
+        open={overlaps.length > 0}
+        title="Appuntamenti sovrapposti"
+      >
+        <p className="text-sm leading-6 text-stone-600">
+          Il collaboratore ha già un appuntamento in questa fascia. Confermando, gli appuntamenti verranno mostrati affiancati in agenda.
+        </p>
+        <div className="mt-5 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[#8f3a68]">Anteprima agenda</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-white p-3 shadow-sm">
+              <p className="text-xs font-bold text-[#792f59]">
+                {startsAt && new Date(startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+              <p className="mt-1 truncate text-sm font-bold">{selectedCustomer?.name}</p>
+              <p className="truncate text-xs text-stone-500">{selectedService?.name}</p>
+            </div>
+            <div className="min-w-0 rounded-xl border-l-4 border-amber-500 bg-white p-3 shadow-sm">
+              <p className="text-xs font-bold text-amber-700">
+                {overlaps[0] && new Date(overlaps[0].starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+              <p className="mt-1 truncate text-sm font-bold">{overlaps[0]?.customer_name}</p>
+              <p className="truncate text-xs text-stone-500">{overlaps[0]?.service_name}</p>
+            </div>
+          </div>
+          {overlaps.length > 1 && (
+            <p className="mt-3 text-xs font-semibold text-amber-800">
+              Sono presenti altri {overlaps.length - 1} appuntamenti sovrapposti.
+            </p>
+          )}
+        </div>
+      </Dialog>
       <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Nuovo appuntamento" }]} />
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">

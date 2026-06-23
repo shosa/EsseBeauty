@@ -48,12 +48,21 @@ async function getCalendarRules(db: any, salonId: string): Promise<AppointmentCo
   };
 }
 
-export async function hasAppointmentConflict(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string, rules?: AppointmentConflictRules) {
+export async function inspectAppointmentConflicts(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string, rules?: AppointmentConflictRules) {
   const activeRules = rules ?? await getCalendarRules(db, salonId);
   const bufferMs = Math.max(0, activeRules.bufferMinutes) * 60_000;
   const protectedStart = new Date(startsAt.getTime() - bufferMs);
   const protectedEnd = new Date(endsAt.getTime() + bufferMs);
-  const appointmentRows = await db.select({ id: appointments.id }).from(appointments).where(and(
+  const appointmentRows = await db.select({
+    customer_name: customers.fullName,
+    ends_at: appointments.endsAt,
+    id: appointments.id,
+    service_name: services.name,
+    starts_at: appointments.startsAt,
+  }).from(appointments)
+    .innerJoin(customers, eq(customers.id, appointments.customerId))
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .where(and(
     eq(appointments.salonId, salonId), eq(appointments.staffId, staffId),
     ne(appointments.status, "cancelled"), lt(appointments.startsAt, protectedEnd), gt(appointments.endsAt, protectedStart),
     ...(excludeId ? [ne(appointments.id, excludeId)] : []),
@@ -62,9 +71,22 @@ export async function hasAppointmentConflict(db: any, salonId: string, staffId: 
     eq(availabilityBlocks.salonId, salonId), eq(availabilityBlocks.staffId, staffId),
     lt(availabilityBlocks.startsAt, protectedEnd), gt(availabilityBlocks.endsAt, protectedStart),
   ));
-  if (blockRows.length > 0) return true;
-  if (!activeRules.allowOverbooking) return appointmentRows.length > 0;
-  return appointmentRows.length > Math.max(0, activeRules.overbookingLimit);
+  const hasAvailabilityBlock = blockRows.length > 0;
+  return {
+    appointmentRows,
+    canConfirmOverlap:
+      appointmentRows.length > 0
+      && !hasAvailabilityBlock
+      && activeRules.allowOverbooking
+      && appointmentRows.length <= Math.max(0, activeRules.overbookingLimit),
+    hasAvailabilityBlock,
+  };
+}
+
+export async function hasAppointmentConflict(db: any, salonId: string, staffId: string, startsAt: Date, endsAt: Date, excludeId?: string, rules?: AppointmentConflictRules) {
+  const conflicts = await inspectAppointmentConflicts(db, salonId, staffId, startsAt, endsAt, excludeId, rules);
+  return conflicts.hasAvailabilityBlock
+    || (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap);
 }
 
 export async function registerAppointmentRoutes(app: FastifyInstance) {
@@ -194,7 +216,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     };
   });
 
-  app.post<{ Params: { id: string }; Body: { customer_id: string; staff_id: string; service_id: string; starts_at: string; notes?: string; source?: "manual" | "walk_in" } }>(
+  app.post<{ Params: { id: string }; Body: { confirm_overlap?: boolean; customer_id: string; staff_id: string; service_id: string; starts_at: string; notes?: string; source?: "manual" | "walk_in" } }>(
     "/api/salons/:id/appointments", { preHandler: [authenticate] }, async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
       if (!(await canManage(request, request.body.staff_id))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
@@ -214,8 +236,17 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const startsAt = new Date(request.body.starts_at);
       const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
       const rules = await getCalendarRules(request.server.db, request.salonId);
-      if (await hasAppointmentConflict(request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt, undefined, rules))
+      const conflicts = await inspectAppointmentConflicts(
+        request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt, undefined, rules,
+      );
+      if (conflicts.hasAvailabilityBlock || (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap))
         return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      if (conflicts.canConfirmOverlap && !request.body.confirm_overlap) {
+        return reply.code(409).send({
+          conflicts: conflicts.appointmentRows,
+          error: "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED",
+        });
+      }
       const resource = await availableResourceFor(
         request.server.db,
         request.salonId,
@@ -256,7 +287,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
   });
 
-  app.patch<{ Params: { id: string; appointmentId: string }; Body: { duration_minutes?: number; starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
+  app.patch<{ Params: { id: string; appointmentId: string }; Body: { confirm_overlap?: boolean; duration_minutes?: number; starts_at?: string; status?: "pending"|"confirmed"|"cancelled"|"no_show"|"completed"; notes?: string } }>(
     "/api/salons/:id/appointments/:appointmentId", { preHandler: [authenticate] }, async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
       const rows = await request.server.db.select().from(appointments).where(and(eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId)));
@@ -280,8 +311,20 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const durationMinutes = requestedDuration ?? Math.round((item.endsAt.getTime() - item.startsAt.getTime()) / 60_000);
       const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
       const rules = await getCalendarRules(request.server.db, request.salonId);
-      if ((request.body.starts_at || requestedDuration !== undefined) && await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules))
-        return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      if (request.body.starts_at || requestedDuration !== undefined) {
+        const conflicts = await inspectAppointmentConflicts(
+          request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id, rules,
+        );
+        if (conflicts.hasAvailabilityBlock || (conflicts.appointmentRows.length > 0 && !conflicts.canConfirmOverlap)) {
+          return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+        }
+        if (conflicts.canConfirmOverlap && !request.body.confirm_overlap) {
+          return reply.code(409).send({
+            conflicts: conflicts.appointmentRows,
+            error: "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED",
+          });
+        }
+      }
       const resource = await availableResourceFor(
         request.server.db,
         request.salonId,

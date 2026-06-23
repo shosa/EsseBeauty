@@ -232,6 +232,7 @@ describe("professional UI regression guard", () => {
 
   it("uses persisted calendar rules in the professional calendar surface", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");
     expect(calendar).toContain("/settings/control-center");
     expect(calendar).toContain("defaultView");
     expect(calendar).toContain("minSlotMinutes");
@@ -240,6 +241,9 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("StatusBadge");
     expect(calendar).toContain("navigatorDays");
     expect(calendar).toContain("Cerca cliente, servizio o collaboratore");
+    expect(calendar).toContain('useState<CalendarView>("day")');
+    expect(calendar).toContain('calendar.defaultView ?? "day"');
+    expect(settings).toContain('control.calendar?.defaultView ?? "day"');
   });
 
   it("uses scalable appointment choices and lays overlapping events side by side", () => {

@@ -100,7 +100,7 @@ function addMonths(date: Date, months: number) {
 }
 
 function clampView(value: string | undefined): CalendarView {
-  return views.some((item) => item.key === value) ? value as CalendarView : "staff_columns";
+  return views.some((item) => item.key === value) ? value as CalendarView : "day";
 }
 
 function formatTime(value: string) {
@@ -200,7 +200,7 @@ export default function CalendarPage() {
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
   const [salonClosures, setSalonClosures] = useState<SalonClosure[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffOption[]>([]);
-  const [view, setView] = useState<CalendarView>("staff_columns");
+  const [view, setView] = useState<CalendarView>("day");
   const [periodOffset, setPeriodOffset] = useState(0);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -210,7 +210,7 @@ export default function CalendarPage() {
   const [rules, setRules] = useState<CalendarRules>({
     allowOverbooking: false,
     bufferMinutes: 0,
-    defaultView: "staff_columns",
+    defaultView: "day",
     enableResourceView: false,
     minBookingNoticeHours: 2,
     minSlotMinutes: 15,
@@ -232,7 +232,7 @@ export default function CalendarPage() {
         const data = await response.json() as { calendar?: Partial<CalendarRules> | null };
         const calendar = data.calendar;
         if (!calendar) return;
-        const defaultView = clampView(String(calendar.defaultView ?? "staff_columns"));
+        const defaultView = clampView(String(calendar.defaultView ?? "day"));
         setRules({
           allowOverbooking: Boolean(calendar.allowOverbooking),
           bufferMinutes: Number(calendar.bufferMinutes ?? 0),

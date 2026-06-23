@@ -148,6 +148,13 @@
       "when": 1782157500000,
       "tag": "0020_operational_multisite",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782206400000,
+      "tag": "0021_default_calendar_day",
+      "breakpoints": true
     }
   ]
 }

@@ -85,7 +85,7 @@ export default function GeneralSettingsPage() {
         allowOverbooking: control.calendar?.allowOverbooking ?? false,
         bufferMinutes: control.calendar?.bufferMinutes ?? 0,
         cancellationPolicyHours: control.calendar?.cancellationPolicyHours ?? salonSettings.cancellationPolicyHours,
-        defaultView: control.calendar?.defaultView ?? "week",
+        defaultView: control.calendar?.defaultView ?? "day",
         enableResourceView: control.calendar?.enableResourceView ?? false,
         minBookingNoticeHours: control.calendar?.minBookingNoticeHours ?? 2,
         minSlotMinutes: control.calendar?.minSlotMinutes ?? 15,
@@ -271,7 +271,7 @@ export default function GeneralSettingsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Slot minimo"><input min={5} type="number" value={calendar.minSlotMinutes ?? 15} onChange={(event) => setCalendar({ ...calendar, minSlotMinutes: Number(event.target.value) })} /></FormField>
             <FormField label="Buffer tra appuntamenti"><input min={0} type="number" value={calendar.bufferMinutes ?? 0} onChange={(event) => setCalendar({ ...calendar, bufferMinutes: Number(event.target.value) })} /></FormField>
-            <FormField label="Vista predefinita"><select value={calendar.defaultView ?? "week"} onChange={(event) => setCalendar({ ...calendar, defaultView: event.target.value })}><option value="day">Giorno</option><option value="week">Settimana</option><option value="month">Mese</option><option value="agenda">Agenda</option><option value="staff_columns">Colonne staff</option><option value="resources">Risorse</option></select></FormField>
+            <FormField label="Vista predefinita"><select value={calendar.defaultView ?? "day"} onChange={(event) => setCalendar({ ...calendar, defaultView: event.target.value })}><option value="day">Giorno</option><option value="week">Settimana</option><option value="month">Mese</option><option value="agenda">Agenda</option><option value="staff_columns">Colonne staff</option><option value="resources">Risorse</option></select></FormField>
             <FormField label="Limite overbooking"><input min={0} type="number" value={calendar.overbookingLimit ?? 0} onChange={(event) => setCalendar({ ...calendar, overbookingLimit: Number(event.target.value) })} /></FormField>
             <label className="flex items-center justify-between rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm font-bold text-stone-800">Overbooking controllato<Switch checked={Boolean(calendar.allowOverbooking)} onCheckedChange={(allowOverbooking) => setCalendar({ ...calendar, allowOverbooking })} /></label>
             <label className="flex items-center justify-between rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm font-bold text-stone-800">Vista risorse<Switch checked={Boolean(calendar.enableResourceView)} onCheckedChange={(enableResourceView) => setCalendar({ ...calendar, enableResourceView })} /></label>

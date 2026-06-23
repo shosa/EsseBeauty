@@ -410,7 +410,7 @@ export const calendarSettings = pgTable(
     cancellationPolicyHours: integer("cancellation_policy_hours").default(24).notNull(),
     allowOverbooking: boolean("allow_overbooking").default(false).notNull(),
     overbookingLimit: integer("overbooking_limit").default(0).notNull(),
-    defaultView: text("default_view").default("week").notNull(),
+    defaultView: text("default_view").default("day").notNull(),
     enableResourceView: boolean("enable_resource_view").default(false).notNull(),
     printableFields: jsonb("printable_fields").$type<string[]>().default([]).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
