@@ -18,6 +18,15 @@ describe("POS checkout contract", () => {
     expect(source).not.toContain('throw new Error("INSUFFICIENT_STOCK")');
   });
 
+  it("treats voucher redemption as discount, not cash revenue", () => {
+    expect(source).toContain("paymentTotals");
+    expect(source).toContain("voucherCents > saleValueCents");
+    expect(source).toContain("const discountCents = manualDiscountCents + voucherCents");
+    expect(source).toContain("const totalCents = saleValueCents - voucherCents");
+    expect(source).toContain("if (cashCents !== totalCents)");
+    expect(source).not.toContain("voucherId: voucher.id");
+  });
+
   it("exposes service category metadata for the POS category-first flow", () => {
     expect(source).toContain("serviceCategories");
     expect(source).toContain("category_id");

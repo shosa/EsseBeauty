@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Gift, Package, Plus, Scissors, ShoppingBag } from "lucide-react";
-import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, WalletCards, X } from "lucide-react";
+import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -100,6 +100,12 @@ export default function SalesPage() {
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [agendaExpanded, setAgendaExpanded] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
+
+  useEffect(() => {
+    if (!message) return;
+    const timeout = window.setTimeout(() => setMessage(""), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [message]);
 
   async function loadCatalog() {
     if (!salon) return;
@@ -451,8 +457,16 @@ export default function SalesPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1600px]">
-      <SaveToast visible={Boolean(message)}>{message}</SaveToast>
+    <AppPage className="sales-register-page xl:pr-[552px]" maxWidth="max-w-[1600px]">
+      {message && (
+        <div className="sales-success-overlay fixed inset-0 z-50 grid place-items-center bg-[#2d1d27]/18 px-6 backdrop-blur-sm" role="status" aria-live="polite">
+          <div className="sales-success-card w-full max-w-sm rounded-3xl border border-white/70 bg-white/95 p-7 text-center shadow-[0_28px_80px_rgb(45_29_39_/_0.22)]">
+            <div className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-2xl font-black text-emerald-700">✓</div>
+            <h2 className="mt-4 text-2xl font-black text-stone-950">OK</h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-stone-600">{message}</p>
+          </div>
+        </div>
+      )}
       <Dialog onClose={() => setCustomerDialogOpen(false)} open={customerDialogOpen} title="Rubrica clienti">
         <label className="block text-sm font-bold text-stone-700">Cerca cliente
           <input
@@ -491,7 +505,6 @@ export default function SalesPage() {
                 className="min-h-12 w-full rounded-xl border border-stone-200 px-4 pr-12 text-lg font-black"
                 min=".01"
                 onChange={(event) => setVoucherAmount(event.target.value)}
-                step=".01"
                 type="number"
                 value={voucherAmount}
               />
@@ -553,7 +566,7 @@ export default function SalesPage() {
       <PageHeader eyebrow="Punto vendita" title="Cassa" subtitle="Vendite da appuntamento, servizi liberi, prodotti e pagamenti in un unico flusso." status={<StatusBadge status="active">Operativa</StatusBadge>} />
       {error && <InlineError className="mb-5">{error}</InlineError>}
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_520px]">
+      <div className="grid gap-5">
         <div className="space-y-5">
         <SectionCard>
           <button
@@ -566,7 +579,7 @@ export default function SalesPage() {
               <strong className="mt-1 block text-xl">Appuntamenti da completare</strong>
               <span className="mt-1 block text-sm text-stone-500">{todayAppointments.length} appuntamenti richiamabili in cassa</span>
             </span>
-            <span className="rounded-full border border-stone-200 px-3 py-1 text-sm font-black text-[#792f59]">{agendaExpanded ? "Chiudi" : "Apri"}</span>
+            <span aria-hidden="true" className="grid size-8 place-items-center rounded-full border border-stone-200 text-[#792f59]">{agendaExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</span>
           </button>
           {agendaExpanded && (
             <div className="mt-5">
@@ -673,9 +686,30 @@ export default function SalesPage() {
         </SectionCard>
         </div>
 
-        <aside className="self-start rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] xl:sticky xl:top-24">
-          <div className="flex items-start justify-between"><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#792f59]">Conto corrente</p><h2 className="mt-1 text-2xl font-black">Nuova vendita</h2></div><Button onClick={resetRegister} size="sm" variant="ghost">Azzera</Button></div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <aside className="flex flex-col overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#fffafd] shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] xl:fixed xl:bottom-0 xl:right-0 xl:top-[61px] xl:z-10 xl:w-[520px] xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-white/70 xl:shadow-[-12px_0_36px_rgb(30_15_24_/_0.12)]">
+          <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(244,216,168,0.32),transparent_34%),linear-gradient(135deg,#2d1d27_0%,#5f2447_54%,#8f3a68_100%)] px-5 py-5 text-white">
+            <div className="absolute -right-10 -top-14 size-36 rounded-full border border-white/10" aria-hidden="true" />
+            <div className="relative flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/12 text-[#f4d8a8] ring-1 ring-white/15"><ReceiptText className="size-5" /></span>
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-[.18em] text-white/58">Conto corrente</p>
+                  <h2 className="mt-1 truncate text-2xl font-black text-white">Nuova vendita</h2>
+                </div>
+              </div>
+              <button
+                aria-label="Azzera conto"
+                className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/10 text-white/80 transition hover:-translate-y-0.5 hover:bg-white hover:text-[#792f59]"
+                onClick={resetRegister}
+                title="Azzera conto"
+                type="button"
+              >
+                <RotateCcw className="size-4" />
+              </button>
+            </div>
+          </div>
+          <div className="sidebar-scroll min-h-0 flex-1 px-5 py-5 xl:overflow-y-auto xl:pr-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             <FormField label="Cliente">
               <div className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 bg-white p-1.5">
                 <div className="min-w-0 flex-1 px-2">
@@ -728,21 +762,25 @@ export default function SalesPage() {
                   : <strong>{line.description}</strong>}
                 <p className="mt-1 text-xs uppercase text-stone-400">{line.issued_voucher_id ? "Buono regalo" : line.assigned_package_id ? "Pacchetto cliente" : line.item_type === "service" ? "Servizio" : line.item_type === "product" ? "Prodotto" : "Voce libera"}</p>
                 {(line.package_quantity ?? 0) > 0 && <p className="mt-2 rounded-lg bg-violet-100 px-2 py-1 text-xs font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name} · {euro(line.package_quantity! * line.unit_price_cents)} azzerati</p>}
-              </div><button className="text-sm font-bold text-red-700" onClick={() => removeCartLine(index)}>Rimuovi</button></div>
+              </div><button aria-label={`Rimuovi ${line.description || "riga"}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-red-700 transition hover:bg-red-50" onClick={() => removeCartLine(index)} title="Rimuovi" type="button"><X className="size-4" /></button></div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <label className="text-[10px] font-bold text-stone-500">Quantità<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={1} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })} type="number" value={line.quantity} /></label>
-                <label className="text-[10px] font-bold text-stone-500">Prezzo<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { unit_price_cents: cents(event.target.value) })} step=".01" type="number" value={(line.unit_price_cents / 100).toFixed(2)} /></label>
-                <label className="text-[10px] font-bold text-stone-500">Sconto<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { discount_cents: cents(event.target.value) })} step=".01" type="number" value={(line.discount_cents / 100).toFixed(2)} /></label>
+                <label className="text-[10px] font-bold text-stone-500">Prezzo<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { unit_price_cents: cents(event.target.value) })} type="number" value={(line.unit_price_cents / 100).toFixed(2)} /></label>
+                <label className="text-[10px] font-bold text-stone-500">Sconto<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { discount_cents: cents(event.target.value) })} type="number" value={(line.discount_cents / 100).toFixed(2)} /></label>
               </div>
             </article>)}
           </div>
-          <div className="mt-5 border-y border-stone-200 py-4">
-            <div className="flex justify-between text-sm"><span>Subtotale</span><b>{euro(subtotal)}</b></div>
-            <label className="mt-3 flex items-center justify-between text-sm">Sconto conto<input className="w-28 rounded-xl border p-2 text-right font-bold disabled:bg-stone-100" disabled={issuedVouchers.length > 0} min={0} onChange={(event) => setDiscountCents(cents(event.target.value))} step=".01" type="number" value={(discountCents / 100).toFixed(2)} /></label>
-            <div className="mt-4 flex items-end justify-between"><strong>Totale</strong><b className="text-4xl text-[#5f2447]">{euro(total)}</b></div>
+          <div className="mt-5 rounded-3xl border border-[#ead1df] bg-[linear-gradient(180deg,#ffffff_0%,#fff7fb_100%)] p-4 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.9),0_16px_34px_rgb(45_29_39_/_0.07)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm font-black text-[#5f2447]"><WalletCards className="size-4" /> Riepilogo</div>
+              <span className={`rounded-full px-3 py-1 text-[11px] font-black ${paid === total ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{paid === total ? "Saldato" : "In corso"}</span>
+            </div>
+            <div className="mt-4 flex justify-between text-sm"><span className="text-stone-500">Subtotale</span><b>{euro(subtotal)}</b></div>
+            <label className="mt-3 flex items-center justify-between gap-3 text-sm text-stone-500">Sconto conto<input className="w-28 rounded-xl border p-2 text-right font-bold text-stone-950 disabled:bg-stone-100" disabled={issuedVouchers.length > 0} min={0} onChange={(event) => setDiscountCents(cents(event.target.value))} type="number" value={(discountCents / 100).toFixed(2)} /></label>
+            <div className="mt-5 flex items-end justify-between border-t border-[#ead1df] pt-4"><strong className="text-sm uppercase tracking-[.16em] text-stone-400">Totale</strong><b className="text-5xl font-black tracking-tight text-[#5f2447]">{euro(total)}</b></div>
           </div>
-          <div className="mt-5">
-            <div className="flex justify-between"><strong>Pagamenti</strong><button className="text-sm font-bold text-[#792f59]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])}>Dividi</button></div>
+          <div className="mt-5 rounded-3xl border border-stone-200 bg-white p-4 shadow-[0_12px_28px_rgb(45_29_39_/_0.045)]">
+            <div className="flex items-center justify-between gap-3"><strong className="flex items-center gap-2"><CreditCard className="size-4 text-[#792f59]" />Pagamenti</strong><button className="rounded-full bg-[#f4e4ec] px-3 py-1.5 text-sm font-black text-[#792f59] transition hover:bg-[#ead1df]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])}>Dividi</button></div>
             <div className="mt-3 space-y-3">{payments.map((payment, index) => <div className="rounded-2xl border border-stone-200 p-3" key={index}>
               <div className="grid grid-cols-[1fr_130px_auto] gap-2">
                 <select
@@ -755,7 +793,7 @@ export default function SalesPage() {
                 >
                   {paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
                 </select>
-                <input className="rounded-xl border p-2 text-right font-bold" onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? { ...item, amount_cents: cents(event.target.value) } : item))} step=".01" type="number" value={(payment.amount_cents / 100).toFixed(2)} />
+                <input className="rounded-xl border p-2 text-right font-bold" onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? { ...item, amount_cents: cents(event.target.value) } : item))} type="number" value={(payment.amount_cents / 100).toFixed(2)} />
                 {payments.length > 1 && <button aria-label="Rimuovi pagamento" className="px-2 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, i) => i !== index))}>×</button>}
               </div>
               {payment.method === "voucher" && <div className="mt-3">
@@ -769,7 +807,7 @@ export default function SalesPage() {
                 </div>}
               </div>}
             </div>)}</div>
-            <div className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${paid === total ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>Registrato: {euro(paid)} / {euro(total)}</div>
+            <div className={`mt-3 rounded-2xl px-3 py-2 text-sm font-black ${paid === total ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>Registrato: {euro(paid)} / {euro(total)}</div>
           </div>
           <FormField className="mt-5" label="Nota interna"><textarea className="min-h-20 w-full" onChange={(event) => setNotes(event.target.value)} value={notes} /></FormField>
           <Button
@@ -780,6 +818,7 @@ export default function SalesPage() {
           >
             {saving ? "Registrazione…" : `Incassa ${euro(total)}`}
           </Button>
+          </div>
         </aside>
       </div>
     </AppPage>

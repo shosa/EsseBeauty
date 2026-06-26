@@ -190,6 +190,21 @@ function validateIssuedVouchers(lines: ReturnType<typeof normalizedLine>[], vouc
   return issuedTotal === voucherLineTotal;
 }
 
+function normalizedPayments(payments: CheckoutPayment[]) {
+  return payments
+    .map((payment) => ({ ...payment, amount_cents: Math.max(0, Math.trunc(payment.amount_cents)) }))
+    .filter((payment) => payment.amount_cents > 0);
+}
+
+function paymentTotals(payments: CheckoutPayment[]) {
+  return payments.reduce(
+    (totals, payment) => payment.method === "voucher"
+      ? { ...totals, voucherCents: totals.voucherCents + payment.amount_cents }
+      : { ...totals, cashCents: totals.cashCents + payment.amount_cents },
+    { cashCents: 0, voucherCents: 0 },
+  );
+}
+
 async function savePayments(
   tx: any,
   input: {
@@ -205,21 +220,13 @@ async function savePayments(
     if (payment.method === "voucher") {
       const code = payment.voucher_code?.replace(/\D/g, "") || payment.reference?.replace(/\D/g, "");
       if (!code) throw new Error("VOUCHER_CODE_REQUIRED");
-      const voucher = await redeemPurchaseVoucher(tx, {
+      await redeemPurchaseVoucher(tx, {
         amountCents: payment.amount_cents,
         code,
         createdByUserId: input.userId,
         customerId: input.customerId,
         saleId: input.saleId,
         salonId: input.salonId,
-      });
-      rows.push({
-        amountCents: payment.amount_cents,
-        method: payment.method,
-        reference: voucher.code,
-        saleId: input.saleId,
-        salonId: input.salonId,
-        voucherId: voucher.id,
       });
     } else {
       rows.push({
@@ -426,9 +433,6 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     if ((request.body.assigned_packages?.length ?? 0) !== packageLineIds.length) {
       return reply.code(400).send({ error: "PACKAGE_ASSIGNMENT_MISMATCH" });
     }
-    if ((request.body.issued_vouchers?.length ?? 0) > 0 && (request.body.discount_cents ?? 0) > 0) {
-      return reply.code(400).send({ error: "VOUCHER_CANNOT_BE_DISCOUNTED" });
-    }
     const serviceIds = [...new Set(lines.flatMap((item) => item.item_type === "service" && item.service_id ? [item.service_id] : []))];
     const productIds = [...new Set(lines.flatMap((item) => item.item_type === "product" && item.product_id ? [item.product_id] : []))];
     if (lines.some((item) => item.item_type === "service" && !item.service_id) || lines.some((item) => item.item_type === "product" && !item.product_id)) {
@@ -454,13 +458,17 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "CATALOG_ITEM_NOT_FOUND" });
     }
     const subtotalCents = lines.reduce((total, item) => total + item.totalCents, 0);
-    const discountCents = Math.min(subtotalCents, Math.max(0, Math.trunc(request.body.discount_cents ?? 0)));
-    const totalCents = subtotalCents - discountCents;
-    const payments = request.body.payments
-      .map((payment) => ({ ...payment, amount_cents: Math.max(0, Math.trunc(payment.amount_cents)) }))
-      .filter((payment) => payment.amount_cents > 0);
-    const paidCents = payments.reduce((total, payment) => total + payment.amount_cents, 0);
-    if (paidCents !== totalCents) return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH" });
+    const manualDiscountCents = Math.min(subtotalCents, Math.max(0, Math.trunc(request.body.discount_cents ?? 0)));
+    const saleValueCents = subtotalCents - manualDiscountCents;
+    const payments = normalizedPayments(request.body.payments);
+    const { cashCents, voucherCents } = paymentTotals(payments);
+    if ((request.body.issued_vouchers?.length ?? 0) > 0 && (manualDiscountCents > 0 || voucherCents > 0)) {
+      return reply.code(400).send({ error: "VOUCHER_CANNOT_BE_DISCOUNTED" });
+    }
+    if (voucherCents > saleValueCents) return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH" });
+    const discountCents = manualDiscountCents + voucherCents;
+    const totalCents = saleValueCents - voucherCents;
+    if (cashCents !== totalCents) return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH" });
     const loyaltyEnabled = Boolean(request.body.customer_id) &&
       await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db);
 
@@ -652,18 +660,21 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       if (!validateIssuedVouchers(lines, request.body.issued_vouchers)) {
         return reply.code(400).send({ error: "VOUCHER_ISSUE_TOTAL_MISMATCH" });
       }
-      if ((request.body.issued_vouchers?.length ?? 0) > 0 && (request.body.discount_cents ?? 0) > 0) {
+      const subtotalCents = lines.reduce((total, item) => total + item.totalCents, 0);
+      const manualDiscountCents = Math.min(subtotalCents, Math.max(0, Math.trunc(request.body.discount_cents ?? 0)));
+      const saleValueCents = subtotalCents - manualDiscountCents;
+      const payments = normalizedPayments(request.body.payments);
+      const { cashCents, voucherCents } = paymentTotals(payments);
+      if ((request.body.issued_vouchers?.length ?? 0) > 0 && (manualDiscountCents > 0 || voucherCents > 0)) {
         return reply.code(400).send({ error: "VOUCHER_CANNOT_BE_DISCOUNTED" });
       }
-      const subtotalCents = lines.reduce((total, item) => total + item.totalCents, 0);
-      const discountCents = Math.min(subtotalCents, Math.max(0, Math.trunc(request.body.discount_cents ?? 0)));
-      const totalCents = subtotalCents - discountCents;
-      const payments = request.body.payments
-        .map((payment) => ({ ...payment, amount_cents: Math.max(0, Math.trunc(payment.amount_cents)) }))
-        .filter((payment) => payment.amount_cents > 0);
-      const paidCents = payments.reduce((total, payment) => total + payment.amount_cents, 0);
-      if (paidCents !== totalCents) {
-        return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH", expected_cents: totalCents, paid_cents: paidCents });
+      if (voucherCents > saleValueCents) {
+        return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH", expected_cents: saleValueCents, paid_cents: voucherCents });
+      }
+      const discountCents = manualDiscountCents + voucherCents;
+      const totalCents = saleValueCents - voucherCents;
+      if (cashCents !== totalCents) {
+        return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH", expected_cents: totalCents, paid_cents: cashCents });
       }
       const loyaltyEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db);
 

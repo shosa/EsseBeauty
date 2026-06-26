@@ -269,12 +269,58 @@ table tbody tr {
   animation: appointment-curtain-shake 320ms ease-in-out;
 }
 
+@keyframes sales-success-overlay-fade {
+  0% { opacity: 0; }
+  12%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes sales-success-card-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  14%, 80% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+}
+
+.sales-success-overlay {
+  animation: sales-success-overlay-fade 2000ms ease both;
+}
+
+.sales-success-card {
+  animation: sales-success-card-fade 2000ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
+}
+
+.sales-register-page input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.sales-register-page input[type="number"]::-webkit-inner-spin-button,
+.sales-register-page input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .appointment-curtain {
     animation-duration: 1ms;
   }
 
   .appointment-curtain.appointment-curtain-shake {
+    animation-duration: 1ms;
+  }
+
+  .sales-success-overlay,
+  .sales-success-card {
     animation-duration: 1ms;
   }
 }
