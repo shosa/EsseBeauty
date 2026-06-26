@@ -1,19 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { AppPage, Button, Dialog, Drawer, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatCard, StatGrid, StatusBadge } from "@esse-beauty/ui";
+import { Gift, Package, Plus, Scissors, ShoppingBag } from "lucide-react";
+import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
+import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
-type Tab = "register" | "sales" | "stats";
-type Preset = "today" | "week" | "month" | "last";
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 type CatalogType = "service" | "product" | "package";
 type CartItemType = CatalogType | "custom";
 
-interface CatalogItem { category?: string; id: string; name: string; price_cents: number; stock_quantity?: number; }
+interface CatalogItem { category?: string; category_icon?: string | null; category_id?: string | null; id: string; name: string; price_cents: number; stock_quantity?: number; }
 interface Customer { email?: string | null; id: string; name: string; phone?: string | null; }
 interface StaffItem { color: string; id: string; name: string; }
 interface PosCatalog { packages?: CatalogItem[]; products: CatalogItem[]; services: CatalogItem[]; staff: StaffItem[]; }
@@ -23,30 +22,23 @@ interface IssuedVoucherDraft { amount_cents: number; id: string; message?: strin
 interface VoucherLookup { balance_cents: number; code: string; customer_id: string; customer_name: string; id: string; status: string; }
 interface IssuedVoucherResult { balanceCents: number; code: string; customerId: string; id: string; originalAmountCents: number; }
 interface CustomerPackage { expiresAt?: string | null; id: string; items: Array<{ itemType: CartItemType; name: string; packageItemId: string; productId?: string | null; remainingQuantity: number; serviceId?: string | null }>; name: string; }
-interface SaleRow { appointment_id?: string | null; closed_at: string; customer_name?: string | null; discount_cents: number; id: string; staff_name?: string | null; total_cents: number; }
-interface SaleDetail {
-  appointment_id?: string | null;
-  cashier_name?: string | null;
-  closed_at: string;
-  customer_email?: string | null;
-  customer_id?: string | null;
-  customer_name?: string | null;
-  customer_phone?: string | null;
-  discount_cents: number;
-  id: string;
-  items: Array<{ description: string; discount_cents: number; id: string; item_type: CartItemType; quantity: number; total_cents: number; unit_price_cents: number }>;
-  notes?: string | null;
-  payments: Array<{ amount_cents: number; id: string; method: PaymentMethod; paid_at: string; reference?: string | null }>;
-  staff_name?: string | null;
-  subtotal_cents: number;
-  total_cents: number;
+interface AgendaAppointment { color?: string | null; customer_name: string; ends_at: string; id: string; service_name: string; staff_id: string; staff_name: string; starts_at: string; status: string; }
+interface AppointmentCheckoutPreview {
+  appointment: {
+    customer_email?: string | null;
+    customer_id: string;
+    customer_name: string;
+    customer_phone?: string | null;
+    id: string;
+    service_id: string;
+    service_name: string;
+    service_price_cents: number;
+    staff_id: string;
+    starts_at: string;
+    status: string;
+  };
+  sale: unknown | null;
 }
-interface SalesResponse {
-  payments: Array<{ amount_cents: number; method: string }>;
-  rows: SaleRow[];
-  summary: { average_cents: number; count: number; discount_cents: number; total_cents: number; };
-}
-
 const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
   { label: "Contanti", value: "cash" },
   { label: "Carta", value: "card" },
@@ -57,23 +49,30 @@ const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
 const methodLabels: Record<PaymentMethod, string> = Object.fromEntries(paymentMethods.map((method) => [method.value, method.label])) as Record<PaymentMethod, string>;
 function euro(cents: number) { return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" }); }
 function cents(value: string) { const amount = Number(value.replace(",", ".")); return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0; }
-function rangeFor(preset: Preset) {
-  const now = new Date(); const from = new Date(now); const to = new Date(now);
-  if (preset === "today") from.setHours(0, 0, 0, 0);
-  if (preset === "week") { from.setDate(now.getDate() - ((now.getDay() + 6) % 7)); from.setHours(0, 0, 0, 0); }
-  if (preset === "month") { from.setDate(1); from.setHours(0, 0, 0, 0); }
-  if (preset === "last") { from.setMonth(now.getMonth() - 1, 1); from.setHours(0, 0, 0, 0); to.setDate(0); to.setHours(23, 59, 59, 999); }
+function todayAgendaRange() {
+  const from = new Date();
+  const to = new Date();
+  from.setHours(0, 0, 0, 0);
+  to.setHours(23, 59, 59, 999);
   return { from: from.toISOString(), to: to.toISOString() };
+}
+function timeLabel(value: string) {
+  return new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+function readableTextColor(hex?: string | null) {
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
+  const red = Number.parseInt(hex.slice(1, 3), 16);
+  const green = Number.parseInt(hex.slice(3, 5), 16);
+  const blue = Number.parseInt(hex.slice(5, 7), 16);
+  return (red * 299 + green * 587 + blue * 114) / 1000 > 150 ? "#2d1d27" : "#ffffff";
 }
 
 export default function SalesPage() {
   const { salon } = useAuth();
-  const [tab, setTab] = useState<Tab>("register");
-  const [preset, setPreset] = useState<Preset>("today");
   const [catalog, setCatalog] = useState<PosCatalog>();
-  const [data, setData] = useState<SalesResponse>();
   const [cart, setCart] = useState<CartLine[]>([]);
   const [catalogType, setCatalogType] = useState<CatalogType>("service");
+  const [selectedServiceCategoryId, setSelectedServiceCategoryId] = useState("");
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer>();
@@ -97,8 +96,10 @@ export default function SalesPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedSale, setSelectedSale] = useState<SaleDetail>();
-  const [saleLoading, setSaleLoading] = useState(false);
+  const [todayAppointments, setTodayAppointments] = useState<AgendaAppointment[]>([]);
+  const [agendaLoading, setAgendaLoading] = useState(false);
+  const [agendaExpanded, setAgendaExpanded] = useState(false);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
 
   async function loadCatalog() {
     if (!salon) return;
@@ -106,27 +107,61 @@ export default function SalesPage() {
     if (!response.ok) return setError("Catalogo cassa non disponibile.");
     setCatalog(await response.json() as PosCatalog);
   }
-  async function loadSales() {
+  async function loadTodayAppointments() {
     if (!salon) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/sales?${new URLSearchParams(rangeFor(preset))}`, { credentials: "include" });
-    if (!response.ok) return setError(response.status === 403 ? "Non hai accesso alla contabilità gestionale." : "Movimenti non disponibili.");
-    setData(await response.json() as SalesResponse);
-  }
-  async function openSale(saleId: string) {
-    if (!salon) return;
-    setSaleLoading(true);
-    setError("");
-    const response = await fetch(`${api}/api/salons/${salon.id}/sales/${saleId}`, { credentials: "include" });
+    setAgendaLoading(true);
+    const response = await fetch(`${api}/api/salons/${salon.id}/appointments?${new URLSearchParams(todayAgendaRange())}`, { credentials: "include" });
     if (!response.ok) {
-      setError("Dettaglio vendita non disponibile.");
-      setSaleLoading(false);
+      setTodayAppointments([]);
+      setAgendaLoading(false);
       return;
     }
-    setSelectedSale(await response.json() as SaleDetail);
-    setSaleLoading(false);
+    const result = await response.json() as AgendaAppointment[] | { appointments?: AgendaAppointment[] };
+    const appointments = Array.isArray(result) ? result : result.appointments ?? [];
+    setTodayAppointments(appointments.filter((item) => !["cancelled", "completed"].includes(item.status)));
+    setAgendaLoading(false);
+  }
+  async function loadAppointmentCheckout(appointmentId: string) {
+    if (!salon) return;
+    setError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${appointmentId}/checkout`, { credentials: "include" });
+    if (!response.ok) {
+      setError("Appuntamento non caricabile in cassa.");
+      return;
+    }
+    const preview = await response.json() as AppointmentCheckoutPreview;
+    const appointment = preview.appointment;
+    if (appointment.status !== "confirmed") {
+      setError("Puoi incassare solo appuntamenti confermati.");
+      return;
+    }
+    setSelectedAppointmentId(appointment.id);
+    setCustomerId(appointment.customer_id);
+    setSelectedCustomer({
+      email: appointment.customer_email,
+      id: appointment.customer_id,
+      name: appointment.customer_name,
+      phone: appointment.customer_phone,
+    });
+    setStaffId(appointment.staff_id);
+    setCart([{
+      description: appointment.service_name,
+      discount_cents: 0,
+      id: appointment.service_id,
+      item_type: "service",
+      quantity: 1,
+      service_id: appointment.service_id,
+      unit_price_cents: appointment.service_price_cents,
+    }]);
+    setDiscountCents(0);
+    setIssuedVouchers([]);
+    setPayments([{ amount_cents: appointment.service_price_cents, method: "cash" }]);
+    setNotes(`Da appuntamento agenda ${timeLabel(appointment.starts_at)}`);
+    setAgendaExpanded(false);
+    resetServiceCatalogStep();
   }
   useEffect(() => { void loadCatalog(); }, [salon?.id]);
-  useEffect(() => { void loadSales(); }, [preset, salon?.id]);
+  useEffect(() => { void loadTodayAppointments(); }, [salon?.id]);
   useEffect(() => {
     if (!salon || !customerDialogOpen) return;
     const search = customerQuery.trim();
@@ -190,7 +225,54 @@ export default function SalesPage() {
   const total = Math.max(0, subtotal - discountCents);
   const paid = payments.reduce((sum, item) => sum + item.amount_cents, 0);
   useEffect(() => { if (payments.length === 1) setPayments((current) => [{ ...current[0]!, amount_cents: total }]); }, [total]);
-  const visibleCatalog = (catalogType === "service" ? catalog?.services : catalogType === "product" ? catalog?.products : catalog?.packages)?.filter((item) => `${item.name} ${item.category ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [];
+  const serviceCategories = useMemo(() => {
+    const categories = new Map<string, { count: number; icon?: string | null; id: string; name: string }>();
+    for (const service of catalog?.services ?? []) {
+      const id = service.category_id ?? service.category ?? "service";
+      const current = categories.get(id);
+      if (current) {
+        current.count += 1;
+      } else {
+        categories.set(id, {
+          count: 1,
+          icon: service.category_icon,
+          id,
+          name: service.category ?? "Servizi",
+        });
+      }
+    }
+    return Array.from(categories.values()).sort((left, right) => left.name.localeCompare(right.name, "it"));
+  }, [catalog?.services]);
+  const visibleCatalog = (catalogType === "service" ? catalog?.services : catalogType === "product" ? catalog?.products : catalog?.packages)
+    ?.filter((item) => catalogType !== "service" || item.category_id === selectedServiceCategoryId || (!item.category_id && item.category === selectedServiceCategoryId))
+    .filter((item) => `${item.name} ${item.category ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [];
+  const appointmentsByStaff = useMemo(() => {
+    const groups = new Map<string, { color?: string | null; items: AgendaAppointment[]; name: string; staffId: string }>();
+    for (const appointment of todayAppointments) {
+      const staffKey = appointment.staff_id || appointment.staff_name;
+      const current = groups.get(staffKey);
+      if (current) {
+        current.items.push(appointment);
+      } else {
+        groups.set(staffKey, { color: appointment.color, items: [appointment], name: appointment.staff_name, staffId: staffKey });
+      }
+    }
+    return Array.from(groups.values()).map((group) => ({
+      ...group,
+      items: group.items.sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()),
+    }));
+  }, [todayAppointments]);
+
+  function selectCatalogType(type: CatalogType) {
+    setCatalogType(type);
+    setQuery("");
+    if (type !== "service") setSelectedServiceCategoryId("");
+  }
+
+  function resetServiceCatalogStep() {
+    setSelectedServiceCategoryId("");
+    setQuery("");
+  }
 
   function addItem(item: CatalogItem) {
     if (catalogType === "package") {
@@ -216,6 +298,7 @@ export default function SalesPage() {
         product_id: catalogType === "product" ? item.id : undefined, quantity: 1,
         service_id: catalogType === "service" ? item.id : undefined, unit_price_cents: item.price_cents,
       }];
+      if (catalogType === "service") resetServiceCatalogStep();
       window.setTimeout(() => applyPackages(), 0);
       return next;
     });
@@ -299,12 +382,13 @@ export default function SalesPage() {
     setSelectedCustomer(undefined);
     setCustomerVouchers([]);
     setCustomerPackages([]);
+    setSelectedAppointmentId("");
     setCart((current) => current.filter((line) => !line.assigned_package_id));
     setPayments((current) => current.map((payment) => payment.method === "voucher"
       ? { amount_cents: payment.amount_cents, method: "cash" }
       : payment));
   }
-  function resetRegister() { setCart([]); setIssuedVouchers([]); clearCustomer(); setStaffId(""); setDiscountCents(0); setPayments([{ amount_cents: 0, method: "cash" }]); setNotes(""); }
+  function resetRegister() { setCart([]); setIssuedVouchers([]); clearCustomer(); setStaffId(""); setDiscountCents(0); setPayments([{ amount_cents: 0, method: "cash" }]); setNotes(""); setSelectedAppointmentId(""); }
 
   function applyVoucher(voucher: VoucherLookup, paymentIndex?: number) {
     const voucherAmount = Math.min(total, voucher.balance_cents);
@@ -327,7 +411,10 @@ export default function SalesPage() {
   async function checkout() {
     if (!salon || !cart.length || paid !== total) return;
     setSaving(true); setError("");
-    const response = await fetch(`${api}/api/salons/${salon.id}/pos-checkout`, {
+    const checkoutUrl = selectedAppointmentId
+      ? `${api}/api/salons/${salon.id}/appointments/${selectedAppointmentId}/checkout`
+      : `${api}/api/salons/${salon.id}/pos-checkout`;
+    const response = await fetch(checkoutUrl, {
       body: JSON.stringify({
         assigned_packages: cart.filter((line) => line.assigned_package_id).map((line) => ({ package_id: line.assigned_package_id })),
         customer_id: customerId || undefined,
@@ -352,12 +439,13 @@ export default function SalesPage() {
         VOUCHER_NOT_FOUND: "Buono non trovato.",
         PACKAGE_CUSTOMER_REQUIRED: "Seleziona il cliente a cui intestare il pacchetto.",
         PACKAGE_NOT_FOUND: "Pacchetto non disponibile.",
+        APPOINTMENT_NOT_CONFIRMED: "L'appuntamento deve essere confermato prima dell'incasso.",
       };
       setError(messages[body.error ?? ""] ?? "Vendita non registrata."); setSaving(false); return;
     }
     const codes = body.issued_vouchers?.map((voucher) => voucher.code.replace(/(\d{4})(?=\d)/g, "$1 ")).join(", ");
     resetRegister();
-    await Promise.all([loadCatalog(), loadSales()]);
+    await Promise.all([loadCatalog(), loadTodayAppointments()]);
     setMessage(codes ? `Vendita registrata. Buono emesso: ${codes}` : "Vendita registrata correttamente.");
     setSaving(false);
   }
@@ -462,83 +550,128 @@ export default function SalesPage() {
           </Button>
         </div>
       </Dialog>
-      <Drawer onClose={() => setSelectedSale(undefined)} open={Boolean(selectedSale)} title="Dettaglio vendita">
-        {selectedSale && <div className="space-y-5">
-          <section className="rounded-2xl bg-[#402334] p-5 text-white">
-            <p className="text-xs font-black uppercase tracking-[.16em] text-[#e8bfd4]">Incasso registrato</p>
-            <strong className="mt-2 block text-4xl">{euro(selectedSale.total_cents)}</strong>
-            <p className="mt-2 text-sm text-stone-300">{new Date(selectedSale.closed_at).toLocaleString("it-IT")}</p>
-          </section>
-
-          <section className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Cliente</span><strong className="mt-1 block">{selectedSale.customer_name || "Cliente occasionale"}</strong></div>
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Operatore</span><strong className="mt-1 block">{selectedSale.staff_name || "Non assegnato"}</strong></div>
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Registrata da</span><strong className="mt-1 block">{selectedSale.cashier_name || "Sistema"}</strong></div>
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Origine</span><strong className="mt-1 block">{selectedSale.appointment_id ? "Appuntamento" : "Vendita libera"}</strong></div>
-          </section>
-
-          {(selectedSale.customer_phone || selectedSale.customer_email) && <section className="rounded-2xl bg-stone-50 p-4 text-sm">
-            {selectedSale.customer_phone && <p><span className="text-stone-500">Telefono:</span> <strong>{selectedSale.customer_phone}</strong></p>}
-            {selectedSale.customer_email && <p className="mt-1"><span className="text-stone-500">Email:</span> <strong>{selectedSale.customer_email}</strong></p>}
-          </section>}
-
-          <section>
-            <h3 className="font-black">Cosa è stato venduto</h3>
-            <div className="mt-3 space-y-2">
-              {selectedSale.items.map((item) => <article className="rounded-2xl border border-stone-200 p-4" key={item.id}>
-                <div className="flex items-start justify-between gap-3"><div><strong>{item.description}</strong><p className="mt-1 text-xs uppercase text-stone-400">{item.item_type === "service" ? "Servizio" : item.item_type === "product" ? "Prodotto" : "Voce libera"}</p></div><strong>{euro(item.total_cents)}</strong></div>
-                <div className="mt-3 flex flex-wrap gap-3 text-xs text-stone-500"><span>Quantità: {item.quantity}</span><span>Prezzo: {euro(item.unit_price_cents)}</span>{item.discount_cents > 0 && <span>Sconto: {euro(item.discount_cents)}</span>}</div>
-              </article>)}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-stone-200 p-4">
-            <div className="flex justify-between text-sm"><span>Subtotale</span><strong>{euro(selectedSale.subtotal_cents)}</strong></div>
-            {selectedSale.discount_cents > 0 && <div className="mt-2 flex justify-between text-sm text-stone-500"><span>Sconto conto</span><strong>- {euro(selectedSale.discount_cents)}</strong></div>}
-            <div className="mt-4 flex justify-between border-t border-stone-200 pt-4 text-lg"><strong>Totale</strong><strong className="text-[#792f59]">{euro(selectedSale.total_cents)}</strong></div>
-          </section>
-
-          <section>
-            <h3 className="font-black">Pagamenti</h3>
-            <div className="mt-3 space-y-2">{selectedSale.payments.map((payment) => <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900" key={payment.id}>
-              <div><strong>{methodLabels[payment.method] ?? payment.method}</strong>{payment.method === "voucher" && payment.reference && <span className="mt-1 block font-mono text-[11px] tracking-[.1em]">{payment.reference.replace(/(\d{4})(?=\d)/g, "$1 ")}</span>}</div>
-              <strong>{euro(payment.amount_cents)}</strong>
-            </div>)}</div>
-          </section>
-
-          {selectedSale.notes && <section className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black uppercase text-amber-800">Nota interna</p><p className="mt-2 text-sm text-amber-950">{selectedSale.notes}</p></section>}
-
-          <div className="flex flex-wrap gap-2">
-            {selectedSale.customer_id && <Link className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
-            {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
-          </div>
-        </div>}
-      </Drawer>
       <PageHeader eyebrow="Punto vendita" title="Cassa" subtitle="Vendite da appuntamento, servizi liberi, prodotti e pagamenti in un unico flusso." status={<StatusBadge status="active">Operativa</StatusBadge>} />
-      <div className="mb-5 flex gap-1 rounded-2xl border border-stone-200 bg-white p-1.5 shadow-sm">
-        {([["register", "Cassa"], ["sales", "Registro vendite"], ["stats", "Statistiche"]] as Array<[Tab, string]>).map(([value, label]) => <button className={`min-h-11 rounded-xl px-5 text-sm font-black ${tab === value ? "bg-[#402334] text-white shadow-md" : "text-stone-500 hover:bg-stone-50"}`} key={value} onClick={() => setTab(value)}>{label}</button>)}
-      </div>
       {error && <InlineError className="mb-5">{error}</InlineError>}
-      {saleLoading && <div className="mb-5 rounded-xl bg-stone-100 px-4 py-3 text-sm font-bold text-stone-600">Caricamento dettaglio vendita…</div>}
 
-      {tab === "register" && <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_520px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_520px]">
+        <div className="space-y-5">
+        <SectionCard>
+          <button
+            className="flex w-full items-center justify-between gap-4 text-left"
+            onClick={() => setAgendaExpanded((value) => !value)}
+            type="button"
+          >
+            <span>
+              <span className="block text-xs font-black uppercase tracking-[.16em] text-[#792f59]">Agenda di oggi</span>
+              <strong className="mt-1 block text-xl">Appuntamenti da completare</strong>
+              <span className="mt-1 block text-sm text-stone-500">{todayAppointments.length} appuntamenti richiamabili in cassa</span>
+            </span>
+            <span className="rounded-full border border-stone-200 px-3 py-1 text-sm font-black text-[#792f59]">{agendaExpanded ? "Chiudi" : "Apri"}</span>
+          </button>
+          {agendaExpanded && (
+            <div className="mt-5">
+              {agendaLoading ? (
+                <div className="rounded-2xl bg-stone-50 p-5 text-sm font-bold text-stone-500">Caricamento agenda…</div>
+              ) : appointmentsByStaff.length ? (
+                <div className="overflow-x-auto pb-2">
+                <div className="flex min-w-max gap-3">
+                  {appointmentsByStaff.map((group) => (
+                    <section className="min-w-[210px] max-w-[210px] rounded-xl border border-stone-200 bg-[#fbfaf8] p-2" key={group.staffId}>
+                      <div className="mb-2 flex items-center gap-1.5">
+                        <span className="size-2.5 rounded-full" style={{ backgroundColor: group.color ?? "#792f59" }} />
+                        <strong className="truncate text-xs">{group.name}</strong>
+                        <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-stone-500">{group.items.length}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {group.items.map((appointment) => {
+                          const disabled = appointment.status !== "confirmed";
+                          const selected = selectedAppointmentId === appointment.id;
+                          const background = appointment.color ?? "#792f59";
+                          const foreground = readableTextColor(background);
+                          return (
+                            <button
+                              className={`min-h-[74px] w-full rounded-lg border px-2.5 py-2 text-left shadow-sm transition ${selected ? "ring-2 ring-[#2d1d27]" : "hover:-translate-y-0.5 hover:shadow-md"} ${disabled ? "cursor-not-allowed opacity-55 hover:translate-y-0 hover:shadow-sm" : ""}`}
+                              disabled={disabled}
+                              key={appointment.id}
+                              onClick={() => void loadAppointmentCheckout(appointment.id)}
+                              style={{ backgroundColor: background, borderColor: background, color: foreground }}
+                              title={disabled ? "Conferma l'appuntamento prima di incassare" : "Carica appuntamento in cassa"}
+                              type="button"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-[11px] font-black">{timeLabel(appointment.starts_at)}</span>
+                                <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[8px] font-black uppercase">{appointment.status}</span>
+                              </div>
+                              <strong className="mt-1.5 block truncate text-sm leading-4">{appointment.customer_name}</strong>
+                              <span className="mt-0.5 block truncate text-[11px] leading-4 opacity-90">{appointment.service_name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+                </div>
+              ) : (
+                <EmptyState title="Nessun appuntamento da incassare" description="Gli appuntamenti di oggi non completati appariranno qui." />
+              )}
+            </div>
+          )}
+        </SectionCard>
         <SectionCard title="Catalogo" subtitle="Seleziona servizi o prodotti da aggiungere al conto.">
           <div className="mb-4 flex flex-wrap gap-2">
-            <Button onClick={() => setCatalogType("service")} variant={catalogType === "service" ? "primary" : "outline"}>Servizi</Button>
-            <Button onClick={() => setCatalogType("product")} variant={catalogType === "product" ? "primary" : "outline"}>Prodotti</Button>
-            <Button onClick={() => setCatalogType("package")} variant={catalogType === "package" ? "primary" : "outline"}>Pacchetti</Button>
-            <Button onClick={addCustomItem} variant="outline">Riga libera</Button>
-            <Button onClick={() => setVoucherDialogOpen(true)} variant="outline">Buono regalo</Button>
-            <input className="min-h-11 min-w-64 flex-1 rounded-xl border border-stone-200 px-4" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca nel catalogo" value={query} />
+            <Button onClick={() => selectCatalogType("service")} variant={catalogType === "service" ? "primary" : "outline"}><Scissors className="size-4" /> Servizi</Button>
+            <Button onClick={() => selectCatalogType("product")} variant={catalogType === "product" ? "primary" : "outline"}><ShoppingBag className="size-4" /> Prodotti</Button>
+            <Button onClick={() => selectCatalogType("package")} variant={catalogType === "package" ? "primary" : "outline"}><Package className="size-4" /> Pacchetti</Button>
+            <Button onClick={addCustomItem} variant="outline"><Plus className="size-4" /> Riga libera</Button>
+            <Button onClick={() => setVoucherDialogOpen(true)} variant="outline"><Gift className="size-4" /> Buono regalo</Button>
+            {(catalogType !== "service" || selectedServiceCategoryId) && <input className="min-h-11 min-w-64 flex-1 rounded-xl border border-stone-200 px-4" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca nel catalogo" value={query} />}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-            {visibleCatalog.map((item) => <button className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md" key={item.id} onClick={() => addItem(item)}>
-              <div className="flex items-start justify-between gap-3"><strong>{item.name}</strong><span className="font-black text-[#792f59]">{euro(item.price_cents)}</span></div>
-              <p className={`mt-2 text-xs ${catalogType === "product" && (item.stock_quantity ?? 0) <= 0 ? "font-bold text-amber-700" : "text-stone-500"}`}>{catalogType === "service" ? item.category || "Servizio" : catalogType === "package" ? "Assegnazione immediata al cliente" : `Disponibilità: ${item.stock_quantity ?? 0}${(item.stock_quantity ?? 0) <= 0 ? " · vendita consentita" : ""}`}</p>
-            </button>)}
-            {!visibleCatalog.length && <EmptyState title="Nessun elemento" description="Il catalogo non contiene risultati per questa ricerca." />}
-          </div>
+          {catalogType === "service" && !selectedServiceCategoryId ? (
+            <div>
+              <p className="mb-3 text-sm font-bold text-stone-900">Scegli una categoria</p>
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {serviceCategories.map((category) => (
+                  <button
+                    className="flex min-h-20 items-center gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md"
+                    key={category.id}
+                    onClick={() => setSelectedServiceCategoryId(category.id)}
+                    type="button"
+                  >
+                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f4e4ec] text-[#792f59]">
+                      <ServiceCategoryIcon className="size-5" name={category.icon} />
+                    </span>
+                    <span>
+                      <strong className="block">{category.name}</strong>
+                      <small className="text-stone-500">{category.count} servizi</small>
+                    </span>
+                  </button>
+                ))}
+                {!serviceCategories.length && <EmptyState title="Nessuna categoria" description="Il catalogo non contiene servizi vendibili." />}
+              </div>
+            </div>
+          ) : (
+            <div>
+              {catalogType === "service" && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#faf3f7] px-4 py-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">Categoria</p>
+                    <strong>{serviceCategories.find((category) => category.id === selectedServiceCategoryId)?.name ?? "Servizi"}</strong>
+                  </div>
+                  <Button onClick={() => { setSelectedServiceCategoryId(""); setQuery(""); }} size="sm" variant="outline">Cambia categoria</Button>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                {visibleCatalog.map((item) => <button className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md" key={item.id} onClick={() => addItem(item)} type="button">
+                  <div className="flex items-start justify-between gap-3"><strong>{item.name}</strong><span className="font-black text-[#792f59]">{euro(item.price_cents)}</span></div>
+                  <p className={`mt-2 text-xs ${catalogType === "product" && (item.stock_quantity ?? 0) <= 0 ? "font-bold text-amber-700" : "text-stone-500"}`}>{catalogType === "service" ? item.category || "Servizio" : catalogType === "package" ? "Assegnazione immediata al cliente" : `Disponibilità: ${item.stock_quantity ?? 0}${(item.stock_quantity ?? 0) <= 0 ? " · vendita consentita" : ""}`}</p>
+                </button>)}
+                {!visibleCatalog.length && <EmptyState title="Nessun elemento" description="Il catalogo non contiene risultati per questa ricerca." />}
+              </div>
+            </div>
+          )}
         </SectionCard>
+        </div>
 
         <aside className="self-start rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] xl:sticky xl:top-24">
           <div className="flex items-start justify-between"><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#792f59]">Conto corrente</p><h2 className="mt-1 text-2xl font-black">Nuova vendita</h2></div><Button onClick={resetRegister} size="sm" variant="ghost">Azzera</Button></div>
@@ -648,21 +781,7 @@ export default function SalesPage() {
             {saving ? "Registrazione…" : `Incassa ${euro(total)}`}
           </Button>
         </aside>
-      </div>}
-
-      {(tab === "sales" || tab === "stats") && <>
-        <div className="mb-5 flex flex-wrap gap-2">{([["today", "Oggi"], ["week", "Settimana"], ["month", "Mese"], ["last", "Mese scorso"]] as Array<[Preset, string]>).map(([value, label]) => <Button key={value} onClick={() => setPreset(value)} size="sm" variant={preset === value ? "primary" : "outline"}>{label}</Button>)}</div>
-        <StatGrid className="mb-5 md:grid-cols-4"><StatCard label="Incassato" value={euro(data?.summary.total_cents ?? 0)} /><StatCard label="Vendite" value={data?.summary.count ?? 0} /><StatCard label="Scontrino medio" value={euro(data?.summary.average_cents ?? 0)} /><StatCard label="Sconti" value={euro(data?.summary.discount_cents ?? 0)} /></StatGrid>
-      </>}
-
-      {tab === "sales" && <SectionCard title="Registro vendite" subtitle="Vendite da appuntamento e vendite libere effettuate dalla cassa.">
-        {!data?.rows.length ? <EmptyState title="Nessun movimento" description="Le vendite concluse appariranno qui." /> : <div className="overflow-x-auto rounded-2xl border"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-[#f7eef3]"><tr><th className="p-4">Data</th><th>Cliente</th><th>Operatore</th><th>Sconto</th><th className="text-right">Totale</th><th /></tr></thead><tbody>{data.rows.map((row) => <tr className="cursor-pointer border-t transition hover:bg-[#fff8fb]" key={row.id} onClick={() => void openSale(row.id)}><td className="p-4">{new Date(row.closed_at).toLocaleString("it-IT")}</td><td className="font-bold">{row.customer_name || "Cliente occasionale"}</td><td>{row.staff_name || "—"}</td><td>{euro(row.discount_cents)}</td><td className="text-right text-base font-black">{euro(row.total_cents)}</td><td className="p-4 text-right"><span className="font-bold text-[#792f59]">Vedi dettaglio →</span></td></tr>)}</tbody></table></div>}
-      </SectionCard>}
-
-      {tab === "stats" && <div className="grid gap-5 lg:grid-cols-[420px_1fr]">
-        <SectionCard title="Metodi di pagamento">{data?.payments.length ? <div className="space-y-4">{data.payments.map((item) => <div className="flex items-center justify-between rounded-xl bg-stone-50 p-4" key={item.method}><b>{methodLabels[item.method as PaymentMethod] ?? item.method}</b><strong>{euro(item.amount_cents)}</strong></div>)}</div> : <EmptyState title="Nessun incasso" description="Non ci sono pagamenti nel periodo." />}</SectionCard>
-        <SectionCard title="Andamento del periodo" subtitle="Indicatori sintetici della cassa gestionale."><div className="grid gap-4 sm:grid-cols-2"><StatCard label="Valore medio vendita" value={euro(data?.summary.average_cents ?? 0)} /><StatCard label="Sconto medio" value={euro(data?.summary.count ? Math.round(data.summary.discount_cents / data.summary.count) : 0)} /><StatCard label="Vendite giornaliere" value={data?.summary.count ?? 0} detail="Nel periodo selezionato" /><StatCard label="Netto gestionale" value={euro(data?.summary.total_cents ?? 0)} /></div></SectionCard>
-      </div>}
+      </div>
     </AppPage>
   );
 }

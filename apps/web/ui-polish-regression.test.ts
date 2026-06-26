@@ -287,6 +287,67 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("min-h-14");
   });
 
+  it("guides POS service sales through categories before services", () => {
+    const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
+    expect(sales).toContain("ServiceCategoryIcon");
+    expect(sales).toContain("selectedServiceCategoryId");
+    expect(sales).toContain("serviceCategories");
+    expect(sales).toContain("Scegli una categoria");
+    expect(sales).toContain("Cambia categoria");
+    expect(sales).toContain("resetServiceCatalogStep");
+    expect(sales).toContain("category_icon");
+    expect(sales).toContain("category_id");
+  });
+
+  it("lets POS recall today's agenda appointments into checkout", () => {
+    const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
+    expect(sales).toContain("Agenda di oggi");
+    expect(sales).toContain("todayAppointments");
+    expect(sales).toContain("agendaExpanded");
+    expect(sales).toContain("appointmentsByStaff");
+    expect(sales).toContain("setAgendaExpanded(false)");
+    expect(sales).toContain("appointment.color");
+    expect(sales).toContain("overflow-x-auto");
+    expect(sales).toContain("min-w-[210px]");
+    expect(sales).toContain("min-h-[74px]");
+    expect(sales).toContain("loadTodayAppointments");
+    expect(sales).toContain("Array.isArray(result)");
+    expect(sales).toContain("loadAppointmentCheckout");
+    expect(sales).toContain("selectedAppointmentId");
+    expect(sales).toContain('/appointments/${selectedAppointmentId}/checkout');
+    expect(sales).toContain('/appointments/${appointmentId}/checkout');
+  });
+
+  it("keeps POS cash register separate from accounting registers and stats", () => {
+    const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
+    const accounting = readFileSync(join(dashboardRoot, "accounting", "page.tsx"), "utf8");
+    const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
+
+    expect(sales).not.toContain('["sales", "Registro vendite"]');
+    expect(sales).not.toContain('["stats", "Statistiche"]');
+    expect(sales).not.toContain('tab === "sales"');
+    expect(sales).not.toContain('tab === "stats"');
+    expect(accounting).toContain("Registro vendite");
+    expect(accounting).toContain("Chiusure contabili");
+    expect(accounting).toContain("preset");
+    expect(accounting).toContain("openSale");
+    expect(shell).toContain('href: "/accounting"');
+    expect(shell).toContain('label: "Contabilita"');
+  });
+
+  it("compresses global non-working calendar gaps and keeps POS catalog actions iconized", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
+    expect(calendar).toContain("buildTimelineCompression");
+    expect(calendar).toContain("timelineCompressedGapMarkers");
+    expect(calendar).toContain("timelineCompression.minutesAtY");
+    expect(calendar).toContain("timelineHeight");
+    expect(sales).toContain("Scissors");
+    expect(sales).toContain("ShoppingBag");
+    expect(sales).toContain("Package");
+    expect(sales).toContain("Gift");
+  });
+
   it("requires confirmation for drag moves and exposes contextual agenda actions", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     expect(calendar).toContain("DndContext");
@@ -346,9 +407,23 @@ describe("professional UI regression guard", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     const detail = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
     expect(calendar).toContain("nextAppointmentStatuses");
+    expect(calendar).toContain("manualContextStatusActions");
+    expect(calendar).toContain('const manualContextStatuses = new Set(["pending", "confirmed", "no_show", "cancelled"])');
+    expect(calendar).toContain('status !== "completed"');
+    expect(calendar).toContain("manualContextStatuses.has(status)");
+    expect(calendar).toContain("clampedContextMenuPosition");
     expect(calendar).toContain("isAppointmentDragDisabled");
     expect(calendar).toContain("disabled: isAppointmentDragDisabled(item.status)");
     expect(detail).toContain("nextAppointmentStatuses");
+    expect(detail).not.toContain('"completed", "no_show", "cancelled"');
+    expect(detail).not.toContain('["pending", "confirmed", "completed"');
+  });
+
+  it("closes appointment delete confirmations after successful delete", () => {
+    const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
+    const detail = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
+    expect(calendar).toContain("setDeleteTarget(undefined)");
+    expect(detail).toContain("setConfirmDelete(false);\n    onChanged?.();");
   });
 
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {

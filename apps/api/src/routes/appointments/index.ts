@@ -407,6 +407,9 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: "STAFF_NOT_QUALIFIED" });
       }
       if (request.body.status && request.body.status !== item.status) {
+        if (request.body.status === "completed") {
+          return reply.code(409).send({ error: "APPOINTMENT_COMPLETION_REQUIRES_CHECKOUT" });
+        }
         if (!canTransitionAppointmentStatus(item.status, request.body.status)) {
           return reply.code(409).send({ error: "INVALID_APPOINTMENT_STATUS_TRANSITION" });
         }

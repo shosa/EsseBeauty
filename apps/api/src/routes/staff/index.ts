@@ -26,6 +26,54 @@ interface StaffAccessBody {
   password?: string;
 }
 
+interface AvailabilityBlockSlice {
+  endsAt: Date;
+  startsAt: Date;
+}
+
+const workingHourDayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+function startOfLocalDay(value: Date) {
+  const day = new Date(value);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+function localTimeOnDay(day: Date, value: string) {
+  const [hours = "0", minutes = "0"] = value.split(":");
+  const date = new Date(day);
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+  return date;
+}
+
+export function buildWorkingHourAvailabilityBlocks(
+  workingHours: WorkingHours | null | undefined,
+  startsAt: Date,
+  endsAt: Date,
+): AvailabilityBlockSlice[] {
+  if (!workingHours || startsAt.getTime() >= endsAt.getTime()) return [];
+  const blocks: AvailabilityBlockSlice[] = [];
+  const cursor = startOfLocalDay(startsAt);
+  const lastDay = startOfLocalDay(endsAt);
+
+  while (cursor.getTime() <= lastDay.getTime()) {
+    const key = workingHourDayKeys[cursor.getDay()] ?? "sun";
+    const periods = workingHours[key] ?? [];
+    for (const period of periods) {
+      const periodStart = localTimeOnDay(cursor, period.from);
+      const periodEnd = localTimeOnDay(cursor, period.to);
+      const blockStart = new Date(Math.max(periodStart.getTime(), startsAt.getTime()));
+      const blockEnd = new Date(Math.min(periodEnd.getTime(), endsAt.getTime()));
+      if (blockStart.getTime() < blockEnd.getTime()) {
+        blocks.push({ startsAt: blockStart, endsAt: blockEnd });
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return blocks;
+}
+
 export async function registerStaffRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>("/api/salons/:id/staff-default-hours", {
     preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)],
@@ -100,13 +148,18 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       if (!(await hasPermission(request.user.id, permission, request.server.db))) {
         return reply.code(403).send({ error: "PERMISSION_DENIED", required: permission });
       }
-      const rows = await request.server.db.insert(availabilityBlocks).values({
-        endsAt: new Date(request.body.ends_at),
+      const memberRows = await request.server.db.select({ workingHours: staff.workingHours }).from(staff)
+        .where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId)));
+      if (!memberRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      const slices = buildWorkingHourAvailabilityBlocks(memberRows[0].workingHours as WorkingHours, new Date(request.body.starts_at), new Date(request.body.ends_at));
+      if (slices.length === 0) return reply.code(409).send({ error: "NO_WORKING_HOURS_IN_RANGE" });
+      const rows = await request.server.db.insert(availabilityBlocks).values(slices.map((slice) => ({
+        endsAt: slice.endsAt,
         reason: request.body.reason ?? "Assenza last-minute",
         salonId: request.salonId,
         staffId: request.params.staffId,
-        startsAt: new Date(request.body.starts_at),
-      }).returning();
+        startsAt: slice.startsAt,
+      }))).returning();
       return reply.code(201).send(rows[0]);
     },
   );
@@ -277,6 +330,7 @@ export async function registerStaffRoutes(app: FastifyInstance) {
       startsAt: staffAvailabilityRequests.startsAt,
       status: staffAvailabilityRequests.status,
       userId: staff.userId,
+      workingHours: staff.workingHours,
     }).from(staffAvailabilityRequests)
       .innerJoin(staff, eq(staff.id, staffAvailabilityRequests.staffId))
       .where(and(
@@ -286,6 +340,12 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     const item = rows[0];
     if (!item) return reply.code(404).send({ error: "REQUEST_NOT_FOUND" });
     if (item.status !== "pending") return reply.code(409).send({ error: "REQUEST_ALREADY_REVIEWED" });
+    const slices = request.body.status === "approved"
+      ? buildWorkingHourAvailabilityBlocks(item.workingHours as WorkingHours, item.startsAt, item.endsAt)
+      : [];
+    if (request.body.status === "approved" && slices.length === 0) {
+      return reply.code(409).send({ error: "NO_WORKING_HOURS_IN_RANGE" });
+    }
 
     const updated = await request.server.db.update(staffAvailabilityRequests).set({
       reviewNote: request.body.review_note,
@@ -299,13 +359,13 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     if (!updated[0]) return reply.code(409).send({ error: "REQUEST_ALREADY_REVIEWED" });
 
     if (request.body.status === "approved") {
-      await request.server.db.insert(availabilityBlocks).values({
-        endsAt: item.endsAt,
+      await request.server.db.insert(availabilityBlocks).values(slices.map((slice) => ({
+        endsAt: slice.endsAt,
         reason: item.reason ?? "Richiesta staff approvata",
         salonId: request.salonId,
         staffId: item.staffId,
-        startsAt: item.startsAt,
-      });
+        startsAt: slice.startsAt,
+      })));
     }
     if (item.userId) {
       await createNotification(request.server, {
@@ -458,15 +518,20 @@ export async function registerStaffRoutes(app: FastifyInstance) {
     { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)] },
     async (request, reply) => {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
-      const rows = await request.server.db.insert(availabilityBlocks).values({
+      const memberRows = await request.server.db.select({ workingHours: staff.workingHours }).from(staff)
+        .where(and(eq(staff.id, request.params.staffId), eq(staff.salonId, request.salonId)));
+      if (!memberRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      const slices = buildWorkingHourAvailabilityBlocks(memberRows[0].workingHours as WorkingHours, new Date(request.body.starts_at), new Date(request.body.ends_at));
+      if (slices.length === 0) return reply.code(409).send({ error: "NO_WORKING_HOURS_IN_RANGE" });
+      const rows = await request.server.db.insert(availabilityBlocks).values(slices.map((slice) => ({
         salonId: request.salonId,
         staffId: request.params.staffId,
-        startsAt: new Date(request.body.starts_at),
-        endsAt: new Date(request.body.ends_at),
+        startsAt: slice.startsAt,
+        endsAt: slice.endsAt,
         reason: request.body.reason,
         recurring: request.body.recurring ?? false,
         recurrenceRule: request.body.recurrence_rule,
-      }).returning();
+      }))).returning();
       return reply.code(201).send(rows[0]);
     },
   );

@@ -17,4 +17,11 @@ describe("POS checkout contract", () => {
     expect(source).toContain("stockAfter");
     expect(source).not.toContain('throw new Error("INSUFFICIENT_STOCK")');
   });
+
+  it("exposes service category metadata for the POS category-first flow", () => {
+    expect(source).toContain("serviceCategories");
+    expect(source).toContain("category_id");
+    expect(source).toContain("category_icon");
+    expect(source).toContain(".leftJoin(serviceCategories");
+  });
 });

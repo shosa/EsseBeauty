@@ -38,6 +38,7 @@ const primary: Array<{ href: string; icon: IconComponent; label: string; section
   { href: "/", icon: DashboardIcon, label: "Home", section: "Operativita" },
   { href: "/calendar", icon: CalendarIcon, label: "Agenda", section: "Operativita" },
   { href: "/sales", icon: SalesIcon, label: "Cassa", section: "Operativita" },
+  { href: "/accounting", icon: ReportsIcon, label: "Contabilita", section: "Operativita" },
   { href: "/clients", icon: ClientsIcon, label: "Clienti", section: "Archivio" },
   { href: "/vouchers", icon: LoyaltyIcon, label: "Buoni acquisto", section: "Archivio" },
   { href: "/services", icon: ServicesIcon, label: "Servizi", section: "Archivio" },
@@ -66,7 +67,7 @@ const settingsLinks = [
 const workspaceSections = [
   { label: "Oggi", paths: ["/", "/calendar", "/sales"] },
   { label: "Relazioni", paths: ["/clients", "/vouchers", "/staff", "/services"] },
-  { label: "Operatività", paths: ["/inventory", "/reviews", "/waitlist", "/marketing", "/reports"] },
+  { label: "Operatività", paths: ["/accounting", "/inventory", "/reviews", "/waitlist", "/marketing", "/reports"] },
   { label: "Sistema", paths: ["/settings"] },
 ] as const;
 
@@ -77,7 +78,8 @@ function currentSection(pathname: string) {
   )?.label ?? "Workspace";
   const labels: Array<[string, string, string]> = [
     ["/calendar", "Oggi", "Agenda"],
-    ["/sales", "Oggi", "Cassa e movimenti"],
+    ["/sales", "Oggi", "Cassa"],
+    ["/accounting", "Operatività", "Contabilita"],
     ["/clients", "Relazioni", "Clienti"],
     ["/vouchers", "Relazioni", "Buoni acquisto"],
     ["/staff", "Relazioni", "Staff"],

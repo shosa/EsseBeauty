@@ -12,6 +12,7 @@ import {
   saleItems,
   salePayments,
   sales,
+  serviceCategories,
   services,
   servicePackageItems,
   servicePackageUsages,
@@ -346,10 +347,14 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     const [serviceRows, productRows, staffRows, packageRows] = await Promise.all([
       app.db.select({
         category: services.category,
+        category_icon: serviceCategories.icon,
+        category_id: services.categoryId,
         id: services.id,
         name: services.name,
         price_cents: services.priceCents,
-      }).from(services).where(and(eq(services.salonId, request.salonId), eq(services.active, true))),
+      }).from(services)
+        .leftJoin(serviceCategories, eq(serviceCategories.id, services.categoryId))
+        .where(and(eq(services.salonId, request.salonId), eq(services.active, true))),
       app.db.select({
         id: inventoryProducts.id,
         name: inventoryProducts.name,

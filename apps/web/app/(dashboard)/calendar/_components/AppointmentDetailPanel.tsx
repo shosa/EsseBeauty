@@ -20,7 +20,7 @@ const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type ItemType = "service" | "product" | "custom";
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 
-const statusActions: AppointmentStatus[] = ["pending", "confirmed", "completed", "no_show", "cancelled"];
+const statusActions: AppointmentStatus[] = ["pending", "confirmed", "no_show", "cancelled"];
 
 function statusActionPalette(status: AppointmentStatus, active = false) {
   const strong: Record<AppointmentStatus, { background: string; border: string; text: string }> = {
@@ -454,6 +454,7 @@ export default function AppointmentDetailPanel({
       setConfirmDelete(false);
       return;
     }
+    setConfirmDelete(false);
     onChanged?.();
     onClose();
   }

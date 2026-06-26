@@ -34,7 +34,7 @@ export function appointmentStatusLabel(status: string): string {
 const APPOINTMENT_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
   cancelled: ["pending", "confirmed"],
   completed: [],
-  confirmed: ["completed", "no_show", "cancelled"],
+  confirmed: ["no_show", "cancelled"],
   no_show: ["pending", "confirmed"],
   pending: ["confirmed", "cancelled"],
 };

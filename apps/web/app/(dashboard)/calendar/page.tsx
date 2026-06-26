@@ -10,6 +10,7 @@ import { AppPage, Badge, Button, Dialog, InlineError, PageHeader, PageTransition
 
 import { useAuth } from "../../../lib/auth-context";
 import AppointmentDetailPanel from "./_components/AppointmentDetailPanel";
+import { buildTimelineCompression, type TimelinePeriod } from "./timelineCompression";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -197,6 +198,23 @@ function localDateValue(value: string) {
 function localTimeValue(value: string) {
   const date = new Date(value);
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function clampedContextMenuPosition(x: number, y: number) {
+  if (typeof window === "undefined") return { left: x, top: y };
+  const margin = 12;
+  const menuWidth = 244;
+  const menuHeight = 360;
+  return {
+    left: Math.max(margin, Math.min(x, window.innerWidth - menuWidth - margin)),
+    top: Math.max(margin, Math.min(y, window.innerHeight - menuHeight - margin)),
+  };
+}
+
+const manualContextStatuses = new Set(["pending", "confirmed", "no_show", "cancelled"]);
+
+function manualContextStatusActions(status?: string) {
+  return nextAppointmentStatuses(status ?? "confirmed").filter((status) => status !== "completed" && manualContextStatuses.has(status));
 }
 
 function DraggableAppointment({
@@ -524,6 +542,54 @@ export default function CalendarPage() {
   const timelineEndHour = Math.max(timelineStartHour + 1, timelineRange.endHour);
   const hourHeight = 112;
   const timelineHours = Array.from({ length: timelineEndHour - timelineStartHour + 1 }, (_, index) => timelineStartHour + index);
+  const timelineCompression = useMemo(() => {
+    const dayKey = weekdayKeys[range.from.getDay()] ?? "mon";
+    const visibleIds = new Set(visibleStaff.map(([id]) => id));
+    const workingPeriods: TimelinePeriod[] = staffMembers
+      .filter((member) => visibleIds.has(member.id))
+      .flatMap((member) => member.working_hours?.[dayKey] ?? [])
+      .map((period) => ({
+        from: clockMinutes(period.from),
+        to: clockMinutes(period.to),
+      }));
+    const occupiedPeriods: TimelinePeriod[] = [
+      ...filteredItems.map((item) => {
+        const start = new Date(item.starts_at);
+        const end = new Date(item.ends_at);
+        return {
+          from: start.getHours() * 60 + start.getMinutes(),
+          to: end.getHours() * 60 + end.getMinutes(),
+        };
+      }),
+      ...availabilityBlocks
+        .filter((item) => !staffFilter || item.staff_id === staffFilter)
+        .map((item) => {
+          const start = new Date(item.starts_at);
+          const end = new Date(item.ends_at);
+          return {
+            from: start.getHours() * 60 + start.getMinutes(),
+            to: end.getHours() * 60 + end.getMinutes(),
+          };
+        }),
+    ];
+    return buildTimelineCompression({
+      compressedHeight: 74,
+      hourHeight,
+      occupiedPeriods,
+      rangeEnd: timelineEndHour * 60,
+      rangeStart: timelineStartHour * 60,
+      workingPeriods,
+    });
+  }, [availabilityBlocks, filteredItems, range.from, staffFilter, staffMembers, timelineEndHour, timelineStartHour, visibleStaff]);
+  const timelineHeight = timelineCompression.height;
+  const timelineHourTop = (hour: number) => timelineCompression.timelineY(hour * 60);
+  const visibleTimelineHours = timelineHours.filter((hour) =>
+    !timelineCompression.gaps.some((gap) => gap.from < hour * 60 && hour * 60 < gap.to),
+  );
+  const timelineCompressedGapMarkers = timelineCompression.gaps.map((gap) => ({
+    ...gap,
+    top: timelineCompression.timelineY(gap.from),
+  }));
 
   function timelinePosition(startsAt: string, endsAt: string) {
     const start = new Date(startsAt);
@@ -536,11 +602,7 @@ export default function CalendarPage() {
   }
 
   function timelineMinutesPosition(fromMinutes: number, toMinutes: number, minimumHeight = 0) {
-    const startMinutes = fromMinutes - timelineStartHour * 60;
-    const endMinutes = toMinutes - timelineStartHour * 60;
-    const top = Math.max(0, startMinutes / 60 * hourHeight);
-    const bottom = Math.min((timelineEndHour - timelineStartHour) * hourHeight, endMinutes / 60 * hourHeight);
-    return { height: Math.max(minimumHeight, bottom - top), top };
+    return timelineCompression.intervalPosition(fromMinutes, toMinutes, minimumHeight);
   }
 
   function nonWorkingPeriods(staffId: string) {
@@ -567,7 +629,7 @@ export default function CalendarPage() {
 
   function slotStartsAt(clientY: number, element: HTMLElement) {
     const rect = element.getBoundingClientRect();
-    const rawMinutes = timelineStartHour * 60 + ((clientY - rect.top) / hourHeight) * 60;
+    const rawMinutes = timelineCompression.minutesAtY(clientY - rect.top);
     const roundedMinutes = Math.max(0, Math.round(rawMinutes / rules.minSlotMinutes) * rules.minSlotMinutes);
     const date = new Date(range.from);
     date.setHours(Math.floor(roundedMinutes / 60), roundedMinutes % 60, 0, 0);
@@ -593,7 +655,7 @@ export default function CalendarPage() {
     const translated = event.active.rect.current.translated;
     if (!translated) return;
     const relativeTop = Math.max(0, translated.top - event.over.rect.top);
-    const rawMinutes = timelineStartHour * 60 + relativeTop / hourHeight * 60;
+    const rawMinutes = timelineCompression.minutesAtY(relativeTop);
     const roundedMinutes = Math.round(rawMinutes / rules.minSlotMinutes) * rules.minSlotMinutes;
     const targetDate = new Date(range.from);
     targetDate.setHours(Math.floor(roundedMinutes / 60), roundedMinutes % 60, 0, 0);
@@ -689,6 +751,7 @@ export default function CalendarPage() {
     });
     if (!response.ok) return setError("Eliminazione non riuscita.");
     setContextMenu(undefined);
+    setDeleteTarget(undefined);
     setRefreshToken((value) => value + 1);
   }
 
@@ -914,9 +977,16 @@ export default function CalendarPage() {
                 ))}
               </div>
               <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(resourceColumns.length, 1)}, minmax(220px, 1fr))` }}>
-                <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: (timelineEndHour - timelineStartHour) * hourHeight }}>
-                  {timelineHours.map((hour, index) => (
-                    <div className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500" key={hour} style={{ top: index === 0 ? 8 : index === timelineHours.length - 1 ? (timelineEndHour - timelineStartHour) * hourHeight - 22 : (hour - timelineStartHour) * hourHeight - 8 }}>
+                <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
+                  {timelineCompressedGapMarkers.map((gap) => (
+                    <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
+                      <span className="leading-3">·</span>
+                      <span className="leading-3">·</span>
+                      <span className="leading-3">·</span>
+                    </div>
+                  ))}
+                  {visibleTimelineHours.map((hour, index) => (
+                    <div className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500" key={hour} style={{ top: index === 0 ? 8 : index === visibleTimelineHours.length - 1 ? timelineHeight - 22 : timelineHourTop(hour) - 8 }}>
                       {String(hour).padStart(2, "0")}:00
                     </div>
                   ))}
@@ -932,9 +1002,13 @@ export default function CalendarPage() {
                     },
                   );
                   return (
-                    <DroppableTimeline id={`resource:${resource.id}`} key={resource.id} onContextMenu={(event) => openSlotContext(event, { resourceId: resource.id })} style={{ height: (timelineEndHour - timelineStartHour) * hourHeight }}>
-                      {timelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: (hour - timelineStartHour) * hourHeight }} />)}
-                      {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: ((hour - timelineStartHour) * 60 + minute) / 60 * hourHeight }} />))}
+                    <DroppableTimeline id={`resource:${resource.id}`} key={resource.id} onContextMenu={(event) => openSlotContext(event, { resourceId: resource.id })} style={{ height: timelineHeight }}>
+                      {visibleTimelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: timelineHourTop(hour) }} />)}
+                      {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => {
+                        const minutes = hour * 60 + minute;
+                        if (timelineCompression.gaps.some((gap) => gap.from < minutes && minutes < gap.to)) return null;
+                        return <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: timelineCompression.timelineY(minutes) }} />;
+                      }))}
                       {resourceAppointments.map((item) => timelineAppointmentCard(item, layouts.get(item.id) ?? { column: 0, columnCount: 1 }))}
                     </DroppableTimeline>
                   );
@@ -962,17 +1036,24 @@ export default function CalendarPage() {
                 <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-bold text-red-800">Chiusura salone · {closuresForDay(range.from).map((item) => item.reason || "Giorno non prenotabile").join(", ")}</div>
               )}
               <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
-                <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: (timelineEndHour - timelineStartHour) * hourHeight }}>
-                  {timelineHours.map((hour, index) => (
+                <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
+                  {timelineCompressedGapMarkers.map((gap) => (
+                    <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
+                      <span className="leading-3">·</span>
+                      <span className="leading-3">·</span>
+                      <span className="leading-3">·</span>
+                    </div>
+                  ))}
+                  {visibleTimelineHours.map((hour, index) => (
                     <div
                       className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500"
                       key={hour}
                       style={{
                         top: index === 0
                           ? 8
-                          : index === timelineHours.length - 1
-                            ? (timelineEndHour - timelineStartHour) * hourHeight - 22
-                            : (hour - timelineStartHour) * hourHeight - 8,
+                          : index === visibleTimelineHours.length - 1
+                            ? timelineHeight - 22
+                            : timelineHourTop(hour) - 8,
                       }}
                     >
                       {String(hour).padStart(2, "0")}:00
@@ -990,9 +1071,13 @@ export default function CalendarPage() {
                     },
                   );
                   return (
-                  <DroppableTimeline id={`staff:${staffId}`} key={staffId} onContextMenu={(event) => openSlotContext(event, { staffId })} style={{ height: (timelineEndHour - timelineStartHour) * hourHeight }}>
-                    {timelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: (hour - timelineStartHour) * hourHeight }} />)}
-                    {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: ((hour - timelineStartHour) * 60 + minute) / 60 * hourHeight }} />))}
+                  <DroppableTimeline id={`staff:${staffId}`} key={staffId} onContextMenu={(event) => openSlotContext(event, { staffId })} style={{ height: timelineHeight }}>
+                    {visibleTimelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: timelineHourTop(hour) }} />)}
+                    {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => {
+                      const minutes = hour * 60 + minute;
+                      if (timelineCompression.gaps.some((gap) => gap.from < minutes && minutes < gap.to)) return null;
+                      return <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: timelineCompression.timelineY(minutes) }} />;
+                    }))}
                     {nonWorkingPeriods(staffId ?? "").map((period) => (
                       <div
                         className="absolute left-0 right-0 z-[1] flex items-center justify-center overflow-hidden border-y border-stone-300/80 text-[10px] font-black uppercase tracking-[.18em] text-stone-500"
@@ -1164,7 +1249,7 @@ export default function CalendarPage() {
       {contextMenu && (
         <>
           <button aria-label="Chiudi menu contestuale" className="fixed inset-0 z-40 cursor-default" onClick={() => setContextMenu(undefined)} onContextMenu={(event) => event.preventDefault()} type="button" />
-          <div className="fixed z-50 min-w-56 overflow-hidden rounded-xl border border-stone-200 bg-white p-1.5 text-sm shadow-2xl" onContextMenu={(event) => event.preventDefault()} onMouseLeave={() => setContextMenu(undefined)} style={{ left: contextMenu.x, top: contextMenu.y }}>
+            <div className="fixed z-50 min-w-56 overflow-hidden rounded-xl border border-stone-200 bg-white p-1.5 text-sm shadow-2xl" onContextMenu={(event) => event.preventDefault()} onMouseLeave={() => setContextMenu(undefined)} style={clampedContextMenuPosition(contextMenu.x, contextMenu.y)}>
             {contextMenu.appointment ? (
               <>
                 <button className="block w-full rounded-lg px-3 py-2 text-left font-bold hover:bg-stone-50" onClick={() => closeContextMenuAnd(() => router.push(appointmentHref(contextMenu.appointment!.id)))} type="button">Apri</button>
@@ -1178,7 +1263,7 @@ export default function CalendarPage() {
                 <div className="my-1 border-t border-stone-100" />
                 <p className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-stone-400">Cambia stato</p>
                 <div className="grid grid-cols-5 gap-1 px-2 pb-2">
-                  {nextAppointmentStatuses(contextMenu.appointment.status ?? "confirmed").map((status) => <button className="rounded-lg bg-stone-50 py-2 font-black hover:bg-rose-50" key={status} onClick={() => closeContextMenuAnd(() => updateAppointment(contextMenu.appointment!.id, { status }))} title={appointmentStatusLabel(status)} type="button">{appointmentStatusInitial[status]}</button>)}
+                  {manualContextStatusActions(contextMenu.appointment.status).map((status) => <button className="rounded-lg bg-stone-50 py-2 font-black hover:bg-rose-50" key={status} onClick={() => closeContextMenuAnd(() => updateAppointment(contextMenu.appointment!.id, { status }))} title={appointmentStatusLabel(status)} type="button">{appointmentStatusInitial[status]}</button>)}
                 </div>
                 <button className="block w-full rounded-lg px-3 py-2 text-left font-bold text-red-700 hover:bg-red-50" onClick={() => { setDeleteTarget(contextMenu.appointment); setContextMenu(undefined); }} type="button">Elimina</button>
               </>

@@ -36,6 +36,10 @@ function dateTime(value: string) {
   return new Date(value).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" });
 }
 
+async function responseError(response: Response) {
+  return await response.json().catch(() => ({})) as { error?: string };
+}
+
 export default function PermissionsPage() {
   const { salon } = useAuth();
   const [items, setItems] = useState<AvailabilityRequest[]>([]);
@@ -73,7 +77,10 @@ export default function PermissionsPage() {
       method: "PATCH",
     });
     if (!response.ok) {
-      setError("La richiesta non è stata aggiornata.");
+      const body = await responseError(response);
+      setError(body.error === "NO_WORKING_HOURS_IN_RANGE"
+        ? "La richiesta non incrocia orari lavorativi configurati."
+        : "La richiesta non è stata aggiornata.");
       return;
     }
     setMessage(status === "approved" ? "Richiesta approvata e blocco inserito in agenda." : "Richiesta rifiutata.");
@@ -90,8 +97,13 @@ export default function PermissionsPage() {
       headers: { "content-type": "application/json" },
       method: "POST",
     });
-    if (!response.ok) return setError("Permesso non inserito.");
-    setMessage("Permesso inserito in agenda.");
+    if (!response.ok) {
+      const body = await responseError(response);
+      return setError(body.error === "NO_WORKING_HOURS_IN_RANGE"
+        ? "Il permesso non incrocia orari lavorativi configurati."
+        : "Permesso non inserito.");
+    }
+    setMessage("Permesso inserito in agenda sugli orari lavorativi.");
     await load();
   }
 

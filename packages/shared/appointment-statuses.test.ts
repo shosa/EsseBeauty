@@ -28,10 +28,11 @@ describe("appointmentStatusLabel", () => {
 
   it("enforces the appointment workflow while allowing no-show and cancelled reactivation", () => {
     expect(nextAppointmentStatuses("pending")).toEqual(["confirmed", "cancelled"]);
-    expect(nextAppointmentStatuses("confirmed")).toEqual(["completed", "no_show", "cancelled"]);
+    expect(nextAppointmentStatuses("confirmed")).toEqual(["no_show", "cancelled"]);
     expect(nextAppointmentStatuses("completed")).toEqual([]);
     expect(nextAppointmentStatuses("no_show")).toEqual(["pending", "confirmed"]);
     expect(nextAppointmentStatuses("cancelled")).toEqual(["pending", "confirmed"]);
+    expect(canTransitionAppointmentStatus("confirmed", "completed")).toBe(false);
     expect(canTransitionAppointmentStatus("completed", "confirmed")).toBe(false);
     expect(canTransitionAppointmentStatus("cancelled", "confirmed")).toBe(true);
   });
