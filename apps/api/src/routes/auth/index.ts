@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 
 import {
   authSessions,
+  loginActivity,
+  passwordResetTokens,
   salons,
   userCredentials,
   userPermissions,
@@ -24,6 +26,11 @@ import {
   requireRole,
 } from "../../middleware/auth.js";
 import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
+import { inspectPublicToken, issuePublicToken } from "../../lib/public-tokens.js";
+import {
+  createCommunicationProviderRegistry,
+  type CommunicationProviderRegistry,
+} from "../../providers/communications.js";
 import {
   createSessionToken,
   hashPassword,
@@ -34,6 +41,17 @@ import {
 } from "./local-auth.js";
 
 const userRoleSet = new Set<string>(USER_ROLES);
+const PASSWORD_RESET_DURATION_MS = 30 * 60_000;
+const resetRequestResponse = {
+  accepted: true,
+  message: "Se l'indirizzo è registrato, riceverai un link per reimpostare la password.",
+} as const;
+
+interface AuthRouteDependencies {
+  providers?: CommunicationProviderRegistry;
+}
+
+class ResetTokenUnavailableError extends Error {}
 
 function isUserRole(value: string): value is UserRole {
   return userRoleSet.has(value);
@@ -69,6 +87,52 @@ const loginBodySchema: SafeParseSchema<{ email: string; password: string }> = {
   },
 };
 
+const resetRequestBodySchema: SafeParseSchema<{ email: string }> = {
+  safeParse(value) {
+    const email = value && typeof value === "object" && !Array.isArray(value)
+      ? String((value as { email?: unknown }).email ?? "").trim().toLowerCase()
+      : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return { error: { fieldErrors: { email: ["Email non valida"] } }, success: false as const };
+    }
+    return { data: { email }, success: true as const };
+  },
+};
+
+const resetCompleteBodySchema: SafeParseSchema<{ new_password: string; token: string }> = {
+  safeParse(value) {
+    const body = value && typeof value === "object" && !Array.isArray(value)
+      ? value as { new_password?: unknown; token?: unknown }
+      : {};
+    const fields: Record<string, string[]> = {};
+    const password = typeof body.new_password === "string" ? body.new_password : "";
+    const token = typeof body.token === "string" ? body.token : "";
+    if (password.length < 10) fields.new_password = ["La password deve contenere almeno 10 caratteri"];
+    if (!token) fields.token = ["Token obbligatorio"];
+    return Object.keys(fields).length > 0
+      ? { error: { fieldErrors: fields }, success: false as const }
+      : { data: { new_password: password, token }, success: true as const };
+  },
+};
+
+function requestMetadata(request: { headers: Record<string, unknown>; ip: string }) {
+  const userAgent = request.headers["user-agent"];
+  return {
+    ipAddress: request.ip.slice(0, 128),
+    userAgent: typeof userAgent === "string" ? userAgent.slice(0, 500) : null,
+  };
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  })[character] ?? character);
+}
+
 function setSessionCookie(
   reply: FastifyReply,
   token: string,
@@ -98,7 +162,11 @@ async function createSession(
   setSessionCookie(reply, token, cookieName);
 }
 
-export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
+export async function registerAuthRoutes(
+  app: FastifyInstance,
+  dependencies: AuthRouteDependencies = {},
+): Promise<void> {
+  const providers = dependencies.providers ?? createCommunicationProviderRegistry();
   app.post<{ Body: { email: string; password: string } }>(
     "/api/auth/login",
     async (request, reply) => {
@@ -108,6 +176,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         .select({
           active: users.active,
           id: users.id,
+          salonId: users.salonId,
           passwordHash: userCredentials.passwordHash,
           passwordSalt: userCredentials.passwordSalt,
         })
@@ -115,18 +184,138 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         .innerJoin(userCredentials, eq(userCredentials.userId, users.id))
         .where(eq(users.email, body.email.toLowerCase()));
       const user = rows[0];
-      if (
-        !user?.active ||
-        !(await verifyPassword(
+      const passwordMatches = user
+        ? await verifyPassword(
           body.password,
           user.passwordSalt,
           user.passwordHash,
-        ))
-      ) {
+        )
+        : false;
+      if (!user?.active || !passwordMatches) {
+        await app.db.insert(loginActivity).values({
+          email: body.email.toLowerCase(),
+          failureReason: user && !user.active ? "USER_INACTIVE" : "INVALID_CREDENTIALS",
+          ...requestMetadata(request),
+          salonId: user?.salonId,
+          success: false,
+          userId: user?.id,
+        });
         return reply.code(401).send({ error: "INVALID_CREDENTIALS" });
       }
       await createSession(app, user.id, reply, sessionCookieForClient(request.headers["x-esse-client"] as string | undefined));
+      await app.db.insert(loginActivity).values({
+        email: body.email.toLowerCase(),
+        ...requestMetadata(request),
+        salonId: user.salonId,
+        success: true,
+        userId: user.id,
+      });
       return { authenticated: true };
+    },
+  );
+
+  app.post<{ Body: { email: string } }>(
+    "/api/auth/password-reset/request",
+    async (request, reply) => {
+      const body = parseBody(resetRequestBodySchema, request, reply);
+      if (!body) return;
+
+      // Provider readiness is checked before account lookup so this response cannot
+      // disclose whether an address belongs to an active account.
+      if (providers.status().email !== "ready") {
+        return reply.code(503).send({ error: "PROVIDER_NOT_CONFIGURED" });
+      }
+
+      const user = (await app.db
+        .select({ active: users.active, id: users.id, salonId: users.salonId })
+        .from(users)
+        .where(eq(users.email, body.email)))[0];
+
+      if (user?.active) {
+        const expiresAt = new Date(Date.now() + PASSWORD_RESET_DURATION_MS);
+        const token = issuePublicToken("password_reset", user.id, expiresAt);
+        const tokenId = randomUUID();
+        await app.db.transaction(async (tx) => {
+          await tx.update(passwordResetTokens)
+            .set({ usedAt: new Date() })
+            .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+          await tx.insert(passwordResetTokens).values({
+            expiresAt,
+            id: tokenId,
+            salonId: user.salonId,
+            tokenHash: token.tokenHash,
+            userId: user.id,
+          });
+        });
+
+        const baseUrl = (process.env.WEB_APP_URL ?? "http://localhost:3000").replace(/\/$/, "");
+        const resetUrl = `${baseUrl}/reset-password/${token.raw}`;
+        try {
+          await providers.send({
+            channel: "email",
+            html: `<p>Hai richiesto di reimpostare la password EsseBeauty.</p><p><a href="${escapeHtml(resetUrl)}">Scegli una nuova password</a></p><p>Il link scade tra 30 minuti e può essere utilizzato una sola volta.</p>`,
+            idempotencyKey: `password-reset:${tokenId}`,
+            subject: "Reimposta la password EsseBeauty",
+            to: body.email,
+          });
+        } catch (error) {
+          await app.db.update(passwordResetTokens)
+            .set({ usedAt: new Date() })
+            .where(eq(passwordResetTokens.id, tokenId));
+          request.log.warn({ error: error instanceof Error ? error.name : "ProviderError", tokenId }, "Password reset delivery failed");
+        }
+      }
+
+      return reply.code(202).send(resetRequestResponse);
+    },
+  );
+
+  app.post<{ Body: { new_password: string; token: string } }>(
+    "/api/auth/password-reset/complete",
+    async (request, reply) => {
+      const body = parseBody(resetCompleteBodySchema, request, reply);
+      if (!body) return;
+      const inspected = inspectPublicToken(body.token, "password_reset");
+      if (!inspected.ok || inspected.expired) {
+        return reply.code(410).send({ error: "RESET_TOKEN_INVALID_OR_EXPIRED" });
+      }
+      const password = await hashPassword(body.new_password);
+      try {
+        await app.db.transaction(async (tx) => {
+          const consumed = await tx.update(passwordResetTokens)
+            .set({ usedAt: new Date() })
+            .where(and(
+              eq(passwordResetTokens.tokenHash, inspected.tokenHash),
+              isNull(passwordResetTokens.usedAt),
+              gt(passwordResetTokens.expiresAt, new Date()),
+            ))
+            .returning({ salonId: passwordResetTokens.salonId, userId: passwordResetTokens.userId });
+          const reset = consumed[0];
+          if (!reset) throw new ResetTokenUnavailableError();
+          await tx.update(userCredentials).set({
+            mustChangePassword: false,
+            passwordHash: password.hash,
+            passwordSalt: password.salt,
+            updatedAt: new Date(),
+          }).where(eq(userCredentials.userId, reset.userId));
+          await tx.delete(authSessions).where(eq(authSessions.userId, reset.userId));
+          const account = (await tx.select({ email: users.email }).from(users).where(eq(users.id, reset.userId)))[0];
+          if (!account) throw new ResetTokenUnavailableError();
+          await tx.insert(loginActivity).values({
+            email: account.email,
+            ...requestMetadata(request),
+            salonId: reset.salonId,
+            success: true,
+            userId: reset.userId,
+          });
+        });
+      } catch (error) {
+        if (error instanceof ResetTokenUnavailableError) {
+          return reply.code(410).send({ error: "RESET_TOKEN_INVALID_OR_EXPIRED" });
+        }
+        throw error;
+      }
+      return { changed: true };
     },
   );
 

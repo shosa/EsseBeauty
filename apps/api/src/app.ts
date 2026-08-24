@@ -43,6 +43,7 @@ interface ApiEnvironment {
 }
 
 interface CreateAppOptions {
+  authProviders?: CommunicationProviderRegistry;
   campaignProviders?: CommunicationProviderRegistry;
   campaignQueue?: CampaignQueue;
   db: DrizzleDB;
@@ -83,6 +84,7 @@ function requestLogSerializer(request: FastifyRequest) {
 }
 
 export function createApp({
+  authProviders,
   campaignProviders,
   campaignQueue,
   db,
@@ -134,7 +136,7 @@ export function createApp({
     timestamp: new Date().toISOString(),
   }));
 
-  void registerAuthRoutes(app);
+  void registerAuthRoutes(app, { providers: authProviders });
   void registerServiceRoutes(app);
   void registerStaffRoutes(app);
   void registerAppointmentRoutes(app);
