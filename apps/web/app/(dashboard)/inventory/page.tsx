@@ -25,6 +25,7 @@ export default function InventoryPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [lowOnly, setLowOnly] = useState(false);
   const [movement, setMovement] = useState<Product>();
+  const [error, setError] = useState("");
 
   const lowStockCount = useMemo(
     () => items.filter((item) => item.stockQuantity <= item.lowStockThreshold).length,
@@ -40,8 +41,12 @@ export default function InventoryPage() {
       ? fetch(`${api}/api/salons/${salon.id}/inventory${lowOnly ? "?low_stock=true" : ""}`, {
           credentials: "include",
         })
-          .then((response) => response.json())
-          .then(setItems)
+          .then((response) => {
+            if (!response.ok) throw new Error("inventory");
+            return response.json();
+          })
+          .then((data) => { setError(""); setItems(data); })
+          .catch(() => setError("Inventario non disponibile. Riprova tra poco."))
       : Promise.resolve();
 
   useEffect(() => { void load(); }, [salon, lowOnly]);
@@ -82,7 +87,12 @@ export default function InventoryPage() {
         title="Prodotti"
         subtitle="Apri una scheda prodotto o registra un movimento rapido di magazzino."
       >
-        {items.length === 0 ? (
+        {error ? (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            <span>{error}</span>
+            <Button onClick={() => void load()} size="sm" variant="tableAction">Riprova</Button>
+          </div>
+        ) : items.length === 0 ? (
           <EmptyState
             action={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/inventory/new">Aggiungi prodotto</Link>}
             description={lowOnly ? "Nessun prodotto sotto soglia." : "Aggiungi il primo prodotto per iniziare a monitorare le scorte."}
@@ -90,7 +100,7 @@ export default function InventoryPage() {
           />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
-            <div className="grid min-w-[760px] grid-cols-[1.4fr_.8fr_.7fr_.7fr_1fr_auto] bg-[#faf3f7] px-4 py-3 text-xs font-black uppercase tracking-[.08em] text-[#792f59]">
+            <div className="grid min-w-[760px] grid-cols-[1.4fr_.8fr_.7fr_.7fr_1fr_auto] bg-[#faf3f7] px-3 py-2 text-[11px] font-black uppercase tracking-[.08em] text-[#792f59]">
               <span>Prodotto</span>
               <span>SKU</span>
               <span>Scorta</span>
@@ -102,7 +112,7 @@ export default function InventoryPage() {
               {items.map((item) => {
                 const low = item.stockQuantity <= item.lowStockThreshold;
                 return (
-                  <div className="grid min-w-[760px] grid-cols-[1.4fr_.8fr_.7fr_.7fr_1fr_auto] items-center border-t border-stone-100 px-4 py-4 text-sm" key={item.id}>
+                  <div className="grid min-w-[760px] grid-cols-[1.4fr_.8fr_.7fr_.7fr_1fr_auto] items-center border-t border-stone-100 px-3 py-2.5 text-sm" key={item.id}>
                     <Link className="font-bold text-stone-950 hover:text-[#792f59]" href={`/inventory/${item.id}`}>{item.name}</Link>
                     <span className="text-stone-500">{item.sku ?? "-"}</span>
                     <span className={`font-black ${low ? "text-red-700" : "text-stone-950"}`}>{item.stockQuantity}</span>
