@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import {
@@ -12,7 +12,7 @@ import {
   users,
 } from "@esse-beauty/db/schema";
 
-import { issuePublicToken, verifyPublicToken } from "./public-tokens.js";
+import { inspectPublicToken, issuePublicToken } from "./public-tokens.js";
 
 export type ConsentDeliveryChannel = "email" | "in_person" | "sms";
 export type ConsentStatus = "expired" | "pending" | "revoked" | "signed";
@@ -110,12 +110,14 @@ export interface ConsentLifecycleTransaction {
   }): Promise<boolean>;
   archiveTemplate(salonId: string, templateId: string): Promise<ConsentTemplateRecord | undefined>;
   customerBelongsToSalon(salonId: string, customerId: string): Promise<boolean>;
+  expireDueConsents(salonId: string): Promise<number>;
   findConsentById(salonId: string, consentId: string): Promise<ConsentRequestWithDocument | undefined>;
   findConsentByTokenHash(tokenHash: string): Promise<ConsentRequestWithDocument | undefined>;
   findTemplate(salonId: string, templateId: string): Promise<ConsentTemplateRecord | undefined>;
   insertConsent(input: InsertConsentInput): Promise<ConsentRequestRecord>;
   insertTemplate(input: InsertTemplateInput): Promise<ConsentTemplateRecord>;
   latestTemplateVersion(salonId: string, name: string): Promise<number>;
+  lockTemplateName(salonId: string, name: string): Promise<void>;
   servicesBelongToSalon(salonId: string, serviceIds: string[]): Promise<boolean>;
   updateConsent(
     salonId: string,
@@ -133,12 +135,14 @@ export type ConsentLifecycleErrorCode =
   | "CONSENT_ALREADY_REVOKED"
   | "CONSENT_APPOINTMENT_INVALID"
   | "CONSENT_CUSTOMER_INVALID"
+  | "CONSENT_EVIDENCE_TAMPERED"
   | "CONSENT_NOT_SIGNED"
   | "CONSENT_REQUEST_NOT_FOUND"
   | "CONSENT_REVOKER_INVALID"
   | "CONSENT_SERVICE_INVALID"
   | "CONSENT_TEMPLATE_ARCHIVED"
   | "CONSENT_TEMPLATE_NOT_FOUND"
+  | "CONSENT_TEMPLATE_VERSION_CONFLICT"
   | "TOKEN_CONSUMED"
   | "TOKEN_EXPIRED"
   | "TOKEN_INVALID"
@@ -148,12 +152,14 @@ const errorStatus: Record<ConsentLifecycleErrorCode, number> = {
   CONSENT_ALREADY_REVOKED: 409,
   CONSENT_APPOINTMENT_INVALID: 400,
   CONSENT_CUSTOMER_INVALID: 400,
+  CONSENT_EVIDENCE_TAMPERED: 409,
   CONSENT_NOT_SIGNED: 409,
   CONSENT_REQUEST_NOT_FOUND: 404,
   CONSENT_REVOKER_INVALID: 403,
   CONSENT_SERVICE_INVALID: 400,
   CONSENT_TEMPLATE_ARCHIVED: 409,
   CONSENT_TEMPLATE_NOT_FOUND: 404,
+  CONSENT_TEMPLATE_VERSION_CONFLICT: 409,
   TOKEN_CONSUMED: 409,
   TOKEN_EXPIRED: 410,
   TOKEN_INVALID: 404,
@@ -180,6 +186,30 @@ function unique(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function databaseErrorCode(error: unknown): string | undefined {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!current || typeof current !== "object") return undefined;
+    const record = current as { cause?: unknown; code?: unknown };
+    if (typeof record.code === "string") return record.code;
+    current = record.cause;
+  }
+  return undefined;
+}
+
+async function allocateTemplateVersion(
+  work: () => Promise<ConsentTemplateRecord>,
+): Promise<ConsentTemplateRecord> {
+  try {
+    return await work();
+  } catch (error) {
+    if (databaseErrorCode(error) === "23505") {
+      fail("CONSENT_TEMPLATE_VERSION_CONFLICT");
+    }
+    throw error;
+  }
+}
+
 async function assertServices(
   tx: ConsentLifecycleTransaction,
   salonId: string,
@@ -203,12 +233,13 @@ export async function createConsentTemplate(
     type: string;
   },
 ): Promise<ConsentTemplateRecord> {
-  return repository.transaction(async (tx) => {
+  return allocateTemplateVersion(() => repository.transaction(async (tx) => {
     const requiredForServices = await assertServices(
       tx,
       input.salonId,
       input.requiredForServices ?? [],
     );
+    await tx.lockTemplateName(input.salonId, input.name);
     const latest = await tx.latestTemplateVersion(input.salonId, input.name);
     return tx.insertTemplate({
       active: input.active ?? true,
@@ -219,7 +250,7 @@ export async function createConsentTemplate(
       type: input.type,
       version: latest + 1,
     });
-  });
+  }));
 }
 
 export async function versionTemplate(
@@ -234,7 +265,7 @@ export async function versionTemplate(
     type?: string;
   },
 ): Promise<ConsentTemplateRecord> {
-  return repository.transaction(async (tx) => {
+  return allocateTemplateVersion(() => repository.transaction(async (tx) => {
     const current = await tx.findTemplate(input.salonId, templateId);
     if (!current) fail("CONSENT_TEMPLATE_NOT_FOUND");
     const requiredForServices = await assertServices(
@@ -243,6 +274,7 @@ export async function versionTemplate(
       input.requiredForServices ?? current.requiredForServices,
     );
     const name = input.name ?? current.name;
+    await tx.lockTemplateName(input.salonId, name);
     const latest = await tx.latestTemplateVersion(input.salonId, name);
     return tx.insertTemplate({
       active: input.active ?? true,
@@ -253,7 +285,7 @@ export async function versionTemplate(
       type: input.type ?? current.type,
       version: latest + 1,
     });
-  });
+  }));
 }
 
 export async function archiveConsentTemplate(
@@ -338,7 +370,22 @@ export async function resendConsentRequest(
   });
 }
 
-function documentFor(consentRecord: ConsentRequestWithDocument) {
+export async function expireDueConsentRequests(
+  repository: ConsentLifecycleRepository,
+  salonId: string,
+): Promise<number> {
+  return repository.transaction((tx) => tx.expireDueConsents(salonId));
+}
+
+interface CanonicalConsentDocument {
+  body: string;
+  name: string;
+  templateId: string;
+  type: string;
+  version: number;
+}
+
+function documentFor(consentRecord: ConsentRequestWithDocument): CanonicalConsentDocument {
   return {
     body: consentRecord.templateBody,
     name: consentRecord.templateName,
@@ -348,38 +395,62 @@ function documentFor(consentRecord: ConsentRequestWithDocument) {
   };
 }
 
-function hashDocument(document: ReturnType<typeof documentFor>): string {
+function canonicalDocument(document: CanonicalConsentDocument): string {
+  return JSON.stringify({
+    body: document.body,
+    name: document.name,
+    templateId: document.templateId,
+    type: document.type,
+    version: document.version,
+  });
+}
+
+function hashDocument(document: CanonicalConsentDocument): string {
   return createHash("sha256")
-    .update(JSON.stringify(document))
+    .update(canonicalDocument(document))
     .digest("hex");
 }
 
-function assertSignable(consentRecord: ConsentRequestWithDocument, publicToken: boolean): void {
+async function signabilityError(
+  tx: ConsentLifecycleTransaction,
+  consentRecord: ConsentRequestWithDocument,
+  publicToken: boolean,
+  embeddedExpiryPassed: boolean,
+): Promise<ConsentLifecycleErrorCode | undefined> {
   if (consentRecord.status === "signed") {
-    fail(publicToken ? "TOKEN_CONSUMED" : "CONSENT_NOT_SIGNED");
+    return publicToken ? "TOKEN_CONSUMED" : "CONSENT_NOT_SIGNED";
   }
-  if (consentRecord.status === "revoked") fail("TOKEN_REVOKED");
+  if (consentRecord.status === "revoked") return "TOKEN_REVOKED";
   if (
+    embeddedExpiryPassed ||
     consentRecord.status === "expired" ||
     !consentRecord.expiresAt ||
     consentRecord.expiresAt.getTime() <= Date.now()
   ) {
-    fail("TOKEN_EXPIRED");
+    if (consentRecord.status === "pending") {
+      await tx.updateConsent(consentRecord.salonId, consentRecord.id, {
+        status: "expired",
+      });
+    }
+    return "TOKEN_EXPIRED";
   }
+  return undefined;
 }
 
 export async function resolveConsent(
   repository: ConsentLifecycleRepository,
   rawToken: string,
 ): Promise<ConsentRequestWithDocument> {
-  const verified = verifyPublicToken(rawToken, "consent");
-  if (!verified.ok) fail("TOKEN_INVALID");
-  return repository.transaction(async (tx) => {
-    const current = await tx.findConsentByTokenHash(verified.tokenHash);
+  const inspected = inspectPublicToken(rawToken, "consent");
+  if (!inspected.ok) fail("TOKEN_INVALID");
+  const result = await repository.transaction(async (tx) => {
+    const current = await tx.findConsentByTokenHash(inspected.tokenHash);
     if (!current) fail("TOKEN_INVALID");
-    assertSignable(current, true);
-    return current;
+    const error = await signabilityError(tx, current, true, inspected.expired);
+    return error ? { error } as const : { consent: current } as const;
   });
+  if ("error" in result && result.error) fail(result.error);
+  return result.consent;
 }
 
 export async function signConsent(
@@ -393,15 +464,15 @@ export async function signConsent(
   metadata: { ipAddress?: string | null; userAgent?: string | null } = {},
 ): Promise<ConsentRequestRecord> {
   const publicToken = typeof locator === "string";
-  const verified = publicToken ? verifyPublicToken(locator, "consent") : undefined;
-  if (verified && !verified.ok) fail("TOKEN_INVALID");
+  const inspected = publicToken ? inspectPublicToken(locator, "consent") : undefined;
+  if (inspected && !inspected.ok) fail("TOKEN_INVALID");
 
-  return repository.transaction(async (tx) => {
+  const result = await repository.transaction(async (tx) => {
     let current: ConsentRequestWithDocument | undefined;
     let source: "in_person" | "public";
     let signedByUserId: string | undefined;
     if (typeof locator === "string") {
-      current = await tx.findConsentByTokenHash(verified && verified.ok ? verified.tokenHash : "");
+      current = await tx.findConsentByTokenHash(inspected && inspected.ok ? inspected.tokenHash : "");
       source = "public";
     } else {
       if (!(await tx.userBelongsToSalon(locator.salonId, locator.signedByUserId))) {
@@ -412,7 +483,13 @@ export async function signConsent(
       signedByUserId = locator.signedByUserId;
     }
     if (!current) fail(publicToken ? "TOKEN_INVALID" : "CONSENT_REQUEST_NOT_FOUND");
-    assertSignable(current, publicToken);
+    const error = await signabilityError(
+      tx,
+      current,
+      publicToken,
+      Boolean(inspected?.ok && inspected.expired),
+    );
+    if (error) return { error } as const;
 
     const signedAt = new Date();
     const document = documentFor(current);
@@ -434,8 +511,10 @@ export async function signConsent(
       userAgent: metadata.userAgent ?? null,
     });
     if (!updated) fail("CONSENT_REQUEST_NOT_FOUND");
-    return updated;
+    return { consent: updated } as const;
   });
+  if ("error" in result && result.error) fail(result.error);
+  return result.consent;
 }
 
 export async function revokeConsent(
@@ -462,16 +541,32 @@ export async function revokeConsent(
   });
 }
 
-function evidenceDocument(record: ConsentRequestWithDocument) {
+function evidenceDocument(record: ConsentRequestWithDocument): CanonicalConsentDocument {
   const stored = record.signatureData.document;
+  const hasStoredDocument = Object.prototype.hasOwnProperty.call(
+    record.signatureData,
+    "document",
+  );
   if (stored && typeof stored === "object" && !Array.isArray(stored)) {
     const document = stored as Record<string, unknown>;
     if (
       typeof document.body === "string" &&
       typeof document.name === "string" &&
+      typeof document.templateId === "string" &&
+      typeof document.type === "string" &&
       typeof document.version === "number"
-    ) return document;
+    ) {
+      return {
+        body: document.body,
+        name: document.name,
+        templateId: document.templateId,
+        type: document.type,
+        version: document.version,
+      };
+    }
+    fail("CONSENT_EVIDENCE_TAMPERED");
   }
+  if (hasStoredDocument) fail("CONSENT_EVIDENCE_TAMPERED");
   return documentFor(record);
 }
 
@@ -492,15 +587,22 @@ export async function renderConsentEvidence(
       fail("CONSENT_NOT_SIGNED");
     }
     const document = evidenceDocument(record);
+    const canonical = canonicalDocument(document);
+    if (hashDocument(document) !== record.documentHash) {
+      fail("CONSENT_EVIDENCE_TAMPERED");
+    }
     const lines = [
       "REGISTRO DEL CONSENSO",
       `Salone: ${record.salonName}`,
       `Documento: ${String(document.name)}`,
       `Versione: ${String(document.version)}`,
+      `Template ID: ${document.templateId}`,
+      `Tipo: ${document.type}`,
       `Stato: ${record.status}`,
       `Firmatario: ${record.signerName}`,
       `Accettato il: ${record.signedAt.toISOString()}`,
       `Hash documento (SHA-256): ${record.documentHash}`,
+      `Input SHA-256: ${canonical}`,
       "",
       "TESTO ACCETTATO",
       String(document.body),
@@ -590,6 +692,19 @@ function drizzleTransaction(executor: DrizzleDB): ConsentLifecycleTransaction {
         .where(and(eq(customers.id, customerId), eq(customers.salonId, salonId)));
       return Boolean(rows[0]);
     },
+    async expireDueConsents(salonId) {
+      const rows = await executor
+        .update(customerConsents)
+        .set({ status: "expired" })
+        .where(and(
+          eq(customerConsents.salonId, salonId),
+          eq(customerConsents.status, "pending"),
+          isNotNull(customerConsents.expiresAt),
+          lte(customerConsents.expiresAt, new Date()),
+        ))
+        .returning({ id: customerConsents.id });
+      return rows.length;
+    },
     findConsentById(salonId, consentId) {
       return findConsent(and(
         eq(customerConsents.id, consentId),
@@ -621,6 +736,13 @@ function drizzleTransaction(executor: DrizzleDB): ConsentLifecycleTransaction {
         .from(consentTemplates)
         .where(and(eq(consentTemplates.salonId, salonId), eq(consentTemplates.name, name)));
       return Number(rows[0]?.version ?? 0);
+    },
+    async lockTemplateName(salonId, name) {
+      await executor.execute(sql`
+        select pg_advisory_xact_lock(
+          hashtextextended(${`${salonId}:${name}`}, 0)
+        )
+      `);
     },
     async servicesBelongToSalon(salonId, serviceIds) {
       if (serviceIds.length === 0) return true;

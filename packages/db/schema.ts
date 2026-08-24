@@ -1557,6 +1557,14 @@ export const customerConsents = pgTable(
       table.salonId,
       table.tokenHash,
     ),
+    check(
+      "customer_consents_token_hash_format",
+      sql`${table.tokenHash} is null or ${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "customer_consents_document_hash_format",
+      sql`${table.documentHash} is null or ${table.documentHash} ~ '^[a-f0-9]{64}$'`,
+    ),
   ],
 );
 

@@ -35,4 +35,24 @@ describe("API", () => {
     });
     expect(response.headers["access-control-allow-credentials"]).toBe("true");
   });
+
+  it("never writes a public consent bearer token to request logs", async () => {
+    const rawToken = "v1.consent.secret-expiry.super-secret-bearer-token";
+    let logs = "";
+    const app = createApp({
+      db: {} as DrizzleDB,
+      env: { API_CORS_ORIGIN: "http://localhost:3000" },
+      logger: true,
+      loggerStream: { write: (message: string) => { logs += message; } },
+    });
+    apps.push(app);
+
+    await app.inject({
+      method: "GET",
+      url: `/api/public/consents/${rawToken}`,
+    });
+
+    expect(logs).not.toContain(rawToken);
+    expect(logs).toContain("/api/public/consents/[REDACTED]");
+  });
 });

@@ -27,6 +27,7 @@ import {
   createConsentRequest,
   createConsentTemplate,
   createDrizzleConsentRepository,
+  expireDueConsentRequests,
   renderConsentEvidence,
   resendConsentRequest,
   resolveConsent,
@@ -453,6 +454,7 @@ export async function registerEnterpriseModuleRoutes(
       const filters = [eq(customerConsents.salonId, request.salonId)];
       if (request.query.customer_id) filters.push(eq(customerConsents.customerId, request.query.customer_id));
       if (request.query.appointment_id) filters.push(eq(customerConsents.appointmentId, request.query.appointment_id));
+      await expireDueConsentRequests(consentRepository, request.salonId);
       const rows = await app.db
         .select()
         .from(customerConsents)

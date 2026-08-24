@@ -1,4 +1,10 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
+import { getTableConfig } from "drizzle-orm/pg-core";
+
+import { customerConsents } from "@esse-beauty/db/schema";
+
+import { issuePublicToken } from "./public-tokens.js";
 
 import type {
   ConsentLifecycleRepository,
@@ -9,7 +15,9 @@ import type {
 } from "./consent-evidence.js";
 import {
   createConsentRequest,
+  createConsentTemplate,
   renderConsentEvidence,
+  resolveConsent,
   revokeConsent,
   signConsent,
   versionTemplate,
@@ -87,6 +95,21 @@ function memoryRepository(seed?: {
       },
       customerBelongsToSalon: async (salonId, customerId) =>
         salonId === "salon-1" && customerId === "customer-1",
+      expireDueConsents: async (salonId) => {
+        let expired = 0;
+        for (const item of consents) {
+          if (
+            item.salonId === salonId &&
+            item.status === "pending" &&
+            item.expiresAt &&
+            item.expiresAt.getTime() <= Date.now()
+          ) {
+            item.status = "expired";
+            expired += 1;
+          }
+        }
+        return expired;
+      },
       findConsentById: async (salonId, consentId) =>
         consents.find((item) => item.id === consentId && item.salonId === salonId),
       findConsentByTokenHash: async (tokenHash) =>
@@ -106,6 +129,7 @@ function memoryRepository(seed?: {
       },
       latestTemplateVersion: async (salonId, name) =>
         Math.max(...templates.filter((item) => item.salonId === salonId && item.name === name).map((item) => item.version)),
+      lockTemplateName: async () => undefined,
       servicesBelongToSalon: async (salonId, serviceIds) =>
         salonId === "salon-1" && serviceIds.every((id) => id === "service-1"),
       updateConsent: async (salonId, consentId, changes) => {
@@ -129,6 +153,31 @@ function memoryRepository(seed?: {
 }
 
 describe("consent lifecycle", () => {
+  it("declares token and document hash constraints in the Drizzle schema", () => {
+    const checks = getTableConfig(customerConsents).checks.map((constraint) => constraint.name);
+
+    expect(checks).toContain("customer_consents_token_hash_format");
+    expect(checks).toContain("customer_consents_document_hash_format");
+  });
+
+  it("maps a residual unique conflict to a stable lifecycle error", async () => {
+    const repository: ConsentLifecycleRepository = {
+      async transaction() {
+        throw Object.assign(new Error("duplicate template version"), { code: "23505" });
+      },
+    };
+
+    await expect(createConsentTemplate(repository, {
+      body: "Testo",
+      name: "Consenso concorrente",
+      salonId: "salon-1",
+      type: "treatment",
+    })).rejects.toMatchObject({
+      code: "CONSENT_TEMPLATE_VERSION_CONFLICT",
+      statusCode: 409,
+    });
+  });
+
   it("creates a new version instead of editing a signed template", async () => {
     const usedTemplate = template();
     const memory = memoryRepository({
@@ -218,10 +267,76 @@ describe("consent lifecycle", () => {
     );
   });
 
+  it("persists expired status and returns TOKEN_EXPIRED from resolve and sign", async () => {
+    const source = template();
+    const expired = issuePublicToken(
+      "consent",
+      "consent-expired",
+      new Date(Date.now() - 60_000),
+    );
+    const memory = memoryRepository({
+      consents: [consent(source, {
+        expiresAt: expired.expiresAt,
+        id: "consent-expired",
+        tokenHash: expired.tokenHash,
+      })],
+      templates: [source],
+    });
+    const signature = {
+      accepted: true as const,
+      signature: { type: "typed" as const, value: "Mario Rossi" },
+      signerName: "Mario Rossi",
+    };
+
+    await expect(resolveConsent(memory.repository, expired.raw)).rejects.toThrow("TOKEN_EXPIRED");
+    expect(memory.consents[0]?.status).toBe("expired");
+    await expect(signConsent(memory.repository, expired.raw, signature)).rejects.toThrow("TOKEN_EXPIRED");
+    expect(memory.consents[0]?.status).toBe("expired");
+  });
+
+  it("exports every canonical hash field and rejects a modified snapshot", async () => {
+    const memory = memoryRepository();
+    const created = await createConsentRequest(memory.repository, {
+      customerId: "customer-1",
+      deliveryChannel: "in_person",
+      expiresAt: new Date(Date.now() + 60_000),
+      salonId: "salon-1",
+      templateId: "template-1",
+    });
+    await signConsent(memory.repository, created.rawToken, {
+      accepted: true,
+      signature: { type: "typed", value: "Mario Rossi" },
+      signerName: "Mario Rossi",
+    });
+
+    const evidence = await renderConsentEvidence(memory.repository, created.consent.id, {
+      salonId: "salon-1",
+    });
+    const canonicalLine = evidence.content
+      .split("\n")
+      .find((line) => line.startsWith("Input SHA-256: "));
+    const canonical = canonicalLine?.slice("Input SHA-256: ".length);
+    expect(evidence.content).toContain("Template ID: template-1");
+    expect(evidence.content).toContain("Tipo: treatment");
+    expect(canonical).toBeTruthy();
+    expect(createHash("sha256").update(canonical!).digest("hex")).toBe(evidence.documentHash);
+
+    const storedDocument = memory.consents[0]?.signatureData.document as Record<string, unknown>;
+    storedDocument.body = "Testo alterato dopo la firma";
+    await expect(renderConsentEvidence(memory.repository, created.consent.id, {
+      salonId: "salon-1",
+    })).rejects.toThrow("CONSENT_EVIDENCE_TAMPERED");
+
+    memory.consents[0]!.signatureData.document = null;
+    await expect(renderConsentEvidence(memory.repository, created.consent.id, {
+      salonId: "salon-1",
+    })).rejects.toThrow("CONSENT_EVIDENCE_TAMPERED");
+  });
+
   it("revokes without deleting the original evidence", async () => {
     const source = template();
     const signed = consent(source, {
-      documentHash: "a".repeat(64),
+      documentHash: "cb9991d1ee29cc19b8b2ac6b8738de75a406621aadec37e5e74a252353a4d9c7",
       signatureData: {
         accepted: true,
         document: {
@@ -249,7 +364,9 @@ describe("consent lifecycle", () => {
     });
 
     expect(revoked.status).toBe("revoked");
-    expect(revoked.documentHash).toBe("a".repeat(64));
+    expect(revoked.documentHash).toBe(
+      "cb9991d1ee29cc19b8b2ac6b8738de75a406621aadec37e5e74a252353a4d9c7",
+    );
     expect(evidence.content).toContain("Testo firmato originale");
     expect(evidence.content).toContain("Consenso ritirato dal cliente");
   });

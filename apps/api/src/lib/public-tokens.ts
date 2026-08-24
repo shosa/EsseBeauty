@@ -12,8 +12,17 @@ export type VerifiedPublicToken =
   | { ok: true; tokenHash: string }
   | { error: "TOKEN_INVALID"; ok: false };
 
+export type InspectedPublicToken =
+  | {
+      expired: boolean;
+      expiresAt: Date;
+      ok: true;
+      tokenHash: string;
+    }
+  | { error: "TOKEN_INVALID"; ok: false };
+
 const purposePattern = /^[a-z][a-z0-9_-]{0,63}$/;
-const invalidToken: VerifiedPublicToken = { error: "TOKEN_INVALID", ok: false };
+const invalidToken = { error: "TOKEN_INVALID", ok: false } as const;
 
 function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
@@ -45,6 +54,12 @@ export function issuePublicToken(
 }
 
 export function verifyPublicToken(raw: string, purpose: string): VerifiedPublicToken {
+  const inspected = inspectPublicToken(raw, purpose);
+  if (!inspected.ok || inspected.expired) return invalidToken;
+  return { ok: true, tokenHash: inspected.tokenHash };
+}
+
+export function inspectPublicToken(raw: string, purpose: string): InspectedPublicToken {
   const match = /^v1\.([a-z][a-z0-9_-]{0,63})\.([a-z0-9]+)\.([A-Za-z0-9_-]{43})$/.exec(raw);
   if (!match || !purposePattern.test(purpose)) return invalidToken;
 
@@ -54,11 +69,15 @@ export function verifyPublicToken(raw: string, purpose: string): VerifiedPublicT
   const expiresAt = Number.parseInt(expiry, 36);
   if (
     tokenPurpose !== purpose ||
-    !Number.isSafeInteger(expiresAt) ||
-    expiresAt <= Date.now()
+    !Number.isSafeInteger(expiresAt)
   ) {
     return invalidToken;
   }
 
-  return { ok: true, tokenHash: hashToken(raw) };
+  return {
+    expired: expiresAt <= Date.now(),
+    expiresAt: new Date(expiresAt),
+    ok: true,
+    tokenHash: hashToken(raw),
+  };
 }

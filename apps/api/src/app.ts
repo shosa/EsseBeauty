@@ -3,6 +3,7 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, {
+  type FastifyRequest,
   type preHandlerHookHandler,
 } from "fastify";
 import { eq } from "drizzle-orm";
@@ -42,6 +43,7 @@ interface CreateAppOptions {
   db: DrizzleDB;
   env: ApiEnvironment;
   logger?: boolean;
+  loggerStream?: { write(message: string): void };
 }
 
 interface SalonParams {
@@ -57,12 +59,37 @@ function parseOrigins(value: string): true | string[] {
   return origins.includes("*") ? true : origins;
 }
 
+export function maskSensitiveRequestUrl(url: string): string {
+  return url.replace(
+    /(\/api\/public\/consents\/)[^/?#]+/gi,
+    "$1[REDACTED]",
+  );
+}
+
+function requestLogSerializer(request: FastifyRequest) {
+  return {
+    host: request.headers.host,
+    method: request.method,
+    remoteAddress: request.ip,
+    remotePort: request.socket.remotePort,
+    url: maskSensitiveRequestUrl(request.url),
+  };
+}
+
 export function createApp({
   db,
   env,
   logger = false,
+  loggerStream,
 }: CreateAppOptions) {
-  const app = Fastify({ logger });
+  const app = Fastify({
+    logger: logger
+      ? {
+          ...(loggerStream ? { stream: loggerStream } : {}),
+          serializers: { req: requestLogSerializer },
+        }
+      : false,
+  });
 
   app.decorate("db", db);
   app.decorateRequest("salonId", "");
