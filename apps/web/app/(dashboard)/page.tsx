@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, EmptyState, InlineError, PageHeader, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, InboxItem, InlineError, PageHeader, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../lib/auth-context";
 import { HomeKpiStrip } from "./_components/HomeKpiStrip";
@@ -129,13 +129,17 @@ export default function DashboardPage() {
           {notifications.status === "error" && <InlineError>Priorità non disponibili.</InlineError>}
           {notifications.status === "ready" && priorities.length === 0 && <EmptyState description="Non ci sono attività urgenti." title="Tutto sotto controllo" />}
           {priorities.map((item) => (
-            <Link className="mb-2 block rounded-xl border border-[#eadde4] bg-white p-3 transition hover:border-[#b85888]" href={item.href ?? "#"} key={item.id}>
+            item.href ? (
+            <Link className="mb-2 block rounded-xl border border-[#eadde4] bg-white p-3 transition hover:border-[#b85888]" href={item.href} key={item.id}>
               <div className="flex items-start justify-between gap-2">
                 <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#8f3a68]">{notificationLabel(item)}</p><b className="mt-1 block text-sm">{item.title}</b></div>
                 <StatusBadge status={item.priority === "high" ? "waiting" : "active"}>{item.priority ?? "normal"}</StatusBadge>
               </div>
               {item.body && <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.body}</p>}
             </Link>
+            ) : (
+              <InboxItem description={item.body} key={item.id} label={<><span className="block text-[10px] font-black uppercase tracking-[.14em] text-[#8f3a68]">{notificationLabel(item)}</span><span className="mt-1 block">{item.title}</span></>} priority={item.priority === "high" ? "high" : "normal"} />
+            )
           ))}
         </OperationalInbox>
       </div>

@@ -18,7 +18,34 @@ import {
   ensureOnlineBookingNotifications,
   ensureStaffRequestReviewNotifications,
 } from "../../jobs/staff-request-notifications.js";
+import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
 import { authenticate } from "../../middleware/auth.js";
+
+const shellPreferencesBodySchema: SafeParseSchema<{
+  navigation_collapsed: boolean;
+}> = {
+  safeParse(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {
+        error: { fieldErrors: { body: ["Corpo della richiesta non valido"] } },
+        success: false as const,
+      };
+    }
+
+    const navigationCollapsed = (value as { navigation_collapsed?: unknown })
+      .navigation_collapsed;
+    return typeof navigationCollapsed === "boolean"
+      ? { data: { navigation_collapsed: navigationCollapsed }, success: true as const }
+      : {
+          error: {
+            fieldErrors: {
+              navigation_collapsed: ["Valore obbligatorio"],
+            },
+          },
+          success: false as const,
+        };
+  },
+};
 
 const searchGroups = [
   "customers",
@@ -180,18 +207,10 @@ export async function registerShellRoutes(app: FastifyInstance) {
     "/api/salons/:id/shell-preferences",
     {
       preHandler: [authenticate],
-      schema: {
-        body: {
-          additionalProperties: false,
-          properties: {
-            navigation_collapsed: { type: "boolean" },
-          },
-          required: ["navigation_collapsed"],
-          type: "object",
-        },
-      },
     },
     async (request, reply) => {
+      const body = parseBody(shellPreferencesBodySchema, request, reply);
+      if (!body) return;
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
@@ -216,14 +235,14 @@ export async function registerShellRoutes(app: FastifyInstance) {
       const rows = await app.db
         .insert(userInterfacePreferences)
         .values({
-          navigationCollapsed: request.body.navigation_collapsed,
+          navigationCollapsed: body.navigation_collapsed,
           salonId: request.salonId,
           userId: request.user.id,
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           set: {
-            navigationCollapsed: request.body.navigation_collapsed,
+            navigationCollapsed: body.navigation_collapsed,
             updatedAt: new Date(),
           },
           target: [
@@ -357,7 +376,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
         results.push(
           ...rows.map((row) => ({
             group: "services" as const,
-            href: `/services/${row.id}`,
+            href: `/settings/services/${row.id}`,
             title: row.title,
             subtitle: row.subtitle,
             status: row.status ? "attivo" : "archiviato",
@@ -385,7 +404,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
         results.push(
           ...rows.map((row) => ({
             group: "staff" as const,
-            href: `/staff/${row.id}`,
+            href: `/settings/staff/${row.id}`,
             title: row.title,
             subtitle: row.subtitle,
             status: row.status ? "attivo" : "archiviato",

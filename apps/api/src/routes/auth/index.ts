@@ -23,6 +23,7 @@ import {
   requirePermission,
   requireRole,
 } from "../../middleware/auth.js";
+import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
 import {
   createSessionToken,
   hashPassword,
@@ -37,6 +38,36 @@ const userRoleSet = new Set<string>(USER_ROLES);
 function isUserRole(value: string): value is UserRole {
   return userRoleSet.has(value);
 }
+
+const loginBodySchema: SafeParseSchema<{ email: string; password: string }> = {
+  safeParse(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {
+        error: { fieldErrors: { body: ["Corpo della richiesta non valido"] } },
+        success: false as const,
+      };
+    }
+
+    const body = value as { email?: unknown; password?: unknown };
+    const fields: Record<string, string[]> = {};
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    if (!email) {
+      fields.email = ["Email obbligatoria"];
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      fields.email = ["Email non valida"];
+    }
+    if (typeof body.password !== "string" || !body.password) {
+      fields.password = ["Password obbligatoria"];
+    }
+
+    return Object.keys(fields).length > 0
+      ? { error: { fieldErrors: fields }, success: false as const }
+      : {
+          data: { email, password: body.password as string },
+          success: true as const,
+        };
+  },
+};
 
 function setSessionCookie(
   reply: FastifyReply,
@@ -71,6 +102,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Body: { email: string; password: string } }>(
     "/api/auth/login",
     async (request, reply) => {
+      const body = parseBody(loginBodySchema, request, reply);
+      if (!body) return;
       const rows = await app.db
         .select({
           active: users.active,
@@ -80,12 +113,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         })
         .from(users)
         .innerJoin(userCredentials, eq(userCredentials.userId, users.id))
-        .where(eq(users.email, request.body.email.toLowerCase()));
+        .where(eq(users.email, body.email.toLowerCase()));
       const user = rows[0];
       if (
         !user?.active ||
         !(await verifyPassword(
-          request.body.password,
+          body.password,
           user.passwordSalt,
           user.passwordHash,
         ))

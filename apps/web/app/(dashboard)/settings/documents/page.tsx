@@ -98,20 +98,20 @@ export default function DocumentsSettingsPage() {
               </FormField>
             </div>
             <FormField label="Testo">
-              <textarea value={form.body} onChange={(event) => setForm((value) => ({ ...value, body: event.target.value }))} placeholder="Scrivi il testo che il cliente dovrÃ  accettare o firmare." />
+              <textarea value={form.body} onChange={(event) => setForm((value) => ({ ...value, body: event.target.value }))} placeholder="Scrivi il testo che il cliente dovrà accettare o firmare." />
             </FormField>
             <label className="flex items-center justify-between rounded-2xl bg-stone-50 p-4 text-sm font-bold text-stone-800"><span>Attivo subito</span><Switch checked={form.active} onCheckedChange={(active: boolean) => setForm((value) => ({ ...value, active }))} /></label>
             <Button disabled={!form.name.trim() || !form.body.trim()} onClick={() => void save()} variant="primary">Salva modello</Button>
           </div>
         </SectionCard>
-        <SectionCard title="Archivio documenti" subtitle="I modelli restano versionati: non modificare un testo giÃ  firmato, crea una nuova versione.">
+        <SectionCard title="Archivio documenti" subtitle="I modelli restano versionati: non modificare un testo già firmato, crea una nuova versione.">
           {items.length === 0 ? <EmptyState title="Nessun documento" description="Crea il primo modello di consenso per attivare il flusso." /> : (
             <div className="space-y-3">
               {items.map((item) => (
                 <article className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm" key={item.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[.16em] text-[#792f59]">{item.type} Â· v{item.version}</p>
+                      <p className="text-xs font-black uppercase tracking-[.16em] text-[#792f59]">{item.type} · v{item.version}</p>
                       <h3 className="mt-1 font-bold text-stone-950">{item.name}</h3>
                     </div>
                     <StatusBadge status={item.active ? "active" : "archived"}>{item.active ? "Attivo" : "Spento"}</StatusBadge>
