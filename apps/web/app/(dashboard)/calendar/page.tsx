@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, isAppointmentDragDisabled, nextAppointmentStatuses, PERMISSION_KEYS, WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Badge, Button, Dialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Badge, Button, Dialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge, WorkspaceToolbar } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import AppointmentDetailPanel from "./_components/AppointmentDetailPanel";
@@ -912,7 +912,7 @@ export default function CalendarPage() {
             <button aria-label="Settimana successiva" className="grid place-items-center text-2xl font-black text-[#792f59] transition hover:bg-[#faf3f7]" onClick={() => setPeriodOffset((value) => value + 7)} type="button">›</button>
           </div>
 
-          <div className="flex flex-col gap-3 p-3 xl:flex-row xl:items-center">
+          <WorkspaceToolbar className="flex-col border-y-0 xl:flex-row">
             <input
               aria-label="Cerca appuntamenti"
               className="min-h-11 min-w-0 flex-1 rounded-xl border border-stone-200 bg-[#fbfaf8] px-4 text-sm font-semibold outline-none transition focus:border-[#792f59] focus:ring-4 focus:ring-[#b85888]/15"
@@ -952,7 +952,7 @@ export default function CalendarPage() {
               setLocationFilter("");
               setPeriodOffset(0);
             }} type="button">Oggi · Azzera</button>
-          </div>
+          </WorkspaceToolbar>
         </section>
 
         {view === "agenda" ? (

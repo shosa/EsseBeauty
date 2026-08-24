@@ -1,8 +1,14 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { buildTimelineCompression } from "./app/(dashboard)/calendar/timelineCompression";
 
 describe("calendar timeline compression", () => {
+  it("uses the shared app workspace toolbar", () => {
+    const source = readFileSync(join(process.cwd(), "app", "(dashboard)", "calendar", "page.tsx"), "utf8");
+    expect(source).toContain("WorkspaceToolbar");
+  });
   it("compresses global non-working gaps between shared working periods", () => {
     const timeline = buildTimelineCompression({
       compressedHeight: 60,
