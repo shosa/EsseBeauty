@@ -12,9 +12,11 @@ import {
   StatusBadge,
 } from "@esse-beauty/ui";
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, nextAppointmentStatuses, type AppointmentStatus } from "@esse-beauty/shared";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
+import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -187,6 +189,7 @@ export default function AppointmentDetailPanel({
   onClose(): void;
 }) {
   const { salon } = useAuth();
+  const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [data, setData] = useState<CheckoutResponse>();
   const [lines, setLines] = useState<CheckoutLine[]>([]);
   const [payments, setPayments] = useState<PaymentDraft[]>([{ amount_cents: 0, method: "cash" }]);
@@ -659,11 +662,13 @@ export default function AppointmentDetailPanel({
                 </div>
               </section>
 
-              <ConsentRecordsPanel
-                appointmentId={appointment.id}
-                customerId={appointment.customer_id}
-                title="Richiedi consenso"
-              />
+              <DocumentsModuleGate enabled={documentsEnabled}>
+                <ConsentRecordsPanel
+                  appointmentId={appointment.id}
+                  customerId={appointment.customer_id}
+                  title="Richiedi consenso"
+                />
+              </DocumentsModuleGate>
 
               <section className="rounded-xl border border-stone-200 bg-white p-5">
                 <div className="mb-5 flex items-end justify-between gap-3">

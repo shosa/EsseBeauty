@@ -266,6 +266,80 @@ postgresSuite("consent lifecycle with PostgreSQL", () => {
     });
   });
 
+  it("lets a receptionist discover safe active template options and read consent labels without admin access", async () => {
+    await withTenant(async ({ customerId, salonId }) => {
+      const repository = createDrizzleConsentRepository(db);
+      const template = await createConsentTemplate(repository, {
+        body: "Testo riservato del consenso",
+        name: "Consenso trattamento viso",
+        salonId,
+        type: "treatment",
+      });
+      await createConsentRequest(repository, {
+        customerId,
+        deliveryChannel: "in_person",
+        expiresAt: new Date(Date.now() + 60_000),
+        salonId,
+        templateId: template.id,
+      });
+      const receptionistId = randomUUID();
+      const sessionToken = `receptionist-${randomUUID()}`;
+      await db.insert(users).values({
+        active: true,
+        email: `${receptionistId}@example.invalid`,
+        fullName: "Receptionist Test",
+        id: receptionistId,
+        role: "receptionist",
+        salonId,
+      });
+      await db.insert(authSessions).values({
+        expiresAt: new Date(Date.now() + 60_000),
+        tokenHash: hashSessionToken(sessionToken),
+        userId: receptionistId,
+      });
+
+      const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+      try {
+        const headers = { cookie: `esse-session=${sessionToken}` };
+        const options = await app.inject({
+          headers,
+          method: "GET",
+          url: `/api/salons/${salonId}/consent-template-options`,
+        });
+        expect(options.statusCode, options.body).toBe(200);
+        expect(options.json()).toEqual([{
+          id: template.id,
+          name: "Consenso trattamento viso",
+          required_for_services: [],
+          type: "treatment",
+          version: 1,
+        }]);
+        expect(options.body).not.toContain("Testo riservato del consenso");
+
+        const adminList = await app.inject({
+          headers,
+          method: "GET",
+          url: `/api/salons/${salonId}/consent-templates`,
+        });
+        expect(adminList.statusCode, adminList.body).toBe(403);
+
+        const records = await app.inject({
+          headers,
+          method: "GET",
+          url: `/api/salons/${salonId}/customer-consents?customer_id=${customerId}`,
+        });
+        expect(records.statusCode, records.body).toBe(200);
+        expect(records.json<Array<Record<string, unknown>>>()[0]).toMatchObject({
+          template_id: template.id,
+          template_name: "Consenso trattamento viso",
+          template_version: 1,
+        });
+      } finally {
+        await app.close();
+      }
+    });
+  });
+
   it("allocates every concurrent template version without a unique-constraint failure", async () => {
     await withTenant(async ({ salonId }) => {
       const repository = createDrizzleConsentRepository(db);

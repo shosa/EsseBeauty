@@ -375,6 +375,42 @@ export async function registerEnterpriseModuleRoutes(
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/consent-template-options",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.CLIENTS_EDIT),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      const rows = await app.db
+        .select({
+          id: consentTemplates.id,
+          name: consentTemplates.name,
+          requiredForServices: consentTemplates.requiredForServices,
+          type: consentTemplates.type,
+          version: consentTemplates.version,
+        })
+        .from(consentTemplates)
+        .where(and(
+          eq(consentTemplates.salonId, request.salonId),
+          eq(consentTemplates.active, true),
+        ))
+        .orderBy(desc(consentTemplates.createdAt));
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        required_for_services: row.requiredForServices,
+        type: row.type,
+        version: row.version,
+      }));
+    },
+  );
+
   app.post<{
     Body: VersionTemplateBody;
     Params: { id: string; templateId: string };
@@ -456,11 +492,20 @@ export async function registerEnterpriseModuleRoutes(
       if (request.query.appointment_id) filters.push(eq(customerConsents.appointmentId, request.query.appointment_id));
       await expireDueConsentRequests(consentRepository, request.salonId);
       const rows = await app.db
-        .select()
+        .select({
+          consent: customerConsents,
+          templateName: consentTemplates.name,
+          templateVersion: consentTemplates.version,
+        })
         .from(customerConsents)
+        .innerJoin(consentTemplates, eq(consentTemplates.id, customerConsents.templateId))
         .where(and(...filters))
         .orderBy(desc(customerConsents.createdAt));
-      return rows.map(consentDto);
+      return rows.map((row) => ({
+        ...consentDto(row.consent),
+        template_name: row.templateName,
+        template_version: row.templateVersion,
+      }));
     },
   );
 

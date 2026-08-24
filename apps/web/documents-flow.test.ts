@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +13,14 @@ import {
   consentStatusPresentation,
   nextConsentExpiry,
 } from "./app/(dashboard)/settings/documents/consent-flow.js";
+import {
+  consentDialogReducer,
+  copySigningLink,
+  downloadEvidenceRecord,
+  initialConsentDialogState,
+  loadConsentRecords,
+} from "./app/(dashboard)/settings/documents/consent-controller.js";
+import { DocumentsModuleGate } from "./app/(dashboard)/settings/documents/_components/DocumentsModuleGate.js";
 
 const dashboardRoot = join(process.cwd(), "app", "(dashboard)");
 
@@ -25,6 +35,10 @@ describe("document lifecycle UI", () => {
     expect(documentsSource).toContain("Crea nuova versione");
     expect(customerSource).toContain("Consensi del cliente");
     expect(appointmentSource).toContain("Richiedi consenso");
+    expect(customerSource).toContain("useModuleEnabled(MODULE_KEYS.DOCUMENTS)");
+    expect(customerSource).toContain("<DocumentsModuleGate enabled={documentsEnabled}>");
+    expect(appointmentSource).toContain("useModuleEnabled(MODULE_KEYS.DOCUMENTS)");
+    expect(appointmentSource).toContain("<DocumentsModuleGate enabled={documentsEnabled}>");
   });
 
   it("builds an appointment-scoped list query without unrelated fields", () => {
@@ -82,5 +96,82 @@ describe("document lifecycle UI", () => {
     const now = new Date("2026-08-24T10:30:00.000Z");
     expect(nextConsentExpiry(now)).toBe("2026-08-31T10:30");
     expect(now.toISOString()).toBe("2026-08-24T10:30:00.000Z");
+  });
+
+  it("renders no consent UI when the Documents module is disabled", () => {
+    const hidden = renderToStaticMarkup(createElement(
+      DocumentsModuleGate,
+      { enabled: false },
+      createElement("button", null, "Richiedi consenso"),
+    ));
+    const visible = renderToStaticMarkup(createElement(
+      DocumentsModuleGate,
+      { enabled: true },
+      createElement("button", null, "Richiedi consenso"),
+    ));
+
+    expect(hidden).toBe("");
+    expect(visible).toContain("Richiedi consenso");
+  });
+
+  it("preserves an open mutation form and its values after failure", () => {
+    let state = initialConsentDialogState("2026-08-31T10:30");
+    state = consentDialogReducer(state, { expiresAt: "2026-09-01T12:00", templateId: "template-1", type: "open_request" });
+    state = consentDialogReducer(state, { field: "deliveryChannel", type: "change", value: "email" });
+    state = consentDialogReducer(state, { error: "Operazione non riuscita.", type: "failure" });
+
+    expect(state).toMatchObject({
+      deliveryChannel: "email",
+      error: "Operazione non riuscita.",
+      expiresAt: "2026-09-01T12:00",
+      mode: "request",
+      templateId: "template-1",
+    });
+  });
+
+  it("returns readable records/options and an explicit load error state", async () => {
+    const successFetch = async (input: RequestInfo | URL) => new Response(JSON.stringify(
+      String(input).endsWith("/options")
+        ? [{ id: "template-1", name: "Consenso viso", required_for_services: [], type: "treatment", version: 2 }]
+        : [{ id: "consent-1", status: "pending", template_id: "template-1", template_name: "Consenso viso", template_version: 2 }],
+    ));
+    const loaded = await loadConsentRecords(successFetch as typeof fetch, "/records", "/options");
+    expect(loaded).toMatchObject({
+      ok: true,
+      consents: [{ template_name: "Consenso viso", template_version: 2 }],
+      templates: [{ name: "Consenso viso", version: 2 }],
+    });
+
+    const failed = await loadConsentRecords(
+      async () => new Response("denied", { status: 403 }),
+      "/records",
+      "/options",
+    );
+    expect(failed).toEqual({ error: "Consensi non disponibili.", ok: false });
+  });
+
+  it("downloads the canonical evidence blob through an injected browser save boundary", async () => {
+    let saved: { blob: Blob; filename: string } | undefined;
+    const error = await downloadEvidenceRecord({
+      fetcher: async () => new Response("Evidenza canonica", { headers: { "content-type": "text/plain" } }),
+      filename: "evidenza-consenso-1.txt",
+      save(blob, filename) { saved = { blob, filename }; },
+      url: "/evidence",
+    });
+
+    expect(error).toBe("");
+    expect(saved?.filename).toBe("evidenza-consenso-1.txt");
+    expect(await saved?.blob.text()).toBe("Evidenza canonica");
+  });
+
+  it("returns a visible error when copying a signing link fails", async () => {
+    const result = await copySigningLink(
+      { async writeText() { throw new Error("clipboard denied"); } },
+      "https://client.example.test/consents/v1.secret",
+    );
+    expect(result).toEqual({
+      copied: false,
+      error: "Impossibile copiare il link. Selezionalo e copialo manualmente.",
+    });
   });
 });

@@ -1,27 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiBaseUrl } from "../../../lib/api";
 import {
   buildPublicConsentPath,
   buildTypedSignaturePayload,
+  initialPublicSigningState,
+  loadPublicConsentView,
+  publicSigningReducer,
   publicConsentErrorMessage,
+  type PublicConsentView,
 } from "../consent-signing";
-
-interface PublicConsentView {
-  consent: {
-    body: string;
-    expires_at: string | null;
-    id: string;
-    name: string;
-    status: "pending";
-    type: string;
-    version: number;
-  };
-  salon: { name: string };
-}
 
 async function responseError(response: Response): Promise<string> {
   const body = await response.json().catch(() => undefined) as { error?: string } | undefined;
@@ -33,39 +24,31 @@ export default function ConsentSigningPage() {
   const [documentView, setDocumentView] = useState<PublicConsentView>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [signerName, setSignerName] = useState("");
-  const [accepted, setAccepted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [signed, setSigned] = useState(false);
+  const [signing, dispatchSigning] = useReducer(publicSigningReducer, initialPublicSigningState);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setLoadError("");
-    void fetch(buildPublicConsentPath(apiBaseUrl(), token), {
-      cache: "no-store",
-      referrerPolicy: "no-referrer",
-      signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error(await responseError(response));
-      setDocumentView(await response.json() as PublicConsentView);
-    }).catch((reason: unknown) => {
-      if (!(reason instanceof DOMException && reason.name === "AbortError")) {
-        setLoadError(reason instanceof Error ? reason.message : publicConsentErrorMessage());
-      }
-    }).finally(() => setLoading(false));
+    void loadPublicConsentView(fetch, buildPublicConsentPath(apiBaseUrl(), token), controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        if (result.ok) setDocumentView(result.documentView);
+        else setLoadError(result.error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
   }, [token]);
 
   async function sign() {
-    const value = signerName.trim();
-    if (!value || !accepted) {
-      setSubmitError("Inserisci il tuo nome e conferma l'accettazione.");
+    const value = signing.signerName.trim();
+    if (!value || !signing.accepted) {
+      dispatchSigning({ error: "Inserisci il tuo nome e conferma l'accettazione.", type: "failure" });
       return;
     }
-    setSubmitting(true);
-    setSubmitError("");
+    dispatchSigning({ type: "submit" });
     try {
       const response = await fetch(buildPublicConsentPath(apiBaseUrl(), token, "sign"), {
         body: JSON.stringify(buildTypedSignaturePayload(value)),
@@ -75,18 +58,16 @@ export default function ConsentSigningPage() {
         referrerPolicy: "no-referrer",
       });
       if (!response.ok) {
-        setSubmitError(await responseError(response));
+        dispatchSigning({ error: await responseError(response), type: "failure" });
         return;
       }
-      setSigned(true);
+      dispatchSigning({ type: "success" });
     } catch {
-      setSubmitError("Firma non registrata. Controlla la connessione e riprova.");
-    } finally {
-      setSubmitting(false);
+      dispatchSigning({ error: "Firma non registrata. Controlla la connessione e riprova.", type: "failure" });
     }
   }
 
-  if (signed) {
+  if (signing.signed) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f1f4] p-5">
         <section className="w-full max-w-lg rounded-[2rem] bg-white p-8 text-center shadow-xl">
@@ -117,15 +98,15 @@ export default function ConsentSigningPage() {
               </article>
               <div className="mt-6 grid gap-4">
                 <label className="text-sm font-bold text-stone-700">Nome e cognome
-                  <input autoComplete="name" className="mt-2 min-h-12 w-full rounded-xl border border-stone-300 bg-white px-4 font-normal text-stone-950 outline-none focus:border-[#792f59] focus:ring-4 focus:ring-[#792f59]/10" onChange={(event) => setSignerName(event.target.value)} value={signerName} />
+                  <input autoComplete="name" className="mt-2 min-h-12 w-full rounded-xl border border-stone-300 bg-white px-4 font-normal text-stone-950 outline-none focus:border-[#792f59] focus:ring-4 focus:ring-[#792f59]/10" onChange={(event) => dispatchSigning({ field: "signerName", type: "change", value: event.target.value })} value={signing.signerName} />
                 </label>
                 <label className="flex items-start gap-3 rounded-2xl border border-[#e7cedb] bg-[#fff8fc] p-4 text-sm font-semibold leading-6 text-stone-800">
-                  <input checked={accepted} className="mt-1 size-5 shrink-0 accent-[#792f59]" onChange={(event) => setAccepted(event.target.checked)} type="checkbox" />
+                  <input checked={signing.accepted} className="mt-1 size-5 shrink-0 accent-[#792f59]" onChange={(event) => dispatchSigning({ field: "accepted", type: "change", value: event.target.checked })} type="checkbox" />
                   <span>Accetto il documento e confermo di averne letto integralmente il contenuto.</span>
                 </label>
-                {submitError && <p className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{submitError}</p>}
-                <button className="min-h-13 rounded-xl bg-[#792f59] px-5 font-bold text-white shadow-[0_10px_24px_rgb(45_29_39_/_0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none" disabled={submitting || !accepted || !signerName.trim()} onClick={() => void sign()} type="button">
-                  {submitting ? "Registrazione in corso…" : "Firma e conferma"}
+                {signing.error && <p className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{signing.error}</p>}
+                <button className="min-h-13 rounded-xl bg-[#792f59] px-5 font-bold text-white shadow-[0_10px_24px_rgb(45_29_39_/_0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none" disabled={signing.submitting || !signing.accepted || !signing.signerName.trim()} onClick={() => void sign()} type="button">
+                  {signing.submitting ? "Registrazione in corso…" : "Firma e conferma"}
                 </button>
                 <p className="text-center text-xs leading-5 text-stone-500">La firma può essere registrata una sola volta. Il salone conserverà il testo accettato e la relativa evidenza.</p>
               </div>
