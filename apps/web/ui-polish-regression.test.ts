@@ -31,7 +31,7 @@ describe("professional UI regression guard", () => {
     const ui = readFileSync(sharedUi, "utf8");
     const dialog = ui.slice(ui.indexOf("export function Dialog"), ui.indexOf("export function Drawer"));
     expect(dialog).toContain('aria-label="Chiudi"');
-    expect(dialog).toContain('d="m7 7 10 10M17 7 7 17"');
+    expect(dialog).toContain('<X aria-hidden="true"');
     expect(dialog).not.toMatch(/>\s*Chiudi\s*</);
   });
 
