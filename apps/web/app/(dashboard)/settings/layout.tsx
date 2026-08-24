@@ -47,6 +47,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     {
       label: "Sistema",
       links: [
+        { href: "/settings/communications", label: "WhatsApp" },
         ...(reminders ? [{ href: "/settings/reminders", label: "Promemoria" }] : []),
         ...(documents ? [{ href: "/settings/documents", label: "Documenti" }] : []),
         ...(audit ? [{ href: "/settings/audit", label: "Attività" }] : []),

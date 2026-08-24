@@ -121,6 +121,27 @@ export const staffRequestStatusEnum = pgEnum("staff_request_status", [
   "rejected",
   "cancelled",
 ]);
+export const communicationProviderEnum = pgEnum("communication_provider", ["meta_cloud_api"]);
+export const communicationProviderStatusEnum = pgEnum("communication_provider_status", [
+  "not_configured",
+  "pending_verification",
+  "ready",
+  "degraded",
+  "revoked",
+  "disabled",
+]);
+export const communicationSecretKindEnum = pgEnum("communication_secret_kind", [
+  "access_token",
+  "webhook_verify_token",
+]);
+export const communicationChannelEnum = pgEnum("communication_channel", ["email", "sms", "whatsapp"]);
+export const communicationConsentPurposeEnum = pgEnum("communication_consent_purpose", ["marketing", "transactional"]);
+export const communicationConsentStatusEnum = pgEnum("communication_consent_status", ["granted", "revoked"]);
+export const communicationConversationStatusEnum = pgEnum("communication_conversation_status", ["open", "closed", "archived"]);
+export const communicationDirectionEnum = pgEnum("communication_direction", ["inbound", "outbound"]);
+export const communicationMessageKindEnum = pgEnum("communication_message_kind", ["text", "template", "media", "system"]);
+export const communicationMessageStatusEnum = pgEnum("communication_message_status", ["queued", "accepted", "sent", "delivered", "read", "failed"]);
+export const communicationOutboxStatusEnum = pgEnum("communication_outbox_status", ["pending", "processing", "delivered", "failed", "exhausted"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -706,6 +727,244 @@ export const customers = pgTable("customers", {
     .notNull(),
   ...timestamps,
 });
+
+export const communicationProviderAccounts = pgTable(
+  "communication_provider_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    provider: communicationProviderEnum("provider").default("meta_cloud_api").notNull(),
+    wabaId: text("waba_id").notNull(),
+    phoneNumberId: text("phone_number_id").notNull(),
+    displayPhoneNumber: text("display_phone_number"),
+    businessPortfolioId: text("business_portfolio_id"),
+    graphApiVersion: text("graph_api_version").default("v23.0").notNull(),
+    enabled: boolean("enabled").default(false).notNull(),
+    status: communicationProviderStatusEnum("status").default("not_configured").notNull(),
+    webhookKey: uuid("webhook_key").defaultRandom().notNull(),
+    webhookSubscriptionStatus: text("webhook_subscription_status").default("not_subscribed").notNull(),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    lastHealthCheckAt: timestamp("last_health_check_at", { withTimezone: true }),
+    lastWebhookAt: timestamp("last_webhook_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_provider_accounts_salon_provider_unique").on(table.salonId, table.provider),
+    uniqueIndex("communication_provider_accounts_waba_unique").on(table.wabaId),
+    uniqueIndex("communication_provider_accounts_phone_unique").on(table.phoneNumberId),
+    uniqueIndex("communication_provider_accounts_webhook_key_unique").on(table.webhookKey),
+  ],
+);
+
+export const communicationProviderSecrets = pgTable(
+  "communication_provider_secrets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    kind: communicationSecretKindEnum("kind").notNull(),
+    ciphertext: text("ciphertext").notNull(),
+    initializationVector: text("initialization_vector").notNull(),
+    authenticationTag: text("authentication_tag").notNull(),
+    keyVersion: text("key_version").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_provider_secrets_account_kind_unique").on(table.accountId, table.kind),
+    index("communication_provider_secrets_salon_account_idx").on(table.salonId, table.accountId),
+  ],
+);
+
+export const communicationConsents = pgTable(
+  "communication_consents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    channel: communicationChannelEnum("channel").notNull(),
+    purpose: communicationConsentPurposeEnum("purpose").notNull(),
+    status: communicationConsentStatusEnum("status").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    capturedSource: text("captured_source").notNull(),
+    evidence: jsonb("evidence").$type<Record<string, unknown>>().default({}).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_consents_scope_unique").on(
+      table.salonId,
+      table.customerId,
+      table.channel,
+      table.purpose,
+    ),
+    index("communication_consents_marketing_lookup_idx").on(table.salonId, table.channel, table.purpose, table.status),
+  ],
+);
+
+export const communicationConversations = pgTable(
+  "communication_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    participantPhone: text("participant_phone").notNull(),
+    status: communicationConversationStatusEnum("status").default("open").notNull(),
+    assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    lastInboundAt: timestamp("last_inbound_at", { withTimezone: true }),
+    lastMessagePreview: text("last_message_preview"),
+    unreadCount: integer("unread_count").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_conversations_account_participant_unique").on(table.accountId, table.participantPhone),
+    index("communication_conversations_salon_activity_idx").on(table.salonId, table.lastMessageAt),
+    check("communication_conversations_unread_non_negative", sql`${table.unreadCount} >= 0`),
+  ],
+);
+
+export const communicationMessages = pgTable(
+  "communication_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => communicationConversations.id, { onDelete: "cascade" }),
+    direction: communicationDirectionEnum("direction").notNull(),
+    kind: communicationMessageKindEnum("kind").notNull(),
+    body: text("body"),
+    templateName: text("template_name"),
+    templateLocale: text("template_locale"),
+    templateParameters: jsonb("template_parameters").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    providerMessageId: text("provider_message_id"),
+    clientIdempotencyKey: text("client_idempotency_key"),
+    sourceType: text("source_type"),
+    sourceId: uuid("source_id"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: communicationMessageStatusEnum("status").default("queued").notNull(),
+    providerTimestamp: timestamp("provider_timestamp", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    failureCode: text("failure_code"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_messages_provider_id_unique").on(table.accountId, table.providerMessageId),
+    uniqueIndex("communication_messages_idempotency_unique").on(table.accountId, table.clientIdempotencyKey),
+    index("communication_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
+  ],
+);
+
+export const communicationOutbox = pgTable(
+  "communication_outbox",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => communicationMessages.id, { onDelete: "cascade" }),
+    status: communicationOutboxStatusEnum("status").default("pending").notNull(),
+    availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    attempts: integer("attempts").default(0).notNull(),
+    maxAttempts: integer("max_attempts").default(5).notNull(),
+    lastErrorCode: text("last_error_code"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_outbox_message_unique").on(table.messageId),
+    index("communication_outbox_claim_idx").on(table.status, table.availableAt, table.leaseExpiresAt),
+    check("communication_outbox_attempts_non_negative", sql`${table.attempts} >= 0`),
+    check("communication_outbox_max_attempts_positive", sql`${table.maxAttempts} > 0`),
+    check("communication_outbox_attempts_bounded", sql`${table.attempts} <= ${table.maxAttempts}`),
+  ],
+);
+
+export const communicationWebhookEvents = pgTable(
+  "communication_webhook_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    externalEventId: text("external_event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    status: text("status").default("pending").notNull(),
+    redactedPayload: jsonb("redacted_payload").$type<Record<string, unknown>>().default({}).notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_webhook_events_dedupe_unique").on(table.accountId, table.externalEventId),
+    index("communication_webhook_events_pending_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const communicationUserState = pgTable(
+  "communication_user_state",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => communicationConversations.id, { onDelete: "cascade" }),
+    lastReadMessageId: uuid("last_read_message_id").references(() => communicationMessages.id, { onDelete: "set null" }),
+    muted: boolean("muted").default(false).notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    draft: text("draft").default("").notNull(),
+    selected: boolean("selected").default(false).notNull(),
+    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_user_state_scope_unique").on(table.salonId, table.userId, table.conversationId),
+    index("communication_user_state_selected_idx").on(table.salonId, table.userId, table.selected),
+  ],
+);
 
 export const customerTags = pgTable(
   "customer_tags",
@@ -1394,7 +1653,6 @@ export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
   ),
   check("loyalty_redemptions_points_positive", sql`${table.pointsSpent} > 0`),
 ]);
-
 export const loyaltyPoints = pgTable(
   "loyalty_points",
   {
