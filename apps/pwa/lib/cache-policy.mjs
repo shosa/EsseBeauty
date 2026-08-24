@@ -12,12 +12,12 @@ export const consentRouteHeaders = [{
 export const reviewNetworkOnly = {
   handler: "NetworkOnly",
   method: "GET",
-  urlPattern: /\/(?:api\/public\/reviews\/token|review)\/[^/?#]+$/i,
+  urlPattern: /\/review(?:\/session)?$/i,
 };
 
 export const reviewRouteHeaders = [{
   headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
-  source: "/review/:token",
+  source: "/review",
 }];
 
 export const publicTokenRouteHeaders = [

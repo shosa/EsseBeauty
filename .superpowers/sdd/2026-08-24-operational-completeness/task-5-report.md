@@ -246,3 +246,130 @@ Results:
 ### Self-review and remaining concern
 
 No blocking finding remains. The lease prevents simultaneous active ownership in normal provider latency and stale workers cannot overwrite a newer claim. As with any lease-based external side effect, a provider call that remains unresolved beyond five minutes can be retried after lease expiry; Task 6 should preserve the stable token/claim semantics and add provider-native idempotency keys where supported.
+
+## Fix round 2/5 (2026-08-24)
+
+### Outcome
+
+All four open Important findings were addressed.
+
+- PWA server calls now require runtime-only `API_INTERNAL_URL`; Compose sets it to `http://api:3001`. Browser code retains `NEXT_PUBLIC_API_URL` for public navigation, but the review server routes do not import or fall back to it.
+- Review invitation links now use `/review#token=<bearer>`. Fragments are not part of the HTTP request target. The client removes the fragment with `history.replaceState` before sending the token once in the JSON body of `/review/session/exchange`.
+- The exchange endpoint stores only an AES-GCM encrypted, ten-minute, HttpOnly, SameSite-strict cookie. Continued browser requests use token-free `/review/session`.
+- The PWA server calls `POST /api/public/reviews/resolve` or `POST /api/public/reviews/submit` through the internal URL and places the bearer only in JSON. The old raw-token API URL routes were removed.
+- Ingress, exchange, session, and upstream calls retain no-store/no-referrer behavior. The obsolete token-path middleware was removed, so the production build has no review-token middleware/path route.
+- Automatic provider cost is capped at five persisted attempts. The fifth failure transitions to the new `exhausted` terminal delivery status; recovery excludes both terminal rows and any legacy failed row at the ceiling.
+- Manual retry is an authenticated, tenant-scoped, `reviews.reply`-protected operation. It resets attempts only after explicit action and increments a persisted delivery generation so BullMQ cannot deduplicate the new human-authorized job against a retained old job.
+- `.env.docker.example` now contains intentionally empty required review secret keys. `DOCKER.md` documents generating two distinct 32-byte secrets, copying them into ignored `.env.docker`, and using `corepack pnpm docker:up`; all Docker package scripts now consistently use that env file.
+
+### Migration and API DTO changes
+
+- `0026_review_delivery_ceiling.sql` adds `exhausted` to `review_delivery_status`.
+- `0027_review_delivery_generation.sql` adds non-negative `delivery_generation`, defaulting to zero.
+- `POST /api/public/reviews/resolve` accepts `{ "token": "<bearer>" }` and preserves the same minimal successful DTO and distinct lifecycle errors.
+- `POST /api/public/reviews/submit` accepts `{ "token": "<bearer>", "rating": 1..5, "comment"?: "..." }` and preserves atomic one-use submission.
+- `POST /api/salons/:id/review-invitations/:invitationId/retry` returns `202 { "queued": true }` only for an eligible terminal invitation in the authenticated tenant.
+
+### RED evidence
+
+Fragment/internal-routing tests were written first:
+
+```powershell
+corepack pnpm --filter @esse-beauty/pwa exec vitest run review-ingress.test.ts review-server-routing.test.ts
+corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/reviews-delivery.postgres.test.ts
+```
+
+Observed failures:
+
+- `exchangeReviewFragment` was undefined.
+- The server called the relative public token URL `/api/public/reviews/token/<raw>` instead of `http://api:3001/api/public/reviews/resolve`.
+- Email/SMS links had `/review/<raw>` in the HTTP pathname rather than a fragment.
+
+Attempt-ceiling/manual-retry tests were then run RED:
+
+```powershell
+corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/reviews-delivery.postgres.test.ts src/jobs/reviews-recovery.postgres.test.ts src/routes/reviews/review-flow.test.ts
+```
+
+Observed failures:
+
+- eight simulated permanent failures caused eight provider calls instead of the required five;
+- two recovery scans still enqueued an attempt-five row;
+- the manual retry endpoint returned `404`;
+- the new body-only resolve endpoint returned `404`.
+
+During self-review, the manual retry job-ID assertion was strengthened and observed RED: the job remained `review-<id>-0`, proving a reset would collide with BullMQ retention. The generation-aware expectation `review-<id>-1-0` failed until persisted delivery generation was added.
+
+### GREEN and final verification
+
+Focused GREEN:
+
+```powershell
+corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/reviews-delivery.postgres.test.ts src/jobs/reviews-recovery.postgres.test.ts src/routes/reviews/review-flow.test.ts
+corepack pnpm --filter @esse-beauty/pwa exec vitest run review-ingress.test.ts review-server-routing.test.ts review-submission.test.ts consent-signing.test.ts
+corepack pnpm --filter @esse-beauty/web exec vitest run reviews-flow.test.ts
+```
+
+Results: API 3 files/15 tests passed; PWA 4 files/15 tests passed; web 1 file/5 tests passed.
+
+Fresh final verification:
+
+```powershell
+corepack pnpm --filter @esse-beauty/api test
+corepack pnpm --filter @esse-beauty/db typecheck
+corepack pnpm --filter @esse-beauty/db build
+corepack pnpm --filter @esse-beauty/api typecheck
+corepack pnpm --filter @esse-beauty/api build
+corepack pnpm --filter @esse-beauty/web typecheck
+corepack pnpm --filter @esse-beauty/web build
+corepack pnpm --filter @esse-beauty/pwa typecheck
+corepack pnpm --filter @esse-beauty/pwa build
+$env:DATABASE_URL = <workspace .env DATABASE_URL>; corepack pnpm --filter @esse-beauty/db db:migrate
+docker compose --env-file .env.docker.example config --quiet # expected missing-secret failure
+$env:REVIEW_TOKEN_SECRET = <64 test chars>; $env:REVIEW_SESSION_SECRET = <different 64 test chars>; docker compose --env-file .env.docker.example config --quiet
+corepack pnpm docker:up --help
+git diff --check
+```
+
+Results:
+
+- API: 32 files, 89 tests passed.
+- PWA review/consent behavior: 4 files, 15 tests passed.
+- Web review behavior: 1 file, 5 tests passed.
+- DB, API, web, and PWA typechecks and production builds passed.
+- The PWA build exposes only token-free `/review`, `/review/session`, and `/review/session/exchange` routes and no review middleware.
+- Migrations 0026 and 0027 applied successfully to PostgreSQL.
+- The intentionally blank Docker template failed fast with the named missing-secret error. With two distinct test-only 64-character values, Compose validation exited 0 and the documented `docker:up` script resolved correctly through `.env.docker` (verified with `--help`, without mutating running containers).
+- `git diff --check` passed with only the repository's existing line-ending notices.
+
+### Fix-round files
+
+- `packages/db/migrations/0026_review_delivery_ceiling.sql`
+- `packages/db/migrations/0027_review_delivery_generation.sql`
+- `packages/db/migrations/meta/_journal.json`
+- `packages/db/schema.ts`
+- `apps/api/src/app.ts`
+- `apps/api/src/jobs/reviews.ts`
+- `apps/api/src/jobs/reviews-delivery.postgres.test.ts`
+- `apps/api/src/jobs/reviews-recovery.postgres.test.ts`
+- `apps/api/src/routes/reviews/index.ts`
+- `apps/api/src/routes/reviews/review-flow.test.ts`
+- `apps/pwa/app/review/page.tsx`
+- `apps/pwa/app/review/review-submission.ts`
+- `apps/pwa/app/review/session/route.ts`
+- `apps/pwa/app/review/session/exchange/route.ts`
+- `apps/pwa/lib/server-api.ts`
+- `apps/pwa/lib/cache-policy.mjs`
+- `apps/pwa/review-ingress.test.ts`
+- `apps/pwa/review-server-routing.test.ts`
+- `apps/pwa/review-submission.test.ts`
+- `apps/pwa/middleware.ts` (removed)
+- `.env.docker.example`
+- `.env.example`
+- `DOCKER.md`
+- `compose.yaml`
+- `package.json`
+
+### Self-review and remaining concern
+
+No blocking finding remains. Manual retry is intentionally API-only in this round; it is secured and operational but no dashboard control was requested. Provider calls that outlive the five-minute lease retain the external-side-effect caveat documented in fix round 1; the persisted five-attempt ceiling now bounds the resulting automatic cost.

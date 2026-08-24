@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { Worker, type Job, type JobsOptions } from "bullmq";
-import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import {
@@ -39,6 +39,7 @@ export const REVIEW_JOB_OPTIONS = {
 const REVIEW_INVITATION_TTL_MS = 30 * 24 * 60 * 60_000;
 const REVIEW_DELIVERY_LEASE_MS = 5 * 60_000;
 const REVIEW_DELIVERY_DELAY_MS = 30 * 60_000;
+export const REVIEW_MAX_DELIVERY_ATTEMPTS = 5;
 
 function reviewTokenSecret(): string {
   const secret = process.env.REVIEW_TOKEN_SECRET;
@@ -58,6 +59,11 @@ export function buildReviewSms(serviceName: string, reviewUrl: string): string {
       ? `${desired.slice(0, available - 1).trimEnd()}…`
       : label;
   return `${prefix}${suffix}`;
+}
+
+export function buildReviewInviteUrl(pwaBaseUrl: string, rawToken: string): string {
+  const base = pwaBaseUrl.replace(/\/$/, "");
+  return `${base}/review#token=${encodeURIComponent(rawToken)}`;
 }
 
 export async function ensureReviewInvitation(
@@ -108,7 +114,7 @@ async function enqueueInvitation(
   queue: ReviewQueue,
   invitation: Pick<
     typeof reviewInvitations.$inferSelect,
-    "createdAt" | "deliveryAttempts" | "id"
+    "createdAt" | "deliveryAttempts" | "deliveryGeneration" | "id"
   >,
 ): Promise<void> {
   await queue.add(
@@ -120,7 +126,7 @@ async function enqueueInvitation(
         0,
         invitation.createdAt.getTime() + REVIEW_DELIVERY_DELAY_MS - Date.now(),
       ),
-      jobId: `review-${invitation.id}-${invitation.deliveryAttempts}`,
+      jobId: `review-${invitation.id}-${invitation.deliveryGeneration}-${invitation.deliveryAttempts}`,
     },
   );
 }
@@ -131,7 +137,10 @@ export async function scheduleReviewInvitation(
   queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
 ): Promise<typeof reviewInvitations.$inferSelect> {
   const invitation = await ensureReviewInvitation(db, appointmentId);
-  if (invitation.deliveryStatus !== "skipped") {
+  if (
+    ["pending", "failed"].includes(invitation.deliveryStatus) &&
+    invitation.deliveryAttempts < REVIEW_MAX_DELIVERY_ATTEMPTS
+  ) {
     await enqueueInvitation(queue, invitation);
   }
   return invitation;
@@ -145,6 +154,7 @@ export async function recoverReviewInvitations(
   const candidates = await db
     .select({
       deliveryAttempts: reviewInvitations.deliveryAttempts,
+      deliveryGeneration: reviewInvitations.deliveryGeneration,
       createdAt: reviewInvitations.createdAt,
       id: reviewInvitations.id,
     })
@@ -154,6 +164,7 @@ export async function recoverReviewInvitations(
       isNull(reviewInvitations.deliveredAt),
       isNull(reviewInvitations.revokedAt),
       gt(reviewInvitations.expiresAt, now),
+      lt(reviewInvitations.deliveryAttempts, REVIEW_MAX_DELIVERY_ATTEMPTS),
       or(
         inArray(reviewInvitations.deliveryStatus, ["pending", "failed"]),
         and(
@@ -178,6 +189,41 @@ export async function recoverReviewInvitations(
   return enqueued;
 }
 
+export async function retryReviewInvitation(
+  db: DrizzleDB,
+  salonId: string,
+  invitationId: string,
+  queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
+): Promise<typeof reviewInvitations.$inferSelect | undefined> {
+  const retried = await db
+    .update(reviewInvitations)
+    .set({
+      deliveredAt: null,
+      deliveryAttempts: 0,
+      deliveryGeneration: sql`${reviewInvitations.deliveryGeneration} + 1`,
+      deliveryClaimId: null,
+      deliveryFailure: null,
+      deliveryLeaseExpiresAt: null,
+      deliveryStatus: "pending",
+      lastDeliveryAttemptAt: null,
+      tokenHash: null,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(reviewInvitations.id, invitationId),
+      eq(reviewInvitations.salonId, salonId),
+      eq(reviewInvitations.deliveryStatus, "exhausted"),
+      gt(reviewInvitations.expiresAt, new Date()),
+      isNull(reviewInvitations.consumedAt),
+      isNull(reviewInvitations.revokedAt),
+    ))
+    .returning();
+  const invitation = retried[0];
+  if (!invitation) return undefined;
+  await enqueueInvitation(queue, invitation);
+  return invitation;
+}
+
 export async function registerReviewRecoverySchedule(
   queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
 ): Promise<void> {
@@ -196,6 +242,7 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
         consumedAt: reviewInvitations.consumedAt,
         customerName: customers.fullName,
         deliveredAt: reviewInvitations.deliveredAt,
+        deliveryAttempts: reviewInvitations.deliveryAttempts,
         deliveryLeaseExpiresAt: reviewInvitations.deliveryLeaseExpiresAt,
         deliveryStatus: reviewInvitations.deliveryStatus,
         email: customers.email,
@@ -220,6 +267,16 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
       invitation.deliveredAt ||
       invitation.revokedAt
     ) return undefined;
+    if (invitation.deliveryAttempts >= REVIEW_MAX_DELIVERY_ATTEMPTS) {
+      await tx.update(reviewInvitations).set({
+        deliveryClaimId: null,
+        deliveryFailure: "DELIVERY_ATTEMPTS_EXHAUSTED",
+        deliveryLeaseExpiresAt: null,
+        deliveryStatus: "exhausted",
+        updatedAt: new Date(),
+      }).where(eq(reviewInvitations.id, invitationId));
+      return undefined;
+    }
     const hasDestination =
       (invitation.channel === "email" && Boolean(invitation.email)) ||
       (invitation.channel === "sms" && Boolean(invitation.phone));
@@ -266,7 +323,12 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
       tokenHash: token.tokenHash,
       updatedAt: new Date(),
     }).where(eq(reviewInvitations.id, invitationId));
-    return { ...invitation, claimId, rawToken: token.raw };
+    return {
+      ...invitation,
+      attemptNumber: invitation.deliveryAttempts + 1,
+      claimId,
+      rawToken: token.raw,
+    };
   });
 }
 
@@ -286,7 +348,7 @@ export async function processReviewRequest(
     const emailSender = dependencies.emailSender ?? sendEmail;
     const smsSender = dependencies.smsSender ?? sendSms;
     const pwaUrl = (process.env.PWA_URL ?? "http://localhost:3002").replace(/\/$/, "");
-    const reviewUrl = `${pwaUrl}/review/${encodeURIComponent(delivery.rawToken)}`;
+    const reviewUrl = buildReviewInviteUrl(pwaUrl, delivery.rawToken);
     if (delivery.channel === "email" && delivery.email) {
       await emailSender(
         delivery.email,
@@ -308,11 +370,14 @@ export async function processReviewRequest(
       eq(reviewInvitations.deliveryClaimId, delivery.claimId),
     ));
   } catch {
+    const exhausted = delivery.attemptNumber >= REVIEW_MAX_DELIVERY_ATTEMPTS;
     await db.update(reviewInvitations).set({
       deliveryClaimId: null,
-      deliveryFailure: "PROVIDER_DELIVERY_FAILED",
+      deliveryFailure: exhausted
+        ? "DELIVERY_ATTEMPTS_EXHAUSTED"
+        : "PROVIDER_DELIVERY_FAILED",
       deliveryLeaseExpiresAt: null,
-      deliveryStatus: "failed",
+      deliveryStatus: exhausted ? "exhausted" : "failed",
       updatedAt: new Date(),
     }).where(and(
       eq(reviewInvitations.id, delivery.invitationId),

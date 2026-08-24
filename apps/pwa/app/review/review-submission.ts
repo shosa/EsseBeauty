@@ -47,6 +47,29 @@ export function buildReviewSessionPath(pwaBaseUrl = ""): string {
   return new URL("/review/session", pwaBaseUrl).toString().replace(/\/$/, "");
 }
 
+export async function exchangeReviewFragment(
+  fetcher: typeof fetch,
+  currentUrl: string,
+  replaceUrl: (url: string) => void,
+): Promise<{ hadToken: boolean; ok: boolean }> {
+  const url = new URL(currentUrl);
+  const token = new URLSearchParams(url.hash.slice(1)).get("token");
+  if (url.hash) replaceUrl(`${url.pathname}${url.search}`);
+  if (!token) return { hadToken: false, ok: true };
+  try {
+    const response = await fetcher("/review/session/exchange", {
+      body: JSON.stringify({ token }),
+      cache: "no-store",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+      referrerPolicy: "no-referrer",
+    });
+    return { hadToken: true, ok: response.ok };
+  } catch {
+    return { hadToken: true, ok: false };
+  }
+}
+
 export function publicReviewErrorMessage(code?: string): string {
   const messages: Record<string, string> = {
     TOKEN_CONSUMED: "Questa recensione è già stata inviata.",

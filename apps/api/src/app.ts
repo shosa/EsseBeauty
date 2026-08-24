@@ -26,6 +26,7 @@ import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerReminderRoutes } from "./routes/reminders/index.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
 import { registerReviewRoutes } from "./routes/reviews/index.js";
+import type { ReviewQueue } from "./jobs/reviews.js";
 import { registerSalesRoutes } from "./routes/sales/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerSettingsRoutes } from "./routes/settings/index.js";
@@ -44,6 +45,7 @@ interface CreateAppOptions {
   env: ApiEnvironment;
   logger?: boolean;
   loggerStream?: { write(message: string): void };
+  reviewQueue?: ReviewQueue;
 }
 
 interface SalonParams {
@@ -81,6 +83,7 @@ export function createApp({
   env,
   logger = false,
   loggerStream,
+  reviewQueue,
 }: CreateAppOptions) {
   const app = Fastify({
     logger: logger
@@ -133,7 +136,7 @@ export function createApp({
   void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);
   void registerReminderRoutes(app);
-  void registerReviewRoutes(app);
+  void registerReviewRoutes(app, { reviewQueue });
   void registerWaitlistRoutes(app);
   void registerVoucherRoutes(app);
   void registerLoyaltyRoutes(app);

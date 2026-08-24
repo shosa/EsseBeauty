@@ -16,6 +16,12 @@ interface FakeReviewQueue {
 
 type ScheduleReview = (db: DrizzleDB, appointmentId: string, queue: FakeReviewQueue) => Promise<{ id: string }>;
 type RecoverReviews = (db: DrizzleDB, queue: FakeReviewQueue) => Promise<number>;
+type RetryReview = (
+  db: DrizzleDB,
+  salonId: string,
+  invitationId: string,
+  queue: FakeReviewQueue,
+) => Promise<{ id: string }>;
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;
@@ -58,6 +64,7 @@ postgresSuite("review queue recovery with PostgreSQL", () => {
         id: expect.any(String),
         token_hash: null,
       }]);
+      const invitationId = String(durable[0]!.id);
 
       const recoveryQueue: FakeReviewQueue = {
         add: vi.fn(async () => undefined),
@@ -66,17 +73,41 @@ postgresSuite("review queue recovery with PostgreSQL", () => {
       expect(await recover(db, recoveryQueue)).toBeGreaterThanOrEqual(1);
       expect(recoveryQueue.add).toHaveBeenCalledWith(
         "send-request",
-        { invitationId: durable[0]!.id },
+        { invitationId },
         expect.objectContaining({
           attempts: 5,
           backoff: { delay: 30_000, type: "exponential" },
-          jobId: `review-${durable[0]!.id}-0`,
+          jobId: `review-${invitationId}-0-0`,
         }),
       );
 
       await schedule(db, appointmentId, recoveryQueue);
       const jobIds = recoveryQueue.add.mock.calls.map((call) => call[2]?.jobId);
-      expect(new Set(jobIds)).toEqual(new Set([`review-${durable[0]!.id}-0`]));
+      expect(new Set(jobIds)).toEqual(new Set([`review-${invitationId}-0-0`]));
+
+      await db.execute(sql`
+        update review_invitations
+        set delivery_attempts = 5, delivery_status = 'exhausted', delivery_failure = 'DELIVERY_ATTEMPTS_EXHAUSTED'
+        where id = ${invitationId}::uuid
+      `);
+      recoveryQueue.add.mockClear();
+      expect(await recover(db, recoveryQueue)).toBe(0);
+      expect(await recover(db, recoveryQueue)).toBe(0);
+      expect(recoveryQueue.add).not.toHaveBeenCalled();
+
+      const retry = (reviewJobs as unknown as { retryReviewInvitation?: RetryReview }).retryReviewInvitation;
+      expect(retry).toBeTypeOf("function");
+      if (!retry) return;
+      await retry(db, salonId, invitationId, recoveryQueue);
+      const retried = await db.execute(sql<{ delivery_attempts: number; delivery_status: string }>`
+        select delivery_attempts, delivery_status from review_invitations where id = ${invitationId}::uuid
+      `);
+      expect(retried).toEqual([{ delivery_attempts: 0, delivery_status: "pending" }]);
+      expect(recoveryQueue.add).toHaveBeenCalledWith(
+        "send-request",
+        { invitationId },
+        expect.objectContaining({ jobId: `review-${invitationId}-1-0` }),
+      );
     } finally {
       await db.delete(salons).where(eq(salons.id, salonId));
     }

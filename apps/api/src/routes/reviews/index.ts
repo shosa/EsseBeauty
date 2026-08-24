@@ -18,6 +18,7 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { inspectPublicToken } from "../../lib/public-tokens.js";
+import { retryReviewInvitation, type ReviewQueue } from "../../jobs/reviews.js";
 
 type ReviewTokenError = "TOKEN_CONSUMED" | "TOKEN_EXPIRED" | "TOKEN_INVALID" | "TOKEN_REVOKED";
 
@@ -36,11 +37,24 @@ function invitationError(
   return undefined;
 }
 
-export async function registerReviewRoutes(app: FastifyInstance) {
-  app.get<{ Params: { token: string } }>(
-    "/api/public/reviews/token/:token",
+interface RegisterReviewRouteOptions {
+  reviewQueue?: ReviewQueue;
+}
+
+function inspectBodyToken(token: unknown) {
+  return typeof token === "string"
+    ? inspectPublicToken(token, "review")
+    : { ok: false as const };
+}
+
+export async function registerReviewRoutes(
+  app: FastifyInstance,
+  options: RegisterReviewRouteOptions = {},
+) {
+  app.post<{ Body: { token?: unknown } }>(
+    "/api/public/reviews/resolve",
     async (request, reply) => {
-      const inspected = inspectPublicToken(request.params.token, "review");
+      const inspected = inspectBodyToken(request.body?.token);
       if (!inspected.ok) return tokenErrorReply(reply, "TOKEN_INVALID");
       const rows = await app.db
         .select({
@@ -74,9 +88,8 @@ export async function registerReviewRoutes(app: FastifyInstance) {
   );
 
   app.post<{
-    Params: { token: string };
-    Body: { rating?: unknown; comment?: unknown };
-  }>("/api/public/reviews/token/:token", async (request, reply) => {
+    Body: { token?: unknown; rating?: unknown; comment?: unknown };
+  }>("/api/public/reviews/submit", async (request, reply) => {
     const body = request.body ?? {};
     if (
       body.comment !== undefined &&
@@ -94,7 +107,7 @@ export async function registerReviewRoutes(app: FastifyInstance) {
     ) {
       return reply.code(400).send({ error: "INVALID_RATING" });
     }
-    const inspected = inspectPublicToken(request.params.token, "review");
+    const inspected = inspectBodyToken(body.token);
     if (!inspected.ok) return tokenErrorReply(reply, "TOKEN_INVALID");
 
     const result = await app.db.transaction(async (tx) => {
@@ -146,6 +159,32 @@ export async function registerReviewRoutes(app: FastifyInstance) {
     if ("error" in result && result.error) return tokenErrorReply(reply, result.error);
     return reply.code(201).send(result);
   });
+
+  app.post<{ Params: { id: string; invitationId: string } }>(
+    "/api/salons/:id/review-invitations/:invitationId/retry",
+    {
+      preHandler: [
+        authenticate,
+        requireModule(MODULE_KEYS.REVIEWS),
+        requirePermission(PERMISSION_KEYS.REVIEWS_REPLY),
+      ],
+    },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const invitation = await retryReviewInvitation(
+        app.db,
+        request.salonId,
+        request.params.invitationId,
+        options.reviewQueue,
+      );
+      if (!invitation) {
+        return reply.code(409).send({ error: "REVIEW_INVITATION_NOT_RETRYABLE" });
+      }
+      return reply.code(202).send({ queued: true });
+    },
+  );
 
   app.get<{
     Params: { id: string };

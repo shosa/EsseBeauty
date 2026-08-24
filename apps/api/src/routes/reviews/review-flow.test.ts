@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
@@ -83,14 +83,18 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
       await storeToken(invitation.id, token.raw, token.tokenHash);
       const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3002" } });
       try {
-        const resolved = await app.inject({ method: "GET", url: `/api/public/reviews/token/${token.raw}` });
+        const resolved = await app.inject({
+          method: "POST",
+          payload: { token: token.raw },
+          url: "/api/public/reviews/resolve",
+        });
         expect(resolved.statusCode, resolved.body).toBe(200);
         expect(resolved.json()).toEqual({ salon_name: "Review PostgreSQL Test", service_name: "Trattamento viso", starts_at: "2026-08-24T08:00:00.000Z" });
         expect(resolved.body).not.toContain(appointmentId);
         expect(resolved.body).not.toContain("Mario Rossi");
         const submissions = await Promise.all([
-          app.inject({ method: "POST", payload: { comment: "Ottimo servizio", rating: 5 }, url: `/api/public/reviews/token/${token.raw}` }),
-          app.inject({ method: "POST", payload: { comment: "Secondo invio", rating: 1 }, url: `/api/public/reviews/token/${token.raw}` }),
+          app.inject({ method: "POST", payload: { comment: "Ottimo servizio", rating: 5, token: token.raw }, url: "/api/public/reviews/submit" }),
+          app.inject({ method: "POST", payload: { comment: "Secondo invio", rating: 1, token: token.raw }, url: "/api/public/reviews/submit" }),
         ]);
         expect(submissions.map((response) => response.statusCode).sort()).toEqual([201, 409]);
         expect(submissions.find((response) => response.statusCode === 409)?.json()).toEqual({ error: "TOKEN_CONSUMED" });
@@ -108,15 +112,15 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
       const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3002" } });
       try {
         await db.execute(sql`update review_invitations set expires_at = now() - interval '1 minute' where id = ${invitation.id}::uuid`);
-        const expired = await app.inject({ method: "GET", url: `/api/public/reviews/token/${token.raw}` });
+        const expired = await app.inject({ method: "POST", payload: { token: token.raw }, url: "/api/public/reviews/resolve" });
         expect([expired.statusCode, expired.json()]).toEqual([410, { error: "TOKEN_EXPIRED" }]);
         await db.execute(sql`update review_invitations set expires_at = now() + interval '1 hour', consumed_at = now() where id = ${invitation.id}::uuid`);
-        const consumed = await app.inject({ method: "GET", url: `/api/public/reviews/token/${token.raw}` });
+        const consumed = await app.inject({ method: "POST", payload: { token: token.raw }, url: "/api/public/reviews/resolve" });
         expect([consumed.statusCode, consumed.json()]).toEqual([409, { error: "TOKEN_CONSUMED" }]);
         await db.execute(sql`update review_invitations set consumed_at = null, revoked_at = now() where id = ${invitation.id}::uuid`);
-        const revoked = await app.inject({ method: "GET", url: `/api/public/reviews/token/${token.raw}` });
+        const revoked = await app.inject({ method: "POST", payload: { token: token.raw }, url: "/api/public/reviews/resolve" });
         expect([revoked.statusCode, revoked.json()]).toEqual([410, { error: "TOKEN_REVOKED" }]);
-        const invalid = await app.inject({ method: "GET", url: "/api/public/reviews/token/not-a-token" });
+        const invalid = await app.inject({ method: "POST", payload: { token: "not-a-token" }, url: "/api/public/reviews/resolve" });
         expect([invalid.statusCode, invalid.json()]).toEqual([404, { error: "TOKEN_INVALID" }]);
       } finally { await app.close(); }
     });
@@ -131,8 +135,8 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
       try {
         const response = await app.inject({
           method: "POST",
-          payload: { comment: 42, rating: 5 },
-          url: `/api/public/reviews/token/${token.raw}`,
+          payload: { comment: 42, rating: 5, token: token.raw },
+          url: "/api/public/reviews/submit",
         });
         expect(response.statusCode, response.body).toBe(400);
         expect(response.json()).toEqual({
@@ -146,7 +150,7 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
   });
 
   it("enforces authenticated tenant and permission boundaries for review management", async () => {
-    await withFixture(async ({ salonId }) => {
+    await withFixture(async ({ appointmentId, salonId }) => {
       const ownerId = randomUUID();
       const receptionistId = randomUUID();
       const ownerToken = `owner-${randomUUID()}`;
@@ -159,7 +163,17 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
         { expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(ownerToken), userId: ownerId },
         { expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(receptionistToken), userId: receptionistId },
       ]);
-      const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+      const invitation = await ensureInvitation(appointmentId);
+      await db.execute(sql`
+        update review_invitations
+        set delivery_attempts = 5, delivery_status = 'exhausted', delivery_failure = 'DELIVERY_ATTEMPTS_EXHAUSTED'
+        where id = ${invitation.id}::uuid
+      `);
+      const queue = {
+        add: vi.fn(async () => undefined),
+        upsertJobScheduler: vi.fn(async () => undefined),
+      };
+      const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" }, reviewQueue: queue });
       try {
         const denied = await app.inject({
           headers: { cookie: `esse-session=${receptionistToken}` },
@@ -183,6 +197,15 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
           url: `/api/salons/${salonId}/reviews`,
         });
         expect(allowed.statusCode, allowed.body).toBe(200);
+
+        const retry = await app.inject({
+          headers: { cookie: `esse-session=${ownerToken}` },
+          method: "POST",
+          url: `/api/salons/${salonId}/review-invitations/${invitation.id}/retry`,
+        });
+        expect(retry.statusCode, retry.body).toBe(202);
+        expect(retry.json()).toEqual({ queued: true });
+        expect(queue.add).toHaveBeenCalledTimes(1);
       } finally {
         await app.close();
       }
@@ -191,14 +214,19 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
 });
 
 describe("review token log safety", () => {
-  it("redacts the raw review bearer token from request logs", async () => {
+  it("keeps the raw review bearer out of request URLs and logs", async () => {
     const token = issuePublicToken("review", randomUUID(), new Date(Date.now() + 60_000));
     let logs = "";
     const app = createApp({ db: {} as DrizzleDB, env: { API_CORS_ORIGIN: "http://localhost:3002" }, logger: true, loggerStream: { write(message) { logs += message; } } });
     try {
-      await app.inject({ method: "GET", url: `/api/public/reviews/token/${token.raw}` });
+      await app.inject({
+        method: "POST",
+        payload: { token: token.raw },
+        url: "/api/public/reviews/resolve",
+      });
       expect(logs).not.toContain(token.raw);
-      expect(logs).toContain("/api/public/reviews/token/[REDACTED]");
+      expect(logs).toContain("/api/public/reviews/resolve");
+      expect(logs).not.toContain("/api/public/reviews/token/");
     } finally { await app.close(); }
   });
 });

@@ -53,8 +53,14 @@ postgresSuite("review delivery with PostgreSQL", () => {
       await processReviewRequest(db, job);
       expect(senders.sendEmail).toHaveBeenCalledTimes(1);
       const senderHtml = String(senders.sendEmail.mock.calls[0]?.[2]);
-      const rawToken = senderHtml.match(/\/review\/(v1\.review\.[A-Za-z0-9._-]+)/)?.[1];
+      const reviewHref = senderHtml.match(/href="([^"]+)"/)?.[1];
+      const rawToken = new URL(reviewHref!).hash.replace(/^#token=/, "");
       expect(rawToken).toMatch(/^v1\.review\./);
+      const parsedHref = new URL(reviewHref!);
+      expect(parsedHref.pathname).toBe("/review");
+      expect(parsedHref.search).toBe("");
+      expect(parsedHref.hash).toBe(`#token=${rawToken}`);
+      expect(`${parsedHref.origin}${parsedHref.pathname}${parsedHref.search}`).not.toContain(rawToken);
 
       const rows = await db.execute(sql<{
         delivery_attempts: number;
@@ -191,11 +197,43 @@ postgresSuite("review delivery with PostgreSQL", () => {
       const body = String(senders.sendSms.mock.calls[0]?.[1]);
       const url = body.match(/https?:\/\/\S+$/)?.[0];
       expect(body.length).toBeLessThanOrEqual(160);
-      expect(url).toMatch(/\/review\/v1\.review\./);
+      expect(url).toMatch(/\/review#token=v1\.review\./);
       expect(body.endsWith(url!)).toBe(true);
       const rows = await db.execute(sql<{ delivery_status: string }>`select delivery_status from review_invitations where id = ${invitation.id}::uuid`);
       expect(rows[0]?.delivery_status).toBe("sent");
     } finally {
+      await db.delete(salons).where(eq(salons.id, salonId));
+    }
+  });
+
+  it("stops permanent provider failures at the persisted delivery cost ceiling", async () => {
+    const salonId = randomUUID();
+    const customerId = randomUUID();
+    const staffId = randomUUID();
+    const serviceId = randomUUID();
+    const appointmentId = randomUUID();
+    await db.insert(salons).values({ id: salonId, locale: "it-IT", name: "Exhausted Delivery", slug: `exhausted-delivery-${salonId}`, timezone: "Europe/Rome" });
+    try {
+      await db.insert(customers).values({ email: "exhausted@example.invalid", fullName: "Mario Rossi", id: customerId, salonId });
+      await db.insert(staff).values({ color: "#000000", displayName: "Anna", id: staffId, salonId, workingHours: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } });
+      await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Pulizia viso", priceCents: 5000, salonId });
+      await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "completed" });
+      const invitation = await ensureReviewInvitation(db, appointmentId, { expiresAt: new Date(Date.now() + 60_000) });
+      senders.sendEmail.mockClear();
+      senders.sendEmail.mockRejectedValue(new Error("provider permanently unavailable"));
+      const job = { data: { invitationId: invitation.id } } as Job<ReviewRequestJob>;
+
+      for (let invocation = 0; invocation < 8; invocation += 1) {
+        await processReviewRequest(db, job).catch(() => undefined);
+      }
+
+      expect(senders.sendEmail).toHaveBeenCalledTimes(5);
+      const rows = await db.execute(sql<{ delivery_attempts: number; delivery_status: string }>`
+        select delivery_attempts, delivery_status from review_invitations where id = ${invitation.id}::uuid
+      `);
+      expect(rows).toEqual([{ delivery_attempts: 5, delivery_status: "exhausted" }]);
+    } finally {
+      senders.sendEmail.mockImplementation(async () => undefined);
       await db.delete(salons).where(eq(salons.id, salonId));
     }
   });

@@ -15,9 +15,11 @@ describe("public review submission", () => {
     expect(new URL(path).search).toBe("");
     expect(reviewRouteHeaders).toEqual([{
       headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
-      source: "/review/:token",
+      source: "/review",
     }]);
-    expect(reviewNetworkOnly.urlPattern.test("https://pwa.example.test/review/v1.review.secret")).toBe(true);
+    expect(reviewNetworkOnly.urlPattern.test("https://pwa.example.test/review")).toBe(true);
+    expect(reviewNetworkOnly.urlPattern.test("https://pwa.example.test/review/session")).toBe(true);
+    expect(reviewNetworkOnly.urlPattern.test("https://pwa.example.test/review/v1.review.secret")).toBe(false);
   });
 
   it("preserves rating and comment after a submission failure", () => {

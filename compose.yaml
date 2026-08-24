@@ -132,6 +132,7 @@ services:
     restart: unless-stopped
     init: true
     environment:
+      API_INTERNAL_URL: http://api:3001
       REVIEW_SESSION_SECRET: ${REVIEW_SESSION_SECRET:?REVIEW_SESSION_SECRET is required}
     ports:
       - "${PWA_PORT:-3002}:3002"

@@ -4,6 +4,7 @@ import { useEffect, useReducer, useState } from "react";
 
 import {
   buildReviewSessionPath,
+  exchangeReviewFragment,
   initialReviewSubmissionState,
   loadPublicReview,
   reviewSubmissionReducer,
@@ -21,7 +22,14 @@ export default function ReviewPage() {
     setSummary(undefined);
     dispatch({ type: "reset" });
     setLoading(true);
-    void loadPublicReview(fetch, buildReviewSessionPath(), controller.signal)
+    void exchangeReviewFragment(
+      fetch,
+      window.location.href,
+      (url) => window.history.replaceState(null, "", url),
+    )
+      .then((exchange) => exchange.ok
+        ? loadPublicReview(fetch, buildReviewSessionPath(), controller.signal)
+        : { error: "Il link non è valido o non è più disponibile.", ok: false as const })
       .then((result) => {
         if (controller.signal.aborted) return;
         if (result.ok) setSummary(result.view);

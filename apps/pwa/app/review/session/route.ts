@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { apiBaseUrl } from "../../../lib/api";
 import {
   decryptReviewSession,
   REVIEW_SESSION_COOKIE,
 } from "../../../lib/review-session";
+import { serverApiBaseUrl } from "../../../lib/server-api";
 
 async function proxyReview(request: NextRequest, method: "GET" | "POST") {
   const secret = process.env.REVIEW_SESSION_SECRET;
@@ -17,12 +17,15 @@ async function proxyReview(request: NextRequest, method: "GET" | "POST") {
       { headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" }, status: 404 },
     );
   }
-  const upstreamUrl = `${apiBaseUrl().replace(/\/$/, "")}/api/public/reviews/token/${encodeURIComponent(token)}`;
+  const submittedBody = method === "POST"
+    ? await request.json().catch(() => ({})) as Record<string, unknown>
+    : {};
+  const upstreamUrl = `${serverApiBaseUrl()}/api/public/reviews/${method === "GET" ? "resolve" : "submit"}`;
   const upstream = await fetch(upstreamUrl, {
-    ...(method === "POST" ? { body: await request.text() } : {}),
+    body: JSON.stringify({ ...submittedBody, token }),
     cache: "no-store",
-    headers: method === "POST" ? { "content-type": "application/json" } : undefined,
-    method,
+    headers: { "content-type": "application/json" },
+    method: "POST",
     redirect: "manual",
     referrerPolicy: "no-referrer",
   });

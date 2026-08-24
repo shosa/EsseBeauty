@@ -67,6 +67,7 @@ export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
   "sent",
   "failed",
   "skipped",
+  "exhausted",
 ]);
 export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "waiting",
@@ -1036,6 +1037,7 @@ export const reviewInvitations = pgTable(
       .default("pending")
       .notNull(),
     deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    deliveryGeneration: integer("delivery_generation").default(0).notNull(),
     deliveryClaimId: uuid("delivery_claim_id"),
     deliveryLeaseExpiresAt: timestamp("delivery_lease_expires_at", { withTimezone: true }),
     lastDeliveryAttemptAt: timestamp("last_delivery_attempt_at", { withTimezone: true }),
@@ -1059,6 +1061,10 @@ export const reviewInvitations = pgTable(
     check(
       "review_invitations_delivery_attempts_non_negative",
       sql`${table.deliveryAttempts} >= 0`,
+    ),
+    check(
+      "review_invitations_delivery_generation_non_negative",
+      sql`${table.deliveryGeneration} >= 0`,
     ),
   ],
 );
