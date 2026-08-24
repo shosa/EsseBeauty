@@ -13,3 +13,4 @@ apps/pwa/public/sw.js
 apps/pwa/public/workbox-*.js
 apps/staff-pwa/public/sw.js
 apps/staff-pwa/public/workbox-*.js
+.superpowers/
