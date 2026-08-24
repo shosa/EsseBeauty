@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildPublicReviewPath,
+  buildReviewSessionPath,
   initialReviewSubmissionState,
   publicReviewErrorMessage,
   reviewSubmissionReducer,
@@ -9,9 +9,9 @@ import {
 import { reviewNetworkOnly, reviewRouteHeaders } from "./lib/cache-policy.mjs";
 
 describe("public review submission", () => {
-  it("keeps the token encoded in the path and out of query/referrer data", () => {
-    const path = buildPublicReviewPath("https://api.example.test/", "v1.review/secret?query");
-    expect(path).toBe("https://api.example.test/api/public/reviews/token/v1.review%2Fsecret%3Fquery");
+  it("uses a token-free same-origin session path after ingress exchange", () => {
+    const path = buildReviewSessionPath("https://pwa.example.test/");
+    expect(path).toBe("https://pwa.example.test/review/session");
     expect(new URL(path).search).toBe("");
     expect(reviewRouteHeaders).toEqual([{
       headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
@@ -26,6 +26,13 @@ describe("public review submission", () => {
     state = reviewSubmissionReducer(state, { type: "submit" });
     state = reviewSubmissionReducer(state, { error: "Riprova.", type: "failure" });
     expect(state).toMatchObject({ comment: "Esperienza ottima", error: "Riprova.", rating: 5, submitted: false, submitting: false });
+  });
+
+  it("clears old summary form state before a new invitation loads", () => {
+    let state = reviewSubmissionReducer(initialReviewSubmissionState, { rating: 5, type: "rating" });
+    state = reviewSubmissionReducer(state, { comment: "Vecchia recensione", type: "comment" });
+    state = reviewSubmissionReducer(state, { type: "reset" });
+    expect(state).toEqual(initialReviewSubmissionState);
   });
 
   it("explains distinct review invitation lifecycle failures", () => {

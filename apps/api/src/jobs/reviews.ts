@@ -1,5 +1,7 @@
-import { Worker, type Job } from "bullmq";
-import { and, eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
+import { Worker, type Job, type JobsOptions } from "bullmq";
+import { and, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import {
@@ -10,15 +12,53 @@ import {
   services,
 } from "@esse-beauty/db/schema";
 
-import { issuePublicToken } from "../lib/public-tokens.js";
+import { issueStablePublicToken } from "../lib/public-tokens.js";
 import { sendEmail, sendSms } from "./notifications.js";
-import { QUEUE_NAMES, redisConnection } from "./queues.js";
+import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
 export interface ReviewRequestJob {
   invitationId: string;
 }
 
+export interface ReviewQueue {
+  add(name: string, data: ReviewRequestJob, options?: JobsOptions): Promise<unknown>;
+  upsertJobScheduler(
+    schedulerId: string,
+    repeatOptions: { every: number },
+    jobTemplate: { name: string },
+  ): Promise<unknown>;
+}
+
+export const REVIEW_JOB_OPTIONS = {
+  attempts: 5,
+  backoff: { delay: 30_000, type: "exponential" as const },
+  removeOnComplete: { age: 24 * 60 * 60, count: 1_000 },
+  removeOnFail: { age: 7 * 24 * 60 * 60 },
+} satisfies JobsOptions;
+
 const REVIEW_INVITATION_TTL_MS = 30 * 24 * 60 * 60_000;
+const REVIEW_DELIVERY_LEASE_MS = 5 * 60_000;
+const REVIEW_DELIVERY_DELAY_MS = 30 * 60_000;
+
+function reviewTokenSecret(): string {
+  const secret = process.env.REVIEW_TOKEN_SECRET;
+  if (!secret) throw new Error("REVIEW_TOKEN_SECRET is required");
+  return secret;
+}
+
+export function buildReviewSms(serviceName: string, reviewUrl: string): string {
+  const suffix = ` ${reviewUrl}`;
+  const label = "Recensione";
+  const available = 160 - suffix.length;
+  if (available < label.length) throw new Error("REVIEW_URL_TOO_LONG");
+  const desired = `${label} ${serviceName}:`;
+  const prefix = desired.length <= available
+    ? desired
+    : available > label.length + 2
+      ? `${desired.slice(0, available - 1).trimEnd()}…`
+      : label;
+  return `${prefix}${suffix}`;
+}
 
 export async function ensureReviewInvitation(
   db: DrizzleDB,
@@ -64,6 +104,90 @@ export async function ensureReviewInvitation(
   });
 }
 
+async function enqueueInvitation(
+  queue: ReviewQueue,
+  invitation: Pick<
+    typeof reviewInvitations.$inferSelect,
+    "createdAt" | "deliveryAttempts" | "id"
+  >,
+): Promise<void> {
+  await queue.add(
+    "send-request",
+    { invitationId: invitation.id },
+    {
+      ...REVIEW_JOB_OPTIONS,
+      delay: Math.max(
+        0,
+        invitation.createdAt.getTime() + REVIEW_DELIVERY_DELAY_MS - Date.now(),
+      ),
+      jobId: `review-${invitation.id}-${invitation.deliveryAttempts}`,
+    },
+  );
+}
+
+export async function scheduleReviewInvitation(
+  db: DrizzleDB,
+  appointmentId: string,
+  queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
+): Promise<typeof reviewInvitations.$inferSelect> {
+  const invitation = await ensureReviewInvitation(db, appointmentId);
+  if (invitation.deliveryStatus !== "skipped") {
+    await enqueueInvitation(queue, invitation);
+  }
+  return invitation;
+}
+
+export async function recoverReviewInvitations(
+  db: DrizzleDB,
+  queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
+): Promise<number> {
+  const now = new Date();
+  const candidates = await db
+    .select({
+      deliveryAttempts: reviewInvitations.deliveryAttempts,
+      createdAt: reviewInvitations.createdAt,
+      id: reviewInvitations.id,
+    })
+    .from(reviewInvitations)
+    .where(and(
+      isNull(reviewInvitations.consumedAt),
+      isNull(reviewInvitations.deliveredAt),
+      isNull(reviewInvitations.revokedAt),
+      gt(reviewInvitations.expiresAt, now),
+      or(
+        inArray(reviewInvitations.deliveryStatus, ["pending", "failed"]),
+        and(
+          eq(reviewInvitations.deliveryStatus, "processing"),
+          or(
+            isNull(reviewInvitations.deliveryLeaseExpiresAt),
+            lte(reviewInvitations.deliveryLeaseExpiresAt, now),
+          ),
+        ),
+      ),
+    ))
+    .limit(100);
+  let enqueued = 0;
+  for (const invitation of candidates) {
+    try {
+      await enqueueInvitation(queue, invitation);
+      enqueued += 1;
+    } catch {
+      // Invitation state remains durable for the next scheduled scan.
+    }
+  }
+  return enqueued;
+}
+
+export async function registerReviewRecoverySchedule(
+  queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
+): Promise<void> {
+  await queue.upsertJobScheduler(
+    "recover-review-invitations",
+    { every: 5 * 60_000 },
+    { name: "recover" },
+  );
+}
+
 async function prepareDelivery(db: DrizzleDB, invitationId: string) {
   return db.transaction(async (tx) => {
     const rows = await tx
@@ -72,6 +196,8 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
         consumedAt: reviewInvitations.consumedAt,
         customerName: customers.fullName,
         deliveredAt: reviewInvitations.deliveredAt,
+        deliveryLeaseExpiresAt: reviewInvitations.deliveryLeaseExpiresAt,
+        deliveryStatus: reviewInvitations.deliveryStatus,
         email: customers.email,
         expiresAt: reviewInvitations.expiresAt,
         invitationId: reviewInvitations.id,
@@ -94,6 +220,19 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
       invitation.deliveredAt ||
       invitation.revokedAt
     ) return undefined;
+    const hasDestination =
+      (invitation.channel === "email" && Boolean(invitation.email)) ||
+      (invitation.channel === "sms" && Boolean(invitation.phone));
+    if (!hasDestination) {
+      await tx.update(reviewInvitations).set({
+        deliveryClaimId: null,
+        deliveryFailure: "RECIPIENT_UNAVAILABLE",
+        deliveryLeaseExpiresAt: null,
+        deliveryStatus: "skipped",
+        updatedAt: new Date(),
+      }).where(eq(reviewInvitations.id, invitationId));
+      return undefined;
+    }
     if (invitation.expiresAt <= new Date()) {
       await tx.update(reviewInvitations).set({
         deliveryFailure: "INVITATION_EXPIRED",
@@ -103,46 +242,83 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
       return undefined;
     }
 
-    const token = issuePublicToken("review", invitation.invitationId, invitation.expiresAt);
+    const now = new Date();
+    if (
+      invitation.deliveryStatus === "processing" &&
+      invitation.deliveryLeaseExpiresAt &&
+      invitation.deliveryLeaseExpiresAt > now
+    ) return undefined;
+
+    const claimId = randomUUID();
+    const token = issueStablePublicToken(
+      "review",
+      invitation.invitationId,
+      invitation.expiresAt,
+      reviewTokenSecret(),
+    );
     await tx.update(reviewInvitations).set({
+      deliveryClaimId: claimId,
       deliveryAttempts: sql`${reviewInvitations.deliveryAttempts} + 1`,
       deliveryFailure: null,
+      deliveryLeaseExpiresAt: new Date(now.getTime() + REVIEW_DELIVERY_LEASE_MS),
       deliveryStatus: "processing",
-      lastDeliveryAttemptAt: new Date(),
+      lastDeliveryAttemptAt: now,
       tokenHash: token.tokenHash,
       updatedAt: new Date(),
     }).where(eq(reviewInvitations.id, invitationId));
-    return { ...invitation, rawToken: token.raw };
+    return { ...invitation, claimId, rawToken: token.raw };
   });
+}
+
+interface ReviewDeliveryDependencies {
+  emailSender?: typeof sendEmail;
+  smsSender?: typeof sendSms;
 }
 
 export async function processReviewRequest(
   db: DrizzleDB,
   job: Job<ReviewRequestJob>,
+  dependencies: ReviewDeliveryDependencies = {},
 ): Promise<void> {
   const delivery = await prepareDelivery(db, job.data.invitationId);
   if (!delivery) return;
   try {
+    const emailSender = dependencies.emailSender ?? sendEmail;
+    const smsSender = dependencies.smsSender ?? sendSms;
     const pwaUrl = (process.env.PWA_URL ?? "http://localhost:3002").replace(/\/$/, "");
     const reviewUrl = `${pwaUrl}/review/${encodeURIComponent(delivery.rawToken)}`;
     if (delivery.channel === "email" && delivery.email) {
-      await sendEmail(
+      await emailSender(
         delivery.email,
         `Come è andato il tuo appuntamento da ${delivery.salonName}?`,
         `<p>Ciao ${delivery.customerName},</p><p>raccontaci come è andato ${delivery.serviceName}.</p><p><a href="${reviewUrl}">Lascia una recensione</a></p>`,
       );
     } else if (delivery.channel === "sms" && delivery.phone) {
-      await sendSms(delivery.phone, `Raccontaci come è andato ${delivery.serviceName}: ${reviewUrl}`);
-    } else {
-      await db.update(reviewInvitations).set({ deliveryFailure: "RECIPIENT_UNAVAILABLE", deliveryStatus: "skipped", updatedAt: new Date() })
-        .where(eq(reviewInvitations.id, delivery.invitationId));
-      return;
+      await smsSender(delivery.phone, buildReviewSms(delivery.serviceName, reviewUrl));
     }
-    await db.update(reviewInvitations).set({ deliveredAt: new Date(), deliveryFailure: null, deliveryStatus: "sent", updatedAt: new Date() })
-      .where(eq(reviewInvitations.id, delivery.invitationId));
+    await db.update(reviewInvitations).set({
+      deliveredAt: new Date(),
+      deliveryClaimId: null,
+      deliveryFailure: null,
+      deliveryLeaseExpiresAt: null,
+      deliveryStatus: "sent",
+      updatedAt: new Date(),
+    }).where(and(
+      eq(reviewInvitations.id, delivery.invitationId),
+      eq(reviewInvitations.deliveryClaimId, delivery.claimId),
+    ));
   } catch {
-    await db.update(reviewInvitations).set({ deliveryFailure: "PROVIDER_DELIVERY_FAILED", deliveryStatus: "failed", updatedAt: new Date() })
-      .where(and(eq(reviewInvitations.id, delivery.invitationId), eq(reviewInvitations.deliveryStatus, "processing")));
+    await db.update(reviewInvitations).set({
+      deliveryClaimId: null,
+      deliveryFailure: "PROVIDER_DELIVERY_FAILED",
+      deliveryLeaseExpiresAt: null,
+      deliveryStatus: "failed",
+      updatedAt: new Date(),
+    }).where(and(
+      eq(reviewInvitations.id, delivery.invitationId),
+      eq(reviewInvitations.deliveryClaimId, delivery.claimId),
+      eq(reviewInvitations.deliveryStatus, "processing"),
+    ));
     throw new Error("REVIEW_DELIVERY_FAILED");
   }
 }
@@ -150,7 +326,13 @@ export async function processReviewRequest(
 export function startReviewWorker(db: DrizzleDB): Worker<ReviewRequestJob> {
   return new Worker(
     QUEUE_NAMES.REVIEWS,
-    (job) => processReviewRequest(db, job),
+    async (job) => {
+      if (job.name === "recover") {
+        await recoverReviewInvitations(db);
+        return;
+      }
+      await processReviewRequest(db, job);
+    },
     {
       connection: redisConnection(),
     },

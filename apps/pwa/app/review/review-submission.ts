@@ -16,6 +16,7 @@ type ReviewSubmissionAction =
   | { rating: number; type: "rating" }
   | { comment: string; type: "comment" }
   | { type: "submit" }
+  | { type: "reset" }
   | { error: string; type: "failure" }
   | { type: "success" };
 
@@ -32,6 +33,7 @@ export function reviewSubmissionReducer(
   action: ReviewSubmissionAction,
 ): ReviewSubmissionState {
   switch (action.type) {
+    case "reset": return initialReviewSubmissionState;
     case "rating": return { ...state, rating: action.rating };
     case "comment": return { ...state, comment: action.comment };
     case "submit": return { ...state, error: "", submitting: true };
@@ -40,8 +42,9 @@ export function reviewSubmissionReducer(
   }
 }
 
-export function buildPublicReviewPath(apiBaseUrl: string, token: string): string {
-  return `${apiBaseUrl.replace(/\/$/, "")}/api/public/reviews/token/${encodeURIComponent(token)}`;
+export function buildReviewSessionPath(pwaBaseUrl = ""): string {
+  if (!pwaBaseUrl) return "/review/session";
+  return new URL("/review/session", pwaBaseUrl).toString().replace(/\/$/, "");
 }
 
 export function publicReviewErrorMessage(code?: string): string {

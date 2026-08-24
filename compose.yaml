@@ -75,6 +75,7 @@ services:
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
+      REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@example.com}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
@@ -130,6 +131,8 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     restart: unless-stopped
     init: true
+    environment:
+      REVIEW_SESSION_SECRET: ${REVIEW_SESSION_SECRET:?REVIEW_SESSION_SECRET is required}
     ports:
       - "${PWA_PORT:-3002}:3002"
     depends_on:

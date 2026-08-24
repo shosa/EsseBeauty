@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   initialReviewMutationState,
+  initialReviewListState,
   requestReviewMutation,
+  reviewListReducer,
   reviewMutationReducer,
 } from "./app/(dashboard)/reviews/reviews-controller.js";
 
@@ -44,5 +46,29 @@ describe("review dashboard management", () => {
       "https://api.example.test/reviews/review-1/publish",
       { published: true },
     )).rejects.toThrow("Non hai i permessi per modificare questa recensione.");
+  });
+
+  it("distinguishes loading, failed, and successfully empty review lists", () => {
+    const loading = reviewListReducer(initialReviewListState, { type: "load" });
+    const failed = reviewListReducer(loading, { error: "Caricamento non riuscito.", type: "failure" });
+    const empty = reviewListReducer(loading, { items: [], type: "success" });
+
+    expect(loading).toEqual({ error: "", items: [], status: "loading" });
+    expect(failed).toEqual({ error: "Caricamento non riuscito.", items: [], status: "error" });
+    expect(empty).toEqual({ error: "", items: [], status: "ready" });
+  });
+
+  it("keeps a successful reply closed when the following refresh fails", () => {
+    let mutation = reviewMutationReducer(initialReviewMutationState, { review, type: "open" });
+    mutation = reviewMutationReducer(mutation, { type: "begin" });
+    mutation = reviewMutationReducer(mutation, { type: "replySuccess" });
+    const list = reviewListReducer(
+      reviewListReducer(initialReviewListState, { type: "load" }),
+      { error: "Aggiornamento elenco non riuscito.", type: "failure" },
+    );
+
+    expect(mutation).toEqual(initialReviewMutationState);
+    expect(list.status).toBe("error");
+    expect(list.error).toContain("Aggiornamento");
   });
 });

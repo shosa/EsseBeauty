@@ -7,7 +7,11 @@ import {
   registerReminderSchedule,
   startReminderWorker,
 } from "./jobs/reminders.js";
-import { startReviewWorker } from "./jobs/reviews.js";
+import {
+  recoverReviewInvitations,
+  registerReviewRecoverySchedule,
+  startReviewWorker,
+} from "./jobs/reviews.js";
 import { closeQueues } from "./jobs/queues.js";
 
 const env = loadEnvironment();
@@ -19,6 +23,8 @@ const workers = [
   startMarketingWorker(db),
 ];
 await registerReminderSchedule();
+await recoverReviewInvitations(db);
+await registerReviewRecoverySchedule();
 
 app.addHook("onClose", async () => {
   await Promise.all(workers.map((worker) => worker.close()));

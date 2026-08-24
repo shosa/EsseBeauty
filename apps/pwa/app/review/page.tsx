@@ -1,28 +1,27 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
-import { useParams } from "next/navigation";
 
-import { apiBaseUrl } from "../../../lib/api";
 import {
-  buildPublicReviewPath,
+  buildReviewSessionPath,
   initialReviewSubmissionState,
   loadPublicReview,
   reviewSubmissionReducer,
   submitPublicReview,
   type PublicReviewView,
-} from "../review-submission";
+} from "./review-submission";
 
 export default function ReviewPage() {
-  const { token } = useParams<{ token: string }>();
   const [summary, setSummary] = useState<PublicReviewView>();
   const [loading, setLoading] = useState(true);
   const [state, dispatch] = useReducer(reviewSubmissionReducer, initialReviewSubmissionState);
 
   useEffect(() => {
     const controller = new AbortController();
+    setSummary(undefined);
+    dispatch({ type: "reset" });
     setLoading(true);
-    void loadPublicReview(fetch, buildPublicReviewPath(apiBaseUrl(), token), controller.signal)
+    void loadPublicReview(fetch, buildReviewSessionPath(), controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         if (result.ok) setSummary(result.view);
@@ -30,12 +29,12 @@ export default function ReviewPage() {
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [token]);
+  }, []);
 
   async function submit() {
     if (!state.rating || state.submitting || !summary) return;
     dispatch({ type: "submit" });
-    const result = await submitPublicReview(fetch, buildPublicReviewPath(apiBaseUrl(), token), {
+    const result = await submitPublicReview(fetch, buildReviewSessionPath(), {
       comment: state.comment.trim() || undefined,
       rating: state.rating,
     });

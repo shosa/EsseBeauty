@@ -15,6 +15,37 @@ export interface ReviewMutationState {
   selected?: ReviewItem;
 }
 
+export interface ReviewListState {
+  error: string;
+  items: ReviewItem[];
+  status: "idle" | "loading" | "ready" | "error";
+}
+
+export type ReviewListAction =
+  | { type: "load" }
+  | { error: string; type: "failure" }
+  | { items: ReviewItem[]; type: "success" };
+
+export const initialReviewListState: ReviewListState = {
+  error: "",
+  items: [],
+  status: "idle",
+};
+
+export function reviewListReducer(
+  state: ReviewListState,
+  action: ReviewListAction,
+): ReviewListState {
+  switch (action.type) {
+    case "load":
+      return { ...state, error: "", status: "loading" };
+    case "failure":
+      return { ...state, error: action.error, status: "error" };
+    case "success":
+      return { error: "", items: action.items, status: "ready" };
+  }
+}
+
 export type ReviewMutationAction =
   | { review: ReviewItem; type: "open" }
   | { type: "changeReply"; value: string }

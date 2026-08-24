@@ -3,12 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
-import { appointments, customers, salonModules, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointments, authSessions, customers, salonModules, salons, services, staff, users } from "@esse-beauty/db/schema";
 
 import { createApp } from "../../app.js";
 import * as reviewJobs from "../../jobs/reviews.js";
 import { issuePublicToken } from "../../lib/public-tokens.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
+import { hashSessionToken } from "../auth/local-auth.js";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;
@@ -141,6 +142,50 @@ postgresSuite("secure review lifecycle with PostgreSQL", () => {
         const stored = await db.execute(sql<{ consumed_at: Date | null }>`select consumed_at from review_invitations where id = ${invitation.id}::uuid`);
         expect(stored[0]?.consumed_at).toBeNull();
       } finally { await app.close(); }
+    });
+  });
+
+  it("enforces authenticated tenant and permission boundaries for review management", async () => {
+    await withFixture(async ({ salonId }) => {
+      const ownerId = randomUUID();
+      const receptionistId = randomUUID();
+      const ownerToken = `owner-${randomUUID()}`;
+      const receptionistToken = `receptionist-${randomUUID()}`;
+      await db.insert(users).values([
+        { active: true, email: `${ownerId}@example.invalid`, fullName: "Owner", id: ownerId, role: "owner", salonId },
+        { active: true, email: `${receptionistId}@example.invalid`, fullName: "Receptionist", id: receptionistId, role: "receptionist", salonId },
+      ]);
+      await db.insert(authSessions).values([
+        { expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(ownerToken), userId: ownerId },
+        { expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(receptionistToken), userId: receptionistId },
+      ]);
+      const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+      try {
+        const denied = await app.inject({
+          headers: { cookie: `esse-session=${receptionistToken}` },
+          method: "GET",
+          url: `/api/salons/${salonId}/reviews`,
+        });
+        expect(denied.statusCode).toBe(403);
+        expect(denied.json()).toMatchObject({ error: "PERMISSION_DENIED", required: "reviews.reply" });
+
+        const wrongTenant = await app.inject({
+          headers: { cookie: `esse-session=${ownerToken}` },
+          method: "GET",
+          url: `/api/salons/${randomUUID()}/reviews`,
+        });
+        expect(wrongTenant.statusCode).toBe(403);
+        expect(wrongTenant.json()).toEqual({ error: "FORBIDDEN" });
+
+        const allowed = await app.inject({
+          headers: { cookie: `esse-session=${ownerToken}` },
+          method: "GET",
+          url: `/api/salons/${salonId}/reviews`,
+        });
+        expect(allowed.statusCode, allowed.body).toBe(200);
+      } finally {
+        await app.close();
+      }
     });
   });
 });

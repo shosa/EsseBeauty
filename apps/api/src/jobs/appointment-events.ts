@@ -13,8 +13,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
 import { sendEmail, sendSms } from "./notifications.js";
-import { getQueue, QUEUE_NAMES } from "./queues.js";
-import { ensureReviewInvitation, type ReviewRequestJob } from "./reviews.js";
+import { scheduleReviewInvitation } from "./reviews.js";
 
 interface Transition {
   appointmentId: string;
@@ -55,6 +54,10 @@ export function detectAppointmentTransition(input: {
   };
 }
 
+interface AppointmentEventDependencies {
+  scheduleReviewInvitation?: typeof scheduleReviewInvitation;
+}
+
 function transitionFrom(request: FastifyRequest) {
   return detectAppointmentTransition({
     body: request.body as { status?: string } | undefined,
@@ -87,6 +90,7 @@ async function awardLoyalty(
 async function enqueueReview(
   app: FastifyInstance,
   appointment: typeof appointments.$inferSelect,
+  dependencies: AppointmentEventDependencies,
 ) {
   if (
     await isModuleEnabled(
@@ -95,11 +99,9 @@ async function enqueueReview(
       app.db,
     )
   ) {
-    const invitation = await ensureReviewInvitation(app.db, appointment.id);
-    await getQueue(QUEUE_NAMES.REVIEWS).add(
-      "send-request",
-      { invitationId: invitation.id } satisfies ReviewRequestJob,
-      { delay: 30 * 60_000, jobId: `review-${invitation.id}` },
+    await (dependencies.scheduleReviewInvitation ?? scheduleReviewInvitation)(
+      app.db,
+      appointment.id,
     );
   }
 }
@@ -176,7 +178,10 @@ async function notifyWaitlist(
   }
 }
 
-export function registerAppointmentEventHooks(app: FastifyInstance): void {
+export function registerAppointmentEventHooks(
+  app: FastifyInstance,
+  dependencies: AppointmentEventDependencies = {},
+): void {
   app.decorateRequest("appointmentTransition");
   app.addHook("preHandler", async (request) => {
     const candidate = transitionFrom(request);
@@ -185,7 +190,10 @@ export function registerAppointmentEventHooks(app: FastifyInstance): void {
       .select({ status: appointments.status })
       .from(appointments)
       .where(eq(appointments.id, candidate.appointmentId));
-    if (rows[0] && rows[0].status !== candidate.nextStatus) {
+    if (
+      rows[0] &&
+      (rows[0].status !== candidate.nextStatus || candidate.nextStatus === "completed")
+    ) {
       request.appointmentTransition = {
         ...candidate,
         previousStatus: rows[0].status,
@@ -214,7 +222,7 @@ export function registerAppointmentEventHooks(app: FastifyInstance): void {
       if (transition.nextStatus === "completed") {
         await Promise.all([
           awardLoyalty(app, appointment),
-          enqueueReview(app, appointment),
+          enqueueReview(app, appointment, dependencies),
         ]);
       } else {
         await Promise.all([

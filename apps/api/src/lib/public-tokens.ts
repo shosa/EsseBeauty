@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 
 export interface IssuedPublicToken {
   entityId: string;
@@ -50,6 +50,31 @@ export function issuePublicToken(
     randomBytes(32).toString("base64url"),
   ].join(".");
 
+  return { entityId, expiresAt, purpose, raw, tokenHash: hashToken(raw) };
+}
+
+export function issueStablePublicToken(
+  purpose: string,
+  entityId: string,
+  expiresAt: Date,
+  secret: string,
+): IssuedPublicToken {
+  if (secret.length < 32) {
+    throw new TypeError("Stable public tokens require a secret of at least 32 characters.");
+  }
+  if (!purposePattern.test(purpose)) {
+    throw new TypeError("Public token purpose must be a lowercase identifier.");
+  }
+  if (!entityId) {
+    throw new TypeError("Public tokens require an entity identifier.");
+  }
+  if (!Number.isFinite(expiresAt.getTime())) {
+    throw new TypeError("Public tokens require a valid expiry.");
+  }
+  const entropy = createHmac("sha256", secret)
+    .update(`${purpose}\0${entityId}\0${expiresAt.getTime()}`)
+    .digest("base64url");
+  const raw = ["v1", purpose, expiresAt.getTime().toString(36), entropy].join(".");
   return { entityId, expiresAt, purpose, raw, tokenHash: hashToken(raw) };
 }
 

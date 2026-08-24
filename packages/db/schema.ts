@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -1035,6 +1036,8 @@ export const reviewInvitations = pgTable(
       .default("pending")
       .notNull(),
     deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    deliveryClaimId: uuid("delivery_claim_id"),
+    deliveryLeaseExpiresAt: timestamp("delivery_lease_expires_at", { withTimezone: true }),
     lastDeliveryAttemptAt: timestamp("last_delivery_attempt_at", { withTimezone: true }),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     deliveryFailure: text("delivery_failure"),
@@ -1044,6 +1047,11 @@ export const reviewInvitations = pgTable(
   (table) => [
     uniqueIndex("review_invitations_appointment_unique").on(table.appointmentId),
     uniqueIndex("review_invitations_token_hash_unique").on(table.tokenHash),
+    index("review_invitations_recovery_idx").on(
+      table.deliveryStatus,
+      table.deliveryLeaseExpiresAt,
+      table.expiresAt,
+    ),
     check(
       "review_invitations_token_hash_format",
       sql`${table.tokenHash} is null or ${table.tokenHash} ~ '^[a-f0-9]{64}$'`,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { AppPage, Button, Dialog, EmptyState, PageHeaderMetrics, SectionCard, StatusBadge } from "@esse-beauty/ui";
@@ -8,7 +8,9 @@ import { AppPage, Button, Dialog, EmptyState, PageHeaderMetrics, SectionCard, St
 import { useAuth } from "../../../lib/auth-context";
 import {
   initialReviewMutationState,
+  initialReviewListState,
   requestReviewMutation,
+  reviewListReducer,
   reviewMutationReducer,
   type ReviewItem,
 } from "./reviews-controller";
@@ -26,14 +28,20 @@ function stars(rating: number) {
 
 export default function ReviewsPage() {
   const { hasPermission, salon } = useAuth();
-  const [items, setItems] = useState<ReviewItem[]>([]);
+  const [list, dispatchList] = useReducer(reviewListReducer, initialReviewListState);
   const [management, dispatchManagement] = useReducer(reviewMutationReducer, initialReviewMutationState);
+  const items = list.items;
   const { reply, selected } = management;
   const load = async () => {
     if (!salon) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/reviews`, { credentials: "include" });
-    if (!response.ok) throw new Error("REVIEW_LIST_FAILED");
-    setItems(await response.json() as ReviewItem[]);
+    dispatchList({ type: "load" });
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/reviews`, { credentials: "include" });
+      if (!response.ok) throw new Error("REVIEW_LIST_FAILED");
+      dispatchList({ items: await response.json() as ReviewItem[], type: "success" });
+    } catch {
+      dispatchList({ error: "Caricamento recensioni non riuscito. Riprova.", type: "failure" });
+    }
   };
   useEffect(() => { void load(); }, [salon]);
   const average = useMemo(() => items.length ? items.reduce((sum, item) => sum + item.rating, 0) / items.length : 0, [items]);
@@ -45,11 +53,12 @@ export default function ReviewsPage() {
     dispatchManagement({ type: "begin" });
     try {
       await requestReviewMutation(fetch, `${api}/api/salons/${salon.id}/reviews/${selected.id}/reply`, { reply });
-      dispatchManagement({ type: "replySuccess" });
-      await load();
     } catch (error) {
       dispatchManagement({ error: error instanceof Error ? error.message : "Salvataggio non riuscito.", type: "failure" });
+      return;
     }
+    dispatchManagement({ type: "replySuccess" });
+    await load();
   }
 
   async function setPublished(item: ReviewItem, nextPublished: boolean) {
@@ -57,11 +66,12 @@ export default function ReviewsPage() {
     dispatchManagement({ type: "begin" });
     try {
       await requestReviewMutation(fetch, `${api}/api/salons/${salon.id}/reviews/${item.id}/publish`, { published: nextPublished });
-      dispatchManagement({ type: "mutationSuccess" });
-      await load();
     } catch (error) {
       dispatchManagement({ error: error instanceof Error ? error.message : "Salvataggio non riuscito.", type: "failure" });
+      return;
     }
+    dispatchManagement({ type: "mutationSuccess" });
+    await load();
   }
 
   return (
@@ -98,7 +108,14 @@ export default function ReviewsPage() {
 
       <SectionCard className="mt-6" title="Feedback clienti" subtitle="Ogni recensione resta gestibile senza uscire dalla pagina.">
         {management.error && !selected && <p className="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{management.error}</p>}
-        {items.length === 0 ? (
+        {list.status === "loading" || list.status === "idle" ? (
+          <p className="rounded-2xl bg-stone-50 p-5 text-sm font-semibold text-stone-500" role="status">Caricamento recensioni…</p>
+        ) : list.status === "error" ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5" role="alert">
+            <p className="text-sm font-semibold text-red-800">{list.error}</p>
+            <Button className="mt-3" onClick={() => void load()} variant="outline">Riprova</Button>
+          </div>
+        ) : items.length === 0 ? (
           <EmptyState title="Nessuna recensione" description="Le recensioni compariranno dopo gli appuntamenti completati." />
         ) : (
           <div className="space-y-3">
