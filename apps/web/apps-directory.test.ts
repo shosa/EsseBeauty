@@ -17,6 +17,8 @@ describe("apps directory navigation", () => {
     expect(page).toContain("visibleApps");
     expect(page).toContain("APP_DOMAINS");
     expect(page).toContain("Cerca app");
+    expect(page).toContain('data-ui="app-drawer"');
+    expect(page).toContain("aspect-square");
   });
 
   it("navigates every Apps control to /apps without modal state", () => {
