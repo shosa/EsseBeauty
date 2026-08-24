@@ -37,6 +37,7 @@ import { registerShellRoutes } from "./routes/shell/index.js";
 import { registerStaffAppRoutes } from "./routes/staff-app/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
 import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
+import { registerWhatsAppWebhookRoutes } from "./routes/webhooks/whatsapp.js";
 import { registerVoucherRoutes } from "./routes/vouchers/index.js";
 
 interface ApiEnvironment {
@@ -143,6 +144,7 @@ export function createApp({
   void registerAppointmentRoutes(app);
   void registerCustomerRoutes(app);
   void registerCommunicationSettingsRoutes(app);
+  registerWhatsAppWebhookRoutes(app);
   void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);
   void registerReminderRoutes(app);

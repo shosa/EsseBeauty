@@ -4,6 +4,11 @@ import { createApp } from "./app.js";
 import { loadEnvironment } from "./env.js";
 import { startMarketingWorker } from "./jobs/marketing.js";
 import {
+  recoverCommunicationOutbox,
+  registerCommunicationRecoverySchedule,
+  startCommunicationWorker,
+} from "./jobs/communications.js";
+import {
   registerReminderSchedule,
   startReminderWorker,
 } from "./jobs/reminders.js";
@@ -18,11 +23,14 @@ const env = loadEnvironment();
 const db = createDatabase(env.DATABASE_URL);
 const app = createApp({ db, env, logger: true });
 const workers = [
+  startCommunicationWorker(db),
   startReminderWorker(db),
   startReviewWorker(db),
   startMarketingWorker(db),
 ];
 await registerReminderSchedule();
+await recoverCommunicationOutbox(db);
+await registerCommunicationRecoverySchedule();
 await recoverReviewInvitations(db);
 await registerReviewRecoverySchedule();
 

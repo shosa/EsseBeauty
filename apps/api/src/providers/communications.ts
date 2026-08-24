@@ -24,7 +24,7 @@ export type CommunicationMessage =
 
 export interface DeliveryReceipt {
   acceptedAt: Date;
-  provider: "resend" | "twilio";
+  provider: "meta_cloud_api" | "resend" | "twilio";
   providerMessageId: string;
 }
 

@@ -2,6 +2,7 @@ import { Queue } from "bullmq";
 
 export const QUEUE_NAMES = {
   CAMPAIGNS: "marketing-campaigns",
+  COMMUNICATIONS: "whatsapp-communications",
   REMINDERS: "appointment-reminders",
   REVIEWS: "review-requests",
 } as const;
