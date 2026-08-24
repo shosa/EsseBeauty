@@ -48,7 +48,7 @@ Dal computer host:
 
 ```text
 PostgreSQL: localhost:5432
-Redis:      localhost:6379
+Redis:      localhost:6380
 ```
 
 Da un container dello stack:
