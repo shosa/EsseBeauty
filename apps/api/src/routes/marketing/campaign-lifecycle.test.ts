@@ -6,6 +6,7 @@ import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
 import {
   authSessions,
   campaignRecipients,
+  campaignTemplates,
   customers,
   marketingCampaigns,
   salonModules,
@@ -212,6 +213,78 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       expect(testSend.json()).toMatchObject({ provider_message_id: "provider-1" });
       expect(dependencies.messages).toHaveLength(1);
       expect(dependencies.jobs).toEqual([]);
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("previews excluded destinations and applies only this salon's active template to a draft", async () => {
+    const data = await fixture();
+    const dependencies = testDependencies();
+    await db.insert(customers).values({
+      fullName: "Cliente Senza Email",
+      phone: "+393331112233",
+      salonId: data.salonId,
+    });
+    const app = createApp({
+      campaignProviders: dependencies.providers,
+      campaignQueue: dependencies.campaignQueue,
+      db,
+      env: { API_CORS_ORIGIN: "http://localhost:3000" },
+    });
+    try {
+      const preview = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { channel: "email", target_segment: { type: "all" } },
+        url: `/api/salons/${data.salonId}/campaigns/preview`,
+      });
+      expect(preview.statusCode, preview.body).toBe(200);
+      expect(preview.json()).toMatchObject({ eligible_count: 2, excluded_count: 1 });
+      expect(preview.json().excluded).toEqual([
+        expect.objectContaining({ name: "Cliente Senza Email", reason: "MISSING_EMAIL" }),
+      ]);
+
+      const createdTemplate = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { channel: "email", content: "<p>Modello estate</p>", name: "Estate" },
+        url: `/api/salons/${data.salonId}/campaign-templates`,
+      });
+      expect(createdTemplate.statusCode, createdTemplate.body).toBe(201);
+      const templateId = createdTemplate.json().id as string;
+      const campaign = (
+        await db.insert(marketingCampaigns).values({
+          channel: "sms",
+          content: "Vecchio testo",
+          name: "Bozza",
+          salonId: data.salonId,
+          targetSegment: { type: "all" },
+        }).returning()
+      )[0]!;
+
+      const applied = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { campaign_id: campaign.id },
+        url: `/api/salons/${data.salonId}/campaign-templates/${templateId}/apply`,
+      });
+      expect(applied.statusCode, applied.body).toBe(200);
+      expect(applied.json()).toMatchObject({
+        channel: "email",
+        content: "<p>Modello estate</p>",
+        templateId,
+      });
+
+      const archived = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        url: `/api/salons/${data.salonId}/campaign-templates/${templateId}/archive`,
+      });
+      expect(archived.statusCode, archived.body).toBe(200);
+      expect(archived.json()).toMatchObject({ active: false });
+      expect(await db.select().from(campaignTemplates).where(eq(campaignTemplates.id, templateId))).toHaveLength(1);
     } finally {
       await app.close();
       await data.cleanup();

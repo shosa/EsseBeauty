@@ -10,6 +10,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   appointments,
   campaignRecipients,
+  campaignTemplates,
   customers,
   loyaltyPoints,
   marketingCampaigns,
@@ -33,6 +34,13 @@ type Segment =
   | { type: "inactive"; days_since_last_visit: number }
   | { type: "tag"; tag: string }
   | { type: "high_loyalty"; min_points: number };
+
+interface RecipientPreviewRow extends Record<string, unknown> {
+  customer_id: string;
+  destination: string | null;
+  name: string;
+  reason?: "MISSING_EMAIL" | "MISSING_PHONE";
+}
 
 export interface MarketingRouteDependencies {
   campaignQueue?: CampaignQueue;
@@ -109,6 +117,65 @@ async function resolveSegment(
   );
 }
 
+async function resolveSegmentPreview(
+  app: FastifyInstance,
+  salonId: string,
+  channel: CommunicationChannel,
+  segment: Segment,
+) {
+  const destination = channel === "email" ? customers.email : customers.phone;
+  const base = app.db
+    .select({ customerId: customers.id, destination, name: customers.fullName })
+    .from(customers);
+  let rows: Array<{ customerId: string; destination: string | null; name: string }>;
+  if (segment.type === "inactive") {
+    const cutoff = new Date(Date.now() - segment.days_since_last_visit * 24 * 60 * 60_000);
+    rows = await base.where(and(
+      eq(customers.salonId, salonId),
+      sql`not exists (
+        select 1 from ${appointments}
+        where ${appointments.customerId} = ${customers.id}
+        and ${appointments.startsAt} >= ${cutoff}
+        and ${appointments.status} = 'completed'
+      )`,
+    ));
+  } else if (segment.type === "tag") {
+    rows = await base.where(and(
+      eq(customers.salonId, salonId),
+      sql`${segment.tag} = any(${customers.tags})`,
+    ));
+  } else if (segment.type === "high_loyalty") {
+    rows = await base
+      .leftJoin(loyaltyPoints, eq(loyaltyPoints.customerId, customers.id))
+      .where(eq(customers.salonId, salonId))
+      .groupBy(customers.id)
+      .having(sql`coalesce(sum(${loyaltyPoints.delta}), 0) >= ${segment.min_points}`);
+  } else {
+    rows = await base.where(eq(customers.salonId, salonId));
+  }
+
+  const eligible: RecipientPreviewRow[] = [];
+  const excluded: RecipientPreviewRow[] = [];
+  for (const row of rows) {
+    const item = {
+      customer_id: row.customerId,
+      destination: row.destination,
+      name: row.name,
+    };
+    if (row.destination?.trim()) eligible.push(item);
+    else excluded.push({
+      ...item,
+      reason: channel === "email" ? "MISSING_EMAIL" : "MISSING_PHONE",
+    });
+  }
+  return {
+    eligible,
+    eligible_count: eligible.length,
+    excluded,
+    excluded_count: excluded.length,
+  };
+}
+
 async function enqueueBatches(
   queue: CampaignQueue,
   campaignId: string,
@@ -144,6 +211,55 @@ function validTestSendBody(value: unknown): value is {
     typeof body.destination === "string" &&
     body.destination.trim().length > 0 &&
     (body.subject === undefined || typeof body.subject === "string")
+  );
+}
+
+function validSegment(value: unknown): value is Segment {
+  if (!value || typeof value !== "object") return false;
+  const segment = value as Record<string, unknown>;
+  if (segment.type === "all") return true;
+  if (segment.type === "inactive") {
+    return Number.isFinite(segment.days_since_last_visit) && Number(segment.days_since_last_visit) > 0;
+  }
+  if (segment.type === "tag") return typeof segment.tag === "string" && segment.tag.trim().length > 0;
+  return segment.type === "high_loyalty" && Number.isFinite(segment.min_points) && Number(segment.min_points) >= 0;
+}
+
+function validCampaignDraft(value: unknown): value is {
+  channel: CommunicationChannel;
+  content: string;
+  name: string;
+  scheduled_at?: string;
+  target_segment: Segment;
+} {
+  if (!value || typeof value !== "object") return false;
+  const body = value as Record<string, unknown>;
+  return (
+    (body.channel === "email" || body.channel === "sms") &&
+    typeof body.content === "string" && body.content.trim().length > 0 &&
+    typeof body.name === "string" && body.name.trim().length > 0 &&
+    validSegment(body.target_segment) &&
+    (body.scheduled_at === undefined || (
+      typeof body.scheduled_at === "string" && !Number.isNaN(Date.parse(body.scheduled_at))
+    ))
+  );
+}
+
+function validTemplateBody(value: unknown): value is {
+  channel: CommunicationChannel;
+  content: string;
+  name: string;
+  variables?: string[];
+} {
+  if (!value || typeof value !== "object") return false;
+  const body = value as Record<string, unknown>;
+  return (
+    (body.channel === "email" || body.channel === "sms") &&
+    typeof body.content === "string" && body.content.trim().length > 0 &&
+    typeof body.name === "string" && body.name.trim().length > 0 &&
+    (body.variables === undefined || (
+      Array.isArray(body.variables) && body.variables.every((item) => typeof item === "string")
+    ))
   );
 }
 
@@ -236,6 +352,134 @@ export async function registerMarketingRoutes(
     },
   );
 
+  app.post<{ Params: { id: string }; Body: unknown }>(
+    "/api/salons/:id/campaigns/preview",
+    { preHandler: guard },
+    async (request, reply) => {
+      if (!request.body || typeof request.body !== "object") {
+        return reply.code(400).send({ error: "INVALID_REQUEST" });
+      }
+      const body = request.body as Record<string, unknown>;
+      if ((body.channel !== "email" && body.channel !== "sms") || !validSegment(body.target_segment)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST" });
+      }
+      const preview = await resolveSegmentPreview(
+        app,
+        request.salonId,
+        body.channel,
+        body.target_segment,
+      );
+      return {
+        ...preview,
+        eligible: preview.eligible.slice(0, 20),
+        excluded: preview.excluded.slice(0, 20),
+      };
+    },
+  );
+
+  app.get<{ Params: { id: string }; Querystring: { include_archived?: string } }>(
+    "/api/salons/:id/campaign-templates",
+    { preHandler: guard },
+    async (request) => app.db
+      .select()
+      .from(campaignTemplates)
+      .where(request.query.include_archived === "true"
+        ? eq(campaignTemplates.salonId, request.salonId)
+        : and(eq(campaignTemplates.salonId, request.salonId), eq(campaignTemplates.active, true)))
+      .orderBy(desc(campaignTemplates.updatedAt)),
+  );
+
+  app.post<{ Params: { id: string }; Body: unknown }>(
+    "/api/salons/:id/campaign-templates",
+    { preHandler: guard },
+    async (request, reply) => {
+      if (!validTemplateBody(request.body)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST" });
+      }
+      if (request.body.channel === "sms" && request.body.content.length > 160) {
+        return reply.code(400).send({ error: "SMS_TOO_LONG" });
+      }
+      const rows = await app.db.insert(campaignTemplates).values({
+        channel: request.body.channel,
+        content: request.body.content,
+        name: request.body.name.trim(),
+        salonId: request.salonId,
+        variables: request.body.variables ?? [],
+      }).returning();
+      return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.patch<{ Params: { id: string; templateId: string }; Body: unknown }>(
+    "/api/salons/:id/campaign-templates/:templateId",
+    { preHandler: guard },
+    async (request, reply) => {
+      if (!validTemplateBody(request.body)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST" });
+      }
+      if (request.body.channel === "sms" && request.body.content.length > 160) {
+        return reply.code(400).send({ error: "SMS_TOO_LONG" });
+      }
+      const rows = await app.db.update(campaignTemplates).set({
+        channel: request.body.channel,
+        content: request.body.content,
+        name: request.body.name.trim(),
+        updatedAt: new Date(),
+        variables: request.body.variables ?? [],
+      }).where(and(
+        eq(campaignTemplates.id, request.params.templateId),
+        eq(campaignTemplates.salonId, request.salonId),
+      )).returning();
+      return rows[0] ?? reply.code(404).send({ error: "TEMPLATE_NOT_FOUND" });
+    },
+  );
+
+  app.post<{ Params: { id: string; templateId: string } }>(
+    "/api/salons/:id/campaign-templates/:templateId/archive",
+    { preHandler: guard },
+    async (request, reply) => {
+      const rows = await app.db.update(campaignTemplates).set({
+        active: false,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(campaignTemplates.id, request.params.templateId),
+        eq(campaignTemplates.salonId, request.salonId),
+      )).returning();
+      return rows[0] ?? reply.code(404).send({ error: "TEMPLATE_NOT_FOUND" });
+    },
+  );
+
+  app.post<{
+    Params: { id: string; templateId: string };
+    Body: { campaign_id?: string };
+  }>(
+    "/api/salons/:id/campaign-templates/:templateId/apply",
+    { preHandler: guard },
+    async (request, reply) => {
+      if (!request.body?.campaign_id) {
+        return reply.code(400).send({ error: "INVALID_REQUEST" });
+      }
+      const templates = await app.db.select().from(campaignTemplates).where(and(
+        eq(campaignTemplates.id, request.params.templateId),
+        eq(campaignTemplates.salonId, request.salonId),
+        eq(campaignTemplates.active, true),
+      ));
+      const template = templates[0];
+      if (!template) return reply.code(404).send({ error: "TEMPLATE_NOT_FOUND" });
+      const campaigns = await app.db.update(marketingCampaigns).set({
+        channel: template.channel,
+        content: template.content,
+        templateId: template.id,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(marketingCampaigns.id, request.body.campaign_id),
+        eq(marketingCampaigns.salonId, request.salonId),
+        eq(marketingCampaigns.status, "draft"),
+      )).returning();
+      return campaigns[0] ?? reply.code(409).send({ error: "CAMPAIGN_NOT_EDITABLE" });
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     "/api/salons/:id/campaigns",
     { preHandler: guard },
@@ -257,9 +501,18 @@ export async function registerMarketingRoutes(
       scheduled_at?: string;
     };
   }>("/api/salons/:id/campaigns", { preHandler: guard }, async (request, reply) => {
+    if (!validCampaignDraft(request.body)) {
+      return reply.code(400).send({ error: "INVALID_REQUEST" });
+    }
     if (request.body.channel === "sms" && request.body.content.length > 160) {
       return reply.code(400).send({ error: "SMS_TOO_LONG" });
     }
+    const preview = await resolveSegmentPreview(
+      app,
+      request.salonId,
+      request.body.channel,
+      request.body.target_segment,
+    );
     const rows = await app.db
       .insert(marketingCampaigns)
       .values({
@@ -268,6 +521,7 @@ export async function registerMarketingRoutes(
         channel: request.body.channel,
         targetSegment: request.body.target_segment,
         content: request.body.content,
+        recipientPreview: [...preview.eligible, ...preview.excluded].slice(0, 40),
         scheduledAt: request.body.scheduled_at
           ? new Date(request.body.scheduled_at)
           : null,
