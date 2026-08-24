@@ -14,6 +14,7 @@ import {
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, nextAppointmentStatuses, type AppointmentStatus } from "@esse-beauty/shared";
 
 import { useAuth } from "../../../../lib/auth-context";
+import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -657,6 +658,12 @@ export default function AppointmentDetailPanel({
                   <div><span className="block font-bold text-stone-400">Note appuntamento</span><span className="mt-1 block font-semibold">{appointment.notes || "Nessuna nota"}</span></div>
                 </div>
               </section>
+
+              <ConsentRecordsPanel
+                appointmentId={appointment.id}
+                customerId={appointment.customer_id}
+                title="Richiedi consenso"
+              />
 
               <section className="rounded-xl border border-stone-200 bg-white p-5">
                 <div className="mb-5 flex items-end justify-between gap-3">
