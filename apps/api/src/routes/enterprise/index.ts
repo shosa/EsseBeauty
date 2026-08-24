@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import {
@@ -21,6 +21,296 @@ import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import {
+  archiveConsentTemplate,
+  ConsentLifecycleError,
+  createConsentRequest,
+  createConsentTemplate,
+  createDrizzleConsentRepository,
+  renderConsentEvidence,
+  resendConsentRequest,
+  resolveConsent,
+  revokeConsent,
+  signConsent,
+  versionTemplate,
+  type ConsentDeliveryChannel,
+  type ConsentLifecycleRepository,
+  type ConsentRequestRecord,
+} from "../../lib/consent-evidence.js";
+import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const deliveryChannels = new Set<ConsentDeliveryChannel>(["email", "in_person", "sms"]);
+const templateTypes = new Set(["anamnesis", "photo_release", "privacy", "treatment"]);
+
+function invalid(fields: Record<string, string[]>) {
+  return { error: { fieldErrors: fields }, success: false as const };
+}
+
+function bodyRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function validUuid(value: unknown): value is string {
+  return typeof value === "string" && uuidPattern.test(value);
+}
+
+function boundedText(value: unknown, minimum: number, maximum: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return text.length >= minimum && text.length <= maximum ? text : undefined;
+}
+
+function serviceIds(value: unknown, fields: Record<string, string[]>): string[] {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value) ||
+    value.length > 100 ||
+    value.some((item) => !validUuid(item))
+  ) {
+    fields.required_for_services = ["Servizi richiesti non validi"];
+    return [];
+  }
+  return [...new Set(value)];
+}
+
+interface TemplateBody {
+  active?: boolean;
+  body: string;
+  name: string;
+  required_for_services: string[];
+  type: string;
+}
+
+const templateBodySchema: SafeParseSchema<TemplateBody> = {
+  safeParse(value) {
+    const body = bodyRecord(value);
+    if (!body) return invalid({ body: ["Corpo della richiesta non valido"] });
+    const fields: Record<string, string[]> = {};
+    const name = boundedText(body.name, 1, 160);
+    const documentBody = boundedText(body.body, 1, 100_000);
+    const type = typeof body.type === "string" && templateTypes.has(body.type) ? body.type : undefined;
+    if (!name) fields.name = ["Nome del modello obbligatorio"];
+    if (!documentBody) fields.body = ["Testo del modello obbligatorio"];
+    if (!type) fields.type = ["Tipo di modello non valido"];
+    if (body.active !== undefined && typeof body.active !== "boolean") {
+      fields.active = ["Stato del modello non valido"];
+    }
+    const requiredForServices = serviceIds(body.required_for_services, fields);
+    return Object.keys(fields).length > 0
+      ? invalid(fields)
+      : {
+          data: {
+            active: body.active as boolean | undefined,
+            body: documentBody!,
+            name: name!,
+            required_for_services: requiredForServices,
+            type: type!,
+          },
+          success: true as const,
+        };
+  },
+};
+
+interface VersionTemplateBody {
+  active?: boolean;
+  body: string;
+  name?: string;
+  required_for_services?: string[];
+  type?: string;
+}
+
+const versionTemplateBodySchema: SafeParseSchema<VersionTemplateBody> = {
+  safeParse(value) {
+    const body = bodyRecord(value);
+    if (!body) return invalid({ body: ["Corpo della richiesta non valido"] });
+    const fields: Record<string, string[]> = {};
+    const documentBody = boundedText(body.body, 1, 100_000);
+    const name = body.name === undefined ? undefined : boundedText(body.name, 1, 160);
+    const type = body.type === undefined
+      ? undefined
+      : typeof body.type === "string" && templateTypes.has(body.type) ? body.type : null;
+    if (!documentBody) fields.body = ["Testo del modello obbligatorio"];
+    if (body.name !== undefined && !name) fields.name = ["Nome del modello non valido"];
+    if (type === null) fields.type = ["Tipo di modello non valido"];
+    if (body.active !== undefined && typeof body.active !== "boolean") {
+      fields.active = ["Stato del modello non valido"];
+    }
+    const requiredForServices = body.required_for_services === undefined
+      ? undefined
+      : serviceIds(body.required_for_services, fields);
+    return Object.keys(fields).length > 0
+      ? invalid(fields)
+      : {
+          data: {
+            active: body.active as boolean | undefined,
+            body: documentBody!,
+            name,
+            required_for_services: requiredForServices,
+            type: type ?? undefined,
+          },
+          success: true as const,
+        };
+  },
+};
+
+interface CreateConsentRequestBody {
+  appointment_id?: string;
+  customer_id: string;
+  delivery_channel: ConsentDeliveryChannel;
+  expires_at: Date;
+  template_id: string;
+}
+
+export const createConsentRequestBodySchema: SafeParseSchema<CreateConsentRequestBody> = {
+  safeParse(value) {
+    const body = bodyRecord(value);
+    if (!body) return invalid({ body: ["Corpo della richiesta non valido"] });
+    const fields: Record<string, string[]> = {};
+    const appointmentId = body.appointment_id === undefined ? undefined : body.appointment_id;
+    if (!validUuid(body.customer_id)) fields.customer_id = ["Cliente non valido"];
+    if (!validUuid(body.template_id)) fields.template_id = ["Modello non valido"];
+    if (appointmentId !== undefined && !validUuid(appointmentId)) {
+      fields.appointment_id = ["Appuntamento non valido"];
+    }
+    const deliveryChannel = body.delivery_channel ?? "in_person";
+    if (typeof deliveryChannel !== "string" || !deliveryChannels.has(deliveryChannel as ConsentDeliveryChannel)) {
+      fields.delivery_channel = ["Canale di consegna non valido"];
+    }
+    const expiresAt = body.expires_at === undefined
+      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000)
+      : new Date(typeof body.expires_at === "string" ? body.expires_at : Number.NaN);
+    if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+      fields.expires_at = ["Scadenza non valida"];
+    }
+    return Object.keys(fields).length > 0
+      ? invalid(fields)
+      : {
+          data: {
+            appointment_id: appointmentId as string | undefined,
+            customer_id: body.customer_id as string,
+            delivery_channel: deliveryChannel as ConsentDeliveryChannel,
+            expires_at: expiresAt,
+            template_id: body.template_id as string,
+          },
+          success: true as const,
+        };
+  },
+};
+
+interface ResendConsentBody {
+  delivery_channel: ConsentDeliveryChannel;
+  expires_at: Date;
+}
+
+const resendConsentBodySchema: SafeParseSchema<ResendConsentBody> = {
+  safeParse(value) {
+    const body = bodyRecord(value);
+    if (!body) return invalid({ body: ["Corpo della richiesta non valido"] });
+    const fields: Record<string, string[]> = {};
+    const deliveryChannel = body.delivery_channel;
+    if (typeof deliveryChannel !== "string" || !deliveryChannels.has(deliveryChannel as ConsentDeliveryChannel)) {
+      fields.delivery_channel = ["Canale di consegna non valido"];
+    }
+    const expiresAt = new Date(typeof body.expires_at === "string" ? body.expires_at : Number.NaN);
+    if (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+      fields.expires_at = ["Scadenza non valida"];
+    }
+    return Object.keys(fields).length > 0
+      ? invalid(fields)
+      : {
+          data: {
+            delivery_channel: deliveryChannel as ConsentDeliveryChannel,
+            expires_at: expiresAt,
+          },
+          success: true as const,
+        };
+  },
+};
+
+interface SignConsentBody {
+  accepted: true;
+  signature: { type: "drawn" | "typed"; value: string };
+  signer_name: string;
+}
+
+const signConsentBodySchema: SafeParseSchema<SignConsentBody> = {
+  safeParse(value) {
+    const body = bodyRecord(value);
+    if (!body) return invalid({ body: ["Corpo della richiesta non valido"] });
+    const fields: Record<string, string[]> = {};
+    if (body.accepted !== true) fields.accepted = ["Accettazione esplicita obbligatoria"];
+    const signerName = boundedText(body.signer_name, 2, 160);
+    if (!signerName) fields.signer_name = ["Nome del firmatario non valido"];
+    const signature = bodyRecord(body.signature);
+    const signatureType = signature?.type;
+    const signatureLimit = signatureType === "drawn" ? 200_000 : 200;
+    const signatureValue = boundedText(signature?.value, 1, signatureLimit);
+    if ((signatureType !== "drawn" && signatureType !== "typed") || !signatureValue) {
+      fields.signature = ["Firma non valida"];
+    }
+    return Object.keys(fields).length > 0
+      ? invalid(fields)
+      : {
+          data: {
+            accepted: true,
+            signature: { type: signatureType as "drawn" | "typed", value: signatureValue! },
+            signer_name: signerName!,
+          },
+          success: true as const,
+        };
+  },
+};
+
+interface RevokeConsentBody { reason: string }
+
+const revokeConsentBodySchema: SafeParseSchema<RevokeConsentBody> = {
+  safeParse(value) {
+    const body = bodyRecord(value);
+    if (!body) return invalid({ body: ["Corpo della richiesta non valido"] });
+    const reason = boundedText(body.reason, 3, 1_000);
+    return reason
+      ? { data: { reason }, success: true as const }
+      : invalid({ reason: ["Motivo della revoca obbligatorio"] });
+  },
+};
+
+const emptyBodySchema: SafeParseSchema<Record<string, never>> = {
+  safeParse(value) {
+    const body = value === undefined ? {} : bodyRecord(value);
+    return body && Object.keys(body).length === 0
+      ? { data: {}, success: true as const }
+      : invalid({ body: ["Il corpo deve essere vuoto"] });
+  },
+};
+
+function consentDto(consent: ConsentRequestRecord) {
+  return {
+    appointment_id: consent.appointmentId,
+    created_at: consent.createdAt.toISOString(),
+    customer_id: consent.customerId,
+    delivery_channel: consent.deliveryChannel,
+    document_hash: consent.documentHash,
+    expires_at: consent.expiresAt?.toISOString() ?? null,
+    id: consent.id,
+    revoked_at: consent.revokedAt?.toISOString() ?? null,
+    revoked_by_user_id: consent.revokedByUserId,
+    revocation_reason: consent.revocationReason,
+    signed_at: consent.signedAt?.toISOString() ?? null,
+    signer_name: consent.signerName,
+    status: consent.status,
+    template_id: consent.templateId,
+  };
+}
+
+function sendConsentError(reply: FastifyReply, error: unknown) {
+  if (error instanceof ConsentLifecycleError) {
+    return reply.code(error.statusCode).send({ error: error.code });
+  }
+  throw error;
+}
 
 function ensureSalon(request: { params: { id: string }; salonId: string }, reply: { code(statusCode: number): { send(payload: unknown): unknown } }) {
   if (request.params.id !== request.salonId) {
@@ -29,7 +319,11 @@ function ensureSalon(request: { params: { id: string }; salonId: string }, reply
   return undefined;
 }
 
-export async function registerEnterpriseModuleRoutes(app: FastifyInstance) {
+export async function registerEnterpriseModuleRoutes(
+  app: FastifyInstance,
+  options: { consentRepository?: ConsentLifecycleRepository } = {},
+) {
+  const consentRepository = options.consentRepository ?? createDrizzleConsentRepository(app.db);
   app.get<{ Params: { id: string } }>(
     "/api/salons/:id/consent-templates",
     {
@@ -50,10 +344,7 @@ export async function registerEnterpriseModuleRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{
-    Body: { active?: boolean; body: string; name: string; required_for_services?: string[]; type: string; version?: number };
-    Params: { id: string };
-  }>(
+  app.post<{ Body: TemplateBody; Params: { id: string } }>(
     "/api/salons/:id/consent-templates",
     {
       preHandler: [
@@ -65,22 +356,85 @@ export async function registerEnterpriseModuleRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = ensureSalon(request, reply);
       if (denied) return denied;
-      if (!request.body.name?.trim() || !request.body.body?.trim()) {
-        return reply.code(400).send({ error: "CONSENT_TEMPLATE_REQUIRED" });
-      }
-      const rows = await app.db
-        .insert(consentTemplates)
-        .values({
-          active: request.body.active ?? true,
-          body: request.body.body,
-          name: request.body.name.trim(),
-          requiredForServices: request.body.required_for_services ?? [],
+      const body = parseBody(templateBodySchema, request, reply);
+      if (!body) return;
+      try {
+        const created = await createConsentTemplate(consentRepository, {
+          active: body.active,
+          body: body.body,
+          name: body.name,
+          requiredForServices: body.required_for_services,
           salonId: request.salonId,
-          type: request.body.type,
-          version: request.body.version ?? 1,
-        })
-        .returning();
-      return reply.code(201).send(rows[0]);
+          type: body.type,
+        });
+        return reply.code(201).send(created);
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.post<{
+    Body: VersionTemplateBody;
+    Params: { id: string; templateId: string };
+  }>(
+    "/api/salons/:id/consent-templates/:templateId/versions",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      if (!validUuid(request.params.templateId)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST", fields: { template_id: ["Modello non valido"] } });
+      }
+      const body = parseBody(versionTemplateBodySchema, request, reply);
+      if (!body) return;
+      try {
+        const created = await versionTemplate(consentRepository, request.params.templateId, {
+          active: body.active,
+          body: body.body,
+          name: body.name,
+          requiredForServices: body.required_for_services,
+          salonId: request.salonId,
+          type: body.type,
+        });
+        return reply.code(201).send(created);
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.patch<{
+    Body: Record<string, never>;
+    Params: { id: string; templateId: string };
+  }>(
+    "/api/salons/:id/consent-templates/:templateId/archive",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      if (!validUuid(request.params.templateId)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST", fields: { template_id: ["Modello non valido"] } });
+      }
+      const body = parseBody(emptyBodySchema, request, reply);
+      if (!body) return;
+      try {
+        return await archiveConsentTemplate(consentRepository, request.salonId, request.params.templateId);
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
     },
   );
 
@@ -99,14 +453,16 @@ export async function registerEnterpriseModuleRoutes(app: FastifyInstance) {
       const filters = [eq(customerConsents.salonId, request.salonId)];
       if (request.query.customer_id) filters.push(eq(customerConsents.customerId, request.query.customer_id));
       if (request.query.appointment_id) filters.push(eq(customerConsents.appointmentId, request.query.appointment_id));
-      return app.db.select().from(customerConsents).where(and(...filters)).orderBy(desc(customerConsents.createdAt));
+      const rows = await app.db
+        .select()
+        .from(customerConsents)
+        .where(and(...filters))
+        .orderBy(desc(customerConsents.createdAt));
+      return rows.map(consentDto);
     },
   );
 
-  app.post<{
-    Body: { appointment_id?: string; customer_id: string; signature_data?: Record<string, unknown>; status?: "pending" | "signed" | "revoked" | "expired"; template_id: string };
-    Params: { id: string };
-  }>(
+  app.post<{ Body: CreateConsentRequestBody; Params: { id: string } }>(
     "/api/salons/:id/customer-consents",
     {
       preHandler: [
@@ -118,19 +474,205 @@ export async function registerEnterpriseModuleRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = ensureSalon(request, reply);
       if (denied) return denied;
-      const rows = await app.db
-        .insert(customerConsents)
-        .values({
-          appointmentId: request.body.appointment_id,
-          customerId: request.body.customer_id,
-          signatureData: request.body.signature_data ?? {},
-          signedAt: request.body.status === "signed" ? new Date() : undefined,
+      const body = parseBody(createConsentRequestBodySchema, request, reply);
+      if (!body) return;
+      try {
+        const created = await createConsentRequest(consentRepository, {
+          appointmentId: body.appointment_id,
+          customerId: body.customer_id,
+          deliveryChannel: body.delivery_channel,
+          expiresAt: body.expires_at,
           salonId: request.salonId,
-          status: request.body.status ?? "pending",
-          templateId: request.body.template_id,
-        })
-        .returning();
-      return reply.code(201).send(rows[0]);
+          templateId: body.template_id,
+        });
+        return reply.code(201).send({
+          consent: consentDto(created.consent),
+          signing_url: `/consents/${encodeURIComponent(created.rawToken)}`,
+        });
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.post<{
+    Body: ResendConsentBody;
+    Params: { consentId: string; id: string };
+  }>(
+    "/api/salons/:id/customer-consents/:consentId/resend",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.CLIENTS_EDIT),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      if (!validUuid(request.params.consentId)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST", fields: { consent_id: ["Richiesta non valida"] } });
+      }
+      const body = parseBody(resendConsentBodySchema, request, reply);
+      if (!body) return;
+      try {
+        const resent = await resendConsentRequest(consentRepository, request.params.consentId, {
+          deliveryChannel: body.delivery_channel,
+          expiresAt: body.expires_at,
+          salonId: request.salonId,
+        });
+        return {
+          consent: consentDto(resent.consent),
+          signing_url: `/consents/${encodeURIComponent(resent.rawToken)}`,
+        };
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.post<{
+    Body: SignConsentBody;
+    Params: { consentId: string; id: string };
+  }>(
+    "/api/salons/:id/customer-consents/:consentId/sign",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.CLIENTS_EDIT),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      if (!validUuid(request.params.consentId)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST", fields: { consent_id: ["Richiesta non valida"] } });
+      }
+      const body = parseBody(signConsentBodySchema, request, reply);
+      if (!body) return;
+      try {
+        const signed = await signConsent(consentRepository, {
+          consentId: request.params.consentId,
+          salonId: request.salonId,
+          signedByUserId: request.user.id,
+        }, {
+          accepted: body.accepted,
+          signature: body.signature,
+          signerName: body.signer_name,
+        }, {
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"],
+        });
+        return consentDto(signed);
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.post<{
+    Body: RevokeConsentBody;
+    Params: { consentId: string; id: string };
+  }>(
+    "/api/salons/:id/customer-consents/:consentId/revoke",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.CLIENTS_EDIT),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      if (!validUuid(request.params.consentId)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST", fields: { consent_id: ["Richiesta non valida"] } });
+      }
+      const body = parseBody(revokeConsentBodySchema, request, reply);
+      if (!body) return;
+      try {
+        return consentDto(await revokeConsent(consentRepository, request.params.consentId, {
+          reason: body.reason,
+          revokedByUserId: request.user.id,
+          salonId: request.salonId,
+        }));
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.get<{ Params: { consentId: string; id: string } }>(
+    "/api/salons/:id/customer-consents/:consentId/evidence",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.CLIENTS_VIEW),
+        requireModule(MODULE_KEYS.DOCUMENTS),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      if (!validUuid(request.params.consentId)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST", fields: { consent_id: ["Richiesta non valida"] } });
+      }
+      try {
+        const evidence = await renderConsentEvidence(consentRepository, request.params.consentId, {
+          salonId: request.salonId,
+        });
+        return reply
+          .header("content-disposition", `attachment; filename="${evidence.filename}"`)
+          .header("x-document-sha256", evidence.documentHash)
+          .type(evidence.contentType)
+          .send(evidence.content);
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.get<{ Params: { token: string } }>(
+    "/api/public/consents/:token",
+    async (request, reply) => {
+      try {
+        const consent = await resolveConsent(consentRepository, request.params.token);
+        return {
+          consent: {
+            body: consent.templateBody,
+            expires_at: consent.expiresAt?.toISOString() ?? null,
+            id: consent.id,
+            name: consent.templateName,
+            status: consent.status,
+            type: consent.templateType,
+            version: consent.templateVersion,
+          },
+          salon: { name: consent.salonName },
+        };
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
+    },
+  );
+
+  app.post<{ Body: SignConsentBody; Params: { token: string } }>(
+    "/api/public/consents/:token/sign",
+    async (request, reply) => {
+      const body = parseBody(signConsentBodySchema, request, reply);
+      if (!body) return;
+      try {
+        return consentDto(await signConsent(consentRepository, request.params.token, {
+          accepted: body.accepted,
+          signature: body.signature,
+          signerName: body.signer_name,
+        }, {
+          ipAddress: request.ip,
+          userAgent: request.headers["user-agent"],
+        }));
+      } catch (error) {
+        return sendConsentError(reply, error);
+      }
     },
   );
 

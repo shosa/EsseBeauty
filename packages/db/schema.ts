@@ -93,6 +93,11 @@ export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
   "revoked",
   "expired",
 ]);
+export const consentDeliveryChannelEnum = pgEnum("consent_delivery_channel", [
+  "email",
+  "sms",
+  "in_person",
+]);
 export const staffRequestStatusEnum = pgEnum("staff_request_status", [
   "pending",
   "approved",
@@ -1526,8 +1531,17 @@ export const customerConsents = pgTable(
       .notNull()
       .references(() => consentTemplates.id, { onDelete: "restrict" }),
     status: consentSignatureStatusEnum("status").default("pending").notNull(),
+    tokenHash: text("token_hash"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    deliveryChannel: consentDeliveryChannelEnum("delivery_channel"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
+    signerName: text("signer_name"),
+    documentHash: text("document_hash"),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    revocationReason: text("revocation_reason"),
     signatureData: jsonb("signature_data").$type<Record<string, unknown>>().default({}).notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
@@ -1538,6 +1552,10 @@ export const customerConsents = pgTable(
       table.customerId,
       table.templateId,
       table.appointmentId,
+    ),
+    uniqueIndex("customer_consents_salon_token_hash_unique").on(
+      table.salonId,
+      table.tokenHash,
     ),
   ],
 );
