@@ -34,7 +34,7 @@ import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./she
 import { AppRail } from "./AppRail";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { appForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
+import { appForPath, browserTitleForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
@@ -447,6 +447,13 @@ function ShellContent({ children }: { children: ReactNode }) {
     () => visibleTabs(currentApp, grantedPermissions),
     [currentApp, grantedPermissions],
   );
+
+  useEffect(() => {
+    document.title = browserTitleForPath(pathname);
+    return () => {
+      document.title = "EsseBeauty";
+    };
+  }, [pathname]);
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {

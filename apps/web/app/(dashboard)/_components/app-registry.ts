@@ -406,6 +406,11 @@ export function appForPath(pathname: string): AppDefinition | undefined {
     .sort((left, right) => right.path.length - left.path.length)[0]?.app;
 }
 
+export function browserTitleForPath(pathname: string): string {
+  const appLabel = pathname === "/apps" ? "Apps" : appForPath(pathname)?.label;
+  return appLabel ? `${appLabel.toLocaleUpperCase("it-IT")} | EsseBeauty` : "EsseBeauty";
+}
+
 function hasPermission(
   requiredPermissions: readonly PermissionKey[] | undefined,
   grantedPermissions: ReadonlySet<PermissionKey | string>,

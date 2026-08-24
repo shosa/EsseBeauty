@@ -7,6 +7,7 @@ import {
   APP_DOMAINS,
   APP_REGISTRY,
   appForPath,
+  browserTitleForPath,
   contextTabsForPath,
   visibleApps,
   visibleQuickActions,
@@ -110,5 +111,13 @@ describe("app-oriented dashboard registry", () => {
       "Agenda",
       "Nuovo appuntamento",
     ]);
+  });
+
+  it("builds contextual browser titles from the active app", () => {
+    expect(browserTitleForPath("/")).toBe("HOME | EsseBeauty");
+    expect(browserTitleForPath("/sales")).toBe("CASSA | EsseBeauty");
+    expect(browserTitleForPath("/settings/loyalty/rewards/new")).toBe("FEDELTÀ | EsseBeauty");
+    expect(browserTitleForPath("/apps")).toBe("APPS | EsseBeauty");
+    expect(browserTitleForPath("/unknown")).toBe("EsseBeauty");
   });
 });
