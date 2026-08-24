@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled, useModules } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
@@ -167,9 +168,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
         title="Crea nuovo"
         type="button"
       >
-        <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.2" viewBox="0 0 24 24">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
+        <Plus aria-hidden="true" className="size-5" />
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)] ring-1 ring-stone-950/5 backdrop-blur" role="menu">

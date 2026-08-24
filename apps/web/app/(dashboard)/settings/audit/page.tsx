@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, CircleDollarSign, Settings, Users } from "lucide-react";
 
 import {
   AppPage,
@@ -143,14 +144,9 @@ function kindStyle(kind: Exclude<ActivityKind, "all">) {
 }
 
 function ActivityIcon({ kind }: { kind: Exclude<ActivityKind, "all"> }) {
-  const paths = {
-    appointments: <><rect height="14" rx="2" width="16" x="4" y="5" /><path d="M8 3v4M16 3v4M4 10h16" /></>,
-    customers: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
-    sales: <><path d="M4 7h16v12H4zM8 7V5h8v2M8 13h8" /></>,
-    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
-    team: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 20a6 6 0 0 1 12 0M14 15a5 5 0 0 1 7 4.5" /></>,
-  };
-  return <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${kindStyle(kind)}`}><svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">{paths[kind]}</svg></span>;
+  const icons = { appointments: CalendarDays, customers: Users, sales: CircleDollarSign, settings: Settings, team: Users };
+  const Icon = icons[kind];
+  return <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${kindStyle(kind)}`}><Icon aria-hidden="true" className="size-5" /></span>;
 }
 
 export default function AuditSettingsPage() {
