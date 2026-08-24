@@ -27,6 +27,7 @@ export type AppIcon = ComponentType<SVGProps<SVGSVGElement>>;
 export interface AppTab {
   href: string;
   label: string;
+  permissions?: readonly PermissionKey[];
 }
 
 export interface AppQuickAction {
@@ -92,8 +93,24 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       ],
     }],
     tabs: [
-      { href: "/calendar", label: "Agenda" },
-      { href: "/calendar/appointments/new", label: "Nuovo appuntamento" },
+      {
+        href: "/calendar",
+        label: "Agenda",
+        permissions: [
+          PERMISSION_KEYS.CALENDAR_VIEW_OWN,
+          PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+          PERMISSION_KEYS.CALENDAR_VIEW_OTHERS,
+          PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+        ],
+      },
+      {
+        href: "/calendar/appointments/new",
+        label: "Nuovo appuntamento",
+        permissions: [
+          PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+          PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+        ],
+      },
     ],
   },
   {
@@ -335,11 +352,31 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       PERMISSION_KEYS.SETTINGS_MODULES,
     ],
     tabs: [
-      { href: "/settings", label: "Salone" },
-      { href: "/settings/users", label: "Team e accessi" },
-      { href: "/settings/permissions", label: "Operatività" },
-      { href: "/settings/reminders", label: "Comunicazioni" },
-      { href: "/settings/pwa", label: "App clienti" },
+      {
+        href: "/settings",
+        label: "Salone",
+        permissions: [PERMISSION_KEYS.SETTINGS_SALON],
+      },
+      {
+        href: "/settings/users",
+        label: "Team e accessi",
+        permissions: [PERMISSION_KEYS.SETTINGS_USERS],
+      },
+      {
+        href: "/settings/permissions",
+        label: "Operatività",
+        permissions: [PERMISSION_KEYS.SETTINGS_STAFF],
+      },
+      {
+        href: "/settings/reminders",
+        label: "Comunicazioni",
+        permissions: [PERMISSION_KEYS.SETTINGS_SALON],
+      },
+      {
+        href: "/settings/pwa",
+        label: "App clienti",
+        permissions: [PERMISSION_KEYS.SETTINGS_SALON],
+      },
     ],
   },
   {
@@ -395,6 +432,17 @@ export function visibleQuickActions(
     hasPermission(action.permissions, grantedPermissions));
 }
 
-export function contextTabsForPath(pathname: string): readonly AppTab[] {
-  return appForPath(pathname)?.tabs ?? [];
+export function visibleTabs(
+  app: AppDefinition | undefined,
+  grantedPermissions: ReadonlySet<PermissionKey | string>,
+): AppTab[] {
+  return (app?.tabs ?? []).filter((tab) =>
+    hasPermission(tab.permissions, grantedPermissions));
+}
+
+export function contextTabsForPath(
+  pathname: string,
+  grantedPermissions: ReadonlySet<PermissionKey | string>,
+): AppTab[] {
+  return visibleTabs(appForPath(pathname), grantedPermissions);
 }

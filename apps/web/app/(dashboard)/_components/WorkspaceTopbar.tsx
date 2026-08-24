@@ -4,10 +4,10 @@ import Link from "next/link";
 
 import { ContextTabs } from "@esse-beauty/ui";
 
-import type { AppDefinition, AppQuickAction } from "./app-registry";
+import type { AppDefinition, AppQuickAction, AppTab } from "./app-registry";
 import { BellIcon, ModuleIcon } from "./Icons";
 
-export function WorkspaceTopbar({ actions, app, onLauncherOpen, onNotificationsOpen, onSearchOpen, pathname, unreadCount }: { actions: readonly AppQuickAction[]; app?: AppDefinition; onLauncherOpen(): void; onNotificationsOpen(): void; onSearchOpen(): void; pathname: string; unreadCount: number }) {
+export function WorkspaceTopbar({ actions, app, onLauncherOpen, onNotificationsOpen, onSearchOpen, pathname, tabs, unreadCount }: { actions: readonly AppQuickAction[]; app?: AppDefinition; onLauncherOpen(): void; onNotificationsOpen(): void; onSearchOpen(): void; pathname: string; tabs: readonly AppTab[]; unreadCount: number }) {
   const action = actions[0];
   const Icon = app?.icon;
   return (
@@ -21,7 +21,7 @@ export function WorkspaceTopbar({ actions, app, onLauncherOpen, onNotificationsO
         <button aria-label="Cerca" className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 lg:hidden" onClick={onSearchOpen} type="button">⌕</button>
         <button aria-label="Apri notifiche" className="relative grid size-11 place-items-center rounded-xl border border-stone-200 text-[#792f59]" onClick={onNotificationsOpen} type="button"><BellIcon />{unreadCount > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}</button>
       </div>
-      <ContextTabs className="px-3 md:px-5" currentPath={pathname} items={app?.tabs ?? []} />
+      <ContextTabs className="px-3 md:px-5" currentPath={pathname} items={tabs} />
     </header>
   );
 }

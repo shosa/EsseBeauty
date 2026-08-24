@@ -34,7 +34,7 @@ import { AppLauncher } from "./AppLauncher";
 import { AppRail } from "./AppRail";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { appForPath, visibleApps, visibleQuickActions, type AppQuickAction } from "./app-registry";
+import { appForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
@@ -446,6 +446,10 @@ function ShellContent({ children }: { children: ReactNode }) {
     () => visibleQuickActions(currentApp, grantedPermissions),
     [currentApp, grantedPermissions],
   );
+  const currentTabs = useMemo(
+    () => visibleTabs(currentApp, grantedPermissions),
+    [currentApp, grantedPermissions],
+  );
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
@@ -545,7 +549,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} onLauncherOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} unreadCount={unreadCount} />
+      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} onLauncherOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} />
       <AppLauncher apps={apps} onClose={() => setLauncherOpen(false)} open={launcherOpen} pathname={pathname} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter onClose={() => setNotificationsOpen(false)} onRead={loadUnread} open={notificationsOpen} salonId={salon?.id} />

@@ -84,11 +84,29 @@ describe("app-oriented dashboard registry", () => {
     ).toEqual(["/calendar/appointments/new"]);
   });
 
+  it("hides the calendar creation tab from view-only users", () => {
+    expect(
+      contextTabsForPath(
+        "/calendar",
+        new Set([PERMISSION_KEYS.CALENDAR_VIEW_OWN]),
+      ).map((tab) => tab.label),
+    ).toEqual(["Agenda"]);
+  });
+
+  it("shows only settings tabs permitted for the user", () => {
+    expect(
+      contextTabsForPath(
+        "/settings/users",
+        new Set([PERMISSION_KEYS.SETTINGS_USERS]),
+      ).map((tab) => tab.label),
+    ).toEqual(["Team e accessi"]);
+  });
+
   it("uses correct Italian labels and provides contextual tabs", () => {
     expect(APP_REGISTRY.find((app) => app.key === "accounting")?.label).toBe("Contabilità");
     expect(APP_REGISTRY.find((app) => app.key === "loyalty")?.label).toBe("Fedeltà");
     expect(APP_REGISTRY.find((app) => app.key === "audit")?.label).toBe("Attività");
-    expect(contextTabsForPath("/calendar").map((tab) => tab.label)).toEqual([
+    expect(contextTabsForPath("/calendar", new Set(Object.values(PERMISSION_KEYS))).map((tab) => tab.label)).toEqual([
       "Agenda",
       "Nuovo appuntamento",
     ]);
