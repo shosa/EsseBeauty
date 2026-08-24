@@ -423,7 +423,7 @@ describe("professional UI regression guard", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     const detail = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
     expect(calendar).toContain("setDeleteTarget(undefined)");
-    expect(detail).toContain("setConfirmDelete(false);\n    onChanged?.();");
+    expect(detail.replaceAll("\r\n", "\n")).toContain("setConfirmDelete(false);\n    onChanged?.();");
   });
 
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {

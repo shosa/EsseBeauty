@@ -154,9 +154,15 @@ table tbody tr {
 }
 
 .esse-workspace {
+  --app-rail-width: 76px;
+  --app-topbar-height: 64px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 180px),
-    #f4f0f2;
+    radial-gradient(circle at 88% -10%, rgb(243 226 235 / 0.55), transparent 28rem),
+    #f7f6f4;
+}
+
+.esse-panel {
+  box-shadow: 0 1px 2px rgb(45 29 39 / 0.035);
 }
 
 .esse-workspace-page {
@@ -311,6 +317,15 @@ table tbody tr {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
   .appointment-curtain {
     animation-duration: 1ms;
   }
