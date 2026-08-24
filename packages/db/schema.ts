@@ -79,8 +79,12 @@ export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms"]);
 export const campaignStatusEnum = pgEnum("campaign_status", [
   "draft",
   "scheduled",
+  "queued",
+  "processing",
   "sent",
   "failed",
+  "partial",
+  "cancelled",
 ]);
 export const platformSalonStatusEnum = pgEnum("platform_salon_status", [
   "active",
@@ -1447,6 +1451,8 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
     .notNull(),
   content: text("content").notNull(),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
@@ -1478,14 +1484,33 @@ export const campaignRecipients = pgTable(
     }),
     destination: text("destination").notNull(),
     status: text("status").default("pending").notNull(),
+    providerName: text("provider_name"),
+    providerMessageId: text("provider_message_id"),
+    deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     error: text("error"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("campaign_recipients_campaign_destination_unique").on(
       table.campaignId,
       table.destination,
+    ),
+    index("campaign_recipients_campaign_status_idx").on(
+      table.campaignId,
+      table.status,
+    ),
+    check(
+      "campaign_recipients_delivery_attempts_non_negative",
+      sql`${table.deliveryAttempts} >= 0`,
+    ),
+    check(
+      "campaign_recipients_status_valid",
+      sql`${table.status} in ('pending', 'queued', 'processing', 'sent', 'failed', 'cancelled')`,
     ),
   ],
 );

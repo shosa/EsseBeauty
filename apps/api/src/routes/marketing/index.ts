@@ -1,5 +1,11 @@
-import type { FastifyInstance } from "fastify";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
+import type {
+  FastifyInstance,
+  FastifyReply,
+  preHandlerHookHandler,
+} from "fastify";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   appointments,
@@ -11,9 +17,16 @@ import {
 import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
-import type { CampaignBatchJob } from "../../jobs/marketing.js";
+import { aggregateCampaignStatus } from "../../jobs/marketing.js";
+import type { CampaignBatchJob, CampaignQueue } from "../../jobs/marketing.js";
 import { getQueue, QUEUE_NAMES } from "../../jobs/queues.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import {
+  createCommunicationProviderRegistry,
+  type CommunicationChannel,
+  type CommunicationProviderRegistry,
+  ProviderNotConfiguredError,
+} from "../../providers/communications.js";
 
 type Segment =
   | { type: "all" }
@@ -21,8 +34,21 @@ type Segment =
   | { type: "tag"; tag: string }
   | { type: "high_loyalty"; min_points: number };
 
+export interface MarketingRouteDependencies {
+  campaignQueue?: CampaignQueue;
+  providers?: CommunicationProviderRegistry;
+}
+
+const enforceTenant: preHandlerHookHandler = async (request, reply) => {
+  const params = request.params as { id?: string };
+  if (params.id !== request.salonId) {
+    await reply.code(403).send({ error: "FORBIDDEN" });
+  }
+};
+
 const guard = [
   authenticate,
+  enforceTenant,
   requireModule(MODULE_KEYS.MARKETING),
   requirePermission(PERMISSION_KEYS.MARKETING_SEND),
 ];
@@ -30,16 +56,12 @@ const guard = [
 async function resolveSegment(
   app: FastifyInstance,
   salonId: string,
-  channel: "email" | "sms",
+  channel: CommunicationChannel,
   segment: Segment,
 ) {
-  const destination =
-    channel === "email" ? customers.email : customers.phone;
+  const destination = channel === "email" ? customers.email : customers.phone;
   const base = app.db
-    .select({
-      customerId: customers.id,
-      destination,
-    })
+    .select({ customerId: customers.id, destination })
     .from(customers);
 
   if (segment.type === "inactive") {
@@ -83,14 +105,137 @@ async function resolveSegment(
       );
   }
   return base.where(
-    and(
-      eq(customers.salonId, salonId),
-      sql`${destination} is not null`,
-    ),
+    and(eq(customers.salonId, salonId), sql`${destination} is not null`),
   );
 }
 
-export async function registerMarketingRoutes(app: FastifyInstance) {
+async function enqueueBatches(
+  queue: CampaignQueue,
+  campaignId: string,
+  recipientIds: string[],
+  delay: number,
+) {
+  for (let index = 0; index < recipientIds.length; index += 50) {
+    const batch = recipientIds.slice(index, index + 50);
+    await queue.add(
+      "send-batch",
+      { campaignId, recipientIds: batch } satisfies CampaignBatchJob,
+      {
+        delay,
+        removeOnComplete: { age: 24 * 60 * 60, count: 1_000 },
+        removeOnFail: { age: 7 * 24 * 60 * 60 },
+      },
+    );
+  }
+}
+
+function validTestSendBody(value: unknown): value is {
+  channel: CommunicationChannel;
+  content: string;
+  destination: string;
+  subject?: string;
+} {
+  if (!value || typeof value !== "object") return false;
+  const body = value as Record<string, unknown>;
+  return (
+    (body.channel === "email" || body.channel === "sms") &&
+    typeof body.content === "string" &&
+    body.content.trim().length > 0 &&
+    typeof body.destination === "string" &&
+    body.destination.trim().length > 0 &&
+    (body.subject === undefined || typeof body.subject === "string")
+  );
+}
+
+export async function registerMarketingRoutes(
+  app: FastifyInstance,
+  dependencies: MarketingRouteDependencies = {},
+) {
+  const providers =
+    dependencies.providers ?? createCommunicationProviderRegistry();
+  const campaignQueue =
+    dependencies.campaignQueue ?? getQueue(QUEUE_NAMES.CAMPAIGNS);
+
+  async function recordQueueFailure(campaignId: string, recipientIds: string[]) {
+    await app.db.transaction(async (tx) => {
+      await tx
+        .update(campaignRecipients)
+        .set({
+          error: "CAMPAIGN_QUEUE_UNAVAILABLE",
+          status: "failed",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(campaignRecipients.campaignId, campaignId),
+            inArray(campaignRecipients.id, recipientIds),
+            eq(campaignRecipients.status, "queued"),
+          ),
+        );
+      const recipients = await tx
+        .select({ status: campaignRecipients.status })
+        .from(campaignRecipients)
+        .where(eq(campaignRecipients.campaignId, campaignId));
+      await tx
+        .update(marketingCampaigns)
+        .set({
+          status: aggregateCampaignStatus(recipients),
+          updatedAt: new Date(),
+        })
+        .where(eq(marketingCampaigns.id, campaignId));
+    });
+  }
+
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/campaigns/readiness",
+    { preHandler: guard },
+    async () => providers.status(),
+  );
+
+  app.post<{ Params: { id: string }; Body: unknown }>(
+    "/api/salons/:id/campaigns/test-send",
+    { preHandler: guard },
+    async (request, reply) => {
+      if (!validTestSendBody(request.body)) {
+        return reply.code(400).send({ error: "INVALID_REQUEST" });
+      }
+      const body = request.body;
+      if (body.channel === "sms" && body.content.length > 160) {
+        return reply.code(400).send({ error: "SMS_TOO_LONG" });
+      }
+      try {
+        const receipt = await providers.send(
+          body.channel === "email"
+            ? {
+                channel: "email",
+                html: body.content,
+                idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
+                subject: body.subject?.trim() || "Test comunicazione",
+                to: body.destination,
+              }
+            : {
+                channel: "sms",
+                idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
+                text: body.content,
+                to: body.destination,
+              },
+        );
+        return {
+          accepted_at: receipt.acceptedAt.toISOString(),
+          provider: receipt.provider,
+          provider_message_id: receipt.providerMessageId,
+        };
+      } catch (error) {
+        if (error instanceof ProviderNotConfiguredError) {
+          return reply
+            .code(503)
+            .send({ error: "PROVIDER_NOT_CONFIGURED", channel: error.channel });
+        }
+        return reply.code(502).send({ error: "PROVIDER_DELIVERY_FAILED" });
+      }
+    },
+  );
+
   app.get<{ Params: { id: string } }>(
     "/api/salons/:id/campaigns",
     { preHandler: guard },
@@ -106,7 +251,7 @@ export async function registerMarketingRoutes(app: FastifyInstance) {
     Params: { id: string };
     Body: {
       name: string;
-      channel: "email" | "sms";
+      channel: CommunicationChannel;
       target_segment: Segment;
       content: string;
       scheduled_at?: string;
@@ -135,7 +280,7 @@ export async function registerMarketingRoutes(app: FastifyInstance) {
     Params: { id: string; campaignId: string };
     Body: Partial<{
       name: string;
-      channel: "email" | "sms";
+      channel: CommunicationChannel;
       target_segment: Segment;
       content: string;
       scheduled_at: string | null;
@@ -145,20 +290,17 @@ export async function registerMarketingRoutes(app: FastifyInstance) {
       .update(marketingCampaigns)
       .set({
         ...(request.body.name !== undefined && { name: request.body.name }),
-        ...(request.body.channel !== undefined && {
-          channel: request.body.channel,
-        }),
+        ...(request.body.channel !== undefined && { channel: request.body.channel }),
         ...(request.body.target_segment !== undefined && {
           targetSegment: request.body.target_segment,
         }),
-        ...(request.body.content !== undefined && {
-          content: request.body.content,
-        }),
+        ...(request.body.content !== undefined && { content: request.body.content }),
         ...(request.body.scheduled_at !== undefined && {
           scheduledAt: request.body.scheduled_at
             ? new Date(request.body.scheduled_at)
             : null,
         }),
+        updatedAt: new Date(),
       })
       .where(
         and(
@@ -171,12 +313,146 @@ export async function registerMarketingRoutes(app: FastifyInstance) {
     return rows[0] ?? reply.code(409).send({ error: "CAMPAIGN_NOT_EDITABLE" });
   });
 
+  async function scheduleCampaign(
+    request: { params: { campaignId: string }; salonId: string },
+    reply: FastifyReply,
+  ) {
+    const rows = await app.db
+      .select()
+      .from(marketingCampaigns)
+      .where(
+        and(
+          eq(marketingCampaigns.id, request.params.campaignId),
+          eq(marketingCampaigns.salonId, request.salonId),
+        ),
+      );
+    const campaign = rows[0];
+    if (!campaign || campaign.status !== "draft") {
+      return reply.code(409).send({ error: "CAMPAIGN_NOT_SENDABLE" });
+    }
+    if (providers.status()[campaign.channel] !== "ready") {
+      return reply.code(503).send({
+        channel: campaign.channel,
+        error: "PROVIDER_NOT_CONFIGURED",
+      });
+    }
+    const recipients = await resolveSegment(
+      app,
+      request.salonId,
+      campaign.channel,
+      campaign.targetSegment as Segment,
+    );
+    if (recipients.length === 0) {
+      await app.db
+        .update(marketingCampaigns)
+        .set({ status: "failed", updatedAt: new Date() })
+        .where(eq(marketingCampaigns.id, campaign.id));
+      return reply.code(409).send({ error: "CAMPAIGN_HAS_NO_RECIPIENTS" });
+    }
+
+    const delay = campaign.scheduledAt
+      ? Math.max(0, campaign.scheduledAt.getTime() - Date.now())
+      : 0;
+    const status = delay > 0 ? "scheduled" : "queued";
+    const inserted = await app.db.transaction(async (tx) => {
+      const claimed = await tx
+        .update(marketingCampaigns)
+        .set({ status, updatedAt: new Date() })
+        .where(
+          and(
+            eq(marketingCampaigns.id, campaign.id),
+            eq(marketingCampaigns.salonId, request.salonId),
+            eq(marketingCampaigns.status, "draft"),
+          ),
+        )
+        .returning({ id: marketingCampaigns.id });
+      if (!claimed[0]) return undefined;
+      return tx
+        .insert(campaignRecipients)
+        .values(
+          recipients.map((recipient) => ({
+            campaignId: campaign.id,
+            customerId: recipient.customerId,
+            destination: recipient.destination!,
+            salonId: request.salonId,
+            status: "queued",
+          })),
+        )
+        .onConflictDoNothing()
+        .returning({ id: campaignRecipients.id });
+    });
+    if (!inserted) {
+      return reply.code(409).send({ error: "CAMPAIGN_NOT_SENDABLE" });
+    }
+    try {
+      await enqueueBatches(
+        campaignQueue,
+        campaign.id,
+        inserted.map((recipient) => recipient.id),
+        delay,
+      );
+    } catch {
+      await recordQueueFailure(
+        campaign.id,
+        inserted.map((recipient) => recipient.id),
+      );
+      return reply.code(503).send({ error: "CAMPAIGN_QUEUE_UNAVAILABLE" });
+    }
+    return reply.code(202).send({
+      campaign_id: campaign.id,
+      recipient_count: inserted.length,
+      status,
+    });
+  }
+
+  app.post<{ Params: { id: string; campaignId: string } }>(
+    "/api/salons/:id/campaigns/:campaignId/schedule",
+    { preHandler: guard },
+    scheduleCampaign,
+  );
+
   app.post<{ Params: { id: string; campaignId: string } }>(
     "/api/salons/:id/campaigns/:campaignId/send",
     { preHandler: guard },
+    scheduleCampaign,
+  );
+
+  app.post<{ Params: { id: string; campaignId: string } }>(
+    "/api/salons/:id/campaigns/:campaignId/cancel",
+    { preHandler: guard },
     async (request, reply) => {
-      const rows = await app.db
-        .select()
+      const cancelled = await app.db.transaction(async (tx) => {
+        const rows = await tx
+          .update(marketingCampaigns)
+          .set({
+            cancelledAt: new Date(),
+            status: "cancelled",
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(marketingCampaigns.id, request.params.campaignId),
+              eq(marketingCampaigns.salonId, request.salonId),
+              inArray(marketingCampaigns.status, ["queued", "scheduled"]),
+            ),
+          )
+          .returning();
+        if (!rows[0]) return undefined;
+        await tx
+          .update(campaignRecipients)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(
+            and(
+              eq(campaignRecipients.campaignId, rows[0].id),
+              eq(campaignRecipients.salonId, request.salonId),
+              inArray(campaignRecipients.status, ["pending", "queued"]),
+            ),
+          );
+        return rows[0];
+      });
+      if (cancelled) return cancelled;
+      const existing = await app.db
+        .select({ status: marketingCampaigns.status })
         .from(marketingCampaigns)
         .where(
           and(
@@ -184,54 +460,65 @@ export async function registerMarketingRoutes(app: FastifyInstance) {
             eq(marketingCampaigns.salonId, request.salonId),
           ),
         );
-      const campaign = rows[0];
-      if (!campaign || campaign.status !== "draft") {
-        return reply.code(409).send({ error: "CAMPAIGN_NOT_SENDABLE" });
+      return reply.code(409).send({
+        error:
+          existing[0]?.status === "processing"
+            ? "CAMPAIGN_ALREADY_PROCESSING"
+            : "CAMPAIGN_NOT_CANCELLABLE",
+      });
+    },
+  );
+
+  app.post<{ Params: { id: string; campaignId: string } }>(
+    "/api/salons/:id/campaigns/:campaignId/retry-failures",
+    { preHandler: guard },
+    async (request, reply) => {
+      const recipientIds = await app.db.transaction(async (tx) => {
+        const campaigns = await tx
+          .select({ channel: marketingCampaigns.channel, id: marketingCampaigns.id })
+          .from(marketingCampaigns)
+          .where(
+            and(
+              eq(marketingCampaigns.id, request.params.campaignId),
+              eq(marketingCampaigns.salonId, request.salonId),
+              inArray(marketingCampaigns.status, ["failed", "partial"]),
+            ),
+          );
+        const campaign = campaigns[0];
+        if (!campaign) return undefined;
+        if (providers.status()[campaign.channel] !== "ready") return null;
+        const queued = await tx
+          .update(campaignRecipients)
+          .set({ error: null, status: "queued", updatedAt: new Date() })
+          .where(
+            and(
+              eq(campaignRecipients.campaignId, campaign.id),
+              eq(campaignRecipients.salonId, request.salonId),
+              eq(campaignRecipients.status, "failed"),
+            ),
+          )
+          .returning({ id: campaignRecipients.id });
+        if (queued.length) {
+          await tx
+            .update(marketingCampaigns)
+            .set({ status: "processing", updatedAt: new Date() })
+            .where(eq(marketingCampaigns.id, campaign.id));
+        }
+        return queued.map((recipient) => recipient.id);
+      });
+      if (recipientIds === null) {
+        return reply.code(503).send({ error: "PROVIDER_NOT_CONFIGURED" });
       }
-      const recipients = await resolveSegment(
-        app,
-        request.salonId,
-        campaign.channel,
-        campaign.targetSegment as Segment,
-      );
-      const inserted = recipients.length
-        ? await app.db
-            .insert(campaignRecipients)
-            .values(
-              recipients.map((recipient) => ({
-                campaignId: campaign.id,
-                salonId: request.salonId,
-                customerId: recipient.customerId,
-                destination: recipient.destination!,
-              })),
-            )
-            .onConflictDoNothing()
-            .returning({ id: campaignRecipients.id })
-        : [];
-      const delay = campaign.scheduledAt
-        ? Math.max(0, campaign.scheduledAt.getTime() - Date.now())
-        : 0;
-      for (let index = 0; index < inserted.length; index += 50) {
-        const batch = inserted.slice(index, index + 50).map((item) => item.id);
-        await getQueue(QUEUE_NAMES.CAMPAIGNS).add(
-          "send-batch",
-          {
-            campaignId: campaign.id,
-            recipientIds: batch,
-          } satisfies CampaignBatchJob,
-          { delay },
-        );
+      if (!recipientIds?.length) {
+        return reply.code(409).send({ error: "CAMPAIGN_HAS_NO_FAILED_RECIPIENTS" });
       }
-      const status = delay > 0 ? "scheduled" : "sent";
-      const updated = await app.db
-        .update(marketingCampaigns)
-        .set({
-          status,
-          sentAt: delay > 0 ? null : new Date(),
-        })
-        .where(eq(marketingCampaigns.id, campaign.id))
-        .returning();
-      return updated[0];
+      try {
+        await enqueueBatches(campaignQueue, request.params.campaignId, recipientIds, 0);
+      } catch {
+        await recordQueueFailure(request.params.campaignId, recipientIds);
+        return reply.code(503).send({ error: "CAMPAIGN_QUEUE_UNAVAILABLE" });
+      }
+      return reply.code(202).send({ queued: recipientIds.length, status: "processing" });
     },
   );
 
@@ -241,9 +528,10 @@ export async function registerMarketingRoutes(app: FastifyInstance) {
     async (request) => {
       const rows = await app.db
         .select({
+          failed_count: sql<number>`count(*) filter (where ${campaignRecipients.status} = 'failed')`,
+          processing_count: sql<number>`count(*) filter (where ${campaignRecipients.status} in ('pending', 'queued', 'processing'))`,
           recipient_count: sql<number>`count(*)`,
           sent_count: sql<number>`count(*) filter (where ${campaignRecipients.status} = 'sent')`,
-          failed_count: sql<number>`count(*) filter (where ${campaignRecipients.status} = 'failed')`,
         })
         .from(campaignRecipients)
         .where(

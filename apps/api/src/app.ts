@@ -20,6 +20,8 @@ import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
 import { registerMarketingRoutes } from "./routes/marketing/index.js";
+import type { CampaignQueue } from "./jobs/marketing.js";
+import type { CommunicationProviderRegistry } from "./providers/communications.js";
 import { registerOnboardingRoutes } from "./routes/onboarding/index.js";
 import { registerPlatformRoutes } from "./routes/platform/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
@@ -41,6 +43,8 @@ interface ApiEnvironment {
 }
 
 interface CreateAppOptions {
+  campaignProviders?: CommunicationProviderRegistry;
+  campaignQueue?: CampaignQueue;
   db: DrizzleDB;
   env: ApiEnvironment;
   logger?: boolean;
@@ -79,6 +83,8 @@ function requestLogSerializer(request: FastifyRequest) {
 }
 
 export function createApp({
+  campaignProviders,
+  campaignQueue,
   db,
   env,
   logger = false,
@@ -140,7 +146,10 @@ export function createApp({
   void registerWaitlistRoutes(app);
   void registerVoucherRoutes(app);
   void registerLoyaltyRoutes(app);
-  void registerMarketingRoutes(app);
+  void registerMarketingRoutes(app, {
+    campaignQueue,
+    providers: campaignProviders,
+  });
   void registerOnboardingRoutes(app);
   void registerInventoryRoutes(app);
   void registerSalesRoutes(app);

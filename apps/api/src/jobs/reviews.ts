@@ -354,9 +354,14 @@ export async function processReviewRequest(
         delivery.email,
         `Come è andato il tuo appuntamento da ${delivery.salonName}?`,
         `<p>Ciao ${delivery.customerName},</p><p>raccontaci come è andato ${delivery.serviceName}.</p><p><a href="${reviewUrl}">Lascia una recensione</a></p>`,
+        { idempotencyKey: `review-invitation-${delivery.invitationId}` },
       );
     } else if (delivery.channel === "sms" && delivery.phone) {
-      await smsSender(delivery.phone, buildReviewSms(delivery.serviceName, reviewUrl));
+      await smsSender(
+        delivery.phone,
+        buildReviewSms(delivery.serviceName, reviewUrl),
+        { idempotencyKey: `review-invitation-${delivery.invitationId}` },
+      );
     }
     await db.update(reviewInvitations).set({
       deliveredAt: new Date(),
