@@ -19,6 +19,8 @@ describe("apps directory navigation", () => {
     expect(page).toContain("Cerca app");
     expect(page).toContain('data-ui="app-drawer"');
     expect(page).toContain("aspect-square");
+    expect(page).toContain("ESSENTIAL_APP_KEYS");
+    expect(page).toContain("!ESSENTIAL_APP_KEYS.has(app.key)");
   });
 
   it("navigates every Apps control to /apps without modal state", () => {
@@ -31,5 +33,13 @@ describe("apps directory navigation", () => {
     expect(shell).not.toContain("launcherOpen");
     expect(shell).not.toContain("<AppLauncher");
     expect(`${rail}${topbar}${mobile}`).not.toContain("onLauncherOpen");
+  });
+
+  it("centers exactly the three essential pinned apps in the desktop rail", () => {
+    const rail = readFileSync(join(components, "AppRail.tsx"), "utf8");
+
+    expect(rail).toContain('new Set(["home", "calendar", "sales"])');
+    expect(rail).toContain("flex-1 flex-col items-center justify-center");
+    expect(rail).not.toContain("current && !pinnedKeys.has");
   });
 });

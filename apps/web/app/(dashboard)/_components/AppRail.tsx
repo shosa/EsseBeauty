@@ -26,7 +26,6 @@ export function AppRail({
 }) {
   const pinnedKeys = new Set(["home", "calendar", "sales"]);
   const pinned = apps.filter((app) => pinnedKeys.has(app.key));
-  const current = apps.find((app) => activePath(pathname, app.href));
   const settings = apps.find((app) => app.key === "settings");
   const initials = userName.split(" ").map((part) => part[0]).join("").slice(0, 2);
 
@@ -36,8 +35,9 @@ export function AppRail({
       <nav aria-label="App fissate" className="mt-4 flex flex-1 flex-col items-center gap-1.5">
         <Link aria-label="Apri tutte le app" className="grid size-12 place-items-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" href="/apps" title="Tutte le app"><ModuleIcon /></Link>
         <span className="my-1 h-px w-8 bg-white/10" />
-        {pinned.map((app) => <Link aria-current={activePath(pathname, app.href) ? "page" : undefined} aria-label={app.label} className={`grid size-12 place-items-center rounded-xl transition ${activePath(pathname, app.href) ? "bg-white text-[#792f59] shadow-md" : "text-white/65 hover:bg-white/10 hover:text-white"}`} href={app.href} key={app.key} title={app.label}><app.icon /></Link>)}
-        {current && !pinnedKeys.has(current.key) && <><span className="my-1 h-px w-8 bg-white/10" /><Link aria-current="page" aria-label={current.label} className="grid size-12 place-items-center rounded-xl bg-white text-[#792f59] shadow-md" href={current.href} title={current.label}><current.icon /></Link></>}
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
+          {pinned.map((app) => <Link aria-current={activePath(pathname, app.href) ? "page" : undefined} aria-label={app.label} className={`grid size-12 place-items-center rounded-xl transition ${activePath(pathname, app.href) ? "bg-white text-[#792f59] shadow-md" : "text-white/65 hover:bg-white/10 hover:text-white"}`} href={app.href} key={app.key} title={app.label}><app.icon /></Link>)}
+        </div>
       </nav>
       <div className="flex flex-col items-center gap-1.5">
         <button aria-label="Apri notifiche" className="relative grid size-12 place-items-center rounded-xl text-white/65 hover:bg-white/10 hover:text-white" onClick={onNotificationsOpen} type="button"><BellIcon />{unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black">{Math.min(unreadCount, 9)}</span>}</button>
