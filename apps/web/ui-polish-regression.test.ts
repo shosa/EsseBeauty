@@ -161,22 +161,14 @@ describe("professional UI regression guard", () => {
     expect(platform).not.toContain("setSelectedSalonId(rows[0]");
   });
 
-  it("uses one persistent dashboard side navigation instead of separate rail and sidebar blocks", () => {
+  it("uses the hybrid app rail, launcher, and contextual workspace shell", () => {
     const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
-    expect(shell).toContain("UnifiedSideNavigation");
-    expect(shell).toContain("navigation_collapsed");
-    expect(shell).toContain("/api/salons/${salon.id}/shell-preferences");
-    expect(shell).toContain("md:pl-[var(--shell-nav-width)]");
-    expect(shell).toContain("md:left-[var(--shell-nav-width)]");
-    expect(shell).toContain("overflow-y-auto");
-    expect(shell).toContain("SidebarToggleIcon");
-    expect(shell).toContain("BellIcon");
-    expect(shell).not.toContain('<span className="font-black">N</span>');
-    expect(shell).not.toContain(">\\n              N\\n");
-    expect(shell).not.toContain("onToggle");
-    expect(shell).not.toContain("function RailLink");
-    expect(shell).not.toContain("left-20");
-    expect(shell).not.toContain("md:pl-[344px]");
+    expect(shell).toContain("<AppRail");
+    expect(shell).toContain("<AppLauncher");
+    expect(shell).toContain("<WorkspaceTopbar");
+    expect(shell).toContain("<MobileAppNavigation");
+    expect(shell).toContain("md:pl-[76px]");
+    expect(shell).not.toContain("<UnifiedSideNavigation");
   });
 
   it("uses the Connected Workspace contract across shell, pages, and settings", () => {
@@ -190,9 +182,9 @@ describe("professional UI regression guard", () => {
     expect(ui).toContain("esse-page-header");
     expect(ui).toContain("esse-panel");
     expect(globals).toContain(".esse-workspace");
-    expect(shell).toContain("workspaceSections");
-    expect(shell).toContain("currentSection");
-    expect(shell).toContain("bg-[#35212e]");
+    expect(shell).toContain("visibleApps");
+    expect(shell).toContain("currentApp");
+    expect(shell).toContain("WorkspaceTopbar");
     expect(settings).toContain("Impostazioni salone");
     expect(settings).toContain("rounded-2xl border");
     expect(dashboard).toContain("Da fare");

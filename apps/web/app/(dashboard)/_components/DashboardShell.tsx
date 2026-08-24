@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { MODULE_KEYS, ModuleProvider, useModuleEnabled } from "@esse-beauty/feature-flags";
+import { MODULE_KEYS, ModuleProvider, useModuleEnabled, useModules } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -30,6 +30,11 @@ import {
   WaitlistIcon,
 } from "./Icons";
 import { notificationTypeLabels, quickCreateActions, searchGroups, type SearchGroupKey } from "./shell-config";
+import { AppLauncher } from "./AppLauncher";
+import { AppRail } from "./AppRail";
+import { MobileAppNavigation } from "./MobileAppNavigation";
+import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import { appForPath, visibleApps } from "./app-registry";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
@@ -408,11 +413,13 @@ function UnifiedSideNavigation({
 
 function ShellContent({ children }: { children: ReactNode }) {
   const { salon, user } = useAuth();
+  const { modules } = useModules();
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -421,6 +428,8 @@ function ShellContent({ children }: { children: ReactNode }) {
     return primary;
   }, [pathname]);
   const section = currentSection(pathname);
+  const apps = useMemo(() => visibleApps(new Set(Object.entries(modules).filter(([, enabled]) => enabled).map(([key]) => key))), [modules]);
+  const currentApp = appForPath(pathname);
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
@@ -509,63 +518,23 @@ function ShellContent({ children }: { children: ReactNode }) {
     router.refresh();
   }
 
-  const shellStyle = {
-    "--shell-nav-width": navigationCollapsed ? "5rem" : "18rem",
-  } as CSSProperties;
-
   return (
-    <div className="esse-workspace min-h-screen pl-0 md:pl-[var(--shell-nav-width)]" style={shellStyle}>
-      <UnifiedSideNavigation
-        collapsed={navigationCollapsed}
+    <div className="esse-workspace min-h-screen pb-16 md:pb-0 md:pl-[76px]">
+      <AppRail
+        apps={apps}
         logout={() => void logout()}
-        onNotificationOpen={() => setNotificationsOpen(true)}
-        sectionLinks={sectionLinks}
-        staffRequestCount={staffRequestCount}
+        onLauncherOpen={() => setLauncherOpen(true)}
+        onNotificationsOpen={() => setNotificationsOpen(true)}
+        pathname={pathname}
         unreadCount={unreadCount}
-        user={user}
+        userName={user?.full_name ?? ""}
       />
-
-      <header className="fixed left-0 right-0 top-0 z-20 border-b border-[#e6dce2] bg-white/94 px-4 py-2.5 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)] backdrop-blur md:left-[var(--shell-nav-width)]">
-        <div className="flex items-center justify-between gap-3">
-          <button className="rounded-2xl border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-stone-600 md:hidden" onClick={() => setMoreOpen(true)} type="button"><MoreIcon />Menu</button>
-          <button
-            aria-label={navigationCollapsed ? "Espandi navigazione" : "Comprimi navigazione"}
-            aria-pressed={navigationCollapsed}
-            className="hidden min-h-10 min-w-10 place-items-center rounded-2xl border border-stone-200 bg-white text-[#792f59] shadow-sm transition hover:-translate-y-0.5 hover:border-[#d7a6c1] hover:bg-[#fffafd] md:grid"
-            onClick={() => setCollapsedPreference(!navigationCollapsed)}
-            title={navigationCollapsed ? "Espandi navigazione" : "Comprimi navigazione"}
-            type="button"
-          >
-            <SidebarToggleIcon />
-          </button>
-          <div className="hidden min-w-40 md:block">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">{section.area}</p>
-            <p className="text-sm font-bold text-[#2d1d27]">{section.label}</p>
-          </div>
-          <button className="hidden min-h-10 min-w-[280px] rounded-2xl border border-stone-200 bg-white px-4 text-left text-sm font-semibold text-stone-500 shadow-sm md:block" onClick={() => setSearchOpen(true)} type="button">Cerca cliente, appuntamento, servizio... Ctrl+K</button>
-          <div className="ml-auto flex items-center gap-2">
-            <QuickCreateMenu />
-            <button aria-label="Apri notifiche" className="relative grid min-h-10 min-w-10 place-items-center rounded-xl border border-stone-200 bg-white text-sm font-black text-[#792f59] shadow-sm" onClick={() => setNotificationsOpen(true)} type="button">
-              <BellIcon />
-              {unreadCount > 0 && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}
-            </button>
-          </div>
-        </div>
-      </header>
-
+      <WorkspaceTopbar app={currentApp} onLauncherOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} unreadCount={unreadCount} />
+      <AppLauncher apps={apps} onClose={() => setLauncherOpen(false)} open={launcherOpen} pathname={pathname} />
       <CommandPalette onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter onClose={() => setNotificationsOpen(false)} onRead={loadUnread} open={notificationsOpen} salonId={salon?.id} />
-      <main className="pt-16 md:pt-[72px]">{children}</main>
-
-      {moreOpen && (
-        <div className="fixed inset-0 z-50 bg-[#2d1d27]/40 backdrop-blur-sm md:hidden" onClick={() => setMoreOpen(false)}>
-          <aside className="absolute inset-y-0 left-0 w-[86%] max-w-sm overflow-y-auto bg-[#35212e] p-5 text-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Navigazione</h2><button className="text-white/65" onClick={() => setMoreOpen(false)}>Chiudi</button></div>
-            <nav className="mt-6 space-y-1">{primary.map((item) => <NavigationLink href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}<ModuleNav close={() => setMoreOpen(false)} />{settingsLinks.map((item) => <NavigationLink badge={item.href === "/settings/permissions" ? staffRequestCount : 0} href={item.href} icon={item.icon} key={item.href} label={item.label} onClick={() => setMoreOpen(false)} />)}</nav>
-            <button className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 py-3 font-semibold text-red-700" onClick={() => void logout()}><LogoutIcon />Esci</button>
-          </aside>
-        </div>
-      )}
+      <main className={`${currentApp?.tabs?.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
+      <MobileAppNavigation onLauncherOpen={() => setLauncherOpen(true)} pathname={pathname} />
     </div>
   );
 }
