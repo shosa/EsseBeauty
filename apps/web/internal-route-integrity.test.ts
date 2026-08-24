@@ -3,6 +3,11 @@ import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  DOCUMENTED_INTERNAL_REDIRECTS,
+  isInternalDashboardHref,
+} from "../api/src/lib/internal-routes.js";
+
 const webRoot = process.cwd();
 const workspaceRoot = join(webRoot, "../..");
 const apiRoot = join(workspaceRoot, "apps", "api", "src");
@@ -44,12 +49,23 @@ function apiInternalHrefs(): string[] {
 describe("internal route integrity", () => {
   it("maps every API-generated dashboard href to a Next page or documented redirect", () => {
     const internalHrefs = apiInternalHrefs();
-    const documentedRedirects = new Set<string>();
+    const documentedRedirects = new Set(Object.keys(DOCUMENTED_INTERNAL_REDIRECTS));
     const validTargets = new Set([...nextRoutes(), ...documentedRedirects]);
 
     expect(internalHrefs).not.toContain("/services/:id");
     expect(internalHrefs).not.toContain("/staff/:id");
+    expect(internalHrefs.filter((href) => !isInternalDashboardHref(href))).toEqual([]);
     expect(internalHrefs.filter((href) => !validTargets.has(href))).toEqual([]);
+  });
+
+  it("documents every dashboard redirect with the page that performs it", () => {
+    for (const [href, redirect] of Object.entries(DOCUMENTED_INTERNAL_REDIRECTS)) {
+      const source = readFileSync(join(webRoot, "app", redirect.page), "utf8");
+
+      expect(nextRoutes()).toContain(href);
+      expect(source).toContain("redirect(");
+      expect(source).toContain(redirect.destination);
+    }
   });
 
   it("renders home notifications without href as inbox tasks instead of links", () => {

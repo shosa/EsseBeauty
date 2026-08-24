@@ -4,6 +4,8 @@ import type { FastifyInstance } from "fastify";
 
 import { notifications } from "@esse-beauty/db/schema";
 
+import { isInternalDashboardHref } from "../lib/internal-routes.js";
+
 const SMS_LIMIT = 160;
 
 function required(name: string): string {
@@ -65,6 +67,10 @@ export async function createNotification(
     userId?: string;
   },
 ): Promise<void> {
+  if (input.href && !isInternalDashboardHref(input.href)) {
+    throw new TypeError("Invalid internal dashboard href.");
+  }
+
   await app.db.insert(notifications).values({
     body: input.body,
     category: input.category,
