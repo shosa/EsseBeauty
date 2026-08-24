@@ -29,12 +29,12 @@ import {
   StaffIcon,
   WaitlistIcon,
 } from "./Icons";
-import { notificationTypeLabels, quickCreateActions, searchGroups, type SearchGroupKey } from "./shell-config";
+import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./shell-config";
 import { AppLauncher } from "./AppLauncher";
 import { AppRail } from "./AppRail";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { appForPath, visibleApps } from "./app-registry";
+import { appForPath, visibleApps, visibleQuickActions, type AppQuickAction } from "./app-registry";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
@@ -155,7 +155,7 @@ function ModuleNavItem({ close, collapsed = false, href, icon, moduleKey, label 
   return useModuleEnabled(moduleKey) ? <NavigationLink collapsed={collapsed} href={href} icon={icon} label={label} onClick={close} /> : null;
 }
 
-function QuickCreateMenu() {
+function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -174,8 +174,8 @@ function QuickCreateMenu() {
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)] ring-1 ring-stone-950/5 backdrop-blur" role="menu">
-          {quickCreateActions.map((action) => (
-            <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" href={action.href} key={action.key} onClick={() => setOpen(false)} role="menuitem">
+          {actions.map((action) => (
+            <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" href={action.href} key={action.href} onClick={() => setOpen(false)} role="menuitem">
               {action.label}
             </Link>
           ))}
@@ -185,7 +185,7 @@ function QuickCreateMenu() {
   );
 }
 
-function CommandPalette({ onClose, open, salonId }: { onClose(): void; open: boolean; salonId?: string }) {
+function CommandPalette({ actions, onClose, open, salonId }: { actions: readonly AppQuickAction[]; onClose(): void; open: boolean; salonId?: string }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState("");
@@ -220,7 +220,7 @@ function CommandPalette({ onClose, open, salonId }: { onClose(): void; open: boo
       <div className="mt-4 border-b border-stone-100 pb-4">
         <p className="mb-2 text-xs font-black uppercase tracking-[.16em] text-stone-400">Azioni rapide</p>
         <div className="grid gap-2">
-          {quickCreateActions.map((action) => <Link className="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold hover:bg-[#f3e2eb]" href={action.href} key={action.key} onClick={onClose}>{action.label}</Link>)}
+          {actions.map((action) => <Link className="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold hover:bg-[#f3e2eb]" href={action.href} key={action.href} onClick={onClose}>{action.label}</Link>)}
         </div>
       </div>
       {error && <InlineError className="mt-4">{error}</InlineError>}
@@ -412,7 +412,7 @@ function UnifiedSideNavigation({
 }
 
 function ShellContent({ children }: { children: ReactNode }) {
-  const { salon, user } = useAuth();
+  const { permissions, salon, user } = useAuth();
   const { modules } = useModules();
   const pathname = usePathname();
   const router = useRouter();
@@ -424,12 +424,28 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const grantedPermissions = useMemo(() => new Set(permissions), [permissions]);
+
   const sectionLinks = useMemo(() => {
     return primary;
   }, [pathname]);
   const section = currentSection(pathname);
-  const apps = useMemo(() => visibleApps(new Set(Object.entries(modules).filter(([, enabled]) => enabled).map(([key]) => key))), [modules]);
-  const currentApp = appForPath(pathname);
+  const apps = useMemo(
+    () => visibleApps(
+      new Set(Object.entries(modules).filter(([, enabled]) => enabled).map(([key]) => key)),
+      grantedPermissions,
+    ),
+    [grantedPermissions, modules],
+  );
+  const currentApp = apps.find((app) => app.key === appForPath(pathname)?.key);
+  const quickActions = useMemo(
+    () => apps.flatMap((app) => visibleQuickActions(app, grantedPermissions)),
+    [apps, grantedPermissions],
+  );
+  const currentQuickActions = useMemo(
+    () => visibleQuickActions(currentApp, grantedPermissions),
+    [currentApp, grantedPermissions],
+  );
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
@@ -529,12 +545,12 @@ function ShellContent({ children }: { children: ReactNode }) {
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <WorkspaceTopbar app={currentApp} onLauncherOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} unreadCount={unreadCount} />
+      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} onLauncherOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} unreadCount={unreadCount} />
       <AppLauncher apps={apps} onClose={() => setLauncherOpen(false)} open={launcherOpen} pathname={pathname} />
-      <CommandPalette onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
+      <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter onClose={() => setNotificationsOpen(false)} onRead={loadUnread} open={notificationsOpen} salonId={salon?.id} />
       <main className={`${currentApp?.tabs?.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
-      <MobileAppNavigation onLauncherOpen={() => setLauncherOpen(true)} pathname={pathname} />
+      <MobileAppNavigation apps={apps} onLauncherOpen={() => setLauncherOpen(true)} pathname={pathname} />
     </div>
   );
 }

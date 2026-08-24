@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MODULE_KEYS } from "@esse-beauty/feature-flags";
+import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import {
   APP_DOMAINS,
@@ -8,6 +9,7 @@ import {
   appForPath,
   contextTabsForPath,
   visibleApps,
+  visibleQuickActions,
 } from "./app/(dashboard)/_components/app-registry.js";
 
 describe("app-oriented dashboard registry", () => {
@@ -45,12 +47,41 @@ describe("app-oriented dashboard registry", () => {
   });
 
   it("hides optional apps unless their feature is enabled", () => {
-    const withoutModules = visibleApps(new Set());
+    const allPermissions = new Set(Object.values(PERMISSION_KEYS));
+    const withoutModules = visibleApps(new Set(), allPermissions);
     expect(withoutModules.some((app) => app.key === "inventory")).toBe(false);
     expect(withoutModules.some((app) => app.key === "calendar")).toBe(true);
 
-    const withInventory = visibleApps(new Set([MODULE_KEYS.INVENTORY]));
+    const withInventory = visibleApps(new Set([MODULE_KEYS.INVENTORY]), allPermissions);
     expect(withInventory.some((app) => app.key === "inventory")).toBe(true);
+  });
+
+  it("hides apps when the user lacks every required permission", () => {
+    const appKeys = visibleApps(
+      new Set(),
+      new Set([PERMISSION_KEYS.CLIENTS_VIEW]),
+    ).map((app) => app.key);
+
+    expect(appKeys).toContain("clients");
+    expect(appKeys).not.toContain("calendar");
+    expect(appKeys).not.toContain("sales");
+  });
+
+  it("hides quick actions without their stricter write permission", () => {
+    const calendar = appForPath("/calendar");
+
+    expect(
+      visibleQuickActions(
+        calendar,
+        new Set([PERMISSION_KEYS.CALENDAR_VIEW_OWN]),
+      ),
+    ).toEqual([]);
+    expect(
+      visibleQuickActions(
+        calendar,
+        new Set([PERMISSION_KEYS.CALENDAR_MANAGE_OWN]),
+      ).map((action) => action.href),
+    ).toEqual(["/calendar/appointments/new"]);
   });
 
   it("uses correct Italian labels and provides contextual tabs", () => {

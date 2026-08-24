@@ -1,6 +1,7 @@
 import type { ComponentType, SVGProps } from "react";
 
 import { MODULE_KEYS, type ModuleKey } from "@esse-beauty/feature-flags";
+import { PERMISSION_KEYS, type PermissionKey } from "@esse-beauty/shared";
 
 import {
   CalendarIcon,
@@ -31,6 +32,7 @@ export interface AppTab {
 export interface AppQuickAction {
   href: string;
   label: string;
+  permissions?: readonly PermissionKey[];
 }
 
 export interface AppDefinition {
@@ -43,6 +45,7 @@ export interface AppDefinition {
   label: string;
   moduleKey?: ModuleKey;
   paths: readonly string[];
+  permissions?: readonly PermissionKey[];
   quickActions?: readonly AppQuickAction[];
   tabs?: readonly AppTab[];
 }
@@ -74,7 +77,20 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "calendar",
     label: "Agenda",
     paths: ["/calendar"],
-    quickActions: [{ href: "/calendar/appointments/new", label: "Nuovo appuntamento" }],
+    permissions: [
+      PERMISSION_KEYS.CALENDAR_VIEW_OWN,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+      PERMISSION_KEYS.CALENDAR_VIEW_OTHERS,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+    ],
+    quickActions: [{
+      href: "/calendar/appointments/new",
+      label: "Nuovo appuntamento",
+      permissions: [
+        PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+        PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+      ],
+    }],
     tabs: [
       { href: "/calendar", label: "Agenda" },
       { href: "/calendar/appointments/new", label: "Nuovo appuntamento" },
@@ -89,6 +105,11 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "sales",
     label: "Cassa",
     paths: ["/sales"],
+    permissions: [
+      PERMISSION_KEYS.REPORTS_VIEW_ALL,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+      PERMISSION_KEYS.INVENTORY_MANAGE,
+    ],
   },
   {
     accent: "#2563eb",
@@ -99,7 +120,12 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "clients",
     label: "Clienti",
     paths: ["/clients"],
-    quickActions: [{ href: "/clients/new", label: "Nuovo cliente" }],
+    permissions: [PERMISSION_KEYS.CLIENTS_VIEW, PERMISSION_KEYS.CLIENTS_EDIT],
+    quickActions: [{
+      href: "/clients/new",
+      label: "Nuovo cliente",
+      permissions: [PERMISSION_KEYS.CLIENTS_EDIT],
+    }],
   },
   {
     accent: "#0369a1",
@@ -110,6 +136,11 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "staff",
     label: "Staff",
     paths: ["/staff", "/settings/staff"],
+    permissions: [
+      PERMISSION_KEYS.SETTINGS_STAFF,
+      PERMISSION_KEYS.CALENDAR_VIEW_OWN,
+      PERMISSION_KEYS.CALENDAR_VIEW_OTHERS,
+    ],
   },
   {
     accent: "#9333ea",
@@ -120,7 +151,18 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "services",
     label: "Servizi",
     paths: ["/services", "/settings/services"],
-    quickActions: [{ href: "/settings/services/new", label: "Nuovo servizio" }],
+    permissions: [
+      PERMISSION_KEYS.SETTINGS_SERVICES,
+      PERMISSION_KEYS.CALENDAR_VIEW_OWN,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+      PERMISSION_KEYS.CALENDAR_VIEW_OTHERS,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+    ],
+    quickActions: [{
+      href: "/settings/services/new",
+      label: "Nuovo servizio",
+      permissions: [PERMISSION_KEYS.SETTINGS_SERVICES],
+    }],
   },
   {
     accent: "#b45309",
@@ -131,6 +173,12 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "vouchers",
     label: "Buoni acquisto",
     paths: ["/vouchers"],
+    permissions: [
+      PERMISSION_KEYS.CLIENTS_VIEW,
+      PERMISSION_KEYS.REPORTS_VIEW_ALL,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+      PERMISSION_KEYS.INVENTORY_MANAGE,
+    ],
   },
   {
     accent: "#be185d",
@@ -142,7 +190,12 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Marketing",
     moduleKey: MODULE_KEYS.MARKETING,
     paths: ["/marketing"],
-    quickActions: [{ href: "/marketing/new", label: "Nuova campagna" }],
+    permissions: [PERMISSION_KEYS.MARKETING_SEND],
+    quickActions: [{
+      href: "/marketing/new",
+      label: "Nuova campagna",
+      permissions: [PERMISSION_KEYS.MARKETING_SEND],
+    }],
   },
   {
     accent: "#c026d3",
@@ -154,6 +207,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Fedeltà",
     moduleKey: MODULE_KEYS.LOYALTY,
     paths: ["/settings/loyalty"],
+    permissions: [PERMISSION_KEYS.LOYALTY_MANAGE],
   },
   {
     accent: "#ca8a04",
@@ -165,6 +219,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Recensioni",
     moduleKey: MODULE_KEYS.REVIEWS,
     paths: ["/reviews"],
+    permissions: [PERMISSION_KEYS.REVIEWS_REPLY, PERMISSION_KEYS.SETTINGS_SALON],
   },
   {
     accent: "#ea580c",
@@ -176,6 +231,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Lista d’attesa",
     moduleKey: MODULE_KEYS.WAITLIST,
     paths: ["/waitlist"],
+    permissions: [PERMISSION_KEYS.WAITLIST_MANAGE],
   },
   {
     accent: "#15803d",
@@ -187,7 +243,12 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Inventario",
     moduleKey: MODULE_KEYS.INVENTORY,
     paths: ["/inventory"],
-    quickActions: [{ href: "/inventory/new", label: "Nuovo prodotto" }],
+    permissions: [PERMISSION_KEYS.INVENTORY_MANAGE],
+    quickActions: [{
+      href: "/inventory/new",
+      label: "Nuovo prodotto",
+      permissions: [PERMISSION_KEYS.INVENTORY_MANAGE],
+    }],
   },
   {
     accent: "#0f766e",
@@ -198,6 +259,11 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "accounting",
     label: "Contabilità",
     paths: ["/accounting"],
+    permissions: [
+      PERMISSION_KEYS.REPORTS_VIEW_ALL,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
+      PERMISSION_KEYS.INVENTORY_MANAGE,
+    ],
   },
   {
     accent: "#4338ca",
@@ -209,6 +275,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Report",
     moduleKey: MODULE_KEYS.STAFF_PERF,
     paths: ["/reports"],
+    permissions: [PERMISSION_KEYS.REPORTS_VIEW_OWN, PERMISSION_KEYS.REPORTS_VIEW_ALL],
   },
   {
     accent: "#475569",
@@ -220,6 +287,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Consensi",
     moduleKey: MODULE_KEYS.DOCUMENTS,
     paths: ["/settings/documents"],
+    permissions: [PERMISSION_KEYS.SETTINGS_SALON, PERMISSION_KEYS.CLIENTS_VIEW],
   },
   {
     accent: "#7e22ce",
@@ -231,6 +299,12 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Pacchetti",
     moduleKey: MODULE_KEYS.PACKAGES,
     paths: ["/settings/packages"],
+    permissions: [
+      PERMISSION_KEYS.CLIENTS_VIEW,
+      PERMISSION_KEYS.CLIENTS_EDIT,
+      PERMISSION_KEYS.SETTINGS_SERVICES,
+      PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+    ],
   },
   {
     accent: "#475569",
@@ -242,6 +316,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Attività",
     moduleKey: MODULE_KEYS.AUDIT_COMPLIANCE,
     paths: ["/settings/audit"],
+    permissions: [PERMISSION_KEYS.SETTINGS_USERS],
   },
   {
     accent: "#57534e",
@@ -252,6 +327,13 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "settings",
     label: "Impostazioni",
     paths: ["/settings"],
+    permissions: [
+      PERMISSION_KEYS.SETTINGS_SALON,
+      PERMISSION_KEYS.SETTINGS_SERVICES,
+      PERMISSION_KEYS.SETTINGS_STAFF,
+      PERMISSION_KEYS.SETTINGS_USERS,
+      PERMISSION_KEYS.SETTINGS_MODULES,
+    ],
     tabs: [
       { href: "/settings", label: "Salone" },
       { href: "/settings/users", label: "Team e accessi" },
@@ -270,6 +352,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     label: "Promemoria",
     moduleKey: MODULE_KEYS.REMINDERS,
     paths: ["/settings/reminders"],
+    permissions: [PERMISSION_KEYS.SETTINGS_SALON],
   },
 ] as const;
 
@@ -286,8 +369,30 @@ export function appForPath(pathname: string): AppDefinition | undefined {
     .sort((left, right) => right.path.length - left.path.length)[0]?.app;
 }
 
-export function visibleApps(enabledModules: ReadonlySet<ModuleKey | string>): AppDefinition[] {
-  return APP_REGISTRY.filter((app) => !app.moduleKey || enabledModules.has(app.moduleKey));
+function hasPermission(
+  requiredPermissions: readonly PermissionKey[] | undefined,
+  grantedPermissions: ReadonlySet<PermissionKey | string>,
+): boolean {
+  return !requiredPermissions?.length
+    || requiredPermissions.some((permission) => grantedPermissions.has(permission));
+}
+
+export function visibleApps(
+  enabledModules: ReadonlySet<ModuleKey | string>,
+  grantedPermissions: ReadonlySet<PermissionKey | string>,
+): AppDefinition[] {
+  return APP_REGISTRY.filter(
+    (app) => (!app.moduleKey || enabledModules.has(app.moduleKey))
+      && hasPermission(app.permissions, grantedPermissions),
+  );
+}
+
+export function visibleQuickActions(
+  app: AppDefinition | undefined,
+  grantedPermissions: ReadonlySet<PermissionKey | string>,
+): AppQuickAction[] {
+  return (app?.quickActions ?? []).filter((action) =>
+    hasPermission(action.permissions, grantedPermissions));
 }
 
 export function contextTabsForPath(pathname: string): readonly AppTab[] {

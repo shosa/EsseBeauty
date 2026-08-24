@@ -4,11 +4,11 @@ import Link from "next/link";
 
 import { ContextTabs } from "@esse-beauty/ui";
 
-import type { AppDefinition } from "./app-registry";
+import type { AppDefinition, AppQuickAction } from "./app-registry";
 import { BellIcon, ModuleIcon } from "./Icons";
 
-export function WorkspaceTopbar({ app, onLauncherOpen, onNotificationsOpen, onSearchOpen, pathname, unreadCount }: { app?: AppDefinition; onLauncherOpen(): void; onNotificationsOpen(): void; onSearchOpen(): void; pathname: string; unreadCount: number }) {
-  const action = app?.quickActions?.[0];
+export function WorkspaceTopbar({ actions, app, onLauncherOpen, onNotificationsOpen, onSearchOpen, pathname, unreadCount }: { actions: readonly AppQuickAction[]; app?: AppDefinition; onLauncherOpen(): void; onNotificationsOpen(): void; onSearchOpen(): void; pathname: string; unreadCount: number }) {
+  const action = actions[0];
   const Icon = app?.icon;
   return (
     <header className="fixed left-0 right-0 top-0 z-30 border-b border-stone-200 bg-white/95 backdrop-blur md:left-[76px]">
