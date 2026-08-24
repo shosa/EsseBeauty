@@ -146,7 +146,7 @@ export default function CommunicationsSettingsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1400px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={saved}>Credenziali protette e configurazione aggiornata.</SaveToast>
       <PageHeader
         eyebrow="Comunicazioni"

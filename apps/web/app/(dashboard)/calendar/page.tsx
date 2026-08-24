@@ -1280,10 +1280,10 @@ export default function CalendarPage() {
         </>
       )}
       {selectedAppointmentId && (
-        <div aria-label="Dettaglio appuntamento" aria-modal="true" className="fixed inset-x-0 bottom-0 top-[57px] z-30 bg-[#201820]/28 p-2 backdrop-blur-[2px] md:left-[var(--shell-nav-width)] md:px-4 md:pb-4" onMouseDown={(event) => {
+        <div aria-label="Dettaglio appuntamento" aria-modal="true" className="fixed inset-x-0 bottom-0 top-16 z-40 flex items-stretch justify-end bg-[#201820]/24 pl-3 backdrop-blur-[2px] md:left-[76px] md:pl-8" onMouseDown={(event) => {
           if (event.target === event.currentTarget) rejectBackdropClose();
         }} role="dialog">
-          <div className={`appointment-curtain mx-auto h-full max-w-[1540px] overflow-y-auto rounded-xl border border-white/80 bg-[#f7f6f3] shadow-[0_24px_72px_rgb(32_24_32_/_0.28)] ${curtainShake ? "appointment-curtain-shake" : ""}`} onAnimationEnd={() => setCurtainShake(false)}>
+          <div className={`appointment-curtain h-full w-full max-w-[1280px] overflow-y-auto overscroll-contain rounded-tl-2xl border-l border-t border-white/80 bg-[#f7f6f3] shadow-[-24px_0_72px_rgb(32_24_32_/_0.28)] md:rounded-l-2xl md:rounded-r-none ${curtainShake ? "appointment-curtain-shake" : ""}`} onAnimationEnd={() => setCurtainShake(false)}>
             <AppointmentDetailPanel appointmentId={selectedAppointmentId} onChanged={() => setRefreshToken((value) => value + 1)} onClose={closeAppointment} />
           </div>
         </div>
