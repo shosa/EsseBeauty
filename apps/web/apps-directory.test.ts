@@ -41,5 +41,9 @@ describe("apps directory navigation", () => {
     expect(rail).toContain('new Set(["home", "calendar", "sales"])');
     expect(rail).toContain("flex-1 flex-col items-center justify-center");
     expect(rail).not.toContain("current && !pinnedKeys.has");
+    expect(rail).toContain("function FourDotsIcon");
+    expect(rail).toContain("grid-cols-2");
+    expect(rail).toContain("rounded-full bg-current");
+    expect(rail).not.toContain("<ModuleIcon");
   });
 });
