@@ -31,7 +31,7 @@ describe("professional UI regression guard", () => {
     const ui = readFileSync(sharedUi, "utf8");
     const dialog = ui.slice(ui.indexOf("export function Dialog"), ui.indexOf("export function Drawer"));
     expect(dialog).toContain('aria-label="Chiudi"');
-    expect(dialog).toContain('d="m7 7 10 10M17 7 7 17"');
+    expect(dialog).toContain('<X aria-hidden="true"');
     expect(dialog).not.toMatch(/>\s*Chiudi\s*</);
   });
 
@@ -161,10 +161,11 @@ describe("professional UI regression guard", () => {
     expect(platform).not.toContain("setSelectedSalonId(rows[0]");
   });
 
-  it("uses the hybrid app rail, launcher, and contextual workspace shell", () => {
+  it("uses the app rail, directory page, and contextual workspace shell", () => {
     const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
     expect(shell).toContain("<AppRail");
-    expect(shell).toContain("<AppLauncher");
+    expect(shell).not.toContain("<AppLauncher");
+    expect(existsSync(join(dashboardRoot, "apps", "page.tsx"))).toBe(true);
     expect(shell).toContain("<WorkspaceTopbar");
     expect(shell).toContain("<MobileAppNavigation");
     expect(shell).toContain("md:pl-[76px]");

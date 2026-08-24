@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled, useModules } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
@@ -30,11 +31,10 @@ import {
   WaitlistIcon,
 } from "./Icons";
 import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./shell-config";
-import { AppLauncher } from "./AppLauncher";
 import { AppRail } from "./AppRail";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
-import { appForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
+import { appForPath, browserTitleForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
@@ -168,9 +168,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
         title="Crea nuovo"
         type="button"
       >
-        <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2.2" viewBox="0 0 24 24">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
+        <Plus aria-hidden="true" className="size-5" />
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)] ring-1 ring-stone-950/5 backdrop-blur" role="menu">
@@ -419,7 +417,6 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [launcherOpen, setLauncherOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -450,6 +447,13 @@ function ShellContent({ children }: { children: ReactNode }) {
     () => visibleTabs(currentApp, grantedPermissions),
     [currentApp, grantedPermissions],
   );
+
+  useEffect(() => {
+    document.title = browserTitleForPath(pathname);
+    return () => {
+      document.title = "EsseBeauty";
+    };
+  }, [pathname]);
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
@@ -543,18 +547,16 @@ function ShellContent({ children }: { children: ReactNode }) {
       <AppRail
         apps={apps}
         logout={() => void logout()}
-        onLauncherOpen={() => setLauncherOpen(true)}
         onNotificationsOpen={() => setNotificationsOpen(true)}
         pathname={pathname}
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} onLauncherOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} />
-      <AppLauncher apps={apps} onClose={() => setLauncherOpen(false)} open={launcherOpen} pathname={pathname} />
+      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter onClose={() => setNotificationsOpen(false)} onRead={loadUnread} open={notificationsOpen} salonId={salon?.id} />
       <main className={`${currentApp?.tabs?.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
-      <MobileAppNavigation apps={apps} onLauncherOpen={() => setLauncherOpen(true)} pathname={pathname} />
+      <MobileAppNavigation apps={apps} pathname={pathname} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { AppPage, Button, EmptyState, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -126,7 +127,7 @@ export default function ClientsPage() {
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold text-stone-600">Cerca cliente</span>
               <div className="relative">
-                <svg aria-hidden="true" className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-stone-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+                <Search aria-hidden="true" className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
                 <input className="w-full" onChange={(event) => setSearch(event.target.value)} placeholder="Nome, telefono o email" style={{ paddingLeft: "2.75rem" }} value={search} />
               </div>
             </label>

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, WalletCards, X } from "lucide-react";
+import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -724,12 +724,7 @@ export default function SalesPage() {
                   title="Apri rubrica clienti"
                   type="button"
                 >
-                  <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
-                    <path d="M5 4.5h13a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5z" />
-                    <path d="M5 7H3.5M5 12H3.5M5 17H3.5" />
-                    <circle cx="12" cy="10" r="2.3" />
-                    <path d="M8.5 16a3.5 3.5 0 0 1 7 0" />
-                  </svg>
+                  <UserRound aria-hidden="true" className="size-5" />
                 </button>
               </div>
             </FormField>

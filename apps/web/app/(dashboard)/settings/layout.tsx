@@ -56,44 +56,43 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   ];
 
   return (
-    <div className="px-4 pt-5 sm:px-6 md:px-8">
-      <div className="mx-auto max-w-[1600px] rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eee6ea] px-2 pb-3">
-          <div>
+    <div className="px-4 py-5 sm:px-6 md:px-8">
+      <div className="mx-auto grid max-w-[1600px] gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="self-start rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)] lg:sticky lg:top-[124px]">
+          <div className="border-b border-[#eee6ea] px-2 pb-3">
             <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">Sistema</p>
             <h2 className="text-base font-bold text-[#2d1d27]">Impostazioni salone</h2>
+            <p className="mt-1 text-xs leading-5 text-stone-500">Configurazione, accessi e moduli.</p>
           </div>
-          <p className="text-xs text-stone-500">Configurazione, accessi e moduli in un unico spazio</p>
-        </div>
-        <div className="mt-3 grid gap-2 lg:grid-cols-[1.15fr_.85fr_1fr]">
-          {groups.map((group) => <div className="flex min-w-0 items-center gap-1 rounded-xl bg-[#faf7f9] p-1.5" key={group.label}>
-            <span className="hidden shrink-0 px-2 text-[9px] font-black uppercase tracking-[.14em] text-stone-400 2xl:block">{group.label}</span>
-            <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
-          {group.links.map((item) => {
-            const active = item.href === "/settings"
-              ? pathname === item.href
-              : item.href === "/settings/staff"
-                ? pathname === item.href || pathname.startsWith(`${item.href}/`)
-                : pathname.startsWith(item.href);
-            const badge = "badge" in item ? item.badge ?? 0 : 0;
-            return (
-              <Link
-                className={`min-w-max flex-1 whitespace-nowrap rounded-lg border px-3 py-2 text-center text-xs font-bold transition ${active ? "border-[#d7a6c1] bg-white text-[#792f59] shadow-sm" : "border-transparent text-stone-500 hover:bg-white hover:text-[#792f59]"}`}
-                href={item.href}
-                key={item.href}
-              >
-                <span className="flex items-center justify-center gap-2">
-                  {item.label}
-                  {badge > 0 && <span className="grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(badge, 9)}</span>}
-                </span>
-              </Link>
-            );
-          })}
-            </div>
-          </div>)}
-        </div>
+          <nav aria-label="Navigazione impostazioni" className="mt-4 space-y-5">
+            {groups.map((group) => <section key={group.label}>
+              <h3 className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[.16em] text-stone-400">{group.label}</h3>
+              <div className="space-y-1">
+                {group.links.map((item) => {
+                  const active = item.href === "/settings"
+                    ? pathname === item.href
+                    : item.href === "/settings/staff"
+                      ? pathname === item.href || pathname.startsWith(`${item.href}/`)
+                      : pathname.startsWith(item.href);
+                  const badge = "badge" in item ? item.badge ?? 0 : 0;
+                  return (
+                    <Link
+                      aria-current={active ? "page" : undefined}
+                      className={`flex min-h-10 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${active ? "border-[#d7a6c1] bg-[#faf3f7] text-[#792f59] shadow-sm" : "border-transparent text-stone-600 hover:bg-[#faf7f9] hover:text-[#792f59]"}`}
+                      href={item.href}
+                      key={item.href}
+                    >
+                      <span>{item.label}</span>
+                      {badge > 0 && <span className="grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(badge, 9)}</span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>)}
+          </nav>
+        </aside>
+        <div className="min-w-0">{children}</div>
       </div>
-      <div className="-mx-4 sm:-mx-6 md:-mx-8">{children}</div>
     </div>
   );
 }

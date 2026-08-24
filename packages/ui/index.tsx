@@ -6,6 +6,7 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { X } from "lucide-react";
 
 export const designTokens = {
   layout: {
@@ -668,9 +669,7 @@ export function SaveToast({
             onClick={() => setDismissed(true)}
             type="button"
           >
-            <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
+            <X aria-hidden="true" className="size-4" />
           </button>
         </motion.div>
       )}
@@ -715,9 +714,7 @@ export function Dialog({
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-xl font-bold text-stone-950">{title}</h2>
               <button aria-label="Chiudi" className="grid size-9 shrink-0 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-950" onClick={onClose} type="button">
-                <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
-                  <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
-                </svg>
+                <X aria-hidden="true" height="20" width="20" />
               </button>
             </div>
             <div className="mt-5">{children}</div>
