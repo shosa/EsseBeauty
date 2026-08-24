@@ -1324,6 +1324,11 @@ export const loyaltyTiers = pgTable(
       table.salonId,
       table.name,
     ),
+    uniqueIndex("loyalty_tiers_salon_threshold_unique").on(
+      table.salonId,
+      table.minPoints,
+    ),
+    check("loyalty_tiers_min_points_non_negative", sql`${table.minPoints} >= 0`),
   ],
 );
 
@@ -1374,6 +1379,7 @@ export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
     .notNull()
     .references(() => loyaltyRewards.id, { onDelete: "restrict" }),
   pointsSpent: integer("points_spent").notNull(),
+  idempotencyKey: text("idempotency_key"),
   status: text("status").default("pending").notNull(),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
     onDelete: "set null",
@@ -1381,7 +1387,13 @@ export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
   redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
   notes: text("notes"),
   ...timestamps,
-});
+}, (table) => [
+  uniqueIndex("loyalty_redemptions_salon_idempotency_unique").on(
+    table.salonId,
+    table.idempotencyKey,
+  ),
+  check("loyalty_redemptions_points_positive", sql`${table.pointsSpent} > 0`),
+]);
 
 export const loyaltyPoints = pgTable(
   "loyalty_points",
@@ -1412,11 +1424,15 @@ export const loyaltyPoints = pgTable(
       () => loyaltyRewardRedemptions.id,
       { onDelete: "set null" },
     ),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("loyalty_points_appointment_unique").on(table.appointmentId),
     uniqueIndex("loyalty_points_sale_rule_unique").on(table.saleId, table.ruleKey),
+    uniqueIndex("loyalty_points_redemption_unique").on(table.redemptionId),
   ],
 );
 

@@ -204,6 +204,13 @@
       "when": 1787590800000,
       "tag": "0028_campaign_delivery_state",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787594400000,
+      "tag": "0029_loyalty_redemption_integrity",
+      "breakpoints": true
     }
   ]
 }
