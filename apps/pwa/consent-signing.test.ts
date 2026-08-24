@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { consentNetworkOnly, consentRouteHeaders } from "./lib/cache-policy.mjs";
+import { consentNetworkOnly, consentRouteHeaders, publicTokenRouteHeaders } from "./lib/cache-policy.mjs";
 import nextConfig from "./next.config.mjs";
 import {
   buildPublicConsentPath,
@@ -45,7 +45,7 @@ describe("public consent signing", () => {
       headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       source: "/consents/:token",
     }]);
-    expect(await nextConfig.headers?.()).toEqual(consentRouteHeaders);
+    expect(await nextConfig.headers?.()).toEqual(publicTokenRouteHeaders);
   });
 
   it("puts the signature only in the JSON body", () => {

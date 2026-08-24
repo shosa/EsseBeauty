@@ -1,23 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { AppPage, Button, Dialog, EmptyState, PageHeaderMetrics, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
+import {
+  initialReviewMutationState,
+  requestReviewMutation,
+  reviewMutationReducer,
+  type ReviewItem,
+} from "./reviews-controller";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-interface Review {
-  comment?: string;
-  created_at: string;
-  customer_name: string;
-  id: string;
-  published: boolean;
-  rating: number;
-  reply?: string;
-}
 
 function stars(rating: number) {
   return (
@@ -30,34 +26,42 @@ function stars(rating: number) {
 
 export default function ReviewsPage() {
   const { hasPermission, salon } = useAuth();
-  const [items, setItems] = useState<Review[]>([]);
-  const [selected, setSelected] = useState<Review>();
-  const [reply, setReply] = useState("");
-  const load = () => salon ? fetch(`${api}/api/salons/${salon.id}/reviews`, { credentials: "include" }).then((response) => response.json()).then(setItems) : Promise.resolve();
+  const [items, setItems] = useState<ReviewItem[]>([]);
+  const [management, dispatchManagement] = useReducer(reviewMutationReducer, initialReviewMutationState);
+  const { reply, selected } = management;
+  const load = async () => {
+    if (!salon) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/reviews`, { credentials: "include" });
+    if (!response.ok) throw new Error("REVIEW_LIST_FAILED");
+    setItems(await response.json() as ReviewItem[]);
+  };
   useEffect(() => { void load(); }, [salon]);
   const average = useMemo(() => items.length ? items.reduce((sum, item) => sum + item.rating, 0) / items.length : 0, [items]);
   const published = useMemo(() => items.filter((item) => item.published).length, [items]);
   const unanswered = useMemo(() => items.filter((item) => !item.reply).length, [items]);
 
   async function saveReply() {
-    await fetch(`${api}/api/salons/${salon?.id}/reviews/${selected?.id}/reply`, {
-      body: JSON.stringify({ reply }),
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      method: "PATCH",
-    });
-    setSelected(undefined);
-    await load();
+    if (!salon || !selected) return;
+    dispatchManagement({ type: "begin" });
+    try {
+      await requestReviewMutation(fetch, `${api}/api/salons/${salon.id}/reviews/${selected.id}/reply`, { reply });
+      dispatchManagement({ type: "replySuccess" });
+      await load();
+    } catch (error) {
+      dispatchManagement({ error: error instanceof Error ? error.message : "Salvataggio non riuscito.", type: "failure" });
+    }
   }
 
-  async function setPublished(item: Review, nextPublished: boolean) {
-    await fetch(`${api}/api/salons/${salon?.id}/reviews/${item.id}/publish`, {
-      body: JSON.stringify({ published: nextPublished }),
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      method: "PATCH",
-    });
-    await load();
+  async function setPublished(item: ReviewItem, nextPublished: boolean) {
+    if (!salon) return;
+    dispatchManagement({ type: "begin" });
+    try {
+      await requestReviewMutation(fetch, `${api}/api/salons/${salon.id}/reviews/${item.id}/publish`, { published: nextPublished });
+      dispatchManagement({ type: "mutationSuccess" });
+      await load();
+    } catch (error) {
+      dispatchManagement({ error: error instanceof Error ? error.message : "Salvataggio non riuscito.", type: "failure" });
+    }
   }
 
   return (
@@ -93,6 +97,7 @@ export default function ReviewsPage() {
       </SectionCard>
 
       <SectionCard className="mt-6" title="Feedback clienti" subtitle="Ogni recensione resta gestibile senza uscire dalla pagina.">
+        {management.error && !selected && <p className="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{management.error}</p>}
         {items.length === 0 ? (
           <EmptyState title="Nessuna recensione" description="Le recensioni compariranno dopo gli appuntamenti completati." />
         ) : (
@@ -110,9 +115,9 @@ export default function ReviewsPage() {
                 <p className="mt-4 text-sm leading-6 text-stone-600">{item.comment || "Nessun commento."}</p>
                 {item.reply && <p className="mt-4 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm leading-6 text-stone-600"><b className="text-[#792f59]">Risposta:</b> {item.reply}</p>}
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button onClick={() => { setSelected(item); setReply(item.reply ?? ""); }} variant="outline">Rispondi</Button>
+                  <Button onClick={() => dispatchManagement({ review: item, type: "open" })} variant="outline">Rispondi</Button>
                   {hasPermission(PERMISSION_KEYS.SETTINGS_SALON) && (
-                    <Button onClick={() => void setPublished(item, !item.published)} variant="tableAction">
+                    <Button disabled={management.pending} onClick={() => void setPublished(item, !item.published)} variant="tableAction">
                       {item.published ? "Rendi privata" : "Pubblica"}
                     </Button>
                   )}
@@ -124,12 +129,13 @@ export default function ReviewsPage() {
       </SectionCard>
 
       <Dialog
-        footer={<><Button onClick={() => setSelected(undefined)} variant="outline">Annulla</Button><Button onClick={() => void saveReply()} variant="primary">Salva risposta</Button></>}
-        onClose={() => setSelected(undefined)}
+        footer={<><Button onClick={() => dispatchManagement({ type: "close" })} variant="outline">Annulla</Button><Button disabled={management.pending} onClick={() => void saveReply()} variant="primary">{management.pending ? "Salvataggio…" : "Salva risposta"}</Button></>}
+        onClose={() => dispatchManagement({ type: "close" })}
         open={Boolean(selected)}
         title={`Rispondi a ${selected?.customer_name ?? "cliente"}`}
       >
-        <textarea className="w-full" onChange={(event) => setReply(event.target.value)} rows={5} value={reply} />
+        {management.error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">{management.error}</p>}
+        <textarea className="w-full" onChange={(event) => dispatchManagement({ type: "changeReply", value: event.target.value })} rows={5} value={reply} />
       </Dialog>
     </AppPage>
   );

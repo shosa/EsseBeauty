@@ -56,6 +56,17 @@ export const reminderStatusEnum = pgEnum("reminder_status", [
   "sent",
   "failed",
 ]);
+export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
+  "email",
+  "sms",
+]);
+export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
+  "pending",
+  "processing",
+  "sent",
+  "failed",
+  "skipped",
+]);
 export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "waiting",
   "notified",
@@ -1002,6 +1013,45 @@ export const reminderSettings = pgTable(
   },
   (table) => [
     uniqueIndex("reminder_settings_salon_unique").on(table.salonId),
+  ],
+);
+
+export const reviewInvitations = pgTable(
+  "review_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash"),
+    channel: reviewDeliveryChannelEnum("channel").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    deliveryStatus: reviewDeliveryStatusEnum("delivery_status")
+      .default("pending")
+      .notNull(),
+    deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    lastDeliveryAttemptAt: timestamp("last_delivery_attempt_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    deliveryFailure: text("delivery_failure"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("review_invitations_appointment_unique").on(table.appointmentId),
+    uniqueIndex("review_invitations_token_hash_unique").on(table.tokenHash),
+    check(
+      "review_invitations_token_hash_format",
+      sql`${table.tokenHash} is null or ${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "review_invitations_delivery_attempts_non_negative",
+      sql`${table.deliveryAttempts} >= 0`,
+    ),
   ],
 );
 

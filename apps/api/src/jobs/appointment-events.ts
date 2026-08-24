@@ -14,7 +14,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
 import { sendEmail, sendSms } from "./notifications.js";
 import { getQueue, QUEUE_NAMES } from "./queues.js";
-import type { ReviewRequestJob } from "./reviews.js";
+import { ensureReviewInvitation, type ReviewRequestJob } from "./reviews.js";
 
 interface Transition {
   appointmentId: string;
@@ -28,11 +28,22 @@ declare module "fastify" {
   }
 }
 
-function transitionFrom(request: FastifyRequest) {
-  const body = request.body as { status?: string } | undefined;
-  const params = request.params as { appointmentId?: string } | undefined;
+export function detectAppointmentTransition(input: {
+  body?: { status?: string };
+  method: string;
+  params?: { appointmentId?: string };
+  routeUrl?: string;
+}) {
+  const { body, method, params, routeUrl } = input;
   if (
-    request.method !== "PATCH" ||
+    method === "POST" &&
+    params?.appointmentId &&
+    routeUrl === "/api/salons/:id/appointments/:appointmentId/checkout"
+  ) {
+    return { appointmentId: params.appointmentId, nextStatus: "completed" as const };
+  }
+  if (
+    method !== "PATCH" ||
     !params?.appointmentId ||
     (body?.status !== "completed" && body?.status !== "cancelled")
   ) {
@@ -42,6 +53,15 @@ function transitionFrom(request: FastifyRequest) {
     appointmentId: params.appointmentId,
     nextStatus: body.status as "completed" | "cancelled",
   };
+}
+
+function transitionFrom(request: FastifyRequest) {
+  return detectAppointmentTransition({
+    body: request.body as { status?: string } | undefined,
+    method: request.method,
+    params: request.params as { appointmentId?: string } | undefined,
+    routeUrl: request.routeOptions.url,
+  });
 }
 
 async function awardLoyalty(
@@ -75,10 +95,11 @@ async function enqueueReview(
       app.db,
     )
   ) {
+    const invitation = await ensureReviewInvitation(app.db, appointment.id);
     await getQueue(QUEUE_NAMES.REVIEWS).add(
       "send-request",
-      { appointmentId: appointment.id } satisfies ReviewRequestJob,
-      { delay: 30 * 60_000, jobId: `review-${appointment.id}` },
+      { invitationId: invitation.id } satisfies ReviewRequestJob,
+      { delay: 30 * 60_000, jobId: `review-${invitation.id}` },
     );
   }
 }

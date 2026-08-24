@@ -169,6 +169,13 @@
       "when": 1787551200000,
       "tag": "0023_operational_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787572800000,
+      "tag": "0024_secure_review_invitations",
+      "breakpoints": true
     }
   ]
 }

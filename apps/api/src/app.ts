@@ -61,7 +61,7 @@ function parseOrigins(value: string): true | string[] {
 
 export function maskSensitiveRequestUrl(url: string): string {
   return url.replace(
-    /(\/api\/public\/consents\/)[^/?#]+/gi,
+    /(\/api\/public\/(?:consents|reviews\/token)\/)[^/?#]+/gi,
     "$1[REDACTED]",
   );
 }
