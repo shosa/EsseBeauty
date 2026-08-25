@@ -58,12 +58,12 @@ const moduleLinks = [
   { moduleKey: MODULE_KEYS.REMINDERS, href: "/settings/reminders", icon: RemindersIcon, label: "Promemoria" },
   { moduleKey: MODULE_KEYS.REVIEWS, href: "/reviews", icon: ReviewsIcon, label: "Recensioni" },
   { moduleKey: MODULE_KEYS.WAITLIST, href: "/waitlist", icon: WaitlistIcon, label: "Lista attesa" },
-  { moduleKey: MODULE_KEYS.LOYALTY, href: "/settings/loyalty", icon: LoyaltyIcon, label: "Fedelta" },
+  { moduleKey: MODULE_KEYS.LOYALTY, href: "/loyalty", icon: LoyaltyIcon, label: "Fedelta" },
   { moduleKey: MODULE_KEYS.MARKETING, href: "/marketing", icon: MarketingIcon, label: "Marketing" },
   { moduleKey: MODULE_KEYS.INVENTORY, href: "/inventory", icon: InventoryIcon, label: "Inventario" },
   { moduleKey: MODULE_KEYS.STAFF_PERF, href: "/reports", icon: ReportsIcon, label: "Report" },
   { moduleKey: MODULE_KEYS.DOCUMENTS, href: "/settings/documents", icon: ModuleIcon, label: "Consensi" },
-  { moduleKey: MODULE_KEYS.PACKAGES, href: "/settings/packages", icon: ServicesIcon, label: "Pacchetti" },
+  { moduleKey: MODULE_KEYS.PACKAGES, href: "/packages", icon: ServicesIcon, label: "Pacchetti" },
   { moduleKey: MODULE_KEYS.AUDIT_COMPLIANCE, href: "/settings/audit", icon: ReportsIcon, label: "Attività" },
 ];
 
@@ -75,7 +75,7 @@ const settingsLinks = [
 
 const workspaceSections = [
   { label: "Oggi", paths: ["/", "/calendar", "/sales"] },
-  { label: "Relazioni", paths: ["/clients", "/vouchers", "/staff", "/services"] },
+  { label: "Relazioni", paths: ["/clients", "/vouchers", "/staff", "/services", "/cabins", "/packages", "/loyalty"] },
   { label: "Operatività", paths: ["/accounting", "/inventory", "/reviews", "/waitlist", "/marketing", "/reports"] },
   { label: "Sistema", paths: ["/settings"] },
 ] as const;
@@ -93,6 +93,9 @@ function currentSection(pathname: string) {
     ["/vouchers", "Relazioni", "Buoni acquisto"],
     ["/staff", "Relazioni", "Staff"],
     ["/services", "Relazioni", "Servizi"],
+    ["/cabins", "Relazioni", "Cabine"],
+    ["/packages", "Relazioni", "Pacchetti"],
+    ["/loyalty", "Relazioni", "Fedeltà"],
     ["/inventory", "Operatività", "Inventario"],
     ["/reviews", "Operatività", "Recensioni"],
     ["/waitlist", "Operatività", "Lista d’attesa"],
@@ -275,15 +278,17 @@ function NotificationPreviewCard({ item, onDismiss, onOpen }: { item: Pick<Notif
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <article className="pointer-events-auto relative isolate mb-3 w-[min(360px,calc(100vw-2rem))] rounded-[22px] border border-[#b8dfc9] bg-white shadow-[0_22px_70px_rgb(35_112_73_/_0.18)]" role="status">
-      <div className="relative z-10 flex items-start gap-3 rounded-t-[21px] bg-white p-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" /></span>
-        <button className="min-w-0 flex-1 text-left" onClick={onOpen} type="button"><b className="block truncate text-sm text-stone-950">{item.title}</b>{item.body && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-stone-500">{item.body}</span>}</button>
-        <button aria-label="Chiudi anteprima notifica" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-stone-100" onClick={onDismiss} type="button"><X className="size-4" /></button>
+    <article className="pointer-events-auto relative isolate mb-3 w-[min(360px,calc(100vw-1.5rem))]" role="status">
+      <div className="relative z-10 overflow-hidden rounded-[22px] border border-[#b8dfc9] bg-white shadow-[0_22px_70px_rgb(35_112_73_/_0.18)]">
+        <div className="flex min-w-0 items-start gap-3 bg-white p-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" /></span>
+          <button className="min-w-0 flex-1 text-left" onClick={onOpen} type="button"><b className="block truncate text-sm text-stone-950">{item.title}</b>{item.body && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-stone-500">{item.body}</span>}</button>
+          <button aria-label="Chiudi anteprima notifica" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-stone-100" onClick={onDismiss} type="button"><X className="size-4" /></button>
+        </div>
+        <div className="h-1 origin-left animate-[notification-life_6s_linear_forwards] bg-[#25D366]" />
       </div>
-      <div className="relative z-10 h-1 origin-left animate-[notification-life_6s_linear_forwards] overflow-hidden rounded-b-[21px] bg-[#25D366]" />
-      <span aria-hidden="true" className="absolute -bottom-[11px] right-5 h-3 w-[18px] bg-[#b8dfc9]" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
-      <span aria-hidden="true" className="absolute -bottom-[9px] right-[21px] h-[10px] w-4 bg-white" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
+      <span aria-hidden="true" className="absolute -bottom-[11px] right-5 z-0 h-3 w-[18px] bg-[#b8dfc9]" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
+      <span aria-hidden="true" className="absolute -bottom-[9px] right-[21px] z-20 h-[10px] w-4 bg-white" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
     </article>
   );
 }
@@ -454,6 +459,7 @@ function ShellContent({ children }: { children: ReactNode }) {
     () => visibleTabs(currentApp, grantedPermissions),
     [currentApp, grantedPermissions],
   );
+  const topbarTabs = pathname.startsWith("/settings") ? [] : currentTabs;
 
   useEffect(() => {
     document.title = browserTitleForPath(pathname);
@@ -636,7 +642,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
+      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={topbarTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter
         error={notificationError}
@@ -653,7 +659,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         {whatsappPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => { setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id)); communications.selectConversation(item.conversationId); communications.openChat(); }} />)}
         {notificationPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => openNotification(item)} />)}
       </div>
-      <main className={`${currentApp?.tabs?.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
+      <main className={`${topbarTabs.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
       <MobileAppNavigation apps={apps} pathname={pathname} />
     </div>
   );

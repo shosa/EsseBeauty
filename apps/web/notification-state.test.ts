@@ -57,10 +57,19 @@ describe("shell notification state", () => {
     if (!play) return;
     expect(play({ AudioContext: AudioContextStub })).toBe(true);
     expect(calls).toEqual([
-      "frequency:set:660",
-      "frequency:ramp:880",
+      "frequency:set:740",
+      "frequency:ramp:988",
       "gain:set:0.0001",
-      "gain:ramp:0.12",
+      "gain:ramp:0.14",
+      "gain:ramp:0.0001",
+      "oscillator:connect",
+      "gain:connect",
+      "oscillator:start",
+      "oscillator:stop",
+      "frequency:set:988",
+      "frequency:ramp:1318",
+      "gain:set:0.0001",
+      "gain:ramp:0.11",
       "gain:ramp:0.0001",
       "oscillator:connect",
       "gain:connect",

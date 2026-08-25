@@ -125,13 +125,13 @@ export default function StaffPage() {
         <PageHeader
           eyebrow="Team operativo"
           title="Staff"
-          subtitle="Disponibilità di oggi, carico di lavoro e assenze last-minute. La configurazione collaboratori vive in Impostazioni."
+          subtitle="Disponibilità di oggi, carico di lavoro, assenze e gestione collaboratori."
           status={<StatusBadge status="active">{staff.length} collaboratori attivi</StatusBadge>}
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}
         {staff.length === 0 ? (
-          <EmptyState title="Nessuno staff operativo" description="Controlla configurazione collaboratori in Impostazioni." />
+          <EmptyState title="Nessuno staff operativo" description="Apri Collaboratori per configurare il team." />
         ) : (
           <div className="grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
             <section className="grid gap-4 md:grid-cols-2">

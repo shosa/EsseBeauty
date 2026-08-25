@@ -43,19 +43,19 @@ export default function NewStaffPage() {
       return;
     }
     const member = await response.json() as { id: string };
-    router.push(`/settings/staff/${member.id}`);
+    router.push(`/staff/${member.id}`);
   }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
-        <Breadcrumbs items={[{ href: "/settings/staff", label: "Staff & disponibilità" }, { label: "Nuovo collaboratore" }]} />
+        <Breadcrumbs items={[{ href: "/staff/manage", label: "Collaboratori" }, { label: "Nuovo collaboratore" }]} />
         <h1 className="text-3xl font-bold">Nuovo collaboratore</h1>
         {error && <InlineError>{error}</InlineError>}
         <FormField label="Nome visibile" required><input required name="display_name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <FormField label="Bio o note interne"><textarea name="bio" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={() => router.push("/settings/staff")}>Annulla</Button>
+          <Button type="button" variant="ghost" onClick={() => router.push("/staff/manage")}>Annulla</Button>
           <Button type="submit">Crea</Button>
         </div>
       </form>

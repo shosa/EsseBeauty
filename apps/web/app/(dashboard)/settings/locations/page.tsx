@@ -1,215 +1,102 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Building2, DoorOpen, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Building2, DoorOpen, MapPin, Plus } from "lucide-react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, FormField, InlineError, KpiStrip, PageHeader, SectionCard, StatusBadge, Switch } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-interface Location {
-  active: boolean;
-  address?: string | null;
-  id: string;
-  name: string;
-}
-
-interface Cabin {
-  active: boolean;
-  capacity: number;
-  id: string;
-  locationId?: string | null;
-  name: string;
-  type: string;
-}
-
-interface Service {
-  category: string;
-  id: string;
-  name: string;
-}
+interface Location { active: boolean; address?: string | null; email?: string | null; id: string; name: string; phone?: string | null; timezone?: string | null; }
+interface Resource { id: string; locationId?: string | null; type: string; }
 
 export default function LocationsPage() {
   const { salon } = useAuth();
   const multiLocation = useModuleEnabled(MODULE_KEYS.MULTI_LOCATION);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [cabins, setCabins] = useState<Cabin[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   const [locationId, setLocationId] = useState("");
-  const [cabinId, setCabinId] = useState("");
-  const [assigned, setAssigned] = useState<string[]>([]);
-  const [locationName, setLocationName] = useState("");
-  const [locationAddress, setLocationAddress] = useState("");
-  const [cabinName, setCabinName] = useState("");
-  const [capacity, setCapacity] = useState(1);
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  async function load(preferredLocation?: string) {
+  async function load(preferredId?: string) {
     if (!salon) return;
-    const [locationsResponse, resourcesResponse, servicesResponse] = await Promise.all([
+    setError("");
+    const [locationsResponse, resourcesResponse] = await Promise.all([
       fetch(`${api}/api/salons/${salon.id}/settings/locations`, { credentials: "include" }),
       fetch(`${api}/api/salons/${salon.id}/settings/resources`, { credentials: "include" }),
-      fetch(`${api}/api/salons/${salon.id}/services?active=true`, { credentials: "include" }),
     ]);
-    if (!locationsResponse.ok || !resourcesResponse.ok || !servicesResponse.ok) {
-      setError("Impossibile caricare sedi e cabine.");
-      return;
-    }
+    if (!locationsResponse.ok || !resourcesResponse.ok) return setError("Impossibile caricare le sedi.");
     const nextLocations = await locationsResponse.json() as Location[];
     setLocations(nextLocations);
-    setCabins((await resourcesResponse.json() as Cabin[]).filter((item) => item.type === "cabin" || item.type === "room"));
-    setServices(await servicesResponse.json() as Service[]);
-    const nextId = preferredLocation || locationId;
-    setLocationId(nextLocations.some((item) => item.id === nextId) ? nextId : nextLocations[0]?.id ?? "");
+    setResources((await resourcesResponse.json() as Resource[]).filter((item) => item.type === "cabin" || item.type === "room"));
+    const candidate = preferredId || locationId;
+    setLocationId(nextLocations.some((item) => item.id === candidate) ? candidate : nextLocations[0]?.id ?? "");
   }
 
   useEffect(() => { void load(); }, [salon?.id]);
 
-  useEffect(() => {
-    if (!salon || !cabinId) return setAssigned([]);
-    void fetch(`${api}/api/salons/${salon.id}/settings/resources/${cabinId}/services`, { credentials: "include" })
-      .then(async (response) => {
-        if (response.ok) setAssigned((await response.json() as Array<{ service_id: string }>).map((item) => item.service_id));
-      });
-  }, [cabinId, salon?.id]);
+  const selected = locations.find((item) => item.id === locationId);
+  const activeLocations = locations.filter((item) => item.active).length;
+  const cabinCount = (id: string) => resources.filter((item) => item.locationId === id).length;
 
-  const selectedLocation = locations.find((item) => item.id === locationId);
-  const selectedCabin = cabins.find((item) => item.id === cabinId);
-  const visibleCabins = cabins.filter((item) => item.locationId === locationId);
-  const categories = useMemo(() => Array.from(new Set(services.map((item) => item.category))), [services]);
+  function updateSelected(patch: Partial<Location>) {
+    if (!selected) return;
+    setLocations((current) => current.map((item) => item.id === selected.id ? { ...item, ...patch } : item));
+  }
+
+  function notify(value: string) {
+    setMessage(value);
+    window.setTimeout(() => setMessage(""), 2200);
+  }
 
   async function createLocation() {
-    if (!salon || !locationName.trim()) return;
+    if (!salon || !name.trim()) return;
     if (!multiLocation && locations.length > 0) return setError("Attiva il modulo Multi-sede per aggiungere una seconda sede.");
     const response = await fetch(`${api}/api/salons/${salon.id}/settings/locations`, {
-      body: JSON.stringify({ address: locationAddress, name: locationName }),
+      body: JSON.stringify({ address, name }),
       credentials: "include",
       headers: { "content-type": "application/json" },
       method: "POST",
     });
     if (!response.ok) return setError("Sede non creata.");
     const created = await response.json() as Location;
-    setLocationName("");
-    setLocationAddress("");
-    setMessage("Sede creata.");
+    setName("");
+    setAddress("");
+    notify("Sede creata.");
     await load(created.id);
   }
 
-  async function createCabin() {
-    if (!salon || !locationId || !cabinName.trim()) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/settings/resources`, {
-      body: JSON.stringify({ capacity, location_id: locationId, name: cabinName, type: "cabin" }),
+  async function saveLocation() {
+    if (!salon || !selected) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/settings/locations/${selected.id}`, {
+      body: JSON.stringify({ active: selected.active, address: selected.address, email: selected.email, name: selected.name, phone: selected.phone, timezone: selected.timezone }),
       credentials: "include",
       headers: { "content-type": "application/json" },
-      method: "POST",
+      method: "PATCH",
     });
-    if (!response.ok) return setError("Cabina non creata.");
-    const created = await response.json() as Cabin;
-    setCabinName("");
-    setCapacity(1);
-    setMessage("Cabina creata.");
-    await load(locationId);
-    setCabinId(created.id);
-  }
-
-  async function saveAssignments() {
-    if (!salon || !cabinId) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/settings/resources/${cabinId}/services`, {
-      body: JSON.stringify({ service_ids: assigned }),
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      method: "PUT",
-    });
-    setMessage(response.ok ? "Servizi della cabina salvati." : "");
-    setError(response.ok ? "" : "Servizi della cabina non salvati.");
+    if (!response.ok) return setError("Sede non aggiornata.");
+    notify("Sede aggiornata.");
   }
 
   return (
-    <AppPage maxWidth="max-w-[1600px]">
-      <PageHeader
-        eyebrow="Organizzazione"
-        status={<StatusBadge status="active">{locations.length} sedi · {cabins.length} cabine</StatusBadge>}
-        subtitle="Configura gli ambienti reali del salone: l’agenda impedirà che la stessa cabina venga usata da due appuntamenti contemporaneamente."
-        title={multiLocation ? "Sedi e cabine" : "Cabine del salone"}
-      />
-      {error && <InlineError className="mb-5">{error}</InlineError>}
-      {message && <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</p>}
+    <AppPage maxWidth="max-w-[1500px]">
+      <PageHeader eyebrow="Organizzazione" status={<StatusBadge status="active">{activeLocations} attive</StatusBadge>} subtitle="Anagrafica e contatti delle sedi operative." title="Sedi" />
+      {error && <InlineError className="mb-4">{error}</InlineError>}
+      {message && <p className="mb-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</p>}
+      <KpiStrip items={[{ detail: "configurate", label: "Sedi", value: locations.length }, { detail: `${locations.length - activeLocations} non attive`, label: "Sedi attive", value: activeLocations }, { detail: "associate alle sedi", label: "Cabine", value: resources.length }]} />
 
-      <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <SectionCard title="Sedi operative" subtitle={multiLocation ? "Scegli la sede da configurare." : "La sede principale contiene cabine e collaboratori."}>
-          <div className="space-y-2">
-            {locations.map((location) => (
-              <button
-                className={`flex w-full items-center gap-3 rounded-xl border p-4 text-left ${locationId === location.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200"}`}
-                key={location.id}
-                onClick={() => { setLocationId(location.id); setCabinId(""); }}
-                type="button"
-              >
-                <span className="grid size-10 place-items-center rounded-lg bg-white text-[#792f59] ring-1 ring-stone-200"><Building2 className="size-5" /></span>
-                <span><strong className="block">{location.name}</strong><small className="text-stone-500">{location.address || "Indirizzo da completare"}</small></span>
-              </button>
-            ))}
-          </div>
-          {(multiLocation || locations.length === 0) && (
-            <div className="mt-5 space-y-3 border-t border-stone-100 pt-5">
-              <FormField label="Nome sede" required><input className="w-full" value={locationName} onChange={(event) => setLocationName(event.target.value)} /></FormField>
-              <FormField label="Indirizzo"><input className="w-full" value={locationAddress} onChange={(event) => setLocationAddress(event.target.value)} /></FormField>
-              <Button disabled={!locationName.trim()} onClick={() => void createLocation()} variant="outline"><Plus className="mr-2 size-4" />Aggiungi sede</Button>
-            </div>
-          )}
+      <div className="mt-4 grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <SectionCard title="Sedi operative" subtitle="Seleziona la sede da configurare.">
+          <div className="space-y-2">{locations.map((location) => <button className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left ${locationId === location.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200"}`} key={location.id} onClick={() => setLocationId(location.id)} type="button"><Building2 className="size-5 shrink-0 text-[#792f59]" /><span className="min-w-0 flex-1"><strong className="block truncate">{location.name}</strong><small className="block truncate text-stone-500">{location.address || "Indirizzo da completare"}</small></span><span className="flex items-center gap-1 text-xs font-bold text-stone-500"><DoorOpen size={14} />{cabinCount(location.id)}</span></button>)}</div>
+          {(multiLocation || locations.length === 0) && <div className="mt-4 space-y-3 border-t border-stone-100 pt-4"><FormField label="Nome sede"><input className="w-full" onChange={(event) => setName(event.target.value)} value={name} /></FormField><FormField label="Indirizzo"><input className="w-full" onChange={(event) => setAddress(event.target.value)} value={address} /></FormField><Button disabled={!name.trim()} onClick={() => void createLocation()} variant="outline"><Plus className="mr-2 size-4" />Aggiungi sede</Button></div>}
         </SectionCard>
 
-        <div className="space-y-5">
-          {!selectedLocation ? (
-            <EmptyState description="Crea la sede principale per iniziare." title="Nessuna sede configurata" />
-          ) : (
-            <SectionCard title={`Cabine · ${selectedLocation.name}`} subtitle="Ogni cabina può essere riservata a specifici trattamenti.">
-              {visibleCabins.length > 0 ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {visibleCabins.map((cabin) => (
-                    <button className={`flex items-center gap-3 rounded-xl border p-4 text-left ${cabinId === cabin.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200"}`} key={cabin.id} onClick={() => setCabinId(cabin.id)} type="button">
-                      <span className="grid size-10 place-items-center rounded-lg bg-white text-[#792f59] ring-1 ring-stone-200"><DoorOpen className="size-5" /></span>
-                      <span><strong className="block">{cabin.name}</strong><small className="text-stone-500">Capienza {cabin.capacity}</small></span>
-                    </button>
-                  ))}
-                </div>
-              ) : <EmptyState description="Aggiungi il primo ambiente operativo." title="Nessuna cabina" />}
-              <div className="mt-5 grid gap-3 border-t border-stone-100 pt-5 sm:grid-cols-[minmax(0,1fr)_130px_auto] sm:items-end">
-                <FormField label="Nome cabina" required><input className="w-full" value={cabinName} onChange={(event) => setCabinName(event.target.value)} /></FormField>
-                <FormField label="Capienza"><input className="w-full" min={1} type="number" value={capacity} onChange={(event) => setCapacity(Number(event.target.value))} /></FormField>
-                <Button disabled={!cabinName.trim()} onClick={() => void createCabin()} variant="primary"><Plus className="mr-2 size-4" />Aggiungi</Button>
-              </div>
-            </SectionCard>
-          )}
-
-          {selectedCabin && (
-            <SectionCard title={`Servizi compatibili · ${selectedCabin.name}`} subtitle="Questi trattamenti richiederanno automaticamente una cabina libera durante la prenotazione.">
-              <div className="space-y-4">
-                {categories.map((category) => (
-                  <div key={category}>
-                    <p className="mb-2 text-[11px] font-black uppercase tracking-[.16em] text-stone-400">{category}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {services.filter((service) => service.category === category).map((service) => (
-                        <button
-                          className={`rounded-xl border px-4 py-3 text-sm font-bold ${assigned.includes(service.id) ? "border-sky-300 bg-sky-50 text-sky-900" : "border-stone-200 bg-white text-stone-500"}`}
-                          key={service.id}
-                          onClick={() => setAssigned((current) => current.includes(service.id) ? current.filter((id) => id !== service.id) : [...current, service.id])}
-                          type="button"
-                        >
-                          {service.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6 flex justify-end border-t border-stone-100 pt-5"><Button onClick={() => void saveAssignments()} variant="primary">Salva servizi cabina</Button></div>
-            </SectionCard>
-          )}
-        </div>
+        {!selected ? <EmptyState description="Aggiungi la sede principale per iniziare." title="Nessuna sede configurata" /> : <SectionCard title={selected.name} subtitle="Informazioni usate nell’operatività e nelle comunicazioni."><div className="grid gap-4 md:grid-cols-2"><FormField label="Nome"><input className="w-full" onChange={(event) => updateSelected({ name: event.target.value })} value={selected.name} /></FormField><FormField label="Indirizzo"><div className="relative"><MapPin className="absolute left-3 top-3 size-4 text-stone-400" /><input className="w-full pl-9" onChange={(event) => updateSelected({ address: event.target.value })} value={selected.address ?? ""} /></div></FormField><FormField label="Telefono"><input className="w-full" onChange={(event) => updateSelected({ phone: event.target.value })} value={selected.phone ?? ""} /></FormField><FormField label="Email"><input className="w-full" onChange={(event) => updateSelected({ email: event.target.value })} type="email" value={selected.email ?? ""} /></FormField><FormField label="Fuso orario"><input className="w-full" onChange={(event) => updateSelected({ timezone: event.target.value })} placeholder="Europe/Rome" value={selected.timezone ?? ""} /></FormField><label className="flex items-center justify-between rounded-lg border border-stone-200 px-4 text-sm font-bold">Sede attiva<Switch checked={selected.active} onCheckedChange={(active) => updateSelected({ active })} /></label></div><div className="mt-5 flex justify-end border-t border-stone-100 pt-4"><Button onClick={() => void saveLocation()} variant="primary">Salva sede</Button></div></SectionCard>}
       </div>
     </AppPage>
   );

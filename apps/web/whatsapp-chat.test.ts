@@ -97,6 +97,12 @@ describe("global WhatsApp workspace", () => {
     expect(newlyUnreadConversations(previous, staleServerResponse, true)).toEqual([]);
   });
 
+  it("clips the WhatsApp preview progress bar inside the speech bubble", () => {
+    const shell = readFileSync(resolve("app/(dashboard)/_components/DashboardShell.tsx"), "utf8");
+    expect(shell).toContain("overflow-hidden rounded-[22px] border border-[#b8dfc9]");
+    expect(shell).toContain("animate-[notification-life_6s_linear_forwards] bg-[#25D366]");
+  });
+
   it("ignores a stale refresh response after a conversation was marked read", () => {
     const optimistic = [{ id: "one", unread_count: 0 }];
     const staleServerResponse = [{ id: "one", unread_count: 3 }];
@@ -119,5 +125,16 @@ describe("global WhatsApp workspace", () => {
       5,
       new Set(["one"]),
     )).toEqual([{ id: "one", unread_count: 0 }]);
+  });
+
+  it("manages WhatsApp marketing consent from the customer profile", () => {
+    const customer = readFileSync(resolve("app/(dashboard)/clients/[customerId]/page.tsx"), "utf8");
+    const panel = readFileSync(resolve("app/(dashboard)/clients/_components/WhatsAppMarketingConsentPanel.tsx"), "utf8");
+    expect(customer).toContain("WhatsAppMarketingConsentPanel");
+    expect(customer).toContain("PERMISSION_KEYS.CLIENTS_EDIT");
+    expect(panel).toContain("Concedi consenso");
+    expect(panel).toContain("Revoca consenso");
+    expect(panel).toContain("Storico revoche");
+    expect(panel).toContain("evidence_note");
   });
 });

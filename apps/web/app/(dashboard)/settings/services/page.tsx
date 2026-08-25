@@ -142,7 +142,7 @@ export default function SettingsServicesPage() {
           actions={
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} variant="secondary">Nuova categoria</Button>
-              <Link href={selectedCategoryId ? `/settings/services/new?category=${selectedCategoryId}` : "/settings/services/new"} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Nuovo servizio</Link>
+              <Link href={selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new"} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Nuovo servizio</Link>
             </div>
           }
           eyebrow="Core"
@@ -211,7 +211,7 @@ export default function SettingsServicesPage() {
 
                   {visibleServices.length === 0 ? (
                     <EmptyState
-                      action={<Link href={`/settings/services/new?category=${selectedCategory.id}`} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Aggiungi servizio</Link>}
+                      action={<Link href={`/services/new?category=${selectedCategory.id}`} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Aggiungi servizio</Link>}
                       description={`Non ci sono ancora servizi nella categoria ${selectedCategory.name}.`}
                       title="Categoria vuota"
                     />
@@ -220,14 +220,14 @@ export default function SettingsServicesPage() {
                       {visibleServices.map((item) => (
                         <article className={`grid gap-4 border-b border-stone-100 p-4 last:border-0 md:grid-cols-[minmax(0,1fr)_120px_120px_auto] md:items-center ${item.active ? "" : "opacity-55"}`} key={item.id}>
                           <div className="min-w-0">
-                            <Link href={`/settings/services/${item.id}`} className="font-bold text-stone-950 hover:text-[#792f59]">{item.name}</Link>
+                            <Link href={`/services/${item.id}`} className="font-bold text-stone-950 hover:text-[#792f59]">{item.name}</Link>
                             {item.description && <p className="mt-1 truncate text-sm text-stone-500">{item.description}</p>}
                           </div>
                           <span className="text-sm font-semibold text-stone-600">{item.durationMinutes} min</span>
                           <strong className="text-sm">{formatPrice(item.priceCents, "it-IT")}</strong>
                           <div className="flex items-center justify-end gap-3">
                             <Switch checked={item.active} onCheckedChange={() => void toggle(item)} />
-                            <Link href={`/settings/services/${item.id}`} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-bold">Apri</Link>
+                            <Link href={`/services/${item.id}`} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-bold">Apri</Link>
                             <button className="text-xs font-bold text-red-700" onClick={() => setConfirmDelete(item)} type="button">Archivia</button>
                           </div>
                         </article>

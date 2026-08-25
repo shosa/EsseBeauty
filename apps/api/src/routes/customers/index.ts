@@ -3,6 +3,7 @@ import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
 import {
   appointments,
+  communicationConsents,
   customers,
   loyaltyPoints,
   services,
@@ -185,6 +186,124 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
               history: points,
             }
           : null,
+      };
+    },
+  );
+
+  app.get<{ Params: { id: string; customerId: string } }>(
+    "/api/salons/:id/customers/:customerId/communication-consents/whatsapp-marketing",
+    { preHandler: editGuard },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const customer = await app.db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(and(eq(customers.id, request.params.customerId), eq(customers.salonId, request.salonId)))
+        .limit(1);
+      if (!customer[0]) return reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+
+      const rows = await app.db
+        .select()
+        .from(communicationConsents)
+        .where(and(
+          eq(communicationConsents.salonId, request.salonId),
+          eq(communicationConsents.customerId, request.params.customerId),
+          eq(communicationConsents.channel, "whatsapp"),
+          eq(communicationConsents.purpose, "marketing"),
+        ))
+        .limit(1);
+      const consent = rows[0];
+      const evidence = consent?.evidence ?? {};
+      return {
+        captured_at: consent?.capturedAt?.toISOString() ?? null,
+        captured_source: consent?.capturedSource ?? null,
+        evidence_note: typeof evidence.note === "string" ? evidence.note : null,
+        history: Array.isArray(evidence.history) ? evidence.history : [],
+        revoked_at: consent?.revokedAt?.toISOString() ?? null,
+        status: consent?.status ?? "revoked",
+      };
+    },
+  );
+
+  app.put<{
+    Params: { id: string; customerId: string };
+    Body: { evidence_note?: string; source?: string; status?: "granted" | "revoked" };
+  }>(
+    "/api/salons/:id/customers/:customerId/communication-consents/whatsapp-marketing",
+    { preHandler: editGuard },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      if (request.body.status !== "granted" && request.body.status !== "revoked") {
+        return reply.code(400).send({ error: "INVALID_CONSENT_STATUS" });
+      }
+      const customer = await app.db
+        .select({ id: customers.id })
+        .from(customers)
+        .where(and(eq(customers.id, request.params.customerId), eq(customers.salonId, request.salonId)))
+        .limit(1);
+      if (!customer[0]) return reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+
+      const existingRows = await app.db
+        .select()
+        .from(communicationConsents)
+        .where(and(
+          eq(communicationConsents.salonId, request.salonId),
+          eq(communicationConsents.customerId, request.params.customerId),
+          eq(communicationConsents.channel, "whatsapp"),
+          eq(communicationConsents.purpose, "marketing"),
+        ))
+        .limit(1);
+      const existing = existingRows[0];
+      const now = new Date();
+      const previousEvidence = existing?.evidence ?? {};
+      const previousHistory = Array.isArray(previousEvidence.history) ? previousEvidence.history : [];
+      const evidenceNote = request.body.evidence_note?.trim() || null;
+      const source = request.body.source?.trim() || "manual_admin";
+      const history = existing && existing.status !== request.body.status
+        ? [...previousHistory, {
+            at: now.toISOString(),
+            by_user_id: request.user.id,
+            note: evidenceNote,
+            source,
+            status: request.body.status,
+          }]
+        : previousHistory;
+      const evidence = { ...previousEvidence, history, note: evidenceNote };
+
+      const rows = existing
+        ? await app.db.update(communicationConsents).set({
+            ...(request.body.status === "granted" && { capturedAt: now, capturedSource: source }),
+            evidence,
+            revokedAt: request.body.status === "revoked" ? now : null,
+            status: request.body.status,
+            updatedAt: now,
+          }).where(and(
+            eq(communicationConsents.id, existing.id),
+            eq(communicationConsents.salonId, request.salonId),
+          )).returning()
+        : await app.db.insert(communicationConsents).values({
+            capturedAt: now,
+            capturedSource: source,
+            channel: "whatsapp",
+            customerId: request.params.customerId,
+            evidence,
+            purpose: "marketing",
+            revokedAt: request.body.status === "revoked" ? now : null,
+            salonId: request.salonId,
+            status: request.body.status,
+          }).returning();
+      const consent = rows[0]!;
+      return {
+        captured_at: consent.capturedAt.toISOString(),
+        captured_source: consent.capturedSource,
+        evidence_note: evidenceNote,
+        history,
+        revoked_at: consent.revokedAt?.toISOString() ?? null,
+        status: consent.status,
       };
     },
   );

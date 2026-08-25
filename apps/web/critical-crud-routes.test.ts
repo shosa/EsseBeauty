@@ -11,6 +11,14 @@ const requiredRoutes = [
   "inventory/[productId]/page.tsx",
   "marketing/[campaignId]/page.tsx",
   "sales/page.tsx",
+  "cabins/page.tsx",
+  "services/manage/page.tsx",
+  "services/new/page.tsx",
+  "staff/manage/page.tsx",
+  "staff/new/page.tsx",
+  "packages/page.tsx",
+  "loyalty/page.tsx",
+  "loyalty/rewards/new/page.tsx",
 ];
 
 describe("critical CRUD route contracts", () => {
@@ -43,5 +51,31 @@ describe("critical CRUD route contracts", () => {
     expect(source).toContain("Cabina");
     expect(source).toContain("settings/resources");
     expect(source).toContain("resource_id");
+  });
+
+  it("separates standalone cabin management from location settings", () => {
+    const source = readFileSync(join(appRoot, "cabins/page.tsx"), "utf8");
+    const locationsSource = readFileSync(join(appRoot, "settings/locations/page.tsx"), "utf8");
+
+    expect(source).toContain("settings/resources");
+    expect(source).toContain("Servizi compatibili");
+    expect(source).toContain('method: "PUT"');
+    expect(source).not.toContain("createLocation");
+    expect(locationsSource).toContain("createLocation");
+    expect(locationsSource).not.toContain("saveAssignments");
+  });
+
+  it("exposes catalog, team, packages and loyalty outside settings", () => {
+    const registry = readFileSync(join(appRoot, "_components/app-registry.ts"), "utf8");
+    const settings = readFileSync(join(appRoot, "settings/layout.tsx"), "utf8");
+
+    expect(registry).toContain('href: "/services/manage"');
+    expect(registry).toContain('href: "/staff/manage"');
+    expect(registry).toContain('href: "/packages"');
+    expect(registry).toContain('href: "/loyalty"');
+    expect(settings).not.toContain('label: "Servizi"');
+    expect(settings).not.toContain('label: "Pacchetti"');
+    expect(settings).not.toContain('label: "Staff"');
+    expect(settings).not.toContain('label: "Fedeltà"');
   });
 });

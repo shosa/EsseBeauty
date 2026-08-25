@@ -14,4 +14,13 @@ describe("customer list counters", () => {
     expect(source).toContain("total_appointments: Number");
     expect(source).toContain("loyalty_points: Number");
   });
+
+  it("manages WhatsApp marketing consent inside the tenant with clients.edit", () => {
+    expect(source).toContain('communication-consents/whatsapp-marketing');
+    expect(source).toContain('{ preHandler: editGuard }');
+    expect(source).toContain('eq(communicationConsents.salonId, request.salonId)');
+    expect(source).toContain('eq(customers.salonId, request.salonId)');
+    expect(source).toContain('by_user_id: request.user.id');
+    expect(source).toContain('status: request.body.status');
+  });
 });

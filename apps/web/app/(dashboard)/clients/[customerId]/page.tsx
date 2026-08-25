@@ -3,13 +3,14 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { appointmentStatusLabel } from "@esse-beauty/shared";
+import { appointmentStatusLabel, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { AppPage, Button, ConfirmDialog, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
 import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
+import { WhatsAppMarketingConsentPanel } from "../_components/WhatsAppMarketingConsentPanel";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -45,7 +46,7 @@ interface Customer {
 export default function CustomerPage({ params }: { params: Promise<{ customerId: string }> }) {
   const { customerId } = use(params);
   const router = useRouter();
-  const { salon } = useAuth();
+  const { hasPermission, salon } = useAuth();
   const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [customer, setCustomer] = useState<Customer>();
   const [vouchers, setVouchers] = useState<PurchaseVoucher[]>([]);
@@ -187,6 +188,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
         {customer.loyalty && <article className="rounded-2xl bg-[#2f2430] p-5 text-white shadow-sm"><p className="text-xs uppercase tracking-wider text-rose-200">Fedeltà</p><p className="mt-2 text-4xl font-bold">{customer.loyalty.balance} punti</p><div className="mt-4 space-y-2">{customer.loyalty.history.slice(0, 5).map((item) => <div key={item.id} className="flex justify-between text-sm"><span>{item.reason}</span><strong>{item.delta > 0 ? "+" : ""}{item.delta}</strong></div>)}</div></article>}
       </section>
       <section className="space-y-5">
+        {hasPermission(PERMISSION_KEYS.CLIENTS_EDIT) && salon && <WhatsAppMarketingConsentPanel customerId={customerId} phone={customer.phone} salonId={salon.id} />}
         <DocumentsModuleGate enabled={documentsEnabled}>
           <ConsentRecordsPanel customerId={customerId} title="Consensi del cliente" />
         </DocumentsModuleGate>

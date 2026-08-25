@@ -84,7 +84,7 @@ export default function ServicesPage() {
         {loading ? (
           <div className="grid gap-4 md:grid-cols-3">{[1, 2, 3].map((item) => <div className="h-32 animate-pulse rounded-xl bg-white" key={item} />)}</div>
         ) : categories.length === 0 ? (
-          <EmptyState description="Configura categorie e servizi nelle Impostazioni." title="Nessun servizio operativo" />
+          <EmptyState description="Apri Gestione per creare categorie e servizi." title="Nessun servizio operativo" />
         ) : (
           <>
             <section className="mb-5">

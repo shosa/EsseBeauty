@@ -30,13 +30,13 @@ export default function NewRewardPage() {
       return;
     }
     const reward = await response.json() as { id: string };
-    router.push(`/settings/loyalty/rewards/${reward.id}`);
+    router.push(`/loyalty/rewards/${reward.id}`);
   }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
-        <Breadcrumbs items={[{ href: "/settings/loyalty", label: "Fedeltà" }, { label: "Nuovo premio" }]} />
+        <Breadcrumbs items={[{ href: "/loyalty", label: "Fedeltà" }, { label: "Nuovo premio" }]} />
         <h1 className="text-3xl font-bold">Nuovo premio</h1>
         {error && <InlineError>{error}</InlineError>}
         <FormField label="Nome premio" required><input required name="name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>

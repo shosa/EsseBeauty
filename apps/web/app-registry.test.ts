@@ -28,6 +28,7 @@ describe("app-oriented dashboard registry", () => {
       "clients",
       "staff",
       "services",
+      "cabins",
       "vouchers",
       "marketing",
       "loyalty",
@@ -42,8 +43,11 @@ describe("app-oriented dashboard registry", () => {
 
   it("resolves nested paths to their owning app using the most specific route", () => {
     expect(appForPath("/calendar/appointments/new")?.key).toBe("calendar");
-    expect(appForPath("/settings/loyalty/rewards/new")?.key).toBe("loyalty");
-    expect(appForPath("/settings/services/new")?.key).toBe("services");
+    expect(appForPath("/loyalty/rewards/new")?.key).toBe("loyalty");
+    expect(appForPath("/services/new")?.key).toBe("services");
+    expect(appForPath("/staff/manage")?.key).toBe("staff");
+    expect(appForPath("/packages")?.key).toBe("packages");
+    expect(appForPath("/cabins")?.key).toBe("cabins");
     expect(appForPath("/settings/users/invite")?.key).toBe("settings");
   });
 
@@ -116,7 +120,7 @@ describe("app-oriented dashboard registry", () => {
   it("builds contextual browser titles from the active app", () => {
     expect(browserTitleForPath("/")).toBe("HOME | EsseBeauty");
     expect(browserTitleForPath("/sales")).toBe("CASSA | EsseBeauty");
-    expect(browserTitleForPath("/settings/loyalty/rewards/new")).toBe("FEDELTÀ | EsseBeauty");
+    expect(browserTitleForPath("/loyalty/rewards/new")).toBe("FEDELTÀ | EsseBeauty");
     expect(browserTitleForPath("/apps")).toBe("APPS | EsseBeauty");
     expect(browserTitleForPath("/unknown")).toBe("EsseBeauty");
   });

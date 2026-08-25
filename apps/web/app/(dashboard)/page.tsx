@@ -156,7 +156,7 @@ export default function DashboardPage() {
             {inventoryEnabled && <Link className="rounded-xl border border-stone-200 p-3 hover:border-[#b85888]" href="/inventory"><small className="text-stone-500">Scorte basse</small><b className="mt-1 block text-2xl">{countOf(inventory, (items) => items.length)}</b></Link>}
             {reviewsEnabled && <Link className="rounded-xl border border-stone-200 p-3 hover:border-[#b85888]" href="/reviews"><small className="text-stone-500">Recensioni</small><b className="mt-1 block text-2xl">{countOf(reviews, (items) => items.length)}</b></Link>}
             {waitlistEnabled && <Link className="rounded-xl border border-stone-200 p-3 hover:border-[#b85888]" href="/waitlist"><small className="text-stone-500">Lista d’attesa</small><b className="mt-1 block text-2xl">{countOf(waitlist, (items) => items.length)}</b></Link>}
-            {loyaltyEnabled && <Link className="rounded-xl border border-stone-200 p-3 hover:border-[#b85888]" href="/settings/loyalty"><small className="text-stone-500">Top fedeltà</small><b className="mt-1 block truncate text-sm">{loyalty.status === "ready" ? loyalty.data.leaders[0]?.name ?? "Nessun dato" : "—"}</b></Link>}
+            {loyaltyEnabled && <Link className="rounded-xl border border-stone-200 p-3 hover:border-[#b85888]" href="/loyalty"><small className="text-stone-500">Top fedeltà</small><b className="mt-1 block truncate text-sm">{loyalty.status === "ready" ? loyalty.data.leaders[0]?.name ?? "Nessun dato" : "—"}</b></Link>}
           </div>
         </SectionCard>
       </div>

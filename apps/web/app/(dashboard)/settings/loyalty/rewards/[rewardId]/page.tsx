@@ -70,7 +70,7 @@ export default function RewardDetailPage() {
       setError("Premio non eliminato.");
       return;
     }
-    router.push("/settings/loyalty");
+    router.push("/loyalty");
   }
 
   if (loading) return <PageSkeleton />;
@@ -78,7 +78,7 @@ export default function RewardDetailPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <div>
-        <Breadcrumbs items={[{ href: "/settings/loyalty", label: "Fedeltà" }, { label: reward?.name ?? "Premio" }]} />
+        <Breadcrumbs items={[{ href: "/loyalty", label: "Fedeltà" }, { label: reward?.name ?? "Premio" }]} />
         {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
         {!reward ? (
           <EmptyState title="Premio non trovato" description="Potrebbe essere stato eliminato o non accessibile." />

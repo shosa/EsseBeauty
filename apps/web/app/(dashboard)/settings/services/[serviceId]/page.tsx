@@ -89,14 +89,14 @@ export default function ServiceDetailPage() {
       setError("Servizio non archiviato.");
       return;
     }
-    router.push("/settings/services");
+    router.push("/services/manage");
   }
 
   if (loading) return <PageSkeleton />;
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <Breadcrumbs items={[{ href: "/settings/services", label: "Catalogo servizi" }, { label: service?.name ?? "Servizio" }]} />
+      <Breadcrumbs items={[{ href: "/services/manage", label: "Gestione servizi" }, { label: service?.name ?? "Servizio" }]} />
       {error && <div className="mb-4"><InlineError>{error}</InlineError></div>}
       {!service ? (
         <EmptyState title="Servizio non trovato" description="Potrebbe essere archiviato o non accessibile." />

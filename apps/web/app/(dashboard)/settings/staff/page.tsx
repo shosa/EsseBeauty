@@ -65,7 +65,7 @@ export default function SettingsStaffPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<Link href="/settings/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
+          actions={<Link href="/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
           eyebrow="Core"
           title="Staff"
           subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
@@ -79,7 +79,7 @@ export default function SettingsStaffPage() {
                 <div className="flex gap-3">
                   <span className="mt-1 h-12 w-2 rounded-full" style={{ background: member.color }} />
                   <div>
-                    <Link href={`/settings/staff/${member.id}`} className="text-lg font-bold hover:text-[#792f59]">{member.displayName}</Link>
+                    <Link href={`/staff/${member.id}`} className="text-lg font-bold hover:text-[#792f59]">{member.displayName}</Link>
                     <p className="text-sm text-stone-500">{member.specializations.join(", ") || "Specializzazioni da definire"}</p>
                   </div>
                 </div>
@@ -87,7 +87,7 @@ export default function SettingsStaffPage() {
               </div>
               <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per accesso e orari."}</p>
               <div className="mt-5 flex flex-wrap gap-2">
-                <Link href={`/settings/staff/${member.id}`} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]">Configura</Link>
+                <Link href={`/staff/${member.id}`} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]">Configura</Link>
                 <Button onClick={() => setConfirmDelete(member)} variant="destructive">Disattiva</Button>
               </div>
             </SectionCard>

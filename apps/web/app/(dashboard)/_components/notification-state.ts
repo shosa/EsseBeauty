@@ -38,20 +38,28 @@ export function playIncomingMessageSound(
     const context = new AudioContextConstructor();
     const scheduleChime = () => {
       const now = context.currentTime;
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
+      const tones = [
+        { delay: 0, end: 0.18, from: 740, peak: 0.14, to: 988 },
+        { delay: 0.16, end: 0.42, from: 988, peak: 0.11, to: 1_318 },
+      ];
 
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(660, now);
-      oscillator.frequency.exponentialRampToValueAtTime(880, now + 0.12);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.12, now + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.36);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.onended = () => { void context.close?.(); };
-      oscillator.start(now);
-      oscillator.stop(now + 0.38);
+      tones.forEach((tone, index) => {
+        const start = now + tone.delay;
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(tone.from, start);
+        oscillator.frequency.exponentialRampToValueAtTime(tone.to, start + tone.end);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(tone.peak, start + 0.018);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.end);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        if (index === tones.length - 1) oscillator.onended = () => { void context.close?.(); };
+        oscillator.start(start);
+        oscillator.stop(start + tone.end);
+      });
     };
 
     if (context.state === "suspended" && context.resume) {

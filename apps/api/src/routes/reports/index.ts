@@ -11,6 +11,7 @@ import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
 
 function range(from?: string, to?: string) {
   return [
@@ -19,12 +20,41 @@ function range(from?: string, to?: string) {
   ];
 }
 
-function csvCell(value: unknown): string {
-  const text = String(value ?? "");
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
 export async function registerReportRoutes(app: FastifyInstance) {
+  app.get<{
+    Params: { id: string };
+    Querystring: { from?: string; to?: string };
+  }>(
+    "/api/salons/:id/reports/overview",
+    {
+      preHandler: [
+        authenticate,
+        requireModule(MODULE_KEYS.STAFF_PERF),
+        requirePermission(PERMISSION_KEYS.REPORTS_VIEW_ALL),
+      ],
+    },
+    async (request) => {
+      const conditions = [eq(appointments.salonId, request.salonId), ...range(request.query.from, request.query.to)];
+      const [summaryRows, daily] = await Promise.all([
+        app.db.select({
+          appointment_count: sql<number>`count(*)::int`,
+          cancellation_count: sql<number>`count(*) filter (where ${appointments.status} = 'cancelled')::int`,
+          completed_count: sql<number>`count(*) filter (where ${appointments.status} = 'completed')::int`,
+          no_show_count: sql<number>`count(*) filter (where ${appointments.status} = 'no_show')::int`,
+          unique_customers: sql<number>`count(distinct ${appointments.customerId})::int`,
+        }).from(appointments).where(and(...conditions)),
+        app.db.select({
+          appointment_count: sql<number>`count(*)::int`,
+          completed_count: sql<number>`count(*) filter (where ${appointments.status} = 'completed')::int`,
+          day: sql<string>`to_char(date_trunc('day', ${appointments.startsAt}), 'YYYY-MM-DD')`,
+        }).from(appointments).where(and(...conditions))
+          .groupBy(sql`date_trunc('day', ${appointments.startsAt})`)
+          .orderBy(sql`date_trunc('day', ${appointments.startsAt})`),
+      ]);
+      return { daily, summary: summaryRows[0] ?? { appointment_count: 0, cancellation_count: 0, completed_count: 0, no_show_count: 0, unique_customers: 0 } };
+    },
+  );
+
   app.get<{
     Params: { id: string };
     Querystring: { from?: string; to?: string; staffId?: string };
@@ -128,6 +158,9 @@ export async function registerReportRoutes(app: FastifyInstance) {
           service_id: services.id,
           service_name: services.name,
           appointment_count: sql<number>`count(${appointments.id})`,
+          completed_count: sql<number>`count(*) filter (where ${appointments.status} = 'completed')`,
+          no_show_count: sql<number>`count(*) filter (where ${appointments.status} = 'no_show')`,
+          unique_customers: sql<number>`count(distinct ${appointments.customerId})`,
         })
         .from(services)
         .leftJoin(
@@ -174,30 +207,26 @@ export async function registerReportRoutes(app: FastifyInstance) {
             ...range(request.query.from, request.query.to),
           ),
         );
-      const csv = [
-        ["ID", "Data", "Stato", "Cliente", "Servizio", "Staff"]
-          .map(csvCell)
-          .join(","),
-        ...rows.map((row) =>
-          [
-            row.id,
-            row.starts_at.toISOString(),
-            row.status,
-            row.customer,
-            row.service,
-            row.staff,
-          ]
-            .map(csvCell)
-            .join(","),
-        ),
-      ].join("\r\n");
+      const workbook = createWorkbook("Report appuntamenti");
+      const sheet = workbook.addWorksheet("Appuntamenti");
+      sheet.addRow(["ID", "Data", "Stato", "Cliente", "Servizio", "Staff"]);
+      rows.forEach((row) => sheet.addRow([row.id, row.starts_at, row.status, row.customer, row.service, row.staff]));
+      sheet.getColumn(2).numFmt = "dd/mm/yyyy hh:mm";
+      styleWorksheet(sheet);
+      const summary = workbook.addWorksheet("Riepilogo");
+      summary.addRow(["Indicatore", "Valore"]);
+      summary.addRows([
+        ["Appuntamenti", rows.length],
+        ["Completati", rows.filter((row) => row.status === "completed").length],
+        ["Cancellati", rows.filter((row) => row.status === "cancelled").length],
+        ["No-show", rows.filter((row) => row.status === "no_show").length],
+        ["Clienti unici", new Set(rows.map((row) => row.customer)).size],
+      ]);
+      styleWorksheet(summary);
       return reply
-        .header("content-type", "text/csv; charset=utf-8")
-        .header(
-          "content-disposition",
-          'attachment; filename="appointments.csv"',
-        )
-        .send(`\uFEFF${csv}`);
+        .header("content-type", excelContentType)
+        .header("content-disposition", 'attachment; filename="report-appuntamenti.xlsx"')
+        .send(await workbookBuffer(workbook));
     },
   );
 }

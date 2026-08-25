@@ -26,6 +26,7 @@ import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { authenticate } from "../../middleware/auth.js";
 import { awardSaleLoyalty } from "../../lib/loyalty-engine.js";
 import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
+import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
 
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 type ItemType = "service" | "product" | "custom";
@@ -852,9 +853,15 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       .innerJoin(sales, eq(sales.id, salePayments.saleId))
       .where(and(...conditions))
       .groupBy(salePayments.method);
+    const paymentRows = rows.length ? await app.db
+      .select({ method: salePayments.method, sale_id: salePayments.saleId })
+      .from(salePayments)
+      .where(and(eq(salePayments.salonId, request.salonId), inArray(salePayments.saleId, rows.map((row) => row.id)))) : [];
+    const methodsBySale = new Map<string, PaymentMethod[]>();
+    for (const payment of paymentRows) methodsBySale.set(payment.sale_id, [...(methodsBySale.get(payment.sale_id) ?? []), payment.method]);
     return {
       payments,
-      rows,
+      rows: rows.map((row) => ({ ...row, payment_methods: methodsBySale.get(row.id) ?? [] })),
       summary: {
         average_cents: rows.length ? Math.round(rows.reduce((total, row) => total + row.total_cents, 0) / rows.length) : 0,
         count: rows.length,
@@ -862,6 +869,62 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         total_cents: rows.reduce((total, row) => total + row.total_cents, 0),
       },
     };
+  });
+
+  app.get<{
+    Params: { id: string };
+    Querystring: { from?: string; to?: string };
+  }>("/api/salons/:id/sales/export", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const conditions = [
+      eq(sales.salonId, request.salonId),
+      eq(sales.status, "paid"),
+      ...(request.query.from ? [gte(sales.closedAt, new Date(request.query.from))] : []),
+      ...(request.query.to ? [lte(sales.closedAt, new Date(request.query.to))] : []),
+    ];
+    const rows = await app.db.select({
+      cashier: users.fullName,
+      closed_at: sales.closedAt,
+      customer: customers.fullName,
+      discount_cents: sales.discountCents,
+      id: sales.id,
+      staff: staff.displayName,
+      subtotal_cents: sales.subtotalCents,
+      total_cents: sales.totalCents,
+    }).from(sales)
+      .leftJoin(customers, eq(customers.id, sales.customerId))
+      .leftJoin(staff, eq(staff.id, sales.staffId))
+      .leftJoin(users, eq(users.id, sales.closedByUserId))
+      .where(and(...conditions)).orderBy(desc(sales.closedAt));
+    const paymentRows = await app.db.select({
+      amount_cents: salePayments.amountCents,
+      method: salePayments.method,
+      paid_at: salePayments.paidAt,
+      reference: salePayments.reference,
+      sale_id: salePayments.saleId,
+    }).from(salePayments).innerJoin(sales, eq(sales.id, salePayments.saleId)).where(and(...conditions));
+
+    const workbook = createWorkbook("Contabilita EsseBeauty");
+    const summary = workbook.addWorksheet("Riepilogo");
+    const total = rows.reduce((sum, row) => sum + row.total_cents, 0);
+    const discounts = rows.reduce((sum, row) => sum + row.discount_cents, 0);
+    summary.addRow(["Indicatore", "Valore"]);
+    summary.addRows([["Incassato", total / 100], ["Vendite", rows.length], ["Scontrino medio", rows.length ? total / rows.length / 100 : 0], ["Sconti", discounts / 100]]);
+    styleWorksheet(summary, [2]);
+    const salesSheet = workbook.addWorksheet("Vendite");
+    salesSheet.addRow(["ID", "Data", "Cliente", "Operatore", "Cassiere", "Subtotale", "Sconto", "Totale"]);
+    rows.forEach((row) => salesSheet.addRow([row.id, row.closed_at, row.customer ?? "Cliente occasionale", row.staff ?? "", row.cashier ?? "", row.subtotal_cents / 100, row.discount_cents / 100, row.total_cents / 100]));
+    salesSheet.getColumn(2).numFmt = "dd/mm/yyyy hh:mm";
+    styleWorksheet(salesSheet, [6, 7, 8]);
+    const paymentsSheet = workbook.addWorksheet("Pagamenti");
+    paymentsSheet.addRow(["Vendita", "Data", "Metodo", "Importo", "Riferimento"]);
+    paymentRows.forEach((row) => paymentsSheet.addRow([row.sale_id, row.paid_at, row.method, row.amount_cents / 100, row.reference ?? ""]));
+    paymentsSheet.getColumn(2).numFmt = "dd/mm/yyyy hh:mm";
+    styleWorksheet(paymentsSheet, [4]);
+    return reply.header("content-type", excelContentType)
+      .header("content-disposition", 'attachment; filename="contabilita.xlsx"')
+      .send(await workbookBuffer(workbook));
   });
 
   app.get<{
