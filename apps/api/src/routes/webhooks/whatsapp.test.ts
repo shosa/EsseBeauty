@@ -101,4 +101,43 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
       await db.delete(salons).where(eq(salons.id, data.salonId));
     }
   });
+
+  it("accepts a signed delivery status even when the referenced message is not stored locally", async () => {
+    const data = await fixture();
+    const server = app();
+    const payload = {
+      entry: [{
+        changes: [{
+          field: "messages",
+          value: {
+            messaging_product: "whatsapp",
+            metadata: { phone_number_id: data.phoneNumberId },
+            statuses: [{ id: "wamid.external-status", status: "sent", timestamp: "1787568000" }],
+          },
+        }],
+        id: data.wabaId,
+      }],
+      object: "whatsapp_business_account",
+    };
+    const raw = JSON.stringify(payload);
+    const signature = `sha256=${createHmac("sha256", "meta-app-secret").update(raw).digest("hex")}`;
+    try {
+      const response = await server.inject({
+        headers: { "content-type": "application/json", "x-hub-signature-256": signature },
+        method: "POST",
+        payload: raw,
+        url: `/api/webhooks/whatsapp/${data.webhookKey}`,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      const events = await db.execute(sql<{ count: number }>`
+        select count(*)::int count
+        from communication_webhook_events
+        where salon_id = ${data.salonId}::uuid and external_event_id like 'wamid.external-status:%'
+      `);
+      expect(events).toEqual([{ count: 1 }]);
+    } finally {
+      await server.close();
+      await db.delete(salons).where(eq(salons.id, data.salonId));
+    }
+  });
 });

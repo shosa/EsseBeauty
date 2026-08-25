@@ -145,17 +145,17 @@ async function processStatus(
       status: "processed",
     }).onConflictDoNothing({ target: [communicationWebhookEvents.accountId, communicationWebhookEvents.externalEventId] }).returning({ id: communicationWebhookEvents.id }))[0];
     if (!event) return;
-    const timestamp = providerDate(status.timestamp);
+    const timestamp = providerDate(status.timestamp).toISOString();
     const rank = statusRank[nextStatus];
     await tx.execute(sql`
       update communication_messages
       set
         status = ${nextStatus}::communication_message_status,
-        provider_timestamp = ${timestamp},
-        sent_at = case when ${nextStatus} = 'sent' then coalesce(sent_at, ${timestamp}) else sent_at end,
-        delivered_at = case when ${nextStatus} = 'delivered' then coalesce(delivered_at, ${timestamp}) else delivered_at end,
-        read_at = case when ${nextStatus} = 'read' then coalesce(read_at, ${timestamp}) else read_at end,
-        failed_at = case when ${nextStatus} = 'failed' then coalesce(failed_at, ${timestamp}) else failed_at end,
+        provider_timestamp = ${timestamp}::timestamptz,
+        sent_at = case when ${nextStatus} = 'sent' then coalesce(sent_at, ${timestamp}::timestamptz) else sent_at end,
+        delivered_at = case when ${nextStatus} = 'delivered' then coalesce(delivered_at, ${timestamp}::timestamptz) else delivered_at end,
+        read_at = case when ${nextStatus} = 'read' then coalesce(read_at, ${timestamp}::timestamptz) else read_at end,
+        failed_at = case when ${nextStatus} = 'failed' then coalesce(failed_at, ${timestamp}::timestamptz) else failed_at end,
         failure_code = case when ${nextStatus} = 'failed' then ${String(status.errors?.[0]?.code ?? "META_FAILED")} else failure_code end,
         updated_at = now()
       where account_id = ${account.id}::uuid
