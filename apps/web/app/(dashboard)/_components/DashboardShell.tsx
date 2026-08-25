@@ -34,6 +34,8 @@ import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./she
 import { AppRail } from "./AppRail";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
+import { CommunicationWorkspaceProvider, useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
+import { WhatsAppChatDrawer } from "./WhatsAppChatDrawer";
 import { appForPath, browserTitleForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -420,6 +422,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const communications = useCommunicationWorkspace();
 
   const grantedPermissions = useMemo(() => new Set(permissions), [permissions]);
 
@@ -552,9 +555,10 @@ function ShellContent({ children }: { children: ReactNode }) {
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} />
+      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter onClose={() => setNotificationsOpen(false)} onRead={loadUnread} open={notificationsOpen} salonId={salon?.id} />
+      <WhatsAppChatDrawer />
       <main className={`${currentApp?.tabs?.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
       <MobileAppNavigation apps={apps} pathname={pathname} />
     </div>
@@ -580,5 +584,5 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   ) {
     return <main className="grid min-h-screen place-items-center bg-[#f6f2f4]"><div className="size-12 animate-pulse rounded-2xl bg-[#792f59]" /></main>;
   }
-  return <ModuleProvider apiBaseUrl={api} salonId={salon.id}><ShellContent>{children}</ShellContent></ModuleProvider>;
+  return <ModuleProvider apiBaseUrl={api} salonId={salon.id}><CommunicationWorkspaceProvider apiBaseUrl={api} salonId={salon.id}><ShellContent>{children}</ShellContent></CommunicationWorkspaceProvider></ModuleProvider>;
 }

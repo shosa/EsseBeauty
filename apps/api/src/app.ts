@@ -17,6 +17,7 @@ import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
 import { registerCommunicationSettingsRoutes } from "./routes/communications/settings.js";
+import { registerCommunicationRoutes } from "./routes/communications/index.js";
 import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
@@ -144,6 +145,7 @@ export function createApp({
   void registerAppointmentRoutes(app);
   void registerCustomerRoutes(app);
   void registerCommunicationSettingsRoutes(app);
+  registerCommunicationRoutes(app);
   registerWhatsAppWebhookRoutes(app);
   void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);

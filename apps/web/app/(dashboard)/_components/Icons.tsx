@@ -1,7 +1,7 @@
 import {
   Bell, Blocks, Boxes, BriefcaseBusiness, CalendarDays, ChartNoAxesColumn,
   ClipboardList, DoorOpen, Grid2X2, Heart, LayoutDashboard, LogOut, Megaphone,
-  MessageSquare, MoreHorizontal, Package, PanelLeft, Settings, ShoppingBag,
+  MessageCircle, MessageSquare, MoreHorizontal, Package, PanelLeft, Settings, ShoppingBag,
   Sparkles, Users, UserRound, Volume2, WalletCards,
 } from "lucide-react";
 import type { ComponentProps } from "react";
@@ -32,3 +32,4 @@ export const PackageIcon = Package;
 export const ShoppingIcon = ShoppingBag;
 export const DoorIcon = DoorOpen;
 export const BriefcaseIcon = BriefcaseBusiness;
+export const WhatsAppIcon = MessageCircle;
