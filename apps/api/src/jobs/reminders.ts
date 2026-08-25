@@ -163,7 +163,7 @@ export async function processReminder(
     }
     await db
       .update(reminders)
-      .set({ status: "sent", sentAt: new Date() })
+      .set({ status: "queued", sentAt: null })
       .where(eq(reminders.id, reminder.id));
   } catch (error) {
     await db

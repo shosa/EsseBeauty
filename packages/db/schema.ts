@@ -54,6 +54,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
 export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
   "pending",
+  "queued",
   "sent",
   "failed",
 ]);
@@ -64,6 +65,7 @@ export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
 ]);
 export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
   "pending",
+  "queued",
   "processing",
   "sent",
   "failed",
@@ -144,6 +146,7 @@ export const communicationDirectionEnum = pgEnum("communication_direction", ["in
 export const communicationMessageKindEnum = pgEnum("communication_message_kind", ["text", "template", "media", "system"]);
 export const communicationMessageStatusEnum = pgEnum("communication_message_status", ["queued", "accepted", "sent", "delivered", "read", "failed"]);
 export const communicationOutboxStatusEnum = pgEnum("communication_outbox_status", ["pending", "processing", "delivered", "failed", "exhausted"]);
+export const whatsappTemplateApprovalStatusEnum = pgEnum("whatsapp_template_approval_status", ["pending", "approved", "rejected", "revoked"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -1710,6 +1713,9 @@ export const campaignTemplates = pgTable("campaign_templates", {
   variables: jsonb("variables").$type<string[]>().default([]).notNull(),
   whatsappTemplateName: text("whatsapp_template_name"),
   whatsappTemplateLocale: text("whatsapp_template_locale"),
+  whatsappApprovalStatus: whatsappTemplateApprovalStatusEnum("whatsapp_approval_status"),
+  whatsappApprovalSource: text("whatsapp_approval_source"),
+  whatsappApprovedAt: timestamp("whatsapp_approved_at", { withTimezone: true }),
   active: boolean("active").default(true).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
@@ -1734,6 +1740,7 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
   whatsappTemplateName: text("whatsapp_template_name"),
   whatsappTemplateLocale: text("whatsapp_template_locale"),
   whatsappTemplateParameters: jsonb("whatsapp_template_parameters").$type<string[]>().default([]).notNull(),
+  whatsappTemplateApprovalStatus: whatsappTemplateApprovalStatusEnum("whatsapp_template_approval_status"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

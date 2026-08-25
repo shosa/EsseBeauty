@@ -371,6 +371,23 @@ export async function registerMarketingRoutes(
       }
       const body = request.body;
       try {
+        if (body.channel === "whatsapp") {
+          const normalized = body.destination.replace(/\D/g, "");
+          const customer = (await app.db.select({ id: customers.id }).from(customers).where(and(
+            eq(customers.salonId, request.salonId),
+            sql`regexp_replace(coalesce(${customers.phone}, ''), '[^0-9]', '', 'g') = ${normalized}`,
+          )))[0];
+          const consent = customer && (await app.db.select({ id: communicationConsents.id }).from(communicationConsents).where(and(
+            eq(communicationConsents.salonId, request.salonId), eq(communicationConsents.customerId, customer.id),
+            eq(communicationConsents.channel, "whatsapp"), eq(communicationConsents.purpose, "marketing"), eq(communicationConsents.status, "granted"),
+          )))[0];
+          if (!consent) return reply.code(403).send({ error: "WHATSAPP_MARKETING_CONSENT_REQUIRED" });
+          const template = (await app.db.select({ id: campaignTemplates.id }).from(campaignTemplates).where(and(
+            eq(campaignTemplates.salonId, request.salonId), eq(campaignTemplates.channel, "whatsapp"), eq(campaignTemplates.active, true),
+            eq(campaignTemplates.whatsappApprovalStatus, "approved"), eq(campaignTemplates.whatsappTemplateName, body.whatsapp_template_name!), eq(campaignTemplates.whatsappTemplateLocale, body.whatsapp_template_locale!),
+          )))[0];
+          if (!template) return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+        }
         const receipt = body.channel === "email" ? await providers.send(
           body.channel === "email"
             ? {
@@ -521,12 +538,16 @@ export async function registerMarketingRoutes(
       ));
       const template = templates[0];
       if (!template) return reply.code(404).send({ error: "TEMPLATE_NOT_FOUND" });
+      if (template.channel === "whatsapp" && (template.whatsappApprovalStatus !== "approved" || !template.whatsappTemplateName || !template.whatsappTemplateLocale)) {
+        return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+      }
       const campaigns = await app.db.update(marketingCampaigns).set({
         channel: template.channel,
         content: template.content,
         templateId: template.id,
         whatsappTemplateLocale: template.whatsappTemplateLocale,
         whatsappTemplateName: template.whatsappTemplateName,
+        whatsappTemplateApprovalStatus: template.whatsappApprovalStatus,
         updatedAt: new Date(),
       }).where(and(
         eq(marketingCampaigns.id, request.body.campaign_id),
@@ -563,6 +584,9 @@ export async function registerMarketingRoutes(
   }>("/api/salons/:id/campaigns", { preHandler: guard }, async (request, reply) => {
     if (!validCampaignDraft(request.body)) {
       return reply.code(400).send({ error: "INVALID_REQUEST" });
+    }
+    if (request.body.channel === "whatsapp") {
+      return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
     }
     const preview = await resolveSegmentPreview(
       app,
@@ -603,6 +627,9 @@ export async function registerMarketingRoutes(
       whatsapp_template_parameters: string[];
     }>;
   }>("/api/salons/:id/campaigns/:campaignId", { preHandler: guard }, async (request, reply) => {
+    if (request.body.whatsapp_template_locale !== undefined || request.body.whatsapp_template_name !== undefined || request.body.whatsapp_template_parameters !== undefined) {
+      return reply.code(400).send({ error: "WHATSAPP_TEMPLATE_IMMUTABLE" });
+    }
     const rows = await app.db
       .update(marketingCampaigns)
       .set({
@@ -652,6 +679,9 @@ export async function registerMarketingRoutes(
     }
     if (campaign.channel !== "email" && campaign.channel !== "whatsapp") {
       return reply.code(409).send({ error: "HISTORICAL_CAMPAIGN_NOT_SENDABLE" });
+    }
+    if (campaign.channel === "whatsapp" && (campaign.whatsappTemplateApprovalStatus !== "approved" || !campaign.templateId || !campaign.whatsappTemplateName || !campaign.whatsappTemplateLocale)) {
+      return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
     }
     const whatsappReady = campaign.channel === "whatsapp" && (await app.db.select({ id: communicationProviderAccounts.id }).from(communicationProviderAccounts).where(and(
       eq(communicationProviderAccounts.salonId, request.salonId),

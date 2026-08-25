@@ -2,7 +2,7 @@ import { Worker, type Job, type JobsOptions } from "bullmq";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
-import { campaignRecipients, marketingCampaigns } from "@esse-beauty/db/schema";
+import { campaignRecipients, campaignTemplates, communicationConsents, marketingCampaigns } from "@esse-beauty/db/schema";
 
 import {
   createCommunicationProviderRegistry,
@@ -37,6 +37,7 @@ export function aggregateCampaignStatus(
   if ([...statuses].every((status) => status === "cancelled")) return "cancelled";
   if ([...statuses].every((status) => status === "sent")) return "sent";
   if ([...statuses].every((status) => status === "failed")) return "failed";
+  if (statuses.has("skipped")) return statuses.has("sent") ? "partial" : "failed";
   if (statuses.has("processing")) return "processing";
   if (statuses.has("pending") || statuses.has("queued")) {
     return statuses.size === 1 ? "queued" : "processing";
@@ -118,6 +119,31 @@ export async function processCampaignBatch(
 
   for (const recipient of claimed) {
     try {
+      if (campaign.channel === "whatsapp") {
+        const consent = recipient.customerId && (await db.select({ id: communicationConsents.id })
+          .from(communicationConsents)
+          .where(and(
+            eq(communicationConsents.salonId, campaign.salonId),
+            eq(communicationConsents.customerId, recipient.customerId),
+            eq(communicationConsents.channel, "whatsapp"),
+            eq(communicationConsents.purpose, "marketing"),
+            eq(communicationConsents.status, "granted"),
+          )))[0];
+        if (!consent) {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_MARKETING_CONSENT_REVOKED", status: "skipped", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+        const template = campaign.templateId && (await db.select().from(campaignTemplates).where(and(
+          eq(campaignTemplates.id, campaign.templateId),
+          eq(campaignTemplates.salonId, campaign.salonId),
+        )))[0];
+        if (!template || !template.active || template.whatsappApprovalStatus !== "approved" || !template.whatsappTemplateName || !template.whatsappTemplateLocale || !campaign.whatsappTemplateName || !campaign.whatsappTemplateLocale || campaign.whatsappTemplateApprovalStatus !== "approved") {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED", status: "failed", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+      }
       const receipt = campaign.channel === "email"
         ? await providers.send({
             channel: "email",
@@ -140,8 +166,8 @@ export async function processCampaignBatch(
             to: recipient.destination,
           }).then((queued) => ({
             acceptedAt: new Date(),
-            provider: "meta_cloud_api",
-            providerMessageId: queued.messageId,
+            provider: null,
+            providerMessageId: null,
           }));
       await db
         .update(campaignRecipients)
@@ -150,7 +176,7 @@ export async function processCampaignBatch(
           providerMessageId: receipt.providerMessageId,
           providerName: receipt.provider,
           sentAt: receipt.acceptedAt,
-          status: "sent",
+          status: campaign.channel === "whatsapp" ? "queued" : "sent",
           updatedAt: new Date(),
         })
         .where(

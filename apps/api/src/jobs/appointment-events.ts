@@ -57,6 +57,7 @@ export function detectAppointmentTransition(input: {
 
 interface AppointmentEventDependencies {
   scheduleReviewInvitation?: typeof scheduleReviewInvitation;
+  enqueue?: typeof enqueueCommunication;
 }
 
 function transitionFrom(request: FastifyRequest) {
@@ -110,6 +111,7 @@ async function enqueueReview(
 async function notifyWaitlist(
   app: FastifyInstance,
   appointment: typeof appointments.$inferSelect,
+  dependencies: AppointmentEventDependencies,
 ) {
   if (
     !(await isModuleEnabled(
@@ -170,7 +172,7 @@ async function notifyWaitlist(
         `<p>Ciao ${entry.customerName},</p><p>${message}</p>`,
       );
     } else if (entry.phone) {
-      await enqueueCommunication(app.db, {
+      await (dependencies.enqueue ?? enqueueCommunication)(app.db, {
         idempotencyKey: `waitlist-notification-${entry.id}`,
         kind: "template",
         salonId: entry.salonId,
@@ -245,7 +247,7 @@ export function registerAppointmentEventHooks(
         ]);
       } else {
         await Promise.all([
-          notifyWaitlist(app, appointment),
+          notifyWaitlist(app, appointment, dependencies),
         ]);
       }
     } catch (error) {

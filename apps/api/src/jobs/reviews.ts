@@ -295,12 +295,14 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
     ) return undefined;
 
     const claimId = randomUUID();
-    const token = issueStablePublicToken(
-      "review",
-      invitation.invitationId,
-      invitation.expiresAt,
-      reviewTokenSecret(),
-    );
+    const token = invitation.channel === "email"
+      ? issueStablePublicToken(
+          "review",
+          invitation.invitationId,
+          invitation.expiresAt,
+          reviewTokenSecret(),
+        )
+      : undefined;
     await tx.update(reviewInvitations).set({
       deliveryClaimId: claimId,
       deliveryAttempts: sql`${reviewInvitations.deliveryAttempts} + 1`,
@@ -308,14 +310,14 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
       deliveryLeaseExpiresAt: new Date(now.getTime() + REVIEW_DELIVERY_LEASE_MS),
       deliveryStatus: "processing",
       lastDeliveryAttemptAt: now,
-      tokenHash: token.tokenHash,
+      tokenHash: token?.tokenHash ?? null,
       updatedAt: new Date(),
     }).where(eq(reviewInvitations.id, invitationId));
     return {
       ...invitation,
       attemptNumber: invitation.deliveryAttempts + 1,
       claimId,
-      rawToken: token.raw,
+      rawToken: token?.raw,
     };
   });
 }
@@ -335,7 +337,9 @@ export async function processReviewRequest(
   try {
     const emailSender = dependencies.emailSender ?? sendEmail;
     const pwaUrl = (process.env.PWA_URL ?? "http://localhost:3002").replace(/\/$/, "");
-    const reviewUrl = buildReviewInviteUrl(pwaUrl, delivery.rawToken);
+    const reviewUrl = delivery.rawToken
+      ? buildReviewInviteUrl(pwaUrl, delivery.rawToken)
+      : undefined;
     if (delivery.channel === "email" && delivery.email) {
       await emailSender(
         delivery.email,
@@ -353,17 +357,17 @@ export async function processReviewRequest(
         template: {
           locale: "it",
           name: "review_invitation",
-          parameters: [delivery.customerName, delivery.serviceName, reviewUrl],
+          parameters: [delivery.customerName, delivery.serviceName, "__review_url__"],
         },
         to: delivery.phone,
       });
     }
     await db.update(reviewInvitations).set({
-      deliveredAt: new Date(),
+      deliveredAt: delivery.channel === "email" ? new Date() : null,
       deliveryClaimId: null,
       deliveryFailure: null,
       deliveryLeaseExpiresAt: null,
-      deliveryStatus: "sent",
+      deliveryStatus: delivery.channel === "email" ? "sent" : "queued",
       updatedAt: new Date(),
     }).where(and(
       eq(reviewInvitations.id, delivery.invitationId),

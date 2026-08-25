@@ -214,6 +214,14 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       expect(testSend.json()).toMatchObject({ provider_message_id: "provider-1" });
       expect(dependencies.messages).toHaveLength(1);
       expect(dependencies.jobs).toEqual([]);
+
+      const withoutConsent = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` }, method: "POST",
+        payload: { channel: "whatsapp", content: "ignored", destination: "+393331234567", whatsapp_template_locale: "it", whatsapp_template_name: "promo" },
+        url: `/api/salons/${data.salonId}/campaigns/test-send`,
+      });
+      expect(withoutConsent.statusCode).toBe(403);
+      expect(withoutConsent.json()).toEqual({ error: "WHATSAPP_MARKETING_CONSENT_REQUIRED" });
     } finally {
       await app.close();
       await data.cleanup();
@@ -330,30 +338,42 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
     const data = await fixture();
     const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
     try {
+      const template = (await db.insert(campaignTemplates).values({
+        channel: "whatsapp", content: "x".repeat(500), name: "Promozione WhatsApp", salonId: data.salonId,
+        whatsappApprovalSource: "meta_template_sync", whatsappApprovalStatus: "approved", whatsappApprovedAt: new Date(),
+        whatsappTemplateLocale: "it", whatsappTemplateName: "marketing_promotion",
+      }).returning())[0]!;
+      const campaign = (await db.insert(marketingCampaigns).values({
+        channel: "email", content: "draft", name: "Bozza", salonId: data.salonId, targetSegment: { type: "all" },
+      }).returning())[0]!;
       const response = await app.inject({
         headers: { cookie: `esse-session=${data.ownerToken}` },
         method: "POST",
-        payload: {
-          channel: "whatsapp",
-          content: "x".repeat(500),
-          name: "Promozione WhatsApp",
-          target_segment: { type: "all" },
-          whatsapp_template_locale: "it",
-          whatsapp_template_name: "marketing_promotion",
-          whatsapp_template_parameters: ["estate"],
-        },
-        url: `/api/salons/${data.salonId}/campaigns`,
+        payload: { campaign_id: campaign.id },
+        url: `/api/salons/${data.salonId}/campaign-templates/${template.id}/apply`,
       });
-      expect(response.statusCode, response.body).toBe(201);
-      expect(response.json()).toMatchObject({
-        channel: "whatsapp",
-        whatsappTemplateLocale: "it",
-        whatsappTemplateName: "marketing_promotion",
-      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json()).toMatchObject({ channel: "whatsapp", content: "x".repeat(500), whatsappTemplateName: "marketing_promotion" });
     } finally {
       await app.close();
       await data.cleanup();
     }
+  });
+
+  it("skips a recipient whose WhatsApp marketing consent was revoked after scheduling", async () => {
+    const data = await fixture();
+    const template = (await db.insert(campaignTemplates).values({ channel: "whatsapp", content: "Promo", name: "Promo", salonId: data.salonId, whatsappApprovalSource: "meta_template_sync", whatsappApprovalStatus: "approved", whatsappApprovedAt: new Date(), whatsappTemplateLocale: "it", whatsappTemplateName: "promo" }).returning())[0]!;
+    const campaign = (await db.insert(marketingCampaigns).values({ channel: "whatsapp", content: "Promo", name: "Promo", salonId: data.salonId, status: "queued", targetSegment: { type: "all" }, templateId: template.id, whatsappTemplateApprovalStatus: "approved", whatsappTemplateLocale: "it", whatsappTemplateName: "promo" }).returning())[0]!;
+    const recipient = (await db.insert(campaignRecipients).values({ campaignId: campaign.id, customerId: data.customers[0]!.id, destination: "+393331112233", salonId: data.salonId, status: "queued" }).returning())[0]!;
+    await db.insert(communicationConsents).values({ capturedAt: new Date(), capturedSource: "test", channel: "whatsapp", customerId: data.customers[0]!.id, purpose: "marketing", salonId: data.salonId, status: "revoked", revokedAt: new Date() });
+    expect(await db.select().from(communicationConsents).where(and(eq(communicationConsents.customerId, data.customers[0]!.id), eq(communicationConsents.status, "granted")))).toEqual([]);
+    const enqueue = vi.fn();
+    try {
+      await processCampaignBatch(db, { data: { campaignId: campaign.id, recipientIds: [recipient.id] } }, undefined, enqueue);
+      expect(enqueue).not.toHaveBeenCalled();
+      const stored = (await db.select().from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0];
+      expect(stored).toMatchObject({ error: "WHATSAPP_MARKETING_CONSENT_REVOKED", status: "skipped" });
+    } finally { await data.cleanup(); }
   });
 
   it("queues an immediate campaign durably and can cancel only before processing", async () => {

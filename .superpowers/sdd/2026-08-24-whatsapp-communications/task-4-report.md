@@ -42,3 +42,24 @@ Active product delivery now uses tenant-scoped WhatsApp template messages throug
 
 - The local Redis endpoint requires authentication and emitted `NOAUTH` during a route test's non-blocking outbox wake attempt. The durable enqueue contract catches that wake failure, so the focused test suite still passed; configure the test Redis credential for clean stderr.
 - Template names/locales are stored and required for new WhatsApp campaign drafts. Deployment must ensure the named templates are approved in the tenant's Meta account before scheduling.
+
+## Fix round 1/5
+
+### Changes
+
+- Added migration `0033_whatsapp_product_flow_hardening.sql`: queued product states, WhatsApp template approval provenance/status, and skipped campaign-recipient status.
+- Review links are now persisted only as `__review_url__`; the raw deterministic bearer token is generated in memory by the outbox worker immediately before Meta delivery and only its hash is stored on the invitation.
+- Reminder/review/campaign product state remains queued after outbox enqueue. The outbox updates source product records only after provider acceptance or terminal failure.
+- Marketing rechecks granted WhatsApp marketing consent and approved template status immediately before each recipient enqueue; revocations are skipped truthfully.
+- Marketing test sends require a customer-bound WhatsApp marketing consent plus an approved, active template. Direct arbitrary WhatsApp campaign template input is rejected.
+- Waitlist enqueue accepts an injected boundary; UI distinguishes missing WhatsApp consent from missing phone.
+
+### RED/GREEN evidence
+
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/reminders-delivery.postgres.test.ts src/jobs/reviews-delivery.postgres.test.ts src/routes/marketing/campaign-lifecycle.test.ts` initially failed on immediate `sent` state, persisted raw review URL, and arbitrary WhatsApp template creation.
+- GREEN: `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/communications.test.ts src/jobs/reminders-delivery.postgres.test.ts src/jobs/reviews-delivery.postgres.test.ts src/routes/marketing/campaign-lifecycle.test.ts` passes after the hardening changes (route test: 12 tests passed).
+- `corepack pnpm --filter @esse-beauty/api typecheck` and `corepack pnpm --filter @esse-beauty/web typecheck` pass.
+
+### Fix-round concerns
+
+- Redis is still unauthenticated in the local test environment, producing non-blocking `NOAUTH` stderr when a route constructs the durable queue. No live Meta calls were made.

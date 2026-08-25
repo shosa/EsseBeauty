@@ -142,7 +142,7 @@ export default function NewCampaignPage() {
           <Button type="button" variant="secondary" onClick={() => void loadPreview()}>Calcola anteprima</Button>
           {preview && <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold">Destinatari validi · {preview.eligible_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.eligible.map((item) => <li key={item.customer_id}>{item.name} · {item.destination}</li>)}</ul></div>
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 className="font-bold">Destinazioni escluse · {preview.excluded_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.excluded.map((item) => <li key={item.customer_id}>{item.name} · {item.reason === "MISSING_EMAIL" ? "email mancante" : "telefono mancante"}</li>)}</ul></div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 className="font-bold">Destinazioni escluse · {preview.excluded_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.excluded.map((item) => <li key={item.customer_id}>{item.name} · {item.reason === "MISSING_EMAIL" ? "email mancante" : item.reason === "MISSING_WHATSAPP_CONSENT" ? "consenso WhatsApp mancante" : "telefono mancante"}</li>)}</ul></div>
           </div>}
         </SectionCard>
 

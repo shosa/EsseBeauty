@@ -9,6 +9,9 @@ import {
   communicationMessages,
   communicationOutbox,
   communicationProviderAccounts,
+  campaignRecipients,
+  reminders,
+  reviewInvitations,
 } from "@esse-beauty/db/schema";
 
 import {
@@ -16,6 +19,7 @@ import {
   type TenantWhatsAppSendRequest,
   type WhatsAppDeliveryReceipt,
 } from "../providers/whatsapp-cloud-provider.js";
+import { issueStablePublicToken } from "../lib/public-tokens.js";
 import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
 const LEASE_MS = 5 * 60_000;
@@ -175,6 +179,59 @@ async function claimOutbox(db: DrizzleDB, outboxId: string) {
 
 type Sender = (db: DrizzleDB, request: TenantWhatsAppSendRequest) => Promise<WhatsAppDeliveryReceipt>;
 
+function reviewTokenSecret(): string {
+  const secret = process.env.REVIEW_TOKEN_SECRET;
+  if (!secret) throw new Error("REVIEW_TOKEN_SECRET is required");
+  return secret;
+}
+
+function buildReviewInviteUrl(pwaBaseUrl: string, rawToken: string): string {
+  return `${pwaBaseUrl}/review#token=${encodeURIComponent(rawToken)}`;
+}
+
+async function resolveTemplateParameters(db: DrizzleDB, claimed: Awaited<ReturnType<typeof claimOutbox>>) {
+  if (!claimed) return [];
+  const parameters = claimed.message.templateParameters
+    .map((parameter) => typeof parameter.text === "string" ? parameter.text : "");
+  if (claimed.message.sourceType !== "review_invitation" || !parameters.includes("__review_url__")) return parameters;
+  const invitation = (await db.select({ expiresAt: reviewInvitations.expiresAt, id: reviewInvitations.id })
+    .from(reviewInvitations)
+    .where(and(eq(reviewInvitations.id, claimed.message.sourceId!), eq(reviewInvitations.salonId, claimed.message.salonId))))[0];
+  if (!invitation) throw new Error("REVIEW_INVITATION_NOT_FOUND");
+  const token = issueStablePublicToken("review", invitation.id, invitation.expiresAt, reviewTokenSecret());
+  await db.update(reviewInvitations).set({ tokenHash: token.tokenHash, updatedAt: new Date() })
+    .where(eq(reviewInvitations.id, invitation.id));
+  const pwaUrl = (process.env.PWA_URL ?? "http://localhost:3002").replace(/\/$/, "");
+  return parameters.map((parameter) => parameter === "__review_url__" ? buildReviewInviteUrl(pwaUrl, token.raw) : parameter);
+}
+
+async function updateProductState(
+  db: DrizzleDB,
+  source: { sourceId: string | null; sourceType: string | null },
+  state: "accepted" | "failed",
+  receipt?: WhatsAppDeliveryReceipt,
+) {
+  if (!source.sourceId) return;
+  if (source.sourceType === "reminder") {
+    await db.update(reminders).set({ status: state === "accepted" ? "sent" : "failed", sentAt: state === "accepted" ? new Date() : null }).where(eq(reminders.id, source.sourceId));
+  } else if (source.sourceType === "review_invitation") {
+    await db.update(reviewInvitations).set({
+      deliveredAt: state === "accepted" ? new Date() : null,
+      deliveryStatus: state === "accepted" ? "sent" : "failed",
+      updatedAt: new Date(),
+    }).where(eq(reviewInvitations.id, source.sourceId));
+  } else if (source.sourceType === "campaign_recipient") {
+    await db.update(campaignRecipients).set({
+      error: state === "accepted" ? null : "PROVIDER_DELIVERY_FAILED",
+      providerMessageId: receipt?.providerMessageId ?? null,
+      providerName: receipt?.provider ?? null,
+      sentAt: state === "accepted" ? receipt?.acceptedAt ?? new Date() : null,
+      status: state === "accepted" ? "sent" : "failed",
+      updatedAt: new Date(),
+    }).where(eq(campaignRecipients.id, source.sourceId));
+  }
+}
+
 export async function processCommunicationOutbox(
   db: DrizzleDB,
   job: Job<CommunicationOutboxJob>,
@@ -182,8 +239,7 @@ export async function processCommunicationOutbox(
 ): Promise<void> {
   const claimed = await claimOutbox(db, job.data.outboxId);
   if (!claimed) return;
-  const parameters = claimed.message.templateParameters
-    .map((parameter) => typeof parameter.text === "string" ? parameter.text : "");
+  const parameters = await resolveTemplateParameters(db, claimed);
   const request: TenantWhatsAppSendRequest = claimed.message.kind === "template"
     ? {
         idempotencyKey: claimed.message.clientIdempotencyKey!,
@@ -206,6 +262,7 @@ export async function processCommunicationOutbox(
 
   try {
     const receipt = await (dependencies.sender ?? sendWhatsApp)(db, request);
+    await updateProductState(db, claimed.message, "accepted", receipt);
     await db.transaction(async (tx) => {
       const owned = and(eq(communicationOutbox.id, claimed.outbox.id), eq(communicationOutbox.leaseOwner, claimed.leaseOwner));
       await tx.update(communicationMessages).set({
@@ -239,6 +296,7 @@ export async function processCommunicationOutbox(
         await tx.update(communicationMessages).set({ failedAt: new Date(), failureCode: code.slice(0, 80), status: "failed", updatedAt: new Date() }).where(eq(communicationMessages.id, claimed.message.id));
       }
     });
+    if (exhausted) await updateProductState(db, claimed.message, "failed");
     throw new Error("COMMUNICATION_DELIVERY_FAILED");
   }
 }

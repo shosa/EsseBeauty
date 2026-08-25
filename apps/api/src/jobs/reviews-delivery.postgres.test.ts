@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import type { Job } from "bullmq";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
-import { appointments, customers, salons, services, staff } from "@esse-beauty/db/schema";
+import { appointments, communicationMessages, communicationProviderAccounts, customers, salons, services, staff } from "@esse-beauty/db/schema";
 
 import { testDatabaseUrl } from "../test/postgres.js";
 
@@ -20,6 +20,7 @@ import {
   processReviewRequest,
   type ReviewRequestJob,
 } from "./reviews.js";
+import { enqueueCommunication } from "./communications.js";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;
@@ -189,24 +190,18 @@ postgresSuite("review delivery with PostgreSQL", () => {
       await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Trattamento viso ultra completo con descrizione molto lunga che non deve troncare il collegamento", priceCents: 5000, salonId });
       await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "completed" });
       const invitation = await ensureReviewInvitation(db, appointmentId, { expiresAt: new Date(Date.now() + 60_000) });
-      const enqueued: Array<{ kind: string; template: { name: string; parameters: string[] }; to: string }> = [];
+      await db.insert(communicationProviderAccounts).values({ enabled: true, phoneNumberId: `phone-${salonId}`, salonId, status: "ready", wabaId: `waba-${salonId}` });
 
       await processReviewRequest(db, { data: { invitationId: invitation.id } } as Job<ReviewRequestJob>, {
-        enqueue: async (_db, input) => {
-          if (input.kind !== "template") throw new Error("Expected a template");
-          enqueued.push(input);
-          return { messageId: "message-1", outboxId: "outbox-1" };
-        },
+        enqueue: (executor, input) => enqueueCommunication(executor, input, { add: async () => undefined }),
       });
 
-      expect(enqueued).toEqual([expect.objectContaining({
-        kind: "template",
-        template: expect.objectContaining({ name: "review_invitation" }),
-        to: "+393331234567",
-      })]);
-      expect(enqueued[0]?.template.parameters.at(-1)).toMatch(/\/review#token=v1\.review\./);
+      const message = (await db.select().from(communicationMessages).where(eq(communicationMessages.sourceId, invitation.id)))[0];
+      expect(message).toMatchObject({ kind: "template", templateName: "review_invitation" });
+      expect(JSON.stringify(message?.templateParameters)).toContain("__review_url__");
+      expect(JSON.stringify(message?.templateParameters)).not.toContain("v1.review.");
       const rows = await db.execute(sql<{ delivery_status: string }>`select delivery_status from review_invitations where id = ${invitation.id}::uuid`);
-      expect(rows[0]?.delivery_status).toBe("sent");
+      expect(rows[0]?.delivery_status).toBe("queued");
     } finally {
       await db.delete(salons).where(eq(salons.id, salonId));
     }
