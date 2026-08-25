@@ -56,7 +56,7 @@ postgresSuite("reminder delivery with PostgreSQL", () => {
         to: "+393331234567",
       })]);
       const stored = (await db.select({ status: reminders.status }).from(reminders).where(eq(reminders.id, reminder.id)))[0];
-      expect(stored?.status).toBe("sent");
+      expect(stored?.status).toBe("queued");
     } finally {
       await db.delete(salons).where(eq(salons.id, salonId));
     }

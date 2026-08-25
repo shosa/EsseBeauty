@@ -63,3 +63,25 @@ Active product delivery now uses tenant-scoped WhatsApp template messages throug
 ### Fix-round concerns
 
 - Redis is still unauthenticated in the local test environment, producing non-blocking `NOAUTH` stderr when a route constructs the durable queue. No live Meta calls were made.
+
+### Fix round 1 completion — waitlist behavioural coverage
+
+- Added `apps/api/src/jobs/appointment-events.postgres.test.ts`, a route-level PostgreSQL test that cancels a confirmed appointment, waits for the injected durable-enqueue boundary, and asserts the resulting WhatsApp template's full payload, stable `waitlist-notification-{entryId}` idempotency key, `waitlist_entry` source ID/type, destination, and truthful `notified` waitlist state.
+- Included the previously uncommitted reminder assertion in `apps/api/src/jobs/reminders-delivery.postgres.test.ts`: delivery is `queued` after outbox acceptance, not provider-sent.
+
+### Waitlist RED/GREEN evidence
+
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/appointment-events.postgres.test.ts` with the dependency boundary deliberately bypassed failed as required: `expected [] to deeply equal [ ObjectContaining{…} ]`. This demonstrates the test observes the injected enqueue operation rather than merely inspecting source text.
+- GREEN: `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/appointment-events.postgres.test.ts` — 1 file, 2 tests passed.
+
+### Final focused verification
+
+- `corepack pnpm --filter @esse-beauty/db build` — passed.
+- `corepack pnpm --filter @esse-beauty/api typecheck` — passed.
+- `corepack pnpm --filter @esse-beauty/web typecheck` — passed.
+- `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/communications.test.ts src/jobs/reminders-delivery.postgres.test.ts src/jobs/reviews-delivery.postgres.test.ts src/jobs/appointment-events.postgres.test.ts src/routes/marketing/campaign-lifecycle.test.ts src/jobs/whatsapp-product-flows.test.ts` — 6 files, 25 tests passed. Covering files: `communications.test.ts`, `reminders-delivery.postgres.test.ts`, `reviews-delivery.postgres.test.ts`, `appointment-events.postgres.test.ts`, `campaign-lifecycle.test.ts`, and `whatsapp-product-flows.test.ts`.
+- `corepack pnpm --filter @esse-beauty/web exec vitest run whatsapp-product-flows.test.ts` — 1 file, 1 test passed.
+
+### Final concerns
+
+- The only remaining local concern is non-blocking Redis `NOAUTH` stderr during the marketing route test's best-effort outbox wake. It does not affect transactional persistence or the passing assertions; configure test Redis authentication to remove it.
