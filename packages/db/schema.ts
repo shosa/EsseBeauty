@@ -703,6 +703,7 @@ export const customers = pgTable("customers", {
     .references(() => salons.id, { onDelete: "cascade" }),
   email: text("email"),
   phone: text("phone"),
+  phoneNormalized: text("phone_normalized"),
   fullName: text("full_name").notNull(),
   notes: text("notes"),
   tags: text("tags").array().default([]).notNull(),
@@ -726,7 +727,9 @@ export const customers = pgTable("customers", {
     .defaultNow()
     .notNull(),
   ...timestamps,
-});
+}, (table) => [
+  index("customers_salon_phone_normalized_idx").on(table.salonId, table.phoneNormalized),
+]);
 
 export const communicationProviderAccounts = pgTable(
   "communication_provider_accounts",

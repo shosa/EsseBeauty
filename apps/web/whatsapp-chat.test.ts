@@ -32,4 +32,14 @@ describe("global WhatsApp workspace", () => {
     expect(drawer).toContain("esterno, non sincronizzato con EsseBeauty");
     expect(drawer).toContain("wa.me");
   });
+
+  it("keeps drawer actions stable while text fields update workspace state", () => {
+    const provider = readFileSync(resolve("app/(dashboard)/_components/CommunicationWorkspaceProvider.tsx"), "utf8");
+    expect(provider).toContain("const close = useCallback(() => setOpen(false), []);");
+    expect(provider).toContain("const openChat = useCallback(() => setOpen(true), []);");
+    expect(provider).toContain("close,");
+    expect(provider).toContain("openChat,");
+    expect(provider).not.toContain("close: () => setOpen(false)");
+    expect(provider).not.toContain("openChat: () => setOpen(true)");
+  });
 });

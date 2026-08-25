@@ -12,6 +12,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 
 const viewGuard = [
   authenticate,
@@ -203,7 +204,8 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
     }
     const email = request.body.email?.trim().toLowerCase() || undefined;
     const phone = request.body.phone?.trim() || undefined;
-    if (email || phone) {
+    const phoneNormalized = normalizePhoneE164(phone);
+    if (email || phoneNormalized) {
       const existing = await app.db
         .select()
         .from(customers)
@@ -212,7 +214,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
             eq(customers.salonId, request.salonId),
             or(
               ...(email ? [eq(customers.email, email)] : []),
-              ...(phone ? [eq(customers.phone, phone)] : []),
+              ...(phoneNormalized ? [eq(customers.phoneNormalized, phoneNormalized)] : []),
             )!,
           ),
         )
@@ -228,6 +230,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
         fullName: request.body.full_name,
         email,
         phone,
+        phoneNormalized,
         notes: request.body.notes,
         tags: request.body.tags ?? [],
       })
@@ -252,7 +255,10 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
           fullName: request.body.full_name,
         }),
         ...(request.body.email !== undefined && { email: request.body.email }),
-        ...(request.body.phone !== undefined && { phone: request.body.phone }),
+        ...(request.body.phone !== undefined && {
+          phone: request.body.phone,
+          phoneNormalized: normalizePhoneE164(request.body.phone),
+        }),
         ...(request.body.notes !== undefined && { notes: request.body.notes }),
         ...(request.body.tags !== undefined && { tags: request.body.tags }),
       })

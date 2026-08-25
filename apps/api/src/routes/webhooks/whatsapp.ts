@@ -9,6 +9,7 @@ import {
   communicationProviderAccounts,
   communicationProviderSecrets,
   communicationWebhookEvents,
+  customers,
 } from "@esse-beauty/db/schema";
 
 import { decryptProviderSecret } from "../../lib/provider-credentials.js";
@@ -91,8 +92,15 @@ async function processInbound(
     }).onConflictDoNothing({ target: [communicationWebhookEvents.accountId, communicationWebhookEvents.externalEventId] }).returning({ id: communicationWebhookEvents.id }))[0];
     if (!event) return;
 
+    const normalizedPhone = `+${participantPhone}`;
+    const customer = (await tx.select({ id: customers.id }).from(customers).where(and(
+      eq(customers.salonId, account.salonId),
+      eq(customers.phoneNormalized, normalizedPhone),
+    )).limit(1))[0];
+
     let conversation = (await tx.insert(communicationConversations).values({
       accountId: account.id,
+      customerId: customer?.id,
       participantPhone,
       salonId: account.salonId,
     }).onConflictDoNothing({ target: [communicationConversations.accountId, communicationConversations.participantPhone] }).returning())[0];
@@ -115,6 +123,7 @@ async function processInbound(
       status: "delivered",
     }).onConflictDoNothing({ target: [communicationMessages.accountId, communicationMessages.providerMessageId] });
     await tx.update(communicationConversations).set({
+      ...(customer && { customerId: customer.id }),
       lastInboundAt: timestamp,
       lastMessageAt: timestamp,
       lastMessagePreview: messageBody(message)?.slice(0, 160) ?? null,

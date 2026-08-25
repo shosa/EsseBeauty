@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import Fastify from "fastify";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
-import { communicationProviderAccounts, communicationProviderSecrets, salons } from "@esse-beauty/db/schema";
+import { communicationConversations, communicationProviderAccounts, communicationProviderSecrets, customers, salons } from "@esse-beauty/db/schema";
 
 import { encryptProviderSecret } from "../../lib/provider-credentials.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
@@ -62,6 +62,14 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
 
   it("rejects unsigned bodies before persistence and deduplicates a signed inbound event", async () => {
     const data = await fixture();
+    const customerId = randomUUID();
+    await db.insert(customers).values({
+      fullName: "Cliente WhatsApp",
+      id: customerId,
+      phone: "3331234567",
+      phoneNormalized: "+393331234567",
+      salonId: data.salonId,
+    });
     const server = app();
     const payload = {
       entry: [{
@@ -96,6 +104,10 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
           (select coalesce(sum(unread_count), 0)::int from communication_conversations where salon_id = ${data.salonId}::uuid) unread
       `);
       expect(rows).toEqual([{ events: 1, messages: 1, unread: 1 }]);
+      const linked = await db.select({ customerId: communicationConversations.customerId })
+        .from(communicationConversations)
+        .where(eq(communicationConversations.salonId, data.salonId));
+      expect(linked).toEqual([{ customerId }]);
     } finally {
       await server.close();
       await db.delete(salons).where(eq(salons.id, data.salonId));

@@ -89,6 +89,8 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
   const [search, setSearch] = useState("");
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const basePath = `${apiBaseUrl}/api/salons/${salonId}/communications`;
+  const close = useCallback(() => setOpen(false), []);
+  const openChat = useCallback(() => setOpen(true), []);
 
   const refresh = useCallback(async () => {
     if (!canView) return;
@@ -225,13 +227,13 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     ...workspace,
     canReply,
     canView,
-    close: () => setOpen(false),
+    close,
     conversations,
     error,
     loading,
     messages,
     open,
-    openChat: () => setOpen(true),
+    openChat,
     refresh,
     search,
     selectConversation,
@@ -241,7 +243,7 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     setDraft,
     setSearch,
     unreadCount: conversations.reduce((total, conversation) => total + conversation.unread_count, 0),
-  }), [workspace, canReply, canView, conversations, error, loading, messages, open, refresh, search, selectConversation, selectedConversation, sendMessage, serviceWindowOpen, setDraft]);
+  }), [workspace, canReply, canView, close, conversations, error, loading, messages, open, openChat, refresh, search, selectConversation, selectedConversation, sendMessage, serviceWindowOpen, setDraft]);
 
   return <CommunicationWorkspaceContext.Provider value={value}>{children}</CommunicationWorkspaceContext.Provider>;
 }
