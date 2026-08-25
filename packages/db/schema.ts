@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgEnum,
@@ -50,11 +51,28 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "voucher",
   "other",
 ]);
-export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email"]);
+// Historical SMS compatibility: retained so applied rows remain readable; runtime writes use WhatsApp.
+export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
   "pending",
+  "queued",
   "sent",
   "failed",
+]);
+export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
+  "email",
+  // Historical SMS compatibility; no active delivery path writes this value.
+  "sms",
+  "whatsapp",
+]);
+export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
+  "pending",
+  "queued",
+  "processing",
+  "sent",
+  "failed",
+  "skipped",
+  "exhausted",
 ]);
 export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "waiting",
@@ -62,12 +80,17 @@ export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "booked",
   "expired",
 ]);
-export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms"]);
+// Historical SMS compatibility: old campaigns remain queryable and are never sendable.
+export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms", "whatsapp"]);
 export const campaignStatusEnum = pgEnum("campaign_status", [
   "draft",
   "scheduled",
+  "queued",
+  "processing",
   "sent",
   "failed",
+  "partial",
+  "cancelled",
 ]);
 export const platformSalonStatusEnum = pgEnum("platform_salon_status", [
   "active",
@@ -84,7 +107,9 @@ export const notificationPriorityEnum = pgEnum("notification_priority", [
 export const notificationChannelEnum = pgEnum("notification_channel", [
   "in_app",
   "email",
+  // Historical SMS compatibility; active notification contracts expose WhatsApp instead.
   "sms",
+  "whatsapp",
   "push",
 ]);
 export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
@@ -93,12 +118,42 @@ export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
   "revoked",
   "expired",
 ]);
+export const consentDeliveryChannelEnum = pgEnum("consent_delivery_channel", [
+  "email",
+  // Historical SMS compatibility for consent evidence.
+  "sms",
+  "whatsapp",
+  "in_person",
+]);
 export const staffRequestStatusEnum = pgEnum("staff_request_status", [
   "pending",
   "approved",
   "rejected",
   "cancelled",
 ]);
+export const communicationProviderEnum = pgEnum("communication_provider", ["meta_cloud_api"]);
+export const communicationProviderStatusEnum = pgEnum("communication_provider_status", [
+  "not_configured",
+  "pending_verification",
+  "ready",
+  "degraded",
+  "revoked",
+  "disabled",
+]);
+export const communicationSecretKindEnum = pgEnum("communication_secret_kind", [
+  "access_token",
+  "webhook_verify_token",
+]);
+// Historical SMS compatibility: tenant WhatsApp outbox is the only active non-email channel.
+export const communicationChannelEnum = pgEnum("communication_channel", ["email", "sms", "whatsapp"]);
+export const communicationConsentPurposeEnum = pgEnum("communication_consent_purpose", ["marketing", "transactional"]);
+export const communicationConsentStatusEnum = pgEnum("communication_consent_status", ["granted", "revoked"]);
+export const communicationConversationStatusEnum = pgEnum("communication_conversation_status", ["open", "closed", "archived"]);
+export const communicationDirectionEnum = pgEnum("communication_direction", ["inbound", "outbound"]);
+export const communicationMessageKindEnum = pgEnum("communication_message_kind", ["text", "template", "media", "system"]);
+export const communicationMessageStatusEnum = pgEnum("communication_message_status", ["queued", "accepted", "sent", "delivered", "read", "failed"]);
+export const communicationOutboxStatusEnum = pgEnum("communication_outbox_status", ["pending", "processing", "delivered", "failed", "exhausted"]);
+export const whatsappTemplateApprovalStatusEnum = pgEnum("whatsapp_template_approval_status", ["pending", "approved", "rejected", "revoked"]);
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -660,6 +715,7 @@ export const customers = pgTable("customers", {
     .references(() => salons.id, { onDelete: "cascade" }),
   email: text("email"),
   phone: text("phone"),
+  phoneNormalized: text("phone_normalized"),
   fullName: text("full_name").notNull(),
   notes: text("notes"),
   tags: text("tags").array().default([]).notNull(),
@@ -683,7 +739,247 @@ export const customers = pgTable("customers", {
     .defaultNow()
     .notNull(),
   ...timestamps,
-});
+}, (table) => [
+  index("customers_salon_phone_normalized_idx").on(table.salonId, table.phoneNormalized),
+]);
+
+export const communicationProviderAccounts = pgTable(
+  "communication_provider_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    provider: communicationProviderEnum("provider").default("meta_cloud_api").notNull(),
+    wabaId: text("waba_id").notNull(),
+    phoneNumberId: text("phone_number_id").notNull(),
+    displayPhoneNumber: text("display_phone_number"),
+    businessPortfolioId: text("business_portfolio_id"),
+    graphApiVersion: text("graph_api_version").default("v23.0").notNull(),
+    enabled: boolean("enabled").default(false).notNull(),
+    status: communicationProviderStatusEnum("status").default("not_configured").notNull(),
+    webhookKey: uuid("webhook_key").defaultRandom().notNull(),
+    webhookSubscriptionStatus: text("webhook_subscription_status").default("not_subscribed").notNull(),
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    lastHealthCheckAt: timestamp("last_health_check_at", { withTimezone: true }),
+    lastWebhookAt: timestamp("last_webhook_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_provider_accounts_salon_provider_unique").on(table.salonId, table.provider),
+    uniqueIndex("communication_provider_accounts_waba_unique").on(table.wabaId),
+    uniqueIndex("communication_provider_accounts_phone_unique").on(table.phoneNumberId),
+    uniqueIndex("communication_provider_accounts_webhook_key_unique").on(table.webhookKey),
+  ],
+);
+
+export const communicationProviderSecrets = pgTable(
+  "communication_provider_secrets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    kind: communicationSecretKindEnum("kind").notNull(),
+    ciphertext: text("ciphertext").notNull(),
+    initializationVector: text("initialization_vector").notNull(),
+    authenticationTag: text("authentication_tag").notNull(),
+    keyVersion: text("key_version").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_provider_secrets_account_kind_unique").on(table.accountId, table.kind),
+    index("communication_provider_secrets_salon_account_idx").on(table.salonId, table.accountId),
+  ],
+);
+
+export const communicationConsents = pgTable(
+  "communication_consents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    channel: communicationChannelEnum("channel").notNull(),
+    purpose: communicationConsentPurposeEnum("purpose").notNull(),
+    status: communicationConsentStatusEnum("status").notNull(),
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    capturedSource: text("captured_source").notNull(),
+    evidence: jsonb("evidence").$type<Record<string, unknown>>().default({}).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_consents_scope_unique").on(
+      table.salonId,
+      table.customerId,
+      table.channel,
+      table.purpose,
+    ),
+    index("communication_consents_marketing_lookup_idx").on(table.salonId, table.channel, table.purpose, table.status),
+  ],
+);
+
+export const communicationConversations = pgTable(
+  "communication_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    participantPhone: text("participant_phone").notNull(),
+    status: communicationConversationStatusEnum("status").default("open").notNull(),
+    assignedUserId: uuid("assigned_user_id").references(() => users.id, { onDelete: "set null" }),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    lastInboundAt: timestamp("last_inbound_at", { withTimezone: true }),
+    lastMessagePreview: text("last_message_preview"),
+    unreadCount: integer("unread_count").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_conversations_account_participant_unique").on(table.accountId, table.participantPhone),
+    index("communication_conversations_salon_activity_idx").on(table.salonId, table.lastMessageAt),
+    check("communication_conversations_unread_non_negative", sql`${table.unreadCount} >= 0`),
+  ],
+);
+
+export const communicationMessages = pgTable(
+  "communication_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => communicationConversations.id, { onDelete: "cascade" }),
+    direction: communicationDirectionEnum("direction").notNull(),
+    kind: communicationMessageKindEnum("kind").notNull(),
+    body: text("body"),
+    templateName: text("template_name"),
+    templateLocale: text("template_locale"),
+    templateParameters: jsonb("template_parameters").$type<Array<Record<string, unknown>>>().default([]).notNull(),
+    providerMessageId: text("provider_message_id"),
+    clientIdempotencyKey: text("client_idempotency_key"),
+    sourceType: text("source_type"),
+    sourceId: uuid("source_id"),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: communicationMessageStatusEnum("status").default("queued").notNull(),
+    providerTimestamp: timestamp("provider_timestamp", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    failureCode: text("failure_code"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_messages_provider_id_unique").on(table.accountId, table.providerMessageId),
+    uniqueIndex("communication_messages_idempotency_unique").on(table.accountId, table.clientIdempotencyKey),
+    index("communication_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
+  ],
+);
+
+export const communicationOutbox = pgTable(
+  "communication_outbox",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => communicationMessages.id, { onDelete: "cascade" }),
+    status: communicationOutboxStatusEnum("status").default("pending").notNull(),
+    availableAt: timestamp("available_at", { withTimezone: true }).defaultNow().notNull(),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    attempts: integer("attempts").default(0).notNull(),
+    maxAttempts: integer("max_attempts").default(5).notNull(),
+    lastErrorCode: text("last_error_code"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_outbox_message_unique").on(table.messageId),
+    index("communication_outbox_claim_idx").on(table.status, table.availableAt, table.leaseExpiresAt),
+    check("communication_outbox_attempts_non_negative", sql`${table.attempts} >= 0`),
+    check("communication_outbox_max_attempts_positive", sql`${table.maxAttempts} > 0`),
+    check("communication_outbox_attempts_bounded", sql`${table.attempts} <= ${table.maxAttempts}`),
+  ],
+);
+
+export const communicationWebhookEvents = pgTable(
+  "communication_webhook_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => communicationProviderAccounts.id, { onDelete: "cascade" }),
+    externalEventId: text("external_event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    status: text("status").default("pending").notNull(),
+    redactedPayload: jsonb("redacted_payload").$type<Record<string, unknown>>().default({}).notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_webhook_events_dedupe_unique").on(table.accountId, table.externalEventId),
+    index("communication_webhook_events_pending_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const communicationUserState = pgTable(
+  "communication_user_state",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id")
+      .notNull()
+      .references(() => communicationConversations.id, { onDelete: "cascade" }),
+    lastReadMessageId: uuid("last_read_message_id").references(() => communicationMessages.id, { onDelete: "set null" }),
+    muted: boolean("muted").default(false).notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    draft: text("draft").default("").notNull(),
+    selected: boolean("selected").default(false).notNull(),
+    lastOpenedAt: timestamp("last_opened_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("communication_user_state_scope_unique").on(table.salonId, table.userId, table.conversationId),
+    index("communication_user_state_selected_idx").on(table.salonId, table.userId, table.selected),
+  ],
+);
 
 export const customerTags = pgTable(
   "customer_tags",
@@ -988,7 +1284,7 @@ export const reminderSettings = pgTable(
     salonId: uuid("salon_id")
       .notNull()
       .references(() => salons.id, { onDelete: "cascade" }),
-    smsEnabled: boolean("sms_enabled").default(false).notNull(),
+    whatsappEnabled: boolean("whatsapp_enabled").default(false).notNull(),
     emailEnabled: boolean("email_enabled").default(true).notNull(),
     hoursBefore: jsonb("hours_before").$type<number[]>().default([24]).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -997,6 +1293,57 @@ export const reminderSettings = pgTable(
   },
   (table) => [
     uniqueIndex("reminder_settings_salon_unique").on(table.salonId),
+  ],
+);
+
+export const reviewInvitations = pgTable(
+  "review_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash"),
+    channel: reviewDeliveryChannelEnum("channel").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    deliveryStatus: reviewDeliveryStatusEnum("delivery_status")
+      .default("pending")
+      .notNull(),
+    deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    deliveryGeneration: integer("delivery_generation").default(0).notNull(),
+    deliveryClaimId: uuid("delivery_claim_id"),
+    deliveryLeaseExpiresAt: timestamp("delivery_lease_expires_at", { withTimezone: true }),
+    lastDeliveryAttemptAt: timestamp("last_delivery_attempt_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    deliveryFailure: text("delivery_failure"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("review_invitations_appointment_unique").on(table.appointmentId),
+    uniqueIndex("review_invitations_token_hash_unique").on(table.tokenHash),
+    index("review_invitations_recovery_idx").on(
+      table.deliveryStatus,
+      table.deliveryLeaseExpiresAt,
+      table.expiresAt,
+    ),
+    check(
+      "review_invitations_token_hash_format",
+      sql`${table.tokenHash} is null or ${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "review_invitations_delivery_attempts_non_negative",
+      sql`${table.deliveryAttempts} >= 0`,
+    ),
+    check(
+      "review_invitations_delivery_generation_non_negative",
+      sql`${table.deliveryGeneration} >= 0`,
+    ),
   ],
 );
 
@@ -1251,6 +1598,11 @@ export const loyaltyTiers = pgTable(
       table.salonId,
       table.name,
     ),
+    uniqueIndex("loyalty_tiers_salon_threshold_unique").on(
+      table.salonId,
+      table.minPoints,
+    ),
+    check("loyalty_tiers_min_points_non_negative", sql`${table.minPoints} >= 0`),
   ],
 );
 
@@ -1301,6 +1653,7 @@ export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
     .notNull()
     .references(() => loyaltyRewards.id, { onDelete: "restrict" }),
   pointsSpent: integer("points_spent").notNull(),
+  idempotencyKey: text("idempotency_key"),
   status: text("status").default("pending").notNull(),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
     onDelete: "set null",
@@ -1308,8 +1661,13 @@ export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
   redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
   notes: text("notes"),
   ...timestamps,
-});
-
+}, (table) => [
+  uniqueIndex("loyalty_redemptions_salon_idempotency_unique").on(
+    table.salonId,
+    table.idempotencyKey,
+  ),
+  check("loyalty_redemptions_points_positive", sql`${table.pointsSpent} > 0`),
+]);
 export const loyaltyPoints = pgTable(
   "loyalty_points",
   {
@@ -1339,11 +1697,15 @@ export const loyaltyPoints = pgTable(
       () => loyaltyRewardRedemptions.id,
       { onDelete: "set null" },
     ),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("loyalty_points_appointment_unique").on(table.appointmentId),
     uniqueIndex("loyalty_points_sale_rule_unique").on(table.saleId, table.ruleKey),
+    uniqueIndex("loyalty_points_redemption_unique").on(table.redemptionId),
   ],
 );
 
@@ -1356,6 +1718,11 @@ export const campaignTemplates = pgTable("campaign_templates", {
   channel: campaignChannelEnum("channel").notNull(),
   content: text("content").notNull(),
   variables: jsonb("variables").$type<string[]>().default([]).notNull(),
+  whatsappTemplateName: text("whatsapp_template_name"),
+  whatsappTemplateLocale: text("whatsapp_template_locale"),
+  whatsappApprovalStatus: whatsappTemplateApprovalStatusEnum("whatsapp_approval_status"),
+  whatsappApprovalSource: text("whatsapp_approval_source"),
+  whatsappApprovedAt: timestamp("whatsapp_approved_at", { withTimezone: true }),
   active: boolean("active").default(true).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
@@ -1377,7 +1744,13 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
     .$type<Record<string, unknown>>()
     .notNull(),
   content: text("content").notNull(),
+  whatsappTemplateName: text("whatsapp_template_name"),
+  whatsappTemplateLocale: text("whatsapp_template_locale"),
+  whatsappTemplateParameters: jsonb("whatsapp_template_parameters").$type<string[]>().default([]).notNull(),
+  whatsappTemplateApprovalStatus: whatsappTemplateApprovalStatusEnum("whatsapp_template_approval_status"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
@@ -1409,14 +1782,33 @@ export const campaignRecipients = pgTable(
     }),
     destination: text("destination").notNull(),
     status: text("status").default("pending").notNull(),
+    providerName: text("provider_name"),
+    providerMessageId: text("provider_message_id"),
+    deliveryAttempts: integer("delivery_attempts").default(0).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
     error: text("error"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("campaign_recipients_campaign_destination_unique").on(
       table.campaignId,
       table.destination,
+    ),
+    index("campaign_recipients_campaign_status_idx").on(
+      table.campaignId,
+      table.status,
+    ),
+    check(
+      "campaign_recipients_delivery_attempts_non_negative",
+      sql`${table.deliveryAttempts} >= 0`,
+    ),
+    check(
+      "campaign_recipients_status_valid",
+      sql`${table.status} in ('pending', 'queued', 'processing', 'sent', 'failed', 'cancelled')`,
     ),
   ],
 );
@@ -1526,8 +1918,17 @@ export const customerConsents = pgTable(
       .notNull()
       .references(() => consentTemplates.id, { onDelete: "restrict" }),
     status: consentSignatureStatusEnum("status").default("pending").notNull(),
+    tokenHash: text("token_hash"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    deliveryChannel: consentDeliveryChannelEnum("delivery_channel"),
     signedAt: timestamp("signed_at", { withTimezone: true }),
+    signerName: text("signer_name"),
+    documentHash: text("document_hash"),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    revocationReason: text("revocation_reason"),
     signatureData: jsonb("signature_data").$type<Record<string, unknown>>().default({}).notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
@@ -1538,6 +1939,18 @@ export const customerConsents = pgTable(
       table.customerId,
       table.templateId,
       table.appointmentId,
+    ),
+    uniqueIndex("customer_consents_salon_token_hash_unique").on(
+      table.salonId,
+      table.tokenHash,
+    ),
+    check(
+      "customer_consents_token_hash_format",
+      sql`${table.tokenHash} is null or ${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "customer_consents_document_hash_format",
+      sql`${table.documentHash} is null or ${table.documentHash} ~ '^[a-f0-9]{64}$'`,
     ),
   ],
 );

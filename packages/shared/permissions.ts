@@ -34,6 +34,9 @@ export const PERMISSION_KEYS = {
   INVENTORY_MANAGE: "inventory.manage",
   WAITLIST_MANAGE: "waitlist.manage",
   LOYALTY_MANAGE: "loyalty.manage",
+  COMMUNICATIONS_VIEW: "communications.view",
+  COMMUNICATIONS_REPLY: "communications.reply",
+  COMMUNICATIONS_MANAGE_PROVIDER: "communications.manage_provider",
 } as const;
 
 export type PermissionKey =
@@ -56,6 +59,8 @@ export const DEFAULT_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
     PERMISSION_KEYS.CLIENTS_VIEW,
     PERMISSION_KEYS.CLIENTS_EDIT,
     PERMISSION_KEYS.REPORTS_VIEW_OWN,
+    PERMISSION_KEYS.COMMUNICATIONS_VIEW,
+    PERMISSION_KEYS.COMMUNICATIONS_REPLY,
   ],
   employee: [
     PERMISSION_KEYS.CALENDAR_VIEW_OWN,

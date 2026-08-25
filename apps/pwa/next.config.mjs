@@ -1,6 +1,13 @@
 import withPWAInit from "next-pwa";
+import defaultCache from "next-pwa/cache.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import {
+  consentNetworkOnly,
+  publicTokenRouteHeaders,
+  reviewNetworkOnly,
+} from "./lib/cache-policy.mjs";
 
 const workspaceRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -10,6 +17,11 @@ const workspaceRoot = path.resolve(
 const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
+  runtimeCaching: [
+    consentNetworkOnly,
+    reviewNetworkOnly,
+    ...defaultCache,
+  ],
 });
 
 const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
@@ -20,6 +32,7 @@ const allowedDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   allowedDevOrigins,
+  headers: async () => publicTokenRouteHeaders,
   output: process.env.DOCKER_BUILD === "true" ? "standalone" : undefined,
   outputFileTracingRoot: workspaceRoot,
   turbopack: {

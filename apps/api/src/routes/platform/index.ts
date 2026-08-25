@@ -396,7 +396,7 @@ export async function registerPlatformRoutes(
   );
 
   app.put<{
-    Body: { active?: boolean; body: string; channel?: "in_app" | "email" | "sms" | "push"; key: string; subject?: string; variables?: string[] };
+    Body: { active?: boolean; body: string; channel?: "in_app" | "email" | "whatsapp" | "push"; key: string; subject?: string; variables?: string[] };
   }>(
     "/api/platform/system-templates",
     { preHandler: [authenticatePlatform] },

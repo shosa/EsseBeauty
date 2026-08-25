@@ -1,0 +1,30 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+const components = join(import.meta.dirname, "app", "(dashboard)", "_components");
+
+describe("hybrid app workspace shell", () => {
+  it("composes focused app-oriented navigation components", () => {
+    const shell = readFileSync(join(components, "DashboardShell.tsx"), "utf8");
+    for (const component of ["AppRail", "WorkspaceTopbar", "MobileAppNavigation"]) {
+      expect(shell).toContain(component);
+    }
+    expect(shell).not.toContain("<AppLauncher");
+  });
+
+  it("exposes accessible app directory navigation, global search and mobile destinations", () => {
+    const rail = readFileSync(join(components, "AppRail.tsx"), "utf8");
+    const topbar = readFileSync(join(components, "WorkspaceTopbar.tsx"), "utf8");
+    const mobile = readFileSync(join(components, "MobileAppNavigation.tsx"), "utf8");
+
+    expect(`${rail}${topbar}${mobile}`).toContain("Apri tutte le app");
+    expect(`${rail}${topbar}${mobile}`).toContain('href="/apps"');
+    expect(topbar).toContain("Ctrl+K");
+    expect(mobile).toContain('label: "Home"');
+    expect(mobile).toContain('label: "Agenda"');
+    expect(mobile).toContain('label: "Cassa"');
+    expect(mobile).toContain('label: "Altro"');
+  });
+});

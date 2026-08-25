@@ -5,7 +5,9 @@ import { activityLog } from "@esse-beauty/db/schema";
 const mutationMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
 const sensitiveKeys = new Set([
   "access_token",
+  "authentication_tag",
   "authorization",
+  "ciphertext",
   "current_password",
   "new_password",
   "password",
@@ -13,14 +15,15 @@ const sensitiveKeys = new Set([
   "password_salt",
   "refresh_token",
   "token",
+  "webhook_verify_token",
 ]);
 
-function sanitizedValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sanitizedValue);
+export function sanitizeAuditPayload(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeAuditPayload);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [
     key,
-    sensitiveKeys.has(key.toLowerCase()) ? "[PROTETTO]" : sanitizedValue(item),
+    sensitiveKeys.has(key.toLowerCase()) ? "[PROTETTO]" : sanitizeAuditPayload(item),
   ]));
 }
 
@@ -56,7 +59,7 @@ export function registerAuditLogHooks(app: FastifyInstance) {
       entityId: entityId(request),
       entityType,
       payload: {
-        body: sanitizedValue(request.body),
+        body: sanitizeAuditPayload(request.body),
         method: request.method,
         route,
         statusCode: reply.statusCode,

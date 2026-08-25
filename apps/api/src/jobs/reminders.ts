@@ -13,31 +13,15 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
-import { fitSms, sendEmail, sendSms } from "./notifications.js";
+import { sendEmail } from "./notifications.js";
+import { enqueueCommunication } from "./communications.js";
 import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
 interface ReminderJob {
   reminderId: string;
 }
 
-type Characters<
-  Value extends string,
-  Result extends unknown[] = [],
-> = Value extends `${infer _First}${infer Rest}`
-  ? Characters<Rest, [...Result, unknown]>
-  : Result;
-type BuildTuple<
-  Length extends number,
-  Result extends unknown[] = [],
-> = Result["length"] extends Length
-  ? Result
-  : BuildTuple<Length, [...Result, unknown]>;
-type SmsTemplate<Value extends string> =
-  Characters<Value> extends [...BuildTuple<161>, ...unknown[]] ? never : Value;
-
-const SMS_TEMPLATE =
-  "Hi {name}, reminder: {service} at {salon} on {date} at {time}." as const;
-const checkedSmsTemplate: SmsTemplate<typeof SMS_TEMPLATE> = SMS_TEMPLATE;
+const REMINDER_TEMPLATE = "appointment_reminder";
 
 export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
   const settings = await db.select().from(reminderSettings);
@@ -88,7 +72,7 @@ export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
           continue;
         }
         const channels = [
-          ...(setting.smsEnabled && item.phone ? ["sms" as const] : []),
+          ...(setting.whatsappEnabled && item.phone ? ["whatsapp" as const] : []),
           ...(setting.emailEnabled && item.email ? ["email" as const] : []),
         ];
         for (const channel of channels) {
@@ -125,7 +109,11 @@ export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
   return created;
 }
 
-async function processReminder(db: DrizzleDB, job: Job<ReminderJob>) {
+export async function processReminder(
+  db: DrizzleDB,
+  job: Job<ReminderJob>,
+  dependencies: { enqueue?: typeof enqueueCommunication } = {},
+) {
   const rows = await db
     .select()
     .from(reminders)
@@ -144,24 +132,26 @@ async function processReminder(db: DrizzleDB, job: Job<ReminderJob>) {
   const startsAt = new Date(payload.startsAt);
 
   try {
-    if (reminder.channel === "sms" && payload.phone) {
-      await sendSms(
-        payload.phone,
-        fitSms(
-          checkedSmsTemplate
-            .replace("{name}", payload.customerName)
-            .replace("{service}", payload.serviceName)
-            .replace("{salon}", payload.salonName)
-            .replace("{date}", startsAt.toLocaleDateString("it-IT"))
-            .replace(
-              "{time}",
-              startsAt.toLocaleTimeString("it-IT", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            ),
-        ),
-      );
+    if (reminder.channel === "whatsapp" && payload.phone) {
+      await (dependencies.enqueue ?? enqueueCommunication)(db, {
+        idempotencyKey: `appointment-reminder-${reminder.id}`,
+        kind: "template",
+        salonId: reminder.salonId,
+        sourceId: reminder.id,
+        sourceType: "reminder",
+        template: {
+          locale: "it",
+          name: REMINDER_TEMPLATE,
+          parameters: [
+            payload.customerName,
+            payload.serviceName,
+            payload.salonName,
+            startsAt.toLocaleDateString("it-IT"),
+            startsAt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }),
+          ],
+        },
+        to: payload.phone,
+      });
     } else if (reminder.channel === "email" && payload.email) {
       await sendEmail(
         payload.email,
@@ -173,7 +163,7 @@ async function processReminder(db: DrizzleDB, job: Job<ReminderJob>) {
     }
     await db
       .update(reminders)
-      .set({ status: "sent", sentAt: new Date() })
+      .set({ status: "queued", sentAt: null })
       .where(eq(reminders.id, reminder.id));
   } catch (error) {
     await db

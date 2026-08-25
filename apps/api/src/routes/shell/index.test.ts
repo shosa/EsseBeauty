@@ -1,11 +1,77 @@
-import { describe, expect, it } from "vitest";
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
+import { afterEach, describe, expect, it } from "vitest";
+
+import type { DrizzleDB } from "@esse-beauty/db";
 
 import {
   buildSearchResponse,
   normalizeShellPreferences,
   normalizeSearchQuery,
   notificationToDto,
+  registerShellRoutes,
 } from "./index.js";
+
+const apps: Array<ReturnType<typeof Fastify>> = [];
+
+afterEach(async () => {
+  await Promise.all(apps.splice(0).map((app) => app.close()));
+});
+
+function notificationMutationApp({ accessible = false, pending = false } = {}) {
+  const employee = {
+    active: true,
+    id: "employee-id",
+    role: "employee" as const,
+    salonId: "salon-id",
+    sessionId: "session-id",
+  };
+  const dialect = new PgDialect();
+  const db = {
+    select(selection: Record<string, unknown>) {
+      return {
+        from() {
+          return {
+            innerJoin() {
+              return {
+                where: async () => "sessionId" in selection
+                  ? [employee]
+                  : "status" in selection && pending ? [{ status: "pending" }] : [],
+              };
+            },
+          };
+        },
+      };
+    },
+    update() {
+      return {
+        set() {
+          return {
+            where(condition: SQL) {
+              const params = dialect.sqlToQuery(condition).params;
+              const notificationIsVisible = params.includes(employee.id)
+                && params.includes(employee.role)
+                && accessible;
+              return {
+                returning: async () => notificationIsVisible ? [{ id: "visible-notification" }] : [],
+              };
+            },
+          };
+        },
+      };
+    },
+  } as unknown as DrizzleDB;
+  const app = Fastify();
+  app.decorate("db", db);
+  app.decorateRequest("salonId", "");
+  app.decorateRequest("user");
+  void app.register(cookie);
+  void registerShellRoutes(app);
+  apps.push(app);
+  return app;
+}
 
 describe("shell route helpers", () => {
   it("normalizes and bounds global search queries", () => {
@@ -73,5 +139,41 @@ describe("shell route helpers", () => {
     expect(normalizeShellPreferences(null)).toEqual({
       navigation_collapsed: false,
     });
+  });
+
+  it("cannot archive another user's notification", async () => {
+    const employee = notificationMutationApp();
+
+    const response = await employee.inject({
+      headers: { cookie: "esse-session=employee-session" },
+      method: "DELETE",
+      url: "/api/salons/salon-id/notifications/owner-notification",
+    });
+
+    expect(response.statusCode, response.body).toBe(404);
+  });
+
+  it("cannot mark another user's notification as read", async () => {
+    const employee = notificationMutationApp();
+
+    const response = await employee.inject({
+      headers: { cookie: "esse-session=employee-session" },
+      method: "PATCH",
+      url: "/api/salons/salon-id/notifications/owner-notification/read",
+    });
+
+    expect(response.statusCode, response.body).toBe(404);
+  });
+
+  it("allows a pending task notification to be acknowledged without completing the task", async () => {
+    const employee = notificationMutationApp({ accessible: true, pending: true });
+
+    const response = await employee.inject({
+      headers: { cookie: "esse-session=employee-session" },
+      method: "PATCH",
+      url: "/api/salons/salon-id/notifications/visible-notification/read",
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
   });
 });

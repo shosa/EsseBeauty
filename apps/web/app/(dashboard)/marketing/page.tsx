@@ -39,7 +39,7 @@ export default function MarketingPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <PageHeaderMetrics
-        actions={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/marketing/new">Nuova campagna</Link>}
+        actions={<div className="flex flex-wrap gap-2"><Link className="inline-flex min-h-11 items-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-800" href="/marketing/templates">Modelli</Link><Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/marketing/new">Nuova campagna</Link></div>}
         eyebrow="Marketing"
         metrics={[
           { detail: "Invii pianificati", label: "In programma", value: scheduled },

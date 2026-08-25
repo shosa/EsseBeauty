@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, WalletCards, X } from "lucide-react";
+import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -460,7 +460,7 @@ export default function SalesPage() {
     <AppPage className="sales-register-page xl:pr-[552px]" maxWidth="max-w-[1600px]">
       {message && (
         <div className="sales-success-overlay fixed inset-0 z-50 grid place-items-center bg-[#2d1d27]/18 px-6 backdrop-blur-sm" role="status" aria-live="polite">
-          <div className="sales-success-card w-full max-w-sm rounded-3xl border border-white/70 bg-white/95 p-7 text-center shadow-[0_28px_80px_rgb(45_29_39_/_0.22)]">
+          <div className="sales-success-card w-full max-w-sm rounded-2xl border border-white/70 bg-white/95 p-7 text-center shadow-[0_28px_80px_rgb(45_29_39_/_0.22)]">
             <div className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-2xl font-black text-emerald-700">✓</div>
             <h2 className="mt-4 text-2xl font-black text-stone-950">OK</h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-stone-600">{message}</p>
@@ -724,12 +724,7 @@ export default function SalesPage() {
                   title="Apri rubrica clienti"
                   type="button"
                 >
-                  <svg aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24">
-                    <path d="M5 4.5h13a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5z" />
-                    <path d="M5 7H3.5M5 12H3.5M5 17H3.5" />
-                    <circle cx="12" cy="10" r="2.3" />
-                    <path d="M8.5 16a3.5 3.5 0 0 1 7 0" />
-                  </svg>
+                  <UserRound aria-hidden="true" className="size-5" />
                 </button>
               </div>
             </FormField>
@@ -770,7 +765,7 @@ export default function SalesPage() {
               </div>
             </article>)}
           </div>
-          <div className="mt-5 rounded-3xl border border-[#ead1df] bg-[linear-gradient(180deg,#ffffff_0%,#fff7fb_100%)] p-4 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.9),0_16px_34px_rgb(45_29_39_/_0.07)]">
+          <div className="mt-5 rounded-xl border border-[#ead1df] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-black text-[#5f2447]"><WalletCards className="size-4" /> Riepilogo</div>
               <span className={`rounded-full px-3 py-1 text-[11px] font-black ${paid === total ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{paid === total ? "Saldato" : "In corso"}</span>
@@ -779,7 +774,7 @@ export default function SalesPage() {
             <label className="mt-3 flex items-center justify-between gap-3 text-sm text-stone-500">Sconto conto<input className="w-28 rounded-xl border p-2 text-right font-bold text-stone-950 disabled:bg-stone-100" disabled={issuedVouchers.length > 0} min={0} onChange={(event) => setDiscountCents(cents(event.target.value))} type="number" value={(discountCents / 100).toFixed(2)} /></label>
             <div className="mt-5 flex items-end justify-between border-t border-[#ead1df] pt-4"><strong className="text-sm uppercase tracking-[.16em] text-stone-400">Totale</strong><b className="text-5xl font-black tracking-tight text-[#5f2447]">{euro(total)}</b></div>
           </div>
-          <div className="mt-5 rounded-3xl border border-stone-200 bg-white p-4 shadow-[0_12px_28px_rgb(45_29_39_/_0.045)]">
+          <div className="mt-5 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3"><strong className="flex items-center gap-2"><CreditCard className="size-4 text-[#792f59]" />Pagamenti</strong><button className="rounded-full bg-[#f4e4ec] px-3 py-1.5 text-sm font-black text-[#792f59] transition hover:bg-[#ead1df]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])}>Dividi</button></div>
             <div className="mt-3 space-y-3">{payments.map((payment, index) => <div className="rounded-2xl border border-stone-200 p-3" key={index}>
               <div className="grid grid-cols-[1fr_130px_auto] gap-2">

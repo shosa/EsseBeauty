@@ -1,97 +1,190 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 
 import {
   appointments,
   customers,
+  reviewInvitations,
   reviews,
+  salonModules,
   salons,
   services,
 } from "@esse-beauty/db/schema";
 import {
-  isModuleEnabled,
   MODULE_KEYS,
   requireModule,
 } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { inspectPublicToken } from "../../lib/public-tokens.js";
+import { retryReviewInvitation, type ReviewQueue } from "../../jobs/reviews.js";
 
-export async function registerReviewRoutes(app: FastifyInstance) {
-  app.get<{ Params: { appointmentId: string } }>(
-    "/api/public/reviews/:appointmentId",
+type ReviewTokenError = "TOKEN_CONSUMED" | "TOKEN_EXPIRED" | "TOKEN_INVALID" | "TOKEN_REVOKED";
+
+function tokenErrorReply(reply: FastifyReply, error: ReviewTokenError) {
+  const status = error === "TOKEN_INVALID" ? 404 : error === "TOKEN_CONSUMED" ? 409 : 410;
+  return reply.code(status).send({ error });
+}
+
+function invitationError(
+  invitation: { consumedAt: Date | null; expiresAt: Date; revokedAt: Date | null },
+  tokenExpired: boolean,
+): ReviewTokenError | undefined {
+  if (invitation.revokedAt) return "TOKEN_REVOKED";
+  if (invitation.consumedAt) return "TOKEN_CONSUMED";
+  if (tokenExpired || invitation.expiresAt <= new Date()) return "TOKEN_EXPIRED";
+  return undefined;
+}
+
+interface RegisterReviewRouteOptions {
+  reviewQueue?: ReviewQueue;
+}
+
+function inspectBodyToken(token: unknown) {
+  return typeof token === "string"
+    ? inspectPublicToken(token, "review")
+    : { ok: false as const };
+}
+
+export async function registerReviewRoutes(
+  app: FastifyInstance,
+  options: RegisterReviewRouteOptions = {},
+) {
+  app.post<{ Body: { token?: unknown } }>(
+    "/api/public/reviews/resolve",
     async (request, reply) => {
+      const inspected = inspectBodyToken(request.body?.token);
+      if (!inspected.ok) return tokenErrorReply(reply, "TOKEN_INVALID");
       const rows = await app.db
         .select({
-          appointment_id: appointments.id,
-          salon_id: appointments.salonId,
+          consumedAt: reviewInvitations.consumedAt,
+          expiresAt: reviewInvitations.expiresAt,
+          revokedAt: reviewInvitations.revokedAt,
           salon_name: salons.name,
           service_name: services.name,
           starts_at: appointments.startsAt,
-          customer_name: customers.fullName,
         })
-        .from(appointments)
-        .innerJoin(salons, eq(salons.id, appointments.salonId))
+        .from(reviewInvitations)
+        .innerJoin(appointments, eq(appointments.id, reviewInvitations.appointmentId))
+        .innerJoin(salons, eq(salons.id, reviewInvitations.salonId))
         .innerJoin(services, eq(services.id, appointments.serviceId))
-        .innerJoin(customers, eq(customers.id, appointments.customerId))
-        .where(eq(appointments.id, request.params.appointmentId));
-      const item = rows[0];
-      if (
-        !item ||
-        !(await isModuleEnabled(item.salon_id, MODULE_KEYS.REVIEWS, app.db))
-      ) {
-        return reply.code(404).send({ error: "NOT_FOUND" });
-      }
-      return item;
+        .innerJoin(salonModules, and(
+          eq(salonModules.salonId, reviewInvitations.salonId),
+          eq(salonModules.moduleKey, MODULE_KEYS.REVIEWS),
+          eq(salonModules.enabled, true),
+        ))
+        .where(eq(reviewInvitations.tokenHash, inspected.tokenHash));
+      const invitation = rows[0];
+      if (!invitation) return tokenErrorReply(reply, "TOKEN_INVALID");
+      const error = invitationError(invitation, inspected.expired);
+      if (error) return tokenErrorReply(reply, error);
+      return {
+        salon_name: invitation.salon_name,
+        service_name: invitation.service_name,
+        starts_at: invitation.starts_at,
+      };
     },
   );
 
   app.post<{
-    Params: { appointmentId: string };
-    Body: { rating: number; comment?: string };
-  }>("/api/public/reviews/:appointmentId", async (request, reply) => {
+    Body: { token?: unknown; rating?: unknown; comment?: unknown };
+  }>("/api/public/reviews/submit", async (request, reply) => {
+    const body = request.body ?? {};
     if (
-      !Number.isInteger(request.body.rating) ||
-      request.body.rating < 1 ||
-      request.body.rating > 5
+      body.comment !== undefined &&
+      (typeof body.comment !== "string" || body.comment.length > 5_000)
+    ) {
+      return reply.code(400).send({
+        error: "INVALID_REQUEST",
+        fields: { comment: ["Commento non valido"] },
+      });
+    }
+    if (
+      !Number.isInteger(body.rating) ||
+      Number(body.rating) < 1 ||
+      Number(body.rating) > 5
     ) {
       return reply.code(400).send({ error: "INVALID_RATING" });
     }
-    const appointmentsRows = await app.db
-      .select()
-      .from(appointments)
-      .where(eq(appointments.id, request.params.appointmentId));
-    const appointment = appointmentsRows[0];
-    if (
-      !appointment ||
-      appointment.status !== "completed" ||
-      !(await isModuleEnabled(
-        appointment.salonId,
-        MODULE_KEYS.REVIEWS,
-        app.db,
-      ))
-    ) {
-      return reply.code(404).send({ error: "NOT_FOUND" });
-    }
-    const existing = await app.db
-      .select({ id: reviews.id })
-      .from(reviews)
-      .where(eq(reviews.appointmentId, appointment.id));
-    if (existing[0]) {
-      return reply.code(409).send({ error: "ALREADY_REVIEWED" });
-    }
-    const rows = await app.db
-      .insert(reviews)
-      .values({
-        salonId: appointment.salonId,
-        appointmentId: appointment.id,
+    const inspected = inspectBodyToken(body.token);
+    if (!inspected.ok) return tokenErrorReply(reply, "TOKEN_INVALID");
+
+    const result = await app.db.transaction(async (tx) => {
+      const invitationRows = await tx
+        .select({
+          appointmentId: reviewInvitations.appointmentId,
+          consumedAt: reviewInvitations.consumedAt,
+          expiresAt: reviewInvitations.expiresAt,
+          id: reviewInvitations.id,
+          revokedAt: reviewInvitations.revokedAt,
+          salonId: reviewInvitations.salonId,
+        })
+        .from(reviewInvitations)
+        .where(eq(reviewInvitations.tokenHash, inspected.tokenHash))
+        .for("update");
+      const invitation = invitationRows[0];
+      if (!invitation) return { error: "TOKEN_INVALID" as const };
+      const error = invitationError(invitation, inspected.expired);
+      if (error) return { error: error as ReviewTokenError };
+
+      const appointmentRows = await tx
+        .select({ customerId: appointments.customerId, status: appointments.status })
+        .from(appointments)
+        .innerJoin(salonModules, and(
+          eq(salonModules.salonId, appointments.salonId),
+          eq(salonModules.moduleKey, MODULE_KEYS.REVIEWS),
+          eq(salonModules.enabled, true),
+        ))
+        .where(and(
+          eq(appointments.id, invitation.appointmentId),
+          eq(appointments.salonId, invitation.salonId),
+        ));
+      const appointment = appointmentRows[0];
+      if (!appointment || appointment.status !== "completed") {
+        return { error: "TOKEN_INVALID" as const };
+      }
+
+      await tx.insert(reviews).values({
+        appointmentId: invitation.appointmentId,
+        comment: typeof body.comment === "string" ? body.comment.trim() || null : null,
         customerId: appointment.customerId,
-        rating: request.body.rating,
-        comment: request.body.comment,
-      })
-      .returning();
-    return reply.code(201).send(rows[0]);
+        rating: Number(body.rating),
+        salonId: invitation.salonId,
+      });
+      await tx.update(reviewInvitations).set({ consumedAt: new Date(), updatedAt: new Date() })
+        .where(eq(reviewInvitations.id, invitation.id));
+      return { submitted: true as const };
+    });
+    if ("error" in result && result.error) return tokenErrorReply(reply, result.error);
+    return reply.code(201).send(result);
   });
+
+  app.post<{ Params: { id: string; invitationId: string } }>(
+    "/api/salons/:id/review-invitations/:invitationId/retry",
+    {
+      preHandler: [
+        authenticate,
+        requireModule(MODULE_KEYS.REVIEWS),
+        requirePermission(PERMISSION_KEYS.REVIEWS_REPLY),
+      ],
+    },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const invitation = await retryReviewInvitation(
+        app.db,
+        request.salonId,
+        request.params.invitationId,
+        options.reviewQueue,
+      );
+      if (!invitation) {
+        return reply.code(409).send({ error: "REVIEW_INVITATION_NOT_RETRYABLE" });
+      }
+      return reply.code(202).send({ queued: true });
+    },
+  );
 
   app.get<{
     Params: { id: string };
@@ -160,6 +253,9 @@ export async function registerReviewRoutes(app: FastifyInstance) {
       ],
     },
     async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
       const rows = await app.db
         .update(reviews)
         .set({ reply: request.body.reply })
@@ -187,6 +283,9 @@ export async function registerReviewRoutes(app: FastifyInstance) {
       ],
     },
     async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
       const rows = await app.db
         .update(reviews)
         .set({ published: request.body.published })

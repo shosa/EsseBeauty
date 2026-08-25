@@ -5,6 +5,7 @@ import { appointmentRescheduleRequests, appointments, availabilityBlocks, calend
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { ensureOnlineBookingNotifications } from "../../jobs/staff-request-notifications.js";
 import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
+import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {
   const rows = await app.db.select().from(salons).where(and(eq(salons.slug, slug), eq(salons.active, true)));
@@ -231,6 +232,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       }
       const pwa = await getPwaOptions(app, salon.id);
       const customerInput = request.body.customer;
+      const phoneNormalized = normalizePhoneE164(customerInput.phone);
       if (pwa.requireEmail && !customerInput.email?.trim()) return reply.code(400).send({ error: "EMAIL_REQUIRED" });
       if (pwa.requirePhone && !customerInput.phone?.trim()) return reply.code(400).send({ error: "PHONE_REQUIRED" });
       if (!pwa.allowStaffPreference && request.body.staff_id) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
@@ -239,10 +241,10 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         requestedStart < new Date(Date.now() + pwa.minBookingNoticeHours * 3600000) ||
         requestedStart > new Date(Date.now() + pwa.maxAdvanceDays * 86400000)
       ) return reply.code(400).send({ error: "BOOKING_DATE_OUT_OF_RANGE" });
-      let customerRows = customerInput.email || customerInput.phone
+      let customerRows = customerInput.email || phoneNormalized
         ? await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), or(
           ...(customerInput.email ? [ilike(customers.email, customerInput.email)] : []),
-          ...(customerInput.phone ? [eq(customers.phone, customerInput.phone)] : []),
+          ...(phoneNormalized ? [eq(customers.phoneNormalized, phoneNormalized)] : []),
         )))
         : [];
       if (customerRows[0]?.blocked) {
@@ -271,7 +273,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       }
       if (!selected) return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
       if (!customerRows[0]) customerRows = await app.db.insert(customers).values({
-        salonId: salon.id, fullName: customerInput.full_name, email: customerInput.email, phone: customerInput.phone,
+        salonId: salon.id, fullName: customerInput.full_name, email: customerInput.email, phone: customerInput.phone, phoneNormalized,
       }).returning();
       const customer = customerRows[0]!;
       const startsAt = new Date(request.body.starts_at);

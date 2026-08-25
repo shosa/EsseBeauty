@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { CalendarDays, ClipboardList, Download, UserRound, ChevronLeft } from "lucide-react";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, PERMISSION_KEYS, type PermissionKey, type WorkingHours } from "@esse-beauty/shared";
 import { Button, EmptyState, FormField, InlineError, SaveToast, StatusBadge } from "@esse-beauty/ui";
@@ -102,18 +103,13 @@ function sameDate(value: string, day: Date) {
   return new Date(value).toDateString() === day.toDateString();
 }
 
-function Icon({ children }: { children: ReactNode }) {
-  return <svg aria-hidden="true" fill="none" height="22" viewBox="0 0 24 24" width="22">{children}</svg>;
-}
+const TodayIcon = CalendarDays;
+const AgendaIcon = ClipboardList;
+const RequestIcon = Download;
+const ProfileIcon = UserRound;
+const BackIcon = ChevronLeft;
 
-const stroke = { stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 1.8 };
-const TodayIcon = () => <Icon><path {...stroke} d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /><path {...stroke} d="M8 13h3v3H8z" /></Icon>;
-const AgendaIcon = () => <Icon><path {...stroke} d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></Icon>;
-const RequestIcon = () => <Icon><path {...stroke} d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></Icon>;
-const ProfileIcon = () => <Icon><path {...stroke} d="M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm8 8a8 8 0 0 0-16 0" /></Icon>;
-const BackIcon = () => <Icon><path {...stroke} d="m15 18-6-6 6-6" /></Icon>;
-
-const tabs: Array<{ icon: () => ReactNode; key: Tab; label: string }> = [
+const tabs: Array<{ icon: typeof CalendarDays; key: Tab; label: string }> = [
   { icon: TodayIcon, key: "today", label: "Oggi" },
   { icon: AgendaIcon, key: "agenda", label: "Agenda" },
   { icon: RequestIcon, key: "requests", label: "Richieste" },

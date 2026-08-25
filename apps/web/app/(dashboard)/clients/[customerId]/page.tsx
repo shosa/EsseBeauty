@@ -4,9 +4,12 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { appointmentStatusLabel } from "@esse-beauty/shared";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { AppPage, Button, ConfirmDialog, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
+import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
+import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -43,6 +46,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
   const { customerId } = use(params);
   const router = useRouter();
   const { salon } = useAuth();
+  const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [customer, setCustomer] = useState<Customer>();
   const [vouchers, setVouchers] = useState<PurchaseVoucher[]>([]);
   const [packages, setPackages] = useState<CustomerPackage[]>([]);
@@ -109,7 +113,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
       credentials: "include",
     });
     if (!response.ok) {
-      setError(response.status === 409 ? "Il cliente ha appuntamenti collegati: non puo essere eliminato." : "Il cliente non e stato eliminato.");
+      setError(response.status === 409 ? "Il cliente ha appuntamenti collegati: non può essere eliminato." : "Il cliente non è stato eliminato.");
       return;
     }
     router.push("/clients");
@@ -180,9 +184,14 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
             </article>)}
           </div>
         </article>
-        {customer.loyalty && <article className="rounded-2xl bg-[#2f2430] p-5 text-white shadow-sm"><p className="text-xs uppercase tracking-wider text-rose-200">Fedelta</p><p className="mt-2 text-4xl font-bold">{customer.loyalty.balance} punti</p><div className="mt-4 space-y-2">{customer.loyalty.history.slice(0, 5).map((item) => <div key={item.id} className="flex justify-between text-sm"><span>{item.reason}</span><strong>{item.delta > 0 ? "+" : ""}{item.delta}</strong></div>)}</div></article>}
+        {customer.loyalty && <article className="rounded-2xl bg-[#2f2430] p-5 text-white shadow-sm"><p className="text-xs uppercase tracking-wider text-rose-200">Fedeltà</p><p className="mt-2 text-4xl font-bold">{customer.loyalty.balance} punti</p><div className="mt-4 space-y-2">{customer.loyalty.history.slice(0, 5).map((item) => <div key={item.id} className="flex justify-between text-sm"><span>{item.reason}</span><strong>{item.delta > 0 ? "+" : ""}{item.delta}</strong></div>)}</div></article>}
       </section>
-      <section className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="font-bold">Storico appuntamenti</h2><div className="mt-5 space-y-3">{customer.appointments.length === 0 ? <p className="rounded-xl bg-stone-50 p-6 text-center text-sm text-stone-500">Nessun appuntamento registrato.</p> : customer.appointments.map((appointment) => <article key={appointment.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-xl border border-stone-100 p-4"><div className="rounded-xl bg-rose-50 px-3 py-2 text-center"><strong className="block">{new Date(appointment.starts_at).getDate()}</strong><span className="text-xs uppercase">{new Date(appointment.starts_at).toLocaleDateString("it-IT", { month: "short" })}</span></div><div><h3 className="font-bold">{appointment.service_name}</h3><p className="text-sm text-stone-500">{appointment.staff_name} - {new Date(appointment.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</p></div><StatusBadge status={appointment.status}>{appointmentStatusLabel(appointment.status)}</StatusBadge></article>)}</div></section>
+      <section className="space-y-5">
+        <DocumentsModuleGate enabled={documentsEnabled}>
+          <ConsentRecordsPanel customerId={customerId} title="Consensi del cliente" />
+        </DocumentsModuleGate>
+        <article className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="font-bold">Storico appuntamenti</h2><div className="mt-5 space-y-3">{customer.appointments.length === 0 ? <p className="rounded-xl bg-stone-50 p-6 text-center text-sm text-stone-500">Nessun appuntamento registrato.</p> : customer.appointments.map((appointment) => <article key={appointment.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-xl border border-stone-100 p-4"><div className="rounded-xl bg-rose-50 px-3 py-2 text-center"><strong className="block">{new Date(appointment.starts_at).getDate()}</strong><span className="text-xs uppercase">{new Date(appointment.starts_at).toLocaleDateString("it-IT", { month: "short" })}</span></div><div><h3 className="font-bold">{appointment.service_name}</h3><p className="text-sm text-stone-500">{appointment.staff_name} · {new Date(appointment.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</p></div><StatusBadge status={appointment.status}>{appointmentStatusLabel(appointment.status)}</StatusBadge></article>)}</div></article>
+      </section>
     </div>
   </PageTransition>
   <ConfirmDialog

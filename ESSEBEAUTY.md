@@ -432,9 +432,11 @@ Schema in `packages/db/schema.ts`.
 
 ### Automazioni e comunicazioni
 
-- `reminders`: promemoria SMS/email.
+- `reminders`: promemoria WhatsApp/email.
 - `notifications`: notifiche in-app.
 - `activity_log`: audit attività.
+
+WhatsApp operativo richiede Meta App Secret, chiave di cifratura credenziali e account provider del salone abilitato e `ready`. Il webhook deve usare un’origine pubblica HTTPS; i messaggi automatici richiedono template approvati. Verificare sempre il round trip con un messaggio di test e relativo webhook prima di dichiarare l’integrazione pronta.
 
 ### Recensioni e lista d'attesa
 
@@ -577,7 +579,7 @@ Modulo: `reminders`.
 
 Funzioni:
 
-- impostazioni SMS/email;
+- impostazioni WhatsApp/email;
 - ore prima appuntamento;
 - lista promemoria.
 
@@ -653,7 +655,7 @@ Modulo: `marketing`.
 
 Funzioni:
 
-- campagne email/SMS;
+- campagne email/WhatsApp;
 - segmenti target;
 - bozze, pianificazione, invio;
 - destinatari e statistiche.
@@ -1237,11 +1239,11 @@ Per CTA link:
 
 ### Moduli opzionali
 
-- Promemoria: SMS/email pre-appuntamento.
+- Promemoria: WhatsApp/email pre-appuntamento.
 - Recensioni: feedback post appuntamento, risposta, pubblicazione.
 - Lista d'attesa: richieste quando non ci sono slot.
 - Fedeltà: punti, premi, movimenti.
-- Marketing: campagne email/SMS e destinatari.
+- Marketing: campagne email/WhatsApp e destinatari.
 - Inventario: prodotti, scorte, movimenti.
 - Performance staff: report e export.
 

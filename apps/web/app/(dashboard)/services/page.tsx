@@ -89,10 +89,10 @@ export default function ServicesPage() {
           <>
             <section className="mb-5">
               <p className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-stone-500">Categorie</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {categories.map((category) => (
                   <button
-                    className={`flex min-h-24 items-center gap-4 rounded-xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selectedCategoryId === category.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white"}`}
+                    className={`flex min-h-20 items-center gap-3 rounded-lg border px-3 py-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${selectedCategoryId === category.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white"}`}
                     key={category.id}
                     onClick={() => {
                       setSelectedCategoryId(category.id);
@@ -100,8 +100,8 @@ export default function ServicesPage() {
                     }}
                     type="button"
                   >
-                    <span className={`grid size-12 shrink-0 place-items-center rounded-xl ${selectedCategoryId === category.id ? "bg-[#792f59] text-white" : "bg-stone-100 text-[#792f59]"}`}>
-                      <ServiceCategoryIcon className="size-6" name={category.icon} />
+                    <span className={`grid size-10 shrink-0 place-items-center rounded-lg ${selectedCategoryId === category.id ? "bg-[#792f59] text-white" : "bg-stone-100 text-[#792f59]"}`}>
+                      <ServiceCategoryIcon className="size-5" name={category.icon} />
                     </span>
                     <span className="min-w-0">
                       <strong className="block truncate text-base text-stone-950">{category.name}</strong>
@@ -114,14 +114,14 @@ export default function ServicesPage() {
 
             {selectedCategory && (
               <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
-                <header className="flex flex-wrap items-end justify-between gap-4 border-b border-stone-200 p-5">
+                <header className="flex flex-wrap items-end justify-between gap-3 border-b border-stone-200 px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <span className="grid size-11 place-items-center rounded-xl bg-[#faf3f7] text-[#792f59]">
+                    <span className="grid size-9 place-items-center rounded-lg bg-[#faf3f7] text-[#792f59]">
                       <ServiceCategoryIcon className="size-5" name={selectedCategory.icon} />
                     </span>
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[.14em] text-[#9d4f78]">Servizi</p>
-                      <h2 className="text-xl font-bold">{selectedCategory.name}</h2>
+                      <h2 className="text-lg font-bold">{selectedCategory.name}</h2>
                     </div>
                   </div>
                   <FormField label="Cerca nella categoria">
@@ -134,11 +134,11 @@ export default function ServicesPage() {
                 ) : (
                   <div className="grid gap-px bg-stone-100 md:grid-cols-2">
                     {visibleServices.map((item) => (
-                      <article className="flex min-h-28 items-start justify-between gap-4 bg-white p-5" key={item.id}>
+                      <article className="flex min-h-20 items-start justify-between gap-3 bg-white px-4 py-3" key={item.id}>
                         <div>
                           <h3 className="font-bold text-stone-950">{item.name}</h3>
                           <p className="mt-1 text-sm font-semibold text-stone-500">{item.durationMinutes} min</p>
-                          {item.description && <p className="mt-2 line-clamp-2 text-sm text-stone-600">{item.description}</p>}
+                          {item.description && <p className="mt-1 line-clamp-2 text-sm text-stone-600">{item.description}</p>}
                         </div>
                         <strong className="shrink-0 text-[#642744]">{formatPrice(item.priceCents, "it-IT")}</strong>
                       </article>

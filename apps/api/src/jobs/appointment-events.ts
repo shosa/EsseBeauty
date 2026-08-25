@@ -12,9 +12,9 @@ import {
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
-import { sendEmail, sendSms } from "./notifications.js";
-import { getQueue, QUEUE_NAMES } from "./queues.js";
-import type { ReviewRequestJob } from "./reviews.js";
+import { sendEmail } from "./notifications.js";
+import { enqueueCommunication } from "./communications.js";
+import { scheduleReviewInvitation } from "./reviews.js";
 
 interface Transition {
   appointmentId: string;
@@ -28,11 +28,22 @@ declare module "fastify" {
   }
 }
 
-function transitionFrom(request: FastifyRequest) {
-  const body = request.body as { status?: string } | undefined;
-  const params = request.params as { appointmentId?: string } | undefined;
+export function detectAppointmentTransition(input: {
+  body?: { status?: string };
+  method: string;
+  params?: { appointmentId?: string };
+  routeUrl?: string;
+}) {
+  const { body, method, params, routeUrl } = input;
   if (
-    request.method !== "PATCH" ||
+    method === "POST" &&
+    params?.appointmentId &&
+    routeUrl === "/api/salons/:id/appointments/:appointmentId/checkout"
+  ) {
+    return { appointmentId: params.appointmentId, nextStatus: "completed" as const };
+  }
+  if (
+    method !== "PATCH" ||
     !params?.appointmentId ||
     (body?.status !== "completed" && body?.status !== "cancelled")
   ) {
@@ -42,6 +53,20 @@ function transitionFrom(request: FastifyRequest) {
     appointmentId: params.appointmentId,
     nextStatus: body.status as "completed" | "cancelled",
   };
+}
+
+interface AppointmentEventDependencies {
+  scheduleReviewInvitation?: typeof scheduleReviewInvitation;
+  enqueue?: typeof enqueueCommunication;
+}
+
+function transitionFrom(request: FastifyRequest) {
+  return detectAppointmentTransition({
+    body: request.body as { status?: string } | undefined,
+    method: request.method,
+    params: request.params as { appointmentId?: string } | undefined,
+    routeUrl: request.routeOptions.url,
+  });
 }
 
 async function awardLoyalty(
@@ -67,6 +92,7 @@ async function awardLoyalty(
 async function enqueueReview(
   app: FastifyInstance,
   appointment: typeof appointments.$inferSelect,
+  dependencies: AppointmentEventDependencies,
 ) {
   if (
     await isModuleEnabled(
@@ -75,10 +101,9 @@ async function enqueueReview(
       app.db,
     )
   ) {
-    await getQueue(QUEUE_NAMES.REVIEWS).add(
-      "send-request",
-      { appointmentId: appointment.id } satisfies ReviewRequestJob,
-      { delay: 30 * 60_000, jobId: `review-${appointment.id}` },
+    await (dependencies.scheduleReviewInvitation ?? scheduleReviewInvitation)(
+      app.db,
+      appointment.id,
     );
   }
 }
@@ -86,6 +111,7 @@ async function enqueueReview(
 async function notifyWaitlist(
   app: FastifyInstance,
   appointment: typeof appointments.$inferSelect,
+  dependencies: AppointmentEventDependencies,
 ) {
   if (
     !(await isModuleEnabled(
@@ -104,6 +130,7 @@ async function notifyWaitlist(
   const entries = await app.db
     .select({
       id: waitlistEntries.id,
+      salonId: waitlistEntries.salonId,
       email: customers.email,
       phone: customers.phone,
       customerName: customers.fullName,
@@ -145,7 +172,24 @@ async function notifyWaitlist(
         `<p>Ciao ${entry.customerName},</p><p>${message}</p>`,
       );
     } else if (entry.phone) {
-      await sendSms(entry.phone, message);
+      await (dependencies.enqueue ?? enqueueCommunication)(app.db, {
+        idempotencyKey: `waitlist-notification-${entry.id}`,
+        kind: "template",
+        salonId: entry.salonId,
+        sourceId: entry.id,
+        sourceType: "waitlist_entry",
+        template: {
+          locale: "it",
+          name: "waitlist_slot_available",
+          parameters: [
+            entry.customerName,
+            entry.serviceName,
+            start.toLocaleDateString("it-IT"),
+            bookingUrl,
+          ],
+        },
+        to: entry.phone,
+      });
     }
   } catch {
     await app.db
@@ -155,7 +199,10 @@ async function notifyWaitlist(
   }
 }
 
-export function registerAppointmentEventHooks(app: FastifyInstance): void {
+export function registerAppointmentEventHooks(
+  app: FastifyInstance,
+  dependencies: AppointmentEventDependencies = {},
+): void {
   app.decorateRequest("appointmentTransition");
   app.addHook("preHandler", async (request) => {
     const candidate = transitionFrom(request);
@@ -164,7 +211,10 @@ export function registerAppointmentEventHooks(app: FastifyInstance): void {
       .select({ status: appointments.status })
       .from(appointments)
       .where(eq(appointments.id, candidate.appointmentId));
-    if (rows[0] && rows[0].status !== candidate.nextStatus) {
+    if (
+      rows[0] &&
+      (rows[0].status !== candidate.nextStatus || candidate.nextStatus === "completed")
+    ) {
       request.appointmentTransition = {
         ...candidate,
         previousStatus: rows[0].status,
@@ -193,11 +243,11 @@ export function registerAppointmentEventHooks(app: FastifyInstance): void {
       if (transition.nextStatus === "completed") {
         await Promise.all([
           awardLoyalty(app, appointment),
-          enqueueReview(app, appointment),
+          enqueueReview(app, appointment, dependencies),
         ]);
       } else {
         await Promise.all([
-          notifyWaitlist(app, appointment),
+          notifyWaitlist(app, appointment, dependencies),
         ]);
       }
     } catch (error) {

@@ -75,11 +75,12 @@ services:
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
+      REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-notifications@example.com}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
-      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      COMMUNICATION_CREDENTIAL_ENCRYPTION_KEY: ${COMMUNICATION_CREDENTIAL_ENCRYPTION_KEY:-}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
       PWA_URL: ${PWA_URL:-http://localhost:3002}
     ports:
       - "${API_PORT:-3001}:3001"
@@ -110,6 +111,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_PWA_URL: ${PWA_URL:-http://localhost:3002}
     restart: unless-stopped
     init: true
     ports:
@@ -129,6 +131,9 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     restart: unless-stopped
     init: true
+    environment:
+      API_INTERNAL_URL: http://api:3001
+      REVIEW_SESSION_SECRET: ${REVIEW_SESSION_SECRET:?REVIEW_SESSION_SECRET is required}
     ports:
       - "${PWA_PORT:-3002}:3002"
     depends_on:

@@ -16,6 +16,7 @@ import {
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 
 const guard = [
   authenticate,
@@ -54,6 +55,7 @@ export async function registerWaitlistRoutes(app: FastifyInstance) {
         fullName: request.body.customer.full_name,
         email: request.body.customer.email,
         phone: request.body.customer.phone,
+        phoneNormalized: normalizePhoneE164(request.body.customer.phone),
       })
       .returning();
     const rows = await app.db

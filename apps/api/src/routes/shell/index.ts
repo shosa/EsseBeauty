@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
 
 import {
@@ -18,7 +18,34 @@ import {
   ensureOnlineBookingNotifications,
   ensureStaffRequestReviewNotifications,
 } from "../../jobs/staff-request-notifications.js";
+import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
 import { authenticate } from "../../middleware/auth.js";
+
+const shellPreferencesBodySchema: SafeParseSchema<{
+  navigation_collapsed: boolean;
+}> = {
+  safeParse(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {
+        error: { fieldErrors: { body: ["Corpo della richiesta non valido"] } },
+        success: false as const,
+      };
+    }
+
+    const navigationCollapsed = (value as { navigation_collapsed?: unknown })
+      .navigation_collapsed;
+    return typeof navigationCollapsed === "boolean"
+      ? { data: { navigation_collapsed: navigationCollapsed }, success: true as const }
+      : {
+          error: {
+            fieldErrors: {
+              navigation_collapsed: ["Valore obbligatorio"],
+            },
+          },
+          success: false as const,
+        };
+  },
+};
 
 const searchGroups = [
   "customers",
@@ -111,7 +138,22 @@ export function normalizeShellPreferences(
   };
 }
 
-async function hasPendingStaffTask(app: FastifyInstance, salonId: string, notificationId: string) {
+export function visibleNotification(
+  request: Pick<FastifyRequest, "user">,
+  notification: typeof notifications,
+) {
+  return or(
+    eq(notification.userId, request.user.id),
+    eq(notification.targetRole, request.user.role),
+  );
+}
+
+async function hasPendingStaffTask(
+  app: FastifyInstance,
+  request: Pick<FastifyRequest, "user">,
+  salonId: string,
+  notificationId: string,
+) {
   const rows = await app.db
     .select({ status: staffAvailabilityRequests.status })
     .from(notifications)
@@ -119,6 +161,7 @@ async function hasPendingStaffTask(app: FastifyInstance, salonId: string, notifi
     .where(and(
       eq(notifications.id, notificationId),
       eq(notifications.salonId, salonId),
+      visibleNotification(request, notifications),
       eq(notifications.entityType, "staff_availability_request"),
       eq(staffAvailabilityRequests.status, "pending"),
     ));
@@ -180,18 +223,10 @@ export async function registerShellRoutes(app: FastifyInstance) {
     "/api/salons/:id/shell-preferences",
     {
       preHandler: [authenticate],
-      schema: {
-        body: {
-          additionalProperties: false,
-          properties: {
-            navigation_collapsed: { type: "boolean" },
-          },
-          required: ["navigation_collapsed"],
-          type: "object",
-        },
-      },
     },
     async (request, reply) => {
+      const body = parseBody(shellPreferencesBodySchema, request, reply);
+      if (!body) return;
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
@@ -216,14 +251,14 @@ export async function registerShellRoutes(app: FastifyInstance) {
       const rows = await app.db
         .insert(userInterfacePreferences)
         .values({
-          navigationCollapsed: request.body.navigation_collapsed,
+          navigationCollapsed: body.navigation_collapsed,
           salonId: request.salonId,
           userId: request.user.id,
           updatedAt: new Date(),
         })
         .onConflictDoUpdate({
           set: {
-            navigationCollapsed: request.body.navigation_collapsed,
+            navigationCollapsed: body.navigation_collapsed,
             updatedAt: new Date(),
           },
           target: [
@@ -357,7 +392,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
         results.push(
           ...rows.map((row) => ({
             group: "services" as const,
-            href: `/services/${row.id}`,
+            href: `/settings/services/${row.id}`,
             title: row.title,
             subtitle: row.subtitle,
             status: row.status ? "attivo" : "archiviato",
@@ -385,7 +420,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
         results.push(
           ...rows.map((row) => ({
             group: "staff" as const,
-            href: `/staff/${row.id}`,
+            href: `/settings/staff/${row.id}`,
             title: row.title,
             subtitle: row.subtitle,
             status: row.status ? "attivo" : "archiviato",
@@ -485,10 +520,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
           and(
             eq(notifications.salonId, request.salonId),
             isNull(notifications.archivedAt),
-            or(
-              eq(notifications.userId, request.user.id),
-              eq(notifications.targetRole, request.user.role),
-            ),
+            visibleNotification(request, notifications),
           ),
         )
         .orderBy(desc(notifications.createdAt))
@@ -508,10 +540,6 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-      if (await hasPendingStaffTask(app, request.salonId, request.params.notificationId)) {
-        return reply.code(409).send({ error: "TASK_STILL_PENDING" });
-      }
-
       const rows = await app.db
         .update(notifications)
         .set({ readAt: new Date() })
@@ -519,6 +547,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
           and(
             eq(notifications.id, request.params.notificationId),
             eq(notifications.salonId, request.salonId),
+            visibleNotification(request, notifications),
           ),
         )
         .returning();
@@ -534,7 +563,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-      if (await hasPendingStaffTask(app, request.salonId, request.params.notificationId)) {
+      if (await hasPendingStaffTask(app, request, request.salonId, request.params.notificationId)) {
         return reply.code(409).send({ error: "TASK_STILL_PENDING" });
       }
 
@@ -545,6 +574,7 @@ export async function registerShellRoutes(app: FastifyInstance) {
           and(
             eq(notifications.id, request.params.notificationId),
             eq(notifications.salonId, request.salonId),
+            visibleNotification(request, notifications),
           ),
         )
         .returning();

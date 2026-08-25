@@ -9,10 +9,11 @@ import { useAuth } from "../../../../lib/auth-context";
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Campaign {
-  channel: "email" | "sms";
+  channel: "email" | "whatsapp";
   content: string;
   id: string;
   name: string;
+  recipientPreview?: Array<{ destination?: string | null; name?: string; reason?: string }>;
   scheduledAt?: string | null;
   status: string;
   targetSegment: { type: string };
@@ -20,6 +21,7 @@ interface Campaign {
 
 interface Stats {
   failed_count: number;
+  processing_count: number;
   recipient_count: number;
   sent_count: number;
 }
@@ -33,13 +35,15 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [confirmSend, setConfirmSend] = useState(false);
+  const [readiness, setReadiness] = useState<Record<"email" | "whatsapp", "ready" | "not_configured">>();
 
-  async function load() {
+  async function load(showLoading = true) {
     if (!salon) return;
-    setLoading(true);
-    const [campaignsResponse, statsResponse] = await Promise.all([
+    if (showLoading) setLoading(true);
+    const [campaignsResponse, statsResponse, readinessResponse] = await Promise.all([
       fetch(`${api}/api/salons/${salon.id}/campaigns`, { credentials: "include" }),
       fetch(`${api}/api/salons/${salon.id}/campaigns/${campaignId}/stats`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/campaigns/readiness`, { credentials: "include" }),
     ]);
     if (!campaignsResponse.ok) {
       setError("Impossibile caricare la campagna.");
@@ -49,10 +53,17 @@ export default function CampaignDetailPage() {
     const campaigns = await campaignsResponse.json() as Campaign[];
     setCampaign(campaigns.find((item) => item.id === campaignId));
     setStats(statsResponse.ok ? await statsResponse.json() as Stats : undefined);
+    if (readinessResponse.ok) setReadiness(await readinessResponse.json() as Record<"email" | "whatsapp", "ready" | "not_configured">);
     setLoading(false);
   }
 
   useEffect(() => { void load(); }, [salon?.id, campaignId]);
+
+  useEffect(() => {
+    if (!campaign || !["queued", "processing"].includes(campaign.status)) return;
+    const timer = window.setInterval(() => void load(false), 3_000);
+    return () => window.clearInterval(timer);
+  }, [campaign?.status, salon?.id, campaignId]);
 
   async function save(data: FormData) {
     if (!salon || !campaign) return;
@@ -80,12 +91,25 @@ export default function CampaignDetailPage() {
       credentials: "include",
     });
     if (!response.ok) {
-      setError("Campagna non inviabile.");
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      setError(body.error === "PROVIDER_NOT_CONFIGURED" ? "Provider non configurato per questo canale." : body.error === "CAMPAIGN_HAS_NO_RECIPIENTS" ? "Nessun destinatario valido per questa campagna." : "Campagna non inviabile.");
       setConfirmSend(false);
       return;
     }
     setConfirmSend(false);
     await load();
+  }
+
+  async function operate(action: "cancel" | "retry-failures") {
+    if (!salon || !campaign) return;
+    setError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/campaigns/${campaign.id}/${action}`, { method: "POST", credentials: "include" });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      setError(body.error === "PROVIDER_NOT_CONFIGURED" ? "Provider non configurato per questo canale." : action === "cancel" ? "La campagna è già in elaborazione e non può essere annullata." : "Impossibile riprovare gli invii falliti.");
+      return;
+    }
+    await load(false);
   }
 
   if (loading) return <PageSkeleton />;
@@ -105,13 +129,17 @@ export default function CampaignDetailPage() {
                 <h1 className="mt-2 text-3xl font-bold">{campaign.name}</h1>
                 <p className="mt-2 text-sm text-stone-600">La campagna resta in bozza finché non confermi esplicitamente l'invio.</p>
               </div>
-              <label className="text-sm font-semibold">Nome<input name="name" defaultValue={campaign.name} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
-              <label className="text-sm font-semibold">Contenuto<textarea name="content" defaultValue={campaign.content} rows={8} required className="mt-1 w-full rounded-xl border border-stone-200 p-3" /></label>
-              <label className="text-sm font-semibold">Programma invio<input name="scheduled" type="datetime-local" defaultValue={campaign.scheduledAt?.slice(0, 16) ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+              {readiness?.[campaign.channel] !== "ready" && <InlineError>Provider non configurato per il canale {campaign.channel.toUpperCase()}.</InlineError>}
+              <label className="text-sm font-semibold">Nome<input name="name" defaultValue={campaign.name} disabled={campaign.status !== "draft"} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3 disabled:bg-stone-100" /></label>
+              <label className="text-sm font-semibold">Contenuto<textarea name="content" defaultValue={campaign.content} disabled={campaign.status !== "draft"} rows={8} required className="mt-1 w-full rounded-xl border border-stone-200 p-3 disabled:bg-stone-100" /></label>
+              <label className="text-sm font-semibold">Programma invio<input name="scheduled" type="datetime-local" disabled={campaign.status !== "draft"} defaultValue={campaign.scheduledAt?.slice(0, 16) ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3 disabled:bg-stone-100" /></label>
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-4"><h2 className="font-bold">Anteprima destinatari</h2><p className="mt-1 text-sm text-stone-600">{campaign.recipientPreview?.filter((item) => item.destination).length ?? 0} recapiti mostrati · {campaign.recipientPreview?.filter((item) => !item.destination).length ?? 0} esclusi</p></div>
               <div className="flex flex-wrap justify-end gap-3">
                 <Button type="button" variant="ghost" onClick={() => router.push("/marketing")}>Torna</Button>
-                <Button type="submit" variant="secondary">Salva bozza</Button>
-                <Button type="button" onClick={() => setConfirmSend(true)}>Conferma invio</Button>
+                {campaign.status === "draft" && <Button type="submit" variant="secondary">Salva bozza</Button>}
+                {campaign.status === "draft" && <Button type="button" disabled={readiness?.[campaign.channel] !== "ready" || !campaign.recipientPreview?.some((item) => item.destination)} onClick={() => setConfirmSend(true)}>Conferma invio</Button>}
+                {["queued", "scheduled"].includes(campaign.status) && <Button type="button" variant="secondary" onClick={() => void operate("cancel")}>Annulla pianificazione</Button>}
+                {["failed", "partial"].includes(campaign.status) && stats && stats.failed_count > 0 && <Button type="button" onClick={() => void operate("retry-failures")}>Riprova falliti</Button>}
               </div>
             </form>
             <aside className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
@@ -123,6 +151,7 @@ export default function CampaignDetailPage() {
                 <div><dt className="font-bold">Destinatari</dt><dd>{stats?.recipient_count ?? 0}</dd></div>
                 <div><dt className="font-bold">Inviati</dt><dd>{stats?.sent_count ?? 0}</dd></div>
                 <div><dt className="font-bold">Falliti</dt><dd>{stats?.failed_count ?? 0}</dd></div>
+                <div><dt className="font-bold">In elaborazione</dt><dd>{stats?.processing_count ?? 0}</dd></div>
               </dl>
             </aside>
           </div>

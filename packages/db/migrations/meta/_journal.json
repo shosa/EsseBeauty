@@ -162,6 +162,83 @@
       "when": 1782208800000,
       "tag": "0022_backfill_appointment_resources",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787551200000,
+      "tag": "0023_operational_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787572800000,
+      "tag": "0024_secure_review_invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787578200000,
+      "tag": "0025_review_delivery_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787583600000,
+      "tag": "0026_review_delivery_ceiling",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787587200000,
+      "tag": "0027_review_delivery_generation",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787590800000,
+      "tag": "0028_campaign_delivery_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787594400000,
+      "tag": "0029_loyalty_redemption_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787598000000,
+      "tag": "0030_whatsapp_communications",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787644800000,
+      "tag": "0031_customer_phone_normalization",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787731200000,
+      "tag": "0032_whatsapp_product_flows",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787817600000,
+      "tag": "0033_whatsapp_product_flow_hardening",
+      "breakpoints": true
     }
   ]
 }

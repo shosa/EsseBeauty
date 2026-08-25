@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, EmptyState, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, InboxItem, InlineError, PageHeader, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../lib/auth-context";
+import { HomeKpiStrip } from "./_components/HomeKpiStrip";
+import { OperationalInbox } from "./_components/OperationalInbox";
+import { TodayTimeline } from "./_components/TodayTimeline";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type Loadable<T> = { status: "loading" } | { status: "ready"; data: T } | { status: "error" };
@@ -84,25 +87,26 @@ export default function DashboardPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <PageHeaderMetrics
+      <PageHeader
         actions={<Link className="inline-flex min-h-11 items-center rounded-xl bg-[#402334] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#5f2447]" href="/calendar/appointments/new">Nuovo appuntamento</Link>}
         eyebrow="Il tuo salone"
-        metrics={[
+        subtitle={`Bentornato, ${user.full_name}. Agenda, attività e priorità sono raccolte nello stesso spazio.`}
+        title={`Oggi da ${salon.name}`}
+      />
+      <HomeKpiStrip items={[
           { detail: "Ancora da gestire", label: "Oggi", value: todayAppointments.status === "ready" ? operationalToday.length : "—" },
           { detail: "Appuntamenti operativi", label: "Settimana", value: weekAppointments.status === "ready" ? operationalWeek.length : "—" },
           { detail: "Profili nel CRM", label: "Clienti", value: countOf(customers, (item) => item.total) },
           { detail: "Richiedono attenzione", label: "Da fare", value: notifications.status === "ready" ? notifications.data.unread_count : "—" },
-        ]}
-        subtitle={`Bentornato, ${user.full_name}. Agenda, attività e priorità sono raccolte nello stesso spazio.`}
-        title={`Oggi da ${salon.name}`}
-      />
+      ]} />
+      <nav aria-label="Azioni rapide" className="mb-5 flex flex-wrap gap-2">
+        <Link className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold" href="/calendar">Agenda</Link>
+        <Link className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold" href="/sales">Apri cassa</Link>
+        <Link className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold" href="/clients">Clienti</Link>
+      </nav>
 
       <div className="grid gap-5 xl:grid-cols-[1.55fr_.8fr]">
-        <SectionCard
-          actions={<Link className="text-sm font-bold text-[#792f59] hover:underline" href="/calendar">Apri calendario</Link>}
-          subtitle="Il lavoro della giornata, in ordine cronologico."
-          title="Agenda di oggi"
-        >
+        <TodayTimeline action={<Link className="text-sm font-bold text-[#792f59] hover:underline" href="/calendar">Apri calendario</Link>}>
           {todayAppointments.status === "loading" && <div className="space-y-3">{[1, 2, 3].map((item) => <div className="h-16 animate-pulse rounded-xl bg-stone-100" key={item} />)}</div>}
           {todayAppointments.status === "error" && <InlineError>Non è stato possibile caricare l’agenda.</InlineError>}
           {todayAppointments.status === "ready" && operationalToday.length === 0 && <EmptyState action={<Link className="font-bold text-[#792f59]" href="/calendar/appointments/new">Crea appuntamento</Link>} description="Non ci sono appuntamenti ancora da gestire." title="Agenda operativa libera" />}
@@ -118,27 +122,26 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-        </SectionCard>
+        </TodayTimeline>
 
-        <SectionCard
-          actions={<button className="text-sm font-bold text-[#792f59]" onClick={() => window.dispatchEvent(new Event("esse:open-notifications"))} type="button">Centro notifiche</button>}
-          className="border-[#dec4d2] bg-[#fffafd]"
-          subtitle="Richieste e nuovi ingressi da gestire."
-          title="Da fare"
-        >
+        <OperationalInbox action={<button className="text-sm font-bold text-[#792f59]" onClick={() => window.dispatchEvent(new Event("esse:open-notifications"))} type="button">Centro notifiche</button>}>
           {notifications.status === "loading" && <div className="space-y-3">{[1, 2, 3].map((item) => <div className="h-16 animate-pulse rounded-xl bg-white" key={item} />)}</div>}
           {notifications.status === "error" && <InlineError>Priorità non disponibili.</InlineError>}
           {notifications.status === "ready" && priorities.length === 0 && <EmptyState description="Non ci sono attività urgenti." title="Tutto sotto controllo" />}
           {priorities.map((item) => (
-            <Link className="mb-2 block rounded-xl border border-[#eadde4] bg-white p-3 transition hover:border-[#b85888]" href={item.href ?? "#"} key={item.id}>
+            item.href ? (
+            <Link className="mb-2 block rounded-xl border border-[#eadde4] bg-white p-3 transition hover:border-[#b85888]" href={item.href} key={item.id}>
               <div className="flex items-start justify-between gap-2">
                 <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#8f3a68]">{notificationLabel(item)}</p><b className="mt-1 block text-sm">{item.title}</b></div>
                 <StatusBadge status={item.priority === "high" ? "waiting" : "active"}>{item.priority ?? "normal"}</StatusBadge>
               </div>
               {item.body && <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.body}</p>}
             </Link>
+            ) : (
+              <InboxItem description={item.body} key={item.id} label={<><span className="block text-[10px] font-black uppercase tracking-[.14em] text-[#8f3a68]">{notificationLabel(item)}</span><span className="mt-1 block">{item.title}</span></>} priority={item.priority === "high" ? "high" : "normal"} />
+            )
           ))}
-        </SectionCard>
+        </OperationalInbox>
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[.8fr_1.2fr]">

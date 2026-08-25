@@ -89,13 +89,13 @@ export default function RewardDetailPage() {
             <FormField label="Punti richiesti" required><input required name="points" type="number" min="1" defaultValue={reward.pointsRequired} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
             <FormField label="Descrizione"><textarea name="description" defaultValue={reward.description ?? ""} className="min-h-28 w-full rounded-xl border p-3" /></FormField>
             <div className="flex justify-end gap-3">
-              <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Elimina</Button>
+              <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Archivia</Button>
               <Button type="submit">Salva</Button>
             </div>
           </form>
         )}
       </div>
-      <ConfirmDialog open={confirmDelete} destructive title="Eliminare premio?" description="Il premio non sarà più disponibile nel programma fedeltà." confirmLabel="Elimina" onCancel={() => setConfirmDelete(false)} onConfirm={() => void remove()} />
+      <ConfirmDialog open={confirmDelete} destructive title="Archiviare premio?" description="Il premio non sarà più disponibile per nuovi riscatti, ma lo storico resterà invariato." confirmLabel="Archivia" onCancel={() => setConfirmDelete(false)} onConfirm={() => void remove()} />
     </AppPage>
   );
 }

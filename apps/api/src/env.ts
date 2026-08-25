@@ -3,6 +3,7 @@ export interface ApiEnvironment {
   API_HOST: string;
   DATABASE_URL: string;
   PORT: number;
+  REVIEW_TOKEN_SECRET: string;
 }
 
 function required(name: string): string {
@@ -26,5 +27,6 @@ export function loadEnvironment(): ApiEnvironment {
     API_HOST: process.env.API_HOST ?? "0.0.0.0",
     DATABASE_URL: required("DATABASE_URL"),
     PORT: port,
+    REVIEW_TOKEN_SECRET: required("REVIEW_TOKEN_SECRET"),
   };
 }

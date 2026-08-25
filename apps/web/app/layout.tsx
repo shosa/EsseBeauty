@@ -15,7 +15,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Esse Beauty",
+  title: "EsseBeauty",
   description: "Salon management dashboard",
 };
 

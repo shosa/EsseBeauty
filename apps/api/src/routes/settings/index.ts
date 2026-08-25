@@ -392,7 +392,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
   app.put<{
     Body: {
       category: string;
-      channel: "in_app" | "email" | "sms" | "push";
+      channel: "in_app" | "email" | "whatsapp" | "push";
       enabled: boolean;
       quiet_hours?: Record<string, unknown>;
       role: "owner" | "manager" | "receptionist" | "employee";

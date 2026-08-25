@@ -9,9 +9,11 @@ interface Branding { accentColor?: string; primaryColor?: string; }
 interface Profile { branding?: Branding | null; salon: { name: string }; }
 interface Loyalty {
   balance: number;
+  current_tier: { minPoints: number; name: string } | null;
   customer: { name: string };
   history: Array<{ createdAt: string; delta: number; id: string; reason: string }>;
-  rewards: Array<{ description?: string; id: string; name: string; pointsRequired: number }>;
+  next_tier: { minPoints: number; name: string; pointsRemaining: number } | null;
+  rewards: Array<{ available: boolean; description?: string; id: string; name: string; pointsRequired: number }>;
 }
 
 export default function LoyaltyPage() {
@@ -56,14 +58,18 @@ export default function LoyaltyPage() {
               <p className="text-sm" style={{ color: accent }}>{data.customer.name}</p>
               <strong className="mt-2 block text-6xl tracking-[-.06em]">{data.balance}</strong>
               <span className="text-sm text-white/70">punti disponibili</span>
+              <div className="mt-5 border-t border-white/15 pt-4">
+                <div className="flex items-center justify-between gap-4 text-sm"><b>{data.current_tier?.name ?? "Livello base"}</b>{data.next_tier && <span className="text-white/70">{data.next_tier.pointsRemaining} pt a {data.next_tier.name}</span>}</div>
+                {data.next_tier && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full" style={{ background: accent, width: `${Math.min(100, data.balance / data.next_tier.minPoints * 100)}%` }} /></div>}
+              </div>
             </article>
             <section className="rounded-[2rem] border border-white/80 bg-white/86 p-6 shadow-sm">
               <h2 className="text-xl font-black">Premi disponibili</h2>
               <div className="mt-4 space-y-3">
                 {data.rewards.map((reward) => (
-                  <article key={reward.id} className="flex justify-between gap-4 rounded-2xl border border-stone-100 bg-white p-4">
-                    <div><b>{reward.name}</b><p className="text-sm text-stone-500">{reward.description}</p></div>
-                    <strong style={{ color: primary }}>{reward.pointsRequired} pt</strong>
+                  <article key={reward.id} className={`flex justify-between gap-4 rounded-2xl border border-stone-100 bg-white p-4 ${reward.available ? "" : "opacity-55"}`}>
+                    <div><b>{reward.name}</b><p className="text-sm text-stone-500">{reward.description}</p><span className="mt-2 inline-block text-xs font-bold" style={{ color: reward.available ? "#047857" : "#78716c" }}>{reward.available ? "Disponibile in salone" : `Mancano ${reward.pointsRequired - data.balance} punti`}</span></div>
+                    <strong className="whitespace-nowrap" style={{ color: primary }}>{reward.pointsRequired} pt</strong>
                   </article>
                 ))}
                 {data.rewards.length === 0 && <p className="text-sm text-stone-500">Nessun premio attivo al momento.</p>}

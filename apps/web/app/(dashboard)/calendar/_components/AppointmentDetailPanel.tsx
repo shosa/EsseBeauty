@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Check, CheckCheck, Clock3, EyeOff, X } from "lucide-react";
 import {
   Button,
   ConfirmDialog,
@@ -12,8 +13,11 @@ import {
   StatusBadge,
 } from "@esse-beauty/ui";
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, nextAppointmentStatuses, type AppointmentStatus } from "@esse-beauty/shared";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
+import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
+import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -37,11 +41,11 @@ function statusActionPalette(status: AppointmentStatus, active = false) {
 }
 
 function StatusActionIcon({ status }: { status: AppointmentStatus }) {
-  if (status === "pending") return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" /><path d="M12 7v5l3 2" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>;
-  if (status === "confirmed") return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><path d="m6 12 4 4 8-9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.4" /></svg>;
-  if (status === "completed") return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><path d="m3.5 12 3.5 3.5 6.5-7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /><path d="m10.5 15.5 2 2 8-9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>;
-  if (status === "no_show") return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><path d="M3 3l18 18" stroke="currentColor" strokeLinecap="round" strokeWidth="2" /><path d="M10.6 6.2A9.8 9.8 0 0 1 12 6c5.5 0 9 6 9 6a17 17 0 0 1-2.4 3.2M14.1 14.3A3 3 0 0 1 9.7 9.9M6.4 7.3C4.2 9 3 12 3 12s3.5 6 9 6a9.8 9.8 0 0 0 3-.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>;
-  return <svg aria-hidden="true" fill="none" height="24" viewBox="0 0 24 24" width="24"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" /></svg>;
+  if (status === "pending") return <Clock3 aria-hidden="true" size={24} />;
+  if (status === "confirmed") return <Check aria-hidden="true" size={24} />;
+  if (status === "completed") return <CheckCheck aria-hidden="true" size={24} />;
+  if (status === "no_show") return <EyeOff aria-hidden="true" size={24} />;
+  return <X aria-hidden="true" size={24} />;
 }
 
 interface Appointment {
@@ -186,6 +190,7 @@ export default function AppointmentDetailPanel({
   onClose(): void;
 }) {
   const { salon } = useAuth();
+  const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [data, setData] = useState<CheckoutResponse>();
   const [lines, setLines] = useState<CheckoutLine[]>([]);
   const [payments, setPayments] = useState<PaymentDraft[]>([{ amount_cents: 0, method: "cash" }]);
@@ -537,7 +542,7 @@ export default function AppointmentDetailPanel({
             })}
           </div>
           <span className="mx-1 h-8 w-px bg-stone-200" />
-          <button aria-label="Chiudi scheda appuntamento" className="grid size-11 shrink-0 place-items-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-sm transition hover:scale-105 hover:bg-stone-950 hover:text-white" onClick={onClose} title="Chiudi" type="button"><svg aria-hidden="true" fill="none" height="22" viewBox="0 0 24 24" width="22"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" /></svg></button>
+          <button aria-label="Chiudi scheda appuntamento" className="grid size-11 shrink-0 place-items-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-sm transition hover:scale-105 hover:bg-stone-950 hover:text-white" onClick={onClose} title="Chiudi" type="button"><X aria-hidden="true" size={22} /></button>
           </div>
         )}
       </div>
@@ -576,9 +581,7 @@ export default function AppointmentDetailPanel({
                   onClick={() => setEditingAppointment(false)}
                   type="button"
                 >
-                  <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
-                    <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
-                  </svg>
+                  <X aria-hidden="true" size={20} />
                 </button>
               ) : (
                 <Button onClick={() => setEditingAppointment(true)} variant="secondary">Modifica appuntamento</Button>
@@ -657,6 +660,14 @@ export default function AppointmentDetailPanel({
                   <div><span className="block font-bold text-stone-400">Note appuntamento</span><span className="mt-1 block font-semibold">{appointment.notes || "Nessuna nota"}</span></div>
                 </div>
               </section>
+
+              <DocumentsModuleGate enabled={documentsEnabled}>
+                <ConsentRecordsPanel
+                  appointmentId={appointment.id}
+                  customerId={appointment.customer_id}
+                  title="Richiedi consenso"
+                />
+              </DocumentsModuleGate>
 
               <section className="rounded-xl border border-stone-200 bg-white p-5">
                 <div className="mb-5 flex items-end justify-between gap-3">

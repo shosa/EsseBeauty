@@ -6,8 +6,14 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { X } from "lucide-react";
 
 export const designTokens = {
+  layout: {
+    railWidth: "76px",
+    tableRowHeight: "46px",
+    topbarHeight: "64px",
+  },
   color: {
     brand: {
       25: "#fffafd",
@@ -121,7 +127,7 @@ const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   ghost: "bg-transparent text-stone-700 shadow-none hover:bg-white/75 hover:text-[#792f59]",
   icon: "bg-white/70 text-stone-600 shadow-none ring-1 ring-stone-950/5 hover:bg-[#faf3f7] hover:text-[#792f59]",
   outline: "border border-[#d7a6c1]/70 bg-white/80 text-[#402334] shadow-[inset_0_1px_0_rgb(255_255_255_/_0.72)] hover:border-[#792f59] hover:bg-[#fffafd] hover:text-[#792f59]",
-  primary: "border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] hover:shadow-[0_22px_48px_rgb(121_47_89_/_0.34)]",
+  primary: "border border-[#792f59] bg-[#792f59] text-white shadow-sm hover:border-[#66264b] hover:bg-[#66264b] hover:shadow-md",
   secondary: "border border-[#ead1df] bg-[linear-gradient(135deg,#fffafd_0%,#f3e2eb_100%)] text-[#792f59] hover:border-[#d99aba] hover:bg-[#f3e2eb]",
   tableAction: "border border-stone-200 bg-white/90 text-xs font-bold text-stone-700 shadow-none hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]",
 };
@@ -160,7 +166,7 @@ export function AppPage({
   maxWidth?: string;
 }) {
   return (
-    <main className={`esse-workspace-page min-h-[calc(100vh-4rem)] px-4 py-6 text-stone-900 sm:px-6 md:px-8 md:py-8 ${className}`}>
+    <main className={`esse-workspace-page min-h-[calc(100vh-4rem)] px-4 py-5 text-stone-900 sm:px-5 md:px-6 md:py-6 ${className}`}>
       <div className={`mx-auto ${maxWidth}`}>{children}</div>
     </main>
   );
@@ -313,7 +319,7 @@ export function StatCard({
   value: ReactNode;
 }) {
   return (
-    <div className="esse-panel relative overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white p-4 shadow-[0_8px_24px_rgb(45_29_39_/_0.055)]">
+    <div className="esse-panel relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
       <div aria-hidden="true" className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[#b85888]" />
       <dt className="pl-1 text-[11px] font-bold uppercase tracking-[.13em] text-stone-500">{label}</dt>
       <dd className="mt-1.5 pl-1 text-2xl font-black tracking-[-.02em] text-[#2d1d27]">{value}</dd>
@@ -338,7 +344,7 @@ export function SectionCard({
   title?: ReactNode;
 }) {
   return (
-    <section id={id} className={`esse-panel relative overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:p-6 ${className}`}>
+    <section id={id} className={`esse-panel relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm md:p-5 ${className}`}>
       {(title || actions || subtitle) && (
         <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -358,6 +364,112 @@ export function ActionBar({ children, className = "" }: { children: ReactNode; c
     <div className={`esse-toolbar flex flex-wrap items-center gap-2 rounded-xl border border-[#e8dfe4] bg-[#faf7f9] p-2 ${className}`}>
       {children}
     </div>
+  );
+}
+
+export function AppIconTile({
+  accent,
+  active = false,
+  description,
+  href,
+  icon,
+  label,
+  onClick,
+}: {
+  accent: string;
+  active?: boolean;
+  description?: string;
+  href: string;
+  icon: ReactNode;
+  label: string;
+  onClick?: () => void;
+}) {
+  return (
+    <a
+      aria-current={active ? "page" : undefined}
+      className={`group flex min-h-20 items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#d99aba] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"}`}
+      href={href}
+      onClick={onClick}
+    >
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl text-white shadow-sm" style={{ backgroundColor: accent }}>{icon}</span>
+      <span className="min-w-0">
+        <strong className="block truncate text-sm text-stone-950">{label}</strong>
+        {description && <span className="mt-0.5 block line-clamp-2 text-xs leading-4 text-stone-500">{description}</span>}
+      </span>
+    </a>
+  );
+}
+
+export function AppLauncherPanel({
+  children,
+  className = "",
+  title = "Tutte le app",
+}: {
+  children: ReactNode;
+  className?: string;
+  title?: string;
+}) {
+  return (
+    <section className={`rounded-2xl border border-stone-200 bg-[#f8f7f5] p-4 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)] md:p-6 ${className}`}>
+      <h2 className="text-xl font-bold tracking-[-.02em] text-[#2d1d27]">{title}</h2>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
+export function ContextTabs({
+  className = "",
+  currentPath,
+  items,
+}: {
+  className?: string;
+  currentPath: string;
+  items: Array<{ href: string; label: string }> | readonly { href: string; label: string }[];
+}) {
+  if (items.length === 0) return null;
+  return (
+    <nav aria-label="Viste dell'app" className={`flex min-h-11 items-end gap-1 overflow-x-auto border-b border-stone-200 ${className}`}>
+      {items.map((item) => {
+        const active = currentPath === item.href || (item.href !== "/" && currentPath.startsWith(`${item.href}/`));
+        return <a aria-current={active ? "page" : undefined} className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[#792f59] text-[#792f59]" : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-900"}`} href={item.href} key={item.href}>{item.label}</a>;
+      })}
+    </nav>
+  );
+}
+
+export function WorkspaceToolbar({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`flex min-h-12 flex-wrap items-center gap-2 border-y border-stone-200 bg-white px-3 py-2 ${className}`}>{children}</div>;
+}
+
+export function KpiStrip({
+  items,
+}: {
+  items: Array<{ detail?: ReactNode; label: string; value: ReactNode }>;
+}) {
+  return (
+    <dl className="grid overflow-hidden rounded-xl border border-stone-200 bg-white sm:grid-cols-2 lg:grid-cols-4">
+      {items.map((item, index) => <div className={`${index > 0 ? "border-t sm:border-t-0 sm:border-l" : ""} border-stone-200 px-4 py-3`} key={item.label}><dt className="text-[10px] font-bold uppercase tracking-[.12em] text-stone-500">{item.label}</dt><dd className="mt-1 text-2xl font-bold tracking-[-.03em] text-stone-950">{item.value}</dd>{item.detail && <p className="mt-1 text-xs text-stone-500">{item.detail}</p>}</div>)}
+    </dl>
+  );
+}
+
+export function InboxItem({
+  action,
+  description,
+  label,
+  priority = "normal",
+}: {
+  action?: ReactNode;
+  description?: ReactNode;
+  label: ReactNode;
+  priority?: "normal" | "high";
+}) {
+  return (
+    <article className="flex min-h-14 items-center gap-3 border-b border-stone-100 px-1 py-3 last:border-b-0">
+      <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${priority === "high" ? "bg-amber-500" : "bg-stone-300"}`} />
+      <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold text-stone-900">{label}</h3>{description && <div className="mt-0.5 text-xs text-stone-500">{description}</div>}</div>
+      {action}
+    </article>
   );
 }
 
@@ -557,9 +669,7 @@ export function SaveToast({
             onClick={() => setDismissed(true)}
             type="button"
           >
-            <svg aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
+            <X aria-hidden="true" className="size-4" />
           </button>
         </motion.div>
       )}
@@ -604,9 +714,7 @@ export function Dialog({
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-xl font-bold text-stone-950">{title}</h2>
               <button aria-label="Chiudi" className="grid size-9 shrink-0 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-950" onClick={onClose} type="button">
-                <svg aria-hidden="true" fill="none" height="20" viewBox="0 0 24 24" width="20">
-                  <path d="m7 7 10 10M17 7 7 17" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
-                </svg>
+                <X aria-hidden="true" height="20" width="20" />
               </button>
             </div>
             <div className="mt-5">{children}</div>
@@ -728,7 +836,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className="esse-panel overflow-x-auto rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+    <div className="esse-panel overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="bg-[#faf3f7] text-xs uppercase tracking-wider text-[#792f59]">
           <tr>
@@ -741,7 +849,7 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={getRowId(item)} className="border-t border-stone-100 transition hover:bg-[#fffafd]">
+            <tr key={getRowId(item)} className="h-[46px] border-t border-stone-100 transition hover:bg-[#fffafd]">
               {columns.map((column) => (
                 <td key={column.key} className={`p-4 ${column.align === "right" ? "text-right" : "text-left"}`}>
                   {column.render(item)}

@@ -51,6 +51,14 @@ Use `motion` only.
 - Exit easing: `[0.4, 0, 1, 1]`
 - Emphasized easing: `[0.16, 1, 0.3, 1]`
 
+## App workspace layout
+
+- Global app rail: `76px` desktop, hidden below `md`.
+- Global topbar: `64px`.
+- Dense table row: `46px`.
+- Touch target: minimum `44px`.
+- Standard workspace card: `12px` radius, subtle border, minimal shadow.
+
 ## Primitives
 
 Shared primitives must cover: `Button`, `Badge`, `Switch`, `Dialog`, `Drawer`, `ConfirmDialog`, `PageSkeleton`, `TableSkeleton`, `EmptyState`, `InlineError`, `SaveToast`, data table, schedule editor, breadcrumbs, command palette, and notification center.

@@ -31,7 +31,7 @@ describe("professional UI regression guard", () => {
     const ui = readFileSync(sharedUi, "utf8");
     const dialog = ui.slice(ui.indexOf("export function Dialog"), ui.indexOf("export function Drawer"));
     expect(dialog).toContain('aria-label="Chiudi"');
-    expect(dialog).toContain('d="m7 7 10 10M17 7 7 17"');
+    expect(dialog).toContain('<X aria-hidden="true"');
     expect(dialog).not.toMatch(/>\s*Chiudi\s*</);
   });
 
@@ -161,22 +161,15 @@ describe("professional UI regression guard", () => {
     expect(platform).not.toContain("setSelectedSalonId(rows[0]");
   });
 
-  it("uses one persistent dashboard side navigation instead of separate rail and sidebar blocks", () => {
+  it("uses the app rail, directory page, and contextual workspace shell", () => {
     const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
-    expect(shell).toContain("UnifiedSideNavigation");
-    expect(shell).toContain("navigation_collapsed");
-    expect(shell).toContain("/api/salons/${salon.id}/shell-preferences");
-    expect(shell).toContain("md:pl-[var(--shell-nav-width)]");
-    expect(shell).toContain("md:left-[var(--shell-nav-width)]");
-    expect(shell).toContain("overflow-y-auto");
-    expect(shell).toContain("SidebarToggleIcon");
-    expect(shell).toContain("BellIcon");
-    expect(shell).not.toContain('<span className="font-black">N</span>');
-    expect(shell).not.toContain(">\\n              N\\n");
-    expect(shell).not.toContain("onToggle");
-    expect(shell).not.toContain("function RailLink");
-    expect(shell).not.toContain("left-20");
-    expect(shell).not.toContain("md:pl-[344px]");
+    expect(shell).toContain("<AppRail");
+    expect(shell).not.toContain("<AppLauncher");
+    expect(existsSync(join(dashboardRoot, "apps", "page.tsx"))).toBe(true);
+    expect(shell).toContain("<WorkspaceTopbar");
+    expect(shell).toContain("<MobileAppNavigation");
+    expect(shell).toContain("md:pl-[76px]");
+    expect(shell).not.toContain("<UnifiedSideNavigation");
   });
 
   it("uses the Connected Workspace contract across shell, pages, and settings", () => {
@@ -190,9 +183,9 @@ describe("professional UI regression guard", () => {
     expect(ui).toContain("esse-page-header");
     expect(ui).toContain("esse-panel");
     expect(globals).toContain(".esse-workspace");
-    expect(shell).toContain("workspaceSections");
-    expect(shell).toContain("currentSection");
-    expect(shell).toContain("bg-[#35212e]");
+    expect(shell).toContain("visibleApps");
+    expect(shell).toContain("currentApp");
+    expect(shell).toContain("WorkspaceTopbar");
     expect(settings).toContain("Impostazioni salone");
     expect(settings).toContain("rounded-2xl border");
     expect(dashboard).toContain("Da fare");
@@ -423,7 +416,7 @@ describe("professional UI regression guard", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     const detail = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
     expect(calendar).toContain("setDeleteTarget(undefined)");
-    expect(detail).toContain("setConfirmDelete(false);\n    onChanged?.();");
+    expect(detail.replaceAll("\r\n", "\n")).toContain("setConfirmDelete(false);\n    onChanged?.();");
   });
 
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {
