@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
@@ -55,6 +55,11 @@ postgresSuite("WhatsApp provider settings with PostgreSQL", () => {
   it("stores credentials but returns only masked tenant-safe settings", async () => {
     const data = await fixture();
     const app = communicationApp();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      display_phone_number: "+39 333 123 4567",
+      id: `phone-${data.salonId}`,
+      verified_name: "WhatsApp Test",
+    }), { headers: { "content-type": "application/json" }, status: 200 })));
     try {
       const saved = await app.inject({
         headers: { cookie: `esse-session=${data.ownerToken}` },
@@ -75,9 +80,10 @@ postgresSuite("WhatsApp provider settings with PostgreSQL", () => {
       expect(saved.json()).toMatchObject({
         credential_present: true,
         display_phone_number_masked: "+39 ••• ••• 4567",
+        last_health_check_at: expect.any(String),
         provider: "meta_cloud_api",
-        ready: false,
-        status: "pending_verification",
+        ready: true,
+        status: "ready",
         webhook_credential_present: true,
       });
       expect(saved.body).not.toContain("meta-secret-token");
@@ -94,6 +100,7 @@ postgresSuite("WhatsApp provider settings with PostgreSQL", () => {
       expect(loaded.body).not.toContain("webhook-secret-token");
       expect(loaded.body).not.toContain("ciphertext");
     } finally {
+      vi.unstubAllGlobals();
       await app.close();
       await db.delete(salons).where(eq(salons.id, data.salonId));
     }

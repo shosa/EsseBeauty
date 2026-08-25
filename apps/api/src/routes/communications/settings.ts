@@ -8,7 +8,7 @@ import {
 } from "@esse-beauty/db/schema";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
-import { encryptProviderSecret } from "../../lib/provider-credentials.js";
+import { decryptProviderSecret, encryptProviderSecret } from "../../lib/provider-credentials.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 
 type ProviderAccount = typeof communicationProviderAccounts.$inferSelect;
@@ -24,6 +24,30 @@ interface ProviderSettingsBody {
   token_expires_at?: string | null;
   waba_id?: string;
   webhook_verify_token?: string;
+}
+
+async function verifyMetaAccessToken(input: {
+  accessToken: string;
+  graphApiVersion: string;
+  phoneNumberId: string;
+}): Promise<void> {
+  const graphApiVersion = /^v\d{1,2}\.\d{1,2}$/.test(input.graphApiVersion)
+    ? input.graphApiVersion
+    : "v23.0";
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://graph.facebook.com/${graphApiVersion}/${encodeURIComponent(input.phoneNumberId)}?fields=id,display_phone_number,verified_name`,
+      { headers: { Authorization: `Bearer ${input.accessToken}` } },
+    );
+  } catch {
+    throw new Error("META_UNAVAILABLE");
+  }
+  if (!response.ok) {
+    throw new Error(response.status === 401 || response.status === 403 ? "META_AUTH_FAILED" : "META_REJECTED");
+  }
+  const body = await response.json().catch(() => undefined) as { id?: string } | undefined;
+  if (body?.id !== input.phoneNumberId) throw new Error("META_PHONE_NUMBER_MISMATCH");
 }
 
 function assertSalon(
@@ -178,10 +202,40 @@ export async function registerCommunicationSettingsRoutes(app: FastifyInstance) 
       const webhookVerifyToken = request.body.webhook_verify_token?.trim();
       const credentialPresent = Boolean(accessToken) || existingKinds.has("access_token");
       const enabled = request.body.enabled ?? existing?.enabled ?? false;
+      const graphApiVersion = request.body.graph_api_version?.trim() || existing?.graphApiVersion || "v23.0";
+      let verifiedAt: Date | null = null;
+      if (enabled && credentialPresent) {
+        let tokenForVerification = accessToken;
+        if (!tokenForVerification && existing) {
+          const stored = (await app.db
+            .select()
+            .from(communicationProviderSecrets)
+            .where(and(
+              eq(communicationProviderSecrets.accountId, existing.id),
+              eq(communicationProviderSecrets.salonId, request.salonId),
+              eq(communicationProviderSecrets.kind, "access_token"),
+            )))[0];
+          if (stored) {
+            tokenForVerification = decryptProviderSecret(stored, {
+              accountId: existing.id,
+              provider: existing.provider,
+              salonId: request.salonId,
+            });
+          }
+        }
+        if (!tokenForVerification) return reply.code(400).send({ error: "PROVIDER_NOT_CONFIGURED" });
+        try {
+          await verifyMetaAccessToken({ accessToken: tokenForVerification, graphApiVersion, phoneNumberId });
+          verifiedAt = new Date();
+        } catch (error) {
+          const code = error instanceof Error ? error.message : "META_REJECTED";
+          return reply.code(code === "META_UNAVAILABLE" ? 503 : 400).send({ error: code });
+        }
+      }
       const status = !enabled
         ? "disabled" as const
         : credentialPresent
-          ? "pending_verification" as const
+          ? "ready" as const
           : "not_configured" as const;
 
       try {
@@ -192,9 +246,10 @@ export async function registerCommunicationSettingsRoutes(app: FastifyInstance) 
               businessPortfolioId: cleanOptional(request.body.business_portfolio_id, 128),
               displayPhoneNumber: cleanOptional(request.body.display_phone_number, 40),
               enabled,
-              graphApiVersion: request.body.graph_api_version?.trim() || existing?.graphApiVersion || "v23.0",
+              graphApiVersion,
               id: accountId,
               lastErrorCode: null,
+              lastHealthCheckAt: verifiedAt,
               phoneNumberId,
               provider: "meta_cloud_api",
               salonId: request.salonId,
@@ -209,8 +264,9 @@ export async function registerCommunicationSettingsRoutes(app: FastifyInstance) 
                 businessPortfolioId: cleanOptional(request.body.business_portfolio_id, 128),
                 displayPhoneNumber: cleanOptional(request.body.display_phone_number, 40),
                 enabled,
-                graphApiVersion: request.body.graph_api_version?.trim() || existing?.graphApiVersion || "v23.0",
+                graphApiVersion,
                 lastErrorCode: null,
+                lastHealthCheckAt: verifiedAt,
                 phoneNumberId,
                 status,
                 tokenExpiresAt,
