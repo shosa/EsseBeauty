@@ -7,6 +7,7 @@ import {
   authSessions,
   campaignRecipients,
   campaignTemplates,
+  communicationConsents,
   customers,
   marketingCampaigns,
   salonModules,
@@ -196,7 +197,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
         url: `/api/salons/${data.salonId}/campaigns/readiness`,
       });
       expect(ready.statusCode, ready.body).toBe(200);
-      expect(ready.json()).toEqual({ email: "ready", sms: "ready" });
+      expect(ready.json()).toEqual({ email: "ready", whatsapp: "not_configured" });
 
       const testSend = await app.inject({
         headers: { cookie: `esse-session=${data.ownerToken}` },
@@ -285,6 +286,70 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       expect(archived.statusCode, archived.body).toBe(200);
       expect(archived.json()).toMatchObject({ active: false });
       expect(await db.select().from(campaignTemplates).where(eq(campaignTemplates.id, templateId))).toHaveLength(1);
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("excludes WhatsApp marketing recipients without explicit WhatsApp consent", async () => {
+    const data = await fixture();
+    await db.update(customers).set({ phone: "+393331112233", phoneNormalized: "+393331112233" })
+      .where(eq(customers.id, data.customers[0]!.id));
+    await db.update(customers).set({ phone: "+393334445566", phoneNormalized: "+393334445566" })
+      .where(eq(customers.id, data.customers[1]!.id));
+    await db.insert(communicationConsents).values({
+      capturedAt: new Date(),
+      capturedSource: "test",
+      channel: "whatsapp",
+      customerId: data.customers[0]!.id,
+      purpose: "marketing",
+      salonId: data.salonId,
+      status: "granted",
+    });
+    const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+    try {
+      const preview = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { channel: "whatsapp", target_segment: { type: "all" } },
+        url: `/api/salons/${data.salonId}/campaigns/preview`,
+      });
+      expect(preview.statusCode, preview.body).toBe(200);
+      expect(preview.json()).toMatchObject({ eligible_count: 1, excluded_count: 1 });
+      expect(preview.json().excluded).toEqual([
+        expect.objectContaining({ customer_id: data.customers[1]!.id, reason: "MISSING_WHATSAPP_CONSENT" }),
+      ]);
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("accepts a WhatsApp template campaign without a short-message character limit", async () => {
+    const data = await fixture();
+    const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+    try {
+      const response = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: {
+          channel: "whatsapp",
+          content: "x".repeat(500),
+          name: "Promozione WhatsApp",
+          target_segment: { type: "all" },
+          whatsapp_template_locale: "it",
+          whatsapp_template_name: "marketing_promotion",
+          whatsapp_template_parameters: ["estate"],
+        },
+        url: `/api/salons/${data.salonId}/campaigns`,
+      });
+      expect(response.statusCode, response.body).toBe(201);
+      expect(response.json()).toMatchObject({
+        channel: "whatsapp",
+        whatsappTemplateLocale: "it",
+        whatsappTemplateName: "marketing_promotion",
+      });
     } finally {
       await app.close();
       await data.cleanup();

@@ -11,7 +11,6 @@ import { testDatabaseUrl } from "../test/postgres.js";
 
 const senders = vi.hoisted(() => ({
   sendEmail: vi.fn(async (_to: string, _subject: string, _html: string) => undefined),
-  sendSms: vi.fn(async (_to: string, _body: string) => undefined),
 }));
 
 vi.mock("./notifications.js", () => senders);
@@ -177,28 +176,35 @@ postgresSuite("review delivery with PostgreSQL", () => {
     }
   });
 
-  it("keeps the complete review URL inside a 160 character SMS", async () => {
+  it("enqueues a WhatsApp review template when email is unavailable", async () => {
     const salonId = randomUUID();
     const customerId = randomUUID();
     const staffId = randomUUID();
     const serviceId = randomUUID();
     const appointmentId = randomUUID();
-    await db.insert(salons).values({ id: salonId, locale: "it-IT", name: "SMS Delivery", slug: `sms-delivery-${salonId}`, timezone: "Europe/Rome" });
+    await db.insert(salons).values({ id: salonId, locale: "it-IT", name: "WhatsApp Delivery", slug: `whatsapp-delivery-${salonId}`, timezone: "Europe/Rome" });
     try {
-      await db.insert(customers).values({ fullName: "Mario Rossi", id: customerId, phone: "+393331234567", salonId });
+      await db.insert(customers).values({ fullName: "Mario Rossi", id: customerId, phone: "+393331234567", phoneNormalized: "+393331234567", salonId });
       await db.insert(staff).values({ color: "#000000", displayName: "Anna", id: staffId, salonId, workingHours: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } });
       await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Trattamento viso ultra completo con descrizione molto lunga che non deve troncare il collegamento", priceCents: 5000, salonId });
       await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "completed" });
       const invitation = await ensureReviewInvitation(db, appointmentId, { expiresAt: new Date(Date.now() + 60_000) });
-      senders.sendSms.mockClear();
+      const enqueued: Array<{ kind: string; template: { name: string; parameters: string[] }; to: string }> = [];
 
-      await processReviewRequest(db, { data: { invitationId: invitation.id } } as Job<ReviewRequestJob>);
+      await processReviewRequest(db, { data: { invitationId: invitation.id } } as Job<ReviewRequestJob>, {
+        enqueue: async (_db, input) => {
+          if (input.kind !== "template") throw new Error("Expected a template");
+          enqueued.push(input);
+          return { messageId: "message-1", outboxId: "outbox-1" };
+        },
+      });
 
-      const body = String(senders.sendSms.mock.calls[0]?.[1]);
-      const url = body.match(/https?:\/\/\S+$/)?.[0];
-      expect(body.length).toBeLessThanOrEqual(160);
-      expect(url).toMatch(/\/review#token=v1\.review\./);
-      expect(body.endsWith(url!)).toBe(true);
+      expect(enqueued).toEqual([expect.objectContaining({
+        kind: "template",
+        template: expect.objectContaining({ name: "review_invitation" }),
+        to: "+393331234567",
+      })]);
+      expect(enqueued[0]?.template.parameters.at(-1)).toMatch(/\/review#token=v1\.review\./);
       const rows = await db.execute(sql<{ delivery_status: string }>`select delivery_status from review_invitations where id = ${invitation.id}::uuid`);
       expect(rows[0]?.delivery_status).toBe("sent");
     } finally {

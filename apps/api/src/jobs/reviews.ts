@@ -13,7 +13,8 @@ import {
 } from "@esse-beauty/db/schema";
 
 import { issueStablePublicToken } from "../lib/public-tokens.js";
-import { sendEmail, sendSms } from "./notifications.js";
+import { sendEmail } from "./notifications.js";
+import { enqueueCommunication } from "./communications.js";
 import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
 export interface ReviewRequestJob {
@@ -47,20 +48,6 @@ function reviewTokenSecret(): string {
   return secret;
 }
 
-export function buildReviewSms(serviceName: string, reviewUrl: string): string {
-  const suffix = ` ${reviewUrl}`;
-  const label = "Recensione";
-  const available = 160 - suffix.length;
-  if (available < label.length) throw new Error("REVIEW_URL_TOO_LONG");
-  const desired = `${label} ${serviceName}:`;
-  const prefix = desired.length <= available
-    ? desired
-    : available > label.length + 2
-      ? `${desired.slice(0, available - 1).trimEnd()}…`
-      : label;
-  return `${prefix}${suffix}`;
-}
-
 export function buildReviewInviteUrl(pwaBaseUrl: string, rawToken: string): string {
   const base = pwaBaseUrl.replace(/\/$/, "");
   return `${base}/review#token=${encodeURIComponent(rawToken)}`;
@@ -92,7 +79,7 @@ export async function ensureReviewInvitation(
       .insert(reviewInvitations)
       .values({
         appointmentId: appointment.appointmentId,
-        channel: appointment.email ? "email" : "sms",
+        channel: appointment.email ? "email" : "whatsapp",
         deliveryStatus: appointment.email || appointment.phone ? "pending" : "skipped",
         expiresAt: options.expiresAt ?? new Date(Date.now() + REVIEW_INVITATION_TTL_MS),
         salonId: appointment.salonId,
@@ -250,6 +237,7 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
         invitationId: reviewInvitations.id,
         phone: customers.phone,
         revokedAt: reviewInvitations.revokedAt,
+        salonId: reviewInvitations.salonId,
         salonName: salons.name,
         serviceName: services.name,
       })
@@ -279,7 +267,7 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
     }
     const hasDestination =
       (invitation.channel === "email" && Boolean(invitation.email)) ||
-      (invitation.channel === "sms" && Boolean(invitation.phone));
+      (invitation.channel === "whatsapp" && Boolean(invitation.phone));
     if (!hasDestination) {
       await tx.update(reviewInvitations).set({
         deliveryClaimId: null,
@@ -334,7 +322,7 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
 
 interface ReviewDeliveryDependencies {
   emailSender?: typeof sendEmail;
-  smsSender?: typeof sendSms;
+  enqueue?: typeof enqueueCommunication;
 }
 
 export async function processReviewRequest(
@@ -346,7 +334,6 @@ export async function processReviewRequest(
   if (!delivery) return;
   try {
     const emailSender = dependencies.emailSender ?? sendEmail;
-    const smsSender = dependencies.smsSender ?? sendSms;
     const pwaUrl = (process.env.PWA_URL ?? "http://localhost:3002").replace(/\/$/, "");
     const reviewUrl = buildReviewInviteUrl(pwaUrl, delivery.rawToken);
     if (delivery.channel === "email" && delivery.email) {
@@ -356,12 +343,20 @@ export async function processReviewRequest(
         `<p>Ciao ${delivery.customerName},</p><p>raccontaci come è andato ${delivery.serviceName}.</p><p><a href="${reviewUrl}">Lascia una recensione</a></p>`,
         { idempotencyKey: `review-invitation-${delivery.invitationId}` },
       );
-    } else if (delivery.channel === "sms" && delivery.phone) {
-      await smsSender(
-        delivery.phone,
-        buildReviewSms(delivery.serviceName, reviewUrl),
-        { idempotencyKey: `review-invitation-${delivery.invitationId}` },
-      );
+    } else if (delivery.channel === "whatsapp" && delivery.phone) {
+      await (dependencies.enqueue ?? enqueueCommunication)(db, {
+        idempotencyKey: `review-invitation-${delivery.invitationId}`,
+        kind: "template",
+        salonId: delivery.salonId,
+        sourceId: delivery.invitationId,
+        sourceType: "review_invitation",
+        template: {
+          locale: "it",
+          name: "review_invitation",
+          parameters: [delivery.customerName, delivery.serviceName, reviewUrl],
+        },
+        to: delivery.phone,
+      });
     }
     await db.update(reviewInvitations).set({
       deliveredAt: new Date(),

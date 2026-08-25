@@ -9,6 +9,7 @@ import {
   type CommunicationProviderRegistry,
   ProviderNotConfiguredError,
 } from "../providers/communications.js";
+import { enqueueCommunication } from "./communications.js";
 import { QUEUE_NAMES, redisConnection } from "./queues.js";
 
 export interface CampaignBatchJob {
@@ -66,6 +67,7 @@ export async function processCampaignBatch(
   db: DrizzleDB,
   job: Pick<Job<CampaignBatchJob>, "data">,
   providers: CommunicationProviderRegistry = createCommunicationProviderRegistry(),
+  enqueue: typeof enqueueCommunication = enqueueCommunication,
 ): Promise<void> {
   const campaigns = await db
     .select()
@@ -73,6 +75,9 @@ export async function processCampaignBatch(
     .where(eq(marketingCampaigns.id, job.data.campaignId));
   const campaign = campaigns[0];
   if (!campaign || campaign.status === "cancelled") return;
+  // Historical campaigns retain their recorded channel and are never repurposed
+  // into a WhatsApp delivery at runtime.
+  if (campaign.channel !== "email" && campaign.channel !== "whatsapp") return;
 
   const claimed = await db.transaction(async (tx) => {
     const started = await tx
@@ -113,22 +118,31 @@ export async function processCampaignBatch(
 
   for (const recipient of claimed) {
     try {
-      const receipt = await providers.send(
-        campaign.channel === "email"
-          ? {
-              channel: "email",
-              html: campaign.content,
-              idempotencyKey: `campaign-recipient-${recipient.id}`,
-              subject: campaign.name,
-              to: recipient.destination,
-            }
-          : {
-              channel: "sms",
-              idempotencyKey: `campaign-recipient-${recipient.id}`,
-              text: campaign.content,
-              to: recipient.destination,
+      const receipt = campaign.channel === "email"
+        ? await providers.send({
+            channel: "email",
+            html: campaign.content,
+            idempotencyKey: `campaign-recipient-${recipient.id}`,
+            subject: campaign.name,
+            to: recipient.destination,
+          })
+        : await enqueue(db, {
+            idempotencyKey: `campaign-recipient-${recipient.id}`,
+            kind: "template",
+            salonId: campaign.salonId,
+            sourceId: recipient.id,
+            sourceType: "campaign_recipient",
+            template: {
+              locale: campaign.whatsappTemplateLocale ?? "it",
+              name: campaign.whatsappTemplateName ?? "",
+              parameters: campaign.whatsappTemplateParameters,
             },
-      );
+            to: recipient.destination,
+          }).then((queued) => ({
+            acceptedAt: new Date(),
+            provider: "meta_cloud_api",
+            providerMessageId: queued.messageId,
+          }));
       await db
         .update(campaignRecipients)
         .set({

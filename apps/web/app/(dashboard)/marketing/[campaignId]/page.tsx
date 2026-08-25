@@ -9,7 +9,7 @@ import { useAuth } from "../../../../lib/auth-context";
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Campaign {
-  channel: "email" | "sms";
+  channel: "email" | "whatsapp";
   content: string;
   id: string;
   name: string;
@@ -35,7 +35,7 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [confirmSend, setConfirmSend] = useState(false);
-  const [readiness, setReadiness] = useState<Record<"email" | "sms", "ready" | "not_configured">>();
+  const [readiness, setReadiness] = useState<Record<"email" | "whatsapp", "ready" | "not_configured">>();
 
   async function load(showLoading = true) {
     if (!salon) return;
@@ -53,7 +53,7 @@ export default function CampaignDetailPage() {
     const campaigns = await campaignsResponse.json() as Campaign[];
     setCampaign(campaigns.find((item) => item.id === campaignId));
     setStats(statsResponse.ok ? await statsResponse.json() as Stats : undefined);
-    if (readinessResponse.ok) setReadiness(await readinessResponse.json() as Record<"email" | "sms", "ready" | "not_configured">);
+    if (readinessResponse.ok) setReadiness(await readinessResponse.json() as Record<"email" | "whatsapp", "ready" | "not_configured">);
     setLoading(false);
   }
 

@@ -9,10 +9,12 @@ const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface CampaignTemplate {
   active: boolean;
-  channel: "email" | "sms";
+  channel: "email" | "whatsapp";
   content: string;
   id: string;
   name: string;
+  whatsappTemplateLocale?: string | null;
+  whatsappTemplateName?: string | null;
 }
 
 export default function CampaignTemplatesPage() {
@@ -37,9 +39,9 @@ export default function CampaignTemplatesPage() {
       method: editing ? "PATCH" : "POST",
       credentials: "include",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ channel: data.get("channel"), content: data.get("content"), name: data.get("name") }),
+      body: JSON.stringify({ channel: data.get("channel"), content: data.get("content"), name: data.get("name"), whatsapp_template_name: data.get("whatsapp_template_name"), whatsapp_template_locale: data.get("whatsapp_template_locale") }),
     });
-    if (!response.ok) { setError("Modello non salvato. Per gli SMS usa al massimo 160 caratteri."); return; }
+    if (!response.ok) { setError("Modello non salvato. Per WhatsApp inserisci il modello Meta approvato e il relativo locale."); return; }
     setEditing(undefined);
     await load();
   }
@@ -60,13 +62,15 @@ export default function CampaignTemplatesPage() {
         <SectionCard title={editing ? "Modifica modello" : "Nuovo modello"} subtitle="Il contenuto viene copiato nella bozza e resta modificabile.">
           <form action={save} key={editing?.id ?? "new"} className="grid gap-4">
             <label className="text-sm font-semibold">Nome<input name="name" defaultValue={editing?.name} required className="mt-1 min-h-12 w-full rounded-xl border px-3" /></label>
-            <label className="text-sm font-semibold">Canale<select name="channel" defaultValue={editing?.channel ?? "email"} className="mt-1 min-h-12 w-full rounded-xl border bg-white px-3"><option value="email">Email</option><option value="sms">SMS</option></select></label>
+            <label className="text-sm font-semibold">Canale<select name="channel" defaultValue={editing?.channel ?? "email"} className="mt-1 min-h-12 w-full rounded-xl border bg-white px-3"><option value="email">Email</option><option value="whatsapp">WhatsApp</option></select></label>
+            <label className="text-sm font-semibold">Nome modello Meta<input name="whatsapp_template_name" defaultValue={editing?.whatsappTemplateName ?? ""} className="mt-1 min-h-12 w-full rounded-xl border px-3" /></label>
+            <label className="text-sm font-semibold">Locale modello Meta<input name="whatsapp_template_locale" defaultValue={editing?.whatsappTemplateLocale ?? "it"} className="mt-1 min-h-12 w-full rounded-xl border px-3" /></label>
             <label className="text-sm font-semibold">Contenuto<textarea name="content" defaultValue={editing?.content} required rows={8} className="mt-1 w-full rounded-xl border p-3" /></label>
             <div className="flex justify-end gap-2">{editing && <Button type="button" variant="ghost" onClick={() => setEditing(undefined)}>Annulla</Button>}<Button type="submit">{editing ? "Salva modifiche" : "Crea modello"}</Button></div>
           </form>
         </SectionCard>
         <SectionCard title="Libreria modelli" subtitle="I modelli archiviati restano nello storico ma non sono applicabili.">
-          {templates.length === 0 ? <EmptyState title="Nessun modello" description="Crea il primo modello riutilizzabile per email o SMS." /> : <div className="grid gap-3">
+          {templates.length === 0 ? <EmptyState title="Nessun modello" description="Crea il primo modello riutilizzabile per email o WhatsApp." /> : <div className="grid gap-3">
             {templates.map((template) => <article key={template.id} className="rounded-xl border border-stone-200 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">{template.name}</h2><p className="mt-1 text-sm text-stone-500">{template.channel.toUpperCase()}</p></div><StatusBadge status={template.active ? "active" : "archived"}>{template.active ? "Attivo" : "Archiviato"}</StatusBadge></div>
               <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm text-stone-700">{template.content}</p>

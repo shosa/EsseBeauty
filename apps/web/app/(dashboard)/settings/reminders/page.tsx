@@ -9,7 +9,7 @@ const options = [48, 24, 2, 1];
 
 export default function ReminderSettingsPage() {
   const { salon } = useAuth();
-  const [sms, setSms] = useState(false);
+  const [whatsapp, setWhatsapp] = useState(false);
   const [email, setEmail] = useState(true);
   const [hours, setHours] = useState<number[]>([24]);
   const [log, setLog] = useState<Array<{ id: string; customer_name: string; channel: string; sent_at?: string; status: string }>>([]);
@@ -20,12 +20,12 @@ export default function ReminderSettingsPage() {
       fetch(`${api}/api/salons/${salon.id}/reminders/settings`, { credentials: "include" }).then((response) => response.json()),
       fetch(`${api}/api/salons/${salon.id}/reminders`, { credentials: "include" }).then((response) => response.json()),
     ]).then(([settings, reminders]) => {
-      setSms(settings.smsEnabled); setEmail(settings.emailEnabled); setHours(settings.hoursBefore); setLog(reminders);
+      setWhatsapp(settings.whatsappEnabled); setEmail(settings.emailEnabled); setHours(settings.hoursBefore); setLog(reminders);
     });
   }, [salon]);
 
   async function save() {
-    await fetch(`${api}/api/salons/${salon?.id}/reminders/settings`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ sms_enabled: sms, email_enabled: email, hours_before: hours }) });
+    await fetch(`${api}/api/salons/${salon?.id}/reminders/settings`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsapp_enabled: whatsapp, email_enabled: email, hours_before: hours }) });
   }
 
   return (
@@ -33,7 +33,7 @@ export default function ReminderSettingsPage() {
       <PageHeader eyebrow="Notifiche" title="Promemoria appuntamenti" subtitle="Canali, tempi di invio e storico dei promemoria recenti." />
       <SectionCard title="Regole promemoria">
         <div className="grid gap-5 md:grid-cols-2">
-          <div><h2 className="font-bold">Canali attivi</h2>{[["SMS", sms, setSms], ["Email", email, setEmail]].map(([label, value, setter]) => <label key={label as string} className="mt-4 flex items-center justify-between rounded-xl border border-stone-100 p-4"><span>{label as string}</span><input type="checkbox" checked={value as boolean} onChange={(event) => (setter as (value: boolean) => void)(event.target.checked)} className="size-5 accent-[#792f59]" /></label>)}</div>
+          <div><h2 className="font-bold">Canali attivi</h2>{[["WhatsApp", whatsapp, setWhatsapp], ["Email", email, setEmail]].map(([label, value, setter]) => <label key={label as string} className="mt-4 flex items-center justify-between rounded-xl border border-stone-100 p-4"><span>{label as string}</span><input type="checkbox" checked={value as boolean} onChange={(event) => (setter as (value: boolean) => void)(event.target.checked)} className="size-5 accent-[#792f59]" /></label>)}</div>
           <div><h2 className="font-bold">Quando inviarli</h2><div className="mt-4 grid grid-cols-2 gap-3">{options.map((value) => <label key={value} className="rounded-xl border border-stone-100 p-4"><input type="checkbox" checked={hours.includes(value)} onChange={() => setHours((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value])} className="mr-2 accent-[#792f59]" />{value} ore prima</label>)}</div></div>
           <Button onClick={() => void save()} className="md:col-span-2" variant="primary">Salva impostazioni</Button>
         </div>

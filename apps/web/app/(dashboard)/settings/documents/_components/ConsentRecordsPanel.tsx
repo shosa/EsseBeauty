@@ -315,9 +315,9 @@ export function ConsentRecordsPanel({
       >
         <div className="grid gap-4">
           {dialog.mode === "request" && <FormField label="Modello attivo"><select onChange={(event) => dispatchDialog({ field: "templateId", type: "change", value: event.target.value })} value={dialog.templateId}><option value="">Seleziona un modello</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · v{template.version}</option>)}</select></FormField>}
-          <FormField label="Canale"><select onChange={(event) => dispatchDialog({ field: "deliveryChannel", type: "change", value: event.target.value as ConsentDeliveryChannel })} value={dialog.deliveryChannel}><option value="in_person">In presenza</option><option value="email">Email (genera link)</option><option value="sms">SMS (genera link)</option></select></FormField>
+          <FormField label="Canale"><select onChange={(event) => dispatchDialog({ field: "deliveryChannel", type: "change", value: event.target.value as ConsentDeliveryChannel })} value={dialog.deliveryChannel}><option value="in_person">In presenza</option><option value="email">Email (genera link)</option><option value="whatsapp">WhatsApp (genera link)</option></select></FormField>
           <FormField label="Scadenza"><input min={new Date().toISOString().slice(0, 16)} onChange={(event) => dispatchDialog({ field: "expiresAt", type: "change", value: event.target.value })} type="datetime-local" value={dialog.expiresAt} /></FormField>
-          <p className="text-xs leading-5 text-stone-500">Il sistema genera il link sicuro. La consegna tramite provider email o SMS non è automatica.</p>
+          <p className="text-xs leading-5 text-stone-500">Il sistema genera il link sicuro. La consegna tramite provider email o WhatsApp non è automatica.</p>
           {dialog.error && <InlineError>{dialog.error}</InlineError>}
         </div>
       </Dialog>

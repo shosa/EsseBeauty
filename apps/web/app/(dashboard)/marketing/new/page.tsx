@@ -9,14 +9,14 @@ import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-type Channel = "email" | "sms";
+type Channel = "email" | "whatsapp";
 type Segment =
   | { type: "all" }
   | { type: "inactive"; days_since_last_visit: number }
   | { type: "tag"; tag: string }
   | { type: "high_loyalty"; min_points: number };
 
-interface CampaignTemplate { channel: Channel; content: string; id: string; name: string }
+interface CampaignTemplate { channel: Channel; content: string; id: string; name: string; whatsappTemplateLocale?: string | null; whatsappTemplateName?: string | null }
 interface PreviewRow { customer_id: string; destination: string | null; name: string; reason?: string }
 interface Preview { eligible: PreviewRow[]; eligible_count: number; excluded: PreviewRow[]; excluded_count: number }
 
@@ -27,6 +27,8 @@ export default function NewCampaignPage() {
   const [channel, setChannel] = useState<Channel>("email");
   const [segment, setSegment] = useState("all");
   const [content, setContent] = useState("");
+  const [templateLocale, setTemplateLocale] = useState("it");
+  const [templateName, setTemplateName] = useState("");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [preview, setPreview] = useState<Preview>();
@@ -73,7 +75,7 @@ export default function NewCampaignPage() {
     if (readiness?.[channel] !== "ready") { setError("Provider non configurato per questo canale."); return; }
     const response = await fetch(`${api}/api/salons/${salon.id}/campaigns/test-send`, {
       method: "POST", credentials: "include", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ channel, content, destination: testDestination }),
+      body: JSON.stringify({ channel, content, destination: testDestination, whatsapp_template_locale: templateLocale, whatsapp_template_name: templateName }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({})) as { error?: string };
@@ -89,11 +91,11 @@ export default function NewCampaignPage() {
     if (!preview || preview.eligible_count === 0) { setError("Genera prima l'anteprima destinatari e verifica che contenga almeno un recapito valido."); return; }
     const response = await fetch(`${api}/api/salons/${salon.id}/campaigns`, {
       method: "POST", credentials: "include", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: data.get("name"), channel, target_segment: segmentConfig(data), content, scheduled_at: data.get("scheduled") || undefined }),
+      body: JSON.stringify({ name: data.get("name"), channel, target_segment: segmentConfig(data), content, scheduled_at: data.get("scheduled") || undefined, whatsapp_template_locale: templateLocale, whatsapp_template_name: templateName }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({})) as { error?: string };
-      setError(body.error === "SMS_TOO_LONG" ? "Il messaggio SMS supera 160 caratteri." : "Campagna non salvata.");
+      setError("Campagna non salvata. Per WhatsApp seleziona un modello Meta approvato.");
       return;
     }
     const campaign = await response.json() as { id: string };
@@ -103,7 +105,7 @@ export default function NewCampaignPage() {
   function applyTemplate(templateId: string) {
     const template = templates.find((item) => item.id === templateId);
     if (!template) return;
-    setChannel(template.channel); setContent(template.content); invalidatePreview();
+    setChannel(template.channel); setContent(template.content); setTemplateLocale(template.whatsappTemplateLocale ?? "it"); setTemplateName(template.whatsappTemplateName ?? ""); invalidatePreview();
   }
 
   return (
@@ -123,7 +125,7 @@ export default function NewCampaignPage() {
             </label>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-3">
-            {(["email", "sms"] as const).map((value) => <button key={value} type="button" onClick={() => { setChannel(value); invalidatePreview(); }} className={`rounded-xl border p-4 font-bold ${channel === value ? "border-rose-700 bg-rose-50" : ""}`}>{value.toUpperCase()} · {readiness?.[value] === "ready" ? "pronto" : "Provider non configurato"}</button>)}
+            {(["email", "whatsapp"] as const).map((value) => <button key={value} type="button" onClick={() => { setChannel(value); invalidatePreview(); }} className={`rounded-xl border p-4 font-bold ${channel === value ? "border-rose-700 bg-rose-50" : ""}`}>{value === "whatsapp" ? "WhatsApp" : "EMAIL"} · {readiness?.[value] === "ready" ? "pronto" : "Provider non configurato"}</button>)}
           </div>
           <label className="mt-5 block font-semibold">Segmento
             <select value={segment} onChange={(event) => { setSegment(event.target.value); invalidatePreview(); }} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3"><option value="all">Tutti</option><option value="inactive">Clienti inattivi</option><option value="tag">Tag cliente</option><option value="high_loyalty">Punti fedeltà alti</option></select>
@@ -131,8 +133,8 @@ export default function NewCampaignPage() {
           {segment === "inactive" && <input name="days" type="number" min="1" required placeholder="Giorni dall'ultima visita" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
           {segment === "tag" && <input name="tag" required placeholder="Tag" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
           {segment === "high_loyalty" && <input name="points" type="number" min="0" required placeholder="Punti minimi" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
-          <label className="mt-5 block font-semibold">Contenuto<textarea required value={content} onChange={(event) => setContent(event.target.value.slice(0, channel === "sms" ? 160 : undefined))} rows={7} className="mt-2 w-full rounded-xl border p-3" /></label>
-          {channel === "sms" && <p className="text-right text-xs text-stone-500">{content.length}/160</p>}
+          <label className="mt-5 block font-semibold">Contenuto<textarea required value={content} onChange={(event) => setContent(event.target.value)} rows={7} className="mt-2 w-full rounded-xl border p-3" /></label>
+          {channel === "whatsapp" && <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="font-semibold">Nome modello Meta<input required value={templateName} onChange={(event) => setTemplateName(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label><label className="font-semibold">Locale modello<input required value={templateLocale} onChange={(event) => setTemplateLocale(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label></div>}
           <label className="mt-5 block font-semibold">Programma invio (facoltativo)<input name="scheduled" type="datetime-local" className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label>
         </SectionCard>
 

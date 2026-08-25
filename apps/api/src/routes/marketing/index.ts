@@ -11,6 +11,8 @@ import {
   appointments,
   campaignRecipients,
   campaignTemplates,
+  communicationConsents,
+  communicationProviderAccounts,
   customers,
   loyaltyPoints,
   marketingCampaigns,
@@ -24,10 +26,12 @@ import { getQueue, QUEUE_NAMES } from "../../jobs/queues.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import {
   createCommunicationProviderRegistry,
-  type CommunicationChannel,
   type CommunicationProviderRegistry,
   ProviderNotConfiguredError,
 } from "../../providers/communications.js";
+import { enqueueCommunication } from "../../jobs/communications.js";
+
+type CampaignChannel = "email" | "whatsapp";
 
 type Segment =
   | { type: "all" }
@@ -39,7 +43,7 @@ interface RecipientPreviewRow extends Record<string, unknown> {
   customer_id: string;
   destination: string | null;
   name: string;
-  reason?: "MISSING_EMAIL" | "MISSING_PHONE";
+  reason?: "MISSING_EMAIL" | "MISSING_PHONE" | "MISSING_WHATSAPP_CONSENT";
 }
 
 export interface MarketingRouteDependencies {
@@ -64,10 +68,20 @@ const guard = [
 async function resolveSegment(
   app: FastifyInstance,
   salonId: string,
-  channel: CommunicationChannel,
+  channel: CampaignChannel,
   segment: Segment,
 ) {
-  const destination = channel === "email" ? customers.email : customers.phone;
+  const destination = channel === "email" ? customers.email : customers.phoneNormalized;
+  const communicationConsent = channel === "whatsapp"
+    ? sql`exists (
+      select 1 from ${communicationConsents}
+      where ${communicationConsents.salonId} = ${customers.salonId}
+        and ${communicationConsents.customerId} = ${customers.id}
+        and ${communicationConsents.channel} = 'whatsapp'
+        and ${communicationConsents.purpose} = 'marketing'
+        and ${communicationConsents.status} = 'granted'
+    )`
+    : undefined;
   const base = app.db
     .select({ customerId: customers.id, destination })
     .from(customers);
@@ -80,6 +94,7 @@ async function resolveSegment(
       and(
         eq(customers.salonId, salonId),
         sql`${destination} is not null`,
+        ...(communicationConsent ? [communicationConsent] : []),
         sql`not exists (
           select 1 from ${appointments}
           where ${appointments.customerId} = ${customers.id}
@@ -94,6 +109,7 @@ async function resolveSegment(
       and(
         eq(customers.salonId, salonId),
         sql`${destination} is not null`,
+        ...(communicationConsent ? [communicationConsent] : []),
         sql`${segment.tag} = any(${customers.tags})`,
       ),
     );
@@ -105,6 +121,7 @@ async function resolveSegment(
         and(
           eq(customers.salonId, salonId),
           sql`${destination} is not null`,
+          ...(communicationConsent ? [communicationConsent] : []),
         ),
       )
       .groupBy(customers.id)
@@ -113,17 +130,17 @@ async function resolveSegment(
       );
   }
   return base.where(
-    and(eq(customers.salonId, salonId), sql`${destination} is not null`),
+    and(eq(customers.salonId, salonId), sql`${destination} is not null`, ...(communicationConsent ? [communicationConsent] : [])),
   );
 }
 
 async function resolveSegmentPreview(
   app: FastifyInstance,
   salonId: string,
-  channel: CommunicationChannel,
+  channel: CampaignChannel,
   segment: Segment,
 ) {
-  const destination = channel === "email" ? customers.email : customers.phone;
+  const destination = channel === "email" ? customers.email : customers.phoneNormalized;
   const base = app.db
     .select({ customerId: customers.id, destination, name: customers.fullName })
     .from(customers);
@@ -154,6 +171,14 @@ async function resolveSegmentPreview(
     rows = await base.where(eq(customers.salonId, salonId));
   }
 
+  const consentedCustomerIds = channel === "whatsapp"
+    ? new Set((await app.db.select({ customerId: communicationConsents.customerId }).from(communicationConsents).where(and(
+      eq(communicationConsents.salonId, salonId),
+      eq(communicationConsents.channel, "whatsapp"),
+      eq(communicationConsents.purpose, "marketing"),
+      eq(communicationConsents.status, "granted"),
+    ))).map((row) => row.customerId))
+    : undefined;
   const eligible: RecipientPreviewRow[] = [];
   const excluded: RecipientPreviewRow[] = [];
   for (const row of rows) {
@@ -162,10 +187,12 @@ async function resolveSegmentPreview(
       destination: row.destination,
       name: row.name,
     };
-    if (row.destination?.trim()) eligible.push(item);
+    if (row.destination?.trim() && (channel !== "whatsapp" || consentedCustomerIds?.has(row.customerId))) eligible.push(item);
     else excluded.push({
       ...item,
-      reason: channel === "email" ? "MISSING_EMAIL" : "MISSING_PHONE",
+      reason: !row.destination?.trim()
+        ? channel === "email" ? "MISSING_EMAIL" : "MISSING_PHONE"
+        : "MISSING_WHATSAPP_CONSENT",
     });
   }
   return {
@@ -197,20 +224,28 @@ async function enqueueBatches(
 }
 
 function validTestSendBody(value: unknown): value is {
-  channel: CommunicationChannel;
+  channel: CampaignChannel;
   content: string;
   destination: string;
   subject?: string;
+  whatsapp_template_locale?: string;
+  whatsapp_template_name?: string;
+  whatsapp_template_parameters?: string[];
 } {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
   return (
-    (body.channel === "email" || body.channel === "sms") &&
+    (body.channel === "email" || body.channel === "whatsapp") &&
     typeof body.content === "string" &&
     body.content.trim().length > 0 &&
     typeof body.destination === "string" &&
     body.destination.trim().length > 0 &&
-    (body.subject === undefined || typeof body.subject === "string")
+    (body.subject === undefined || typeof body.subject === "string") &&
+    (body.channel !== "whatsapp" || (
+      typeof body.whatsapp_template_name === "string" && body.whatsapp_template_name.trim().length > 0 &&
+      typeof body.whatsapp_template_locale === "string" && body.whatsapp_template_locale.trim().length > 0 &&
+      (body.whatsapp_template_parameters === undefined || (Array.isArray(body.whatsapp_template_parameters) && body.whatsapp_template_parameters.every((item) => typeof item === "string")))
+    ))
   );
 }
 
@@ -226,19 +261,27 @@ function validSegment(value: unknown): value is Segment {
 }
 
 function validCampaignDraft(value: unknown): value is {
-  channel: CommunicationChannel;
+  channel: CampaignChannel;
   content: string;
   name: string;
   scheduled_at?: string;
   target_segment: Segment;
+  whatsapp_template_locale?: string;
+  whatsapp_template_name?: string;
+  whatsapp_template_parameters?: string[];
 } {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
   return (
-    (body.channel === "email" || body.channel === "sms") &&
+    (body.channel === "email" || body.channel === "whatsapp") &&
     typeof body.content === "string" && body.content.trim().length > 0 &&
     typeof body.name === "string" && body.name.trim().length > 0 &&
     validSegment(body.target_segment) &&
+    (body.channel !== "whatsapp" || (
+      typeof body.whatsapp_template_name === "string" && body.whatsapp_template_name.trim().length > 0 &&
+      typeof body.whatsapp_template_locale === "string" && body.whatsapp_template_locale.trim().length > 0 &&
+      (body.whatsapp_template_parameters === undefined || (Array.isArray(body.whatsapp_template_parameters) && body.whatsapp_template_parameters.every((item) => typeof item === "string")))
+    )) &&
     (body.scheduled_at === undefined || (
       typeof body.scheduled_at === "string" && !Number.isNaN(Date.parse(body.scheduled_at))
     ))
@@ -246,19 +289,25 @@ function validCampaignDraft(value: unknown): value is {
 }
 
 function validTemplateBody(value: unknown): value is {
-  channel: CommunicationChannel;
+  channel: CampaignChannel;
   content: string;
   name: string;
+  whatsapp_template_locale?: string;
+  whatsapp_template_name?: string;
   variables?: string[];
 } {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
   return (
-    (body.channel === "email" || body.channel === "sms") &&
+    (body.channel === "email" || body.channel === "whatsapp") &&
     typeof body.content === "string" && body.content.trim().length > 0 &&
     typeof body.name === "string" && body.name.trim().length > 0 &&
     (body.variables === undefined || (
       Array.isArray(body.variables) && body.variables.every((item) => typeof item === "string")
+    )) &&
+    (body.channel !== "whatsapp" || (
+      typeof body.whatsapp_template_name === "string" && body.whatsapp_template_name.trim().length > 0 &&
+      typeof body.whatsapp_template_locale === "string" && body.whatsapp_template_locale.trim().length > 0
     ))
   );
 }
@@ -305,7 +354,12 @@ export async function registerMarketingRoutes(
   app.get<{ Params: { id: string } }>(
     "/api/salons/:id/campaigns/readiness",
     { preHandler: guard },
-    async () => providers.status(),
+    async (request) => {
+      const account = (await app.db.select({ enabled: communicationProviderAccounts.enabled, status: communicationProviderAccounts.status })
+        .from(communicationProviderAccounts)
+        .where(and(eq(communicationProviderAccounts.salonId, request.salonId), eq(communicationProviderAccounts.provider, "meta_cloud_api"))))[0];
+      return { email: providers.status().email, whatsapp: account?.enabled && account.status === "ready" ? "ready" : "not_configured" };
+    },
   );
 
   app.post<{ Params: { id: string }; Body: unknown }>(
@@ -316,11 +370,8 @@ export async function registerMarketingRoutes(
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
       const body = request.body;
-      if (body.channel === "sms" && body.content.length > 160) {
-        return reply.code(400).send({ error: "SMS_TOO_LONG" });
-      }
       try {
-        const receipt = await providers.send(
+        const receipt = body.channel === "email" ? await providers.send(
           body.channel === "email"
             ? {
                 channel: "email",
@@ -329,13 +380,19 @@ export async function registerMarketingRoutes(
                 subject: body.subject?.trim() || "Test comunicazione",
                 to: body.destination,
               }
-            : {
-                channel: "sms",
-                idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
-                text: body.content,
-                to: body.destination,
-              },
-        );
+            : undefined as never,
+        ) : await enqueueCommunication(app.db, {
+          idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
+          kind: "template",
+          salonId: request.salonId,
+          sourceType: "marketing_test",
+          template: {
+            locale: body.whatsapp_template_locale!,
+            name: body.whatsapp_template_name!,
+            parameters: body.whatsapp_template_parameters ?? [],
+          },
+          to: body.destination,
+        }).then((queued) => ({ acceptedAt: new Date(), provider: "meta_cloud_api", providerMessageId: queued.messageId }));
         return {
           accepted_at: receipt.acceptedAt.toISOString(),
           provider: receipt.provider,
@@ -360,7 +417,7 @@ export async function registerMarketingRoutes(
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
       const body = request.body as Record<string, unknown>;
-      if ((body.channel !== "email" && body.channel !== "sms") || !validSegment(body.target_segment)) {
+      if ((body.channel !== "email" && body.channel !== "whatsapp") || !validSegment(body.target_segment)) {
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
       const preview = await resolveSegmentPreview(
@@ -396,15 +453,14 @@ export async function registerMarketingRoutes(
       if (!validTemplateBody(request.body)) {
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
-      if (request.body.channel === "sms" && request.body.content.length > 160) {
-        return reply.code(400).send({ error: "SMS_TOO_LONG" });
-      }
       const rows = await app.db.insert(campaignTemplates).values({
         channel: request.body.channel,
         content: request.body.content,
         name: request.body.name.trim(),
         salonId: request.salonId,
         variables: request.body.variables ?? [],
+        whatsappTemplateLocale: request.body.whatsapp_template_locale?.trim() || null,
+        whatsappTemplateName: request.body.whatsapp_template_name?.trim() || null,
       }).returning();
       return reply.code(201).send(rows[0]);
     },
@@ -417,15 +473,14 @@ export async function registerMarketingRoutes(
       if (!validTemplateBody(request.body)) {
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
-      if (request.body.channel === "sms" && request.body.content.length > 160) {
-        return reply.code(400).send({ error: "SMS_TOO_LONG" });
-      }
       const rows = await app.db.update(campaignTemplates).set({
         channel: request.body.channel,
         content: request.body.content,
         name: request.body.name.trim(),
         updatedAt: new Date(),
         variables: request.body.variables ?? [],
+        whatsappTemplateLocale: request.body.whatsapp_template_locale?.trim() || null,
+        whatsappTemplateName: request.body.whatsapp_template_name?.trim() || null,
       }).where(and(
         eq(campaignTemplates.id, request.params.templateId),
         eq(campaignTemplates.salonId, request.salonId),
@@ -470,6 +525,8 @@ export async function registerMarketingRoutes(
         channel: template.channel,
         content: template.content,
         templateId: template.id,
+        whatsappTemplateLocale: template.whatsappTemplateLocale,
+        whatsappTemplateName: template.whatsappTemplateName,
         updatedAt: new Date(),
       }).where(and(
         eq(marketingCampaigns.id, request.body.campaign_id),
@@ -495,17 +552,17 @@ export async function registerMarketingRoutes(
     Params: { id: string };
     Body: {
       name: string;
-      channel: CommunicationChannel;
+      channel: CampaignChannel;
       target_segment: Segment;
       content: string;
       scheduled_at?: string;
+      whatsapp_template_locale?: string;
+      whatsapp_template_name?: string;
+      whatsapp_template_parameters?: string[];
     };
   }>("/api/salons/:id/campaigns", { preHandler: guard }, async (request, reply) => {
     if (!validCampaignDraft(request.body)) {
       return reply.code(400).send({ error: "INVALID_REQUEST" });
-    }
-    if (request.body.channel === "sms" && request.body.content.length > 160) {
-      return reply.code(400).send({ error: "SMS_TOO_LONG" });
     }
     const preview = await resolveSegmentPreview(
       app,
@@ -521,6 +578,9 @@ export async function registerMarketingRoutes(
         channel: request.body.channel,
         targetSegment: request.body.target_segment,
         content: request.body.content,
+        whatsappTemplateLocale: request.body.whatsapp_template_locale?.trim() || null,
+        whatsappTemplateName: request.body.whatsapp_template_name?.trim() || null,
+        whatsappTemplateParameters: request.body.whatsapp_template_parameters ?? [],
         recipientPreview: [...preview.eligible, ...preview.excluded].slice(0, 40),
         scheduledAt: request.body.scheduled_at
           ? new Date(request.body.scheduled_at)
@@ -534,10 +594,13 @@ export async function registerMarketingRoutes(
     Params: { id: string; campaignId: string };
     Body: Partial<{
       name: string;
-      channel: CommunicationChannel;
+      channel: CampaignChannel;
       target_segment: Segment;
       content: string;
       scheduled_at: string | null;
+      whatsapp_template_locale: string | null;
+      whatsapp_template_name: string | null;
+      whatsapp_template_parameters: string[];
     }>;
   }>("/api/salons/:id/campaigns/:campaignId", { preHandler: guard }, async (request, reply) => {
     const rows = await app.db
@@ -549,6 +612,9 @@ export async function registerMarketingRoutes(
           targetSegment: request.body.target_segment,
         }),
         ...(request.body.content !== undefined && { content: request.body.content }),
+        ...(request.body.whatsapp_template_locale !== undefined && { whatsappTemplateLocale: request.body.whatsapp_template_locale }),
+        ...(request.body.whatsapp_template_name !== undefined && { whatsappTemplateName: request.body.whatsapp_template_name }),
+        ...(request.body.whatsapp_template_parameters !== undefined && { whatsappTemplateParameters: request.body.whatsapp_template_parameters }),
         ...(request.body.scheduled_at !== undefined && {
           scheduledAt: request.body.scheduled_at
             ? new Date(request.body.scheduled_at)
@@ -584,7 +650,16 @@ export async function registerMarketingRoutes(
     if (!campaign || campaign.status !== "draft") {
       return reply.code(409).send({ error: "CAMPAIGN_NOT_SENDABLE" });
     }
-    if (providers.status()[campaign.channel] !== "ready") {
+    if (campaign.channel !== "email" && campaign.channel !== "whatsapp") {
+      return reply.code(409).send({ error: "HISTORICAL_CAMPAIGN_NOT_SENDABLE" });
+    }
+    const whatsappReady = campaign.channel === "whatsapp" && (await app.db.select({ id: communicationProviderAccounts.id }).from(communicationProviderAccounts).where(and(
+      eq(communicationProviderAccounts.salonId, request.salonId),
+      eq(communicationProviderAccounts.provider, "meta_cloud_api"),
+      eq(communicationProviderAccounts.enabled, true),
+      eq(communicationProviderAccounts.status, "ready"),
+    ))).length > 0;
+    if ((campaign.channel === "email" && providers.status().email !== "ready") || (campaign.channel === "whatsapp" && !whatsappReady)) {
       return reply.code(503).send({
         channel: campaign.channel,
         error: "PROVIDER_NOT_CONFIGURED",
@@ -737,10 +812,20 @@ export async function registerMarketingRoutes(
               eq(marketingCampaigns.salonId, request.salonId),
               inArray(marketingCampaigns.status, ["failed", "partial"]),
             ),
-          );
+        );
         const campaign = campaigns[0];
         if (!campaign) return undefined;
-        if (providers.status()[campaign.channel] !== "ready") return null;
+        if (campaign.channel !== "email" && campaign.channel !== "whatsapp") return undefined;
+        if (campaign.channel === "email" && providers.status().email !== "ready") return null;
+        if (campaign.channel === "whatsapp") {
+          const ready = (await tx.select({ id: communicationProviderAccounts.id }).from(communicationProviderAccounts).where(and(
+            eq(communicationProviderAccounts.salonId, request.salonId),
+            eq(communicationProviderAccounts.provider, "meta_cloud_api"),
+            eq(communicationProviderAccounts.enabled, true),
+            eq(communicationProviderAccounts.status, "ready"),
+          ))).length > 0;
+          if (!ready) return null;
+        }
         const queued = await tx
           .update(campaignRecipients)
           .set({ error: null, status: "queued", updatedAt: new Date() })

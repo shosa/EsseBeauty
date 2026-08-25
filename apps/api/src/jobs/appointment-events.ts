@@ -12,7 +12,8 @@ import {
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
-import { sendEmail, sendSms } from "./notifications.js";
+import { sendEmail } from "./notifications.js";
+import { enqueueCommunication } from "./communications.js";
 import { scheduleReviewInvitation } from "./reviews.js";
 
 interface Transition {
@@ -127,6 +128,7 @@ async function notifyWaitlist(
   const entries = await app.db
     .select({
       id: waitlistEntries.id,
+      salonId: waitlistEntries.salonId,
       email: customers.email,
       phone: customers.phone,
       customerName: customers.fullName,
@@ -168,7 +170,24 @@ async function notifyWaitlist(
         `<p>Ciao ${entry.customerName},</p><p>${message}</p>`,
       );
     } else if (entry.phone) {
-      await sendSms(entry.phone, message);
+      await enqueueCommunication(app.db, {
+        idempotencyKey: `waitlist-notification-${entry.id}`,
+        kind: "template",
+        salonId: entry.salonId,
+        sourceId: entry.id,
+        sourceType: "waitlist_entry",
+        template: {
+          locale: "it",
+          name: "waitlist_slot_available",
+          parameters: [
+            entry.customerName,
+            entry.serviceName,
+            start.toLocaleDateString("it-IT"),
+            bookingUrl,
+          ],
+        },
+        to: entry.phone,
+      });
     }
   } catch {
     await app.db

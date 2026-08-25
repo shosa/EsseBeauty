@@ -51,7 +51,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "voucher",
   "other",
 ]);
-export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email"]);
+export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
   "pending",
   "sent",
@@ -60,6 +60,7 @@ export const reminderStatusEnum = pgEnum("reminder_status", [
 export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
   "email",
   "sms",
+  "whatsapp",
 ]);
 export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
   "pending",
@@ -75,7 +76,7 @@ export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "booked",
   "expired",
 ]);
-export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms"]);
+export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms", "whatsapp"]);
 export const campaignStatusEnum = pgEnum("campaign_status", [
   "draft",
   "scheduled",
@@ -113,6 +114,7 @@ export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
 export const consentDeliveryChannelEnum = pgEnum("consent_delivery_channel", [
   "email",
   "sms",
+  "whatsapp",
   "in_person",
 ]);
 export const staffRequestStatusEnum = pgEnum("staff_request_status", [
@@ -1272,7 +1274,7 @@ export const reminderSettings = pgTable(
     salonId: uuid("salon_id")
       .notNull()
       .references(() => salons.id, { onDelete: "cascade" }),
-    smsEnabled: boolean("sms_enabled").default(false).notNull(),
+    whatsappEnabled: boolean("whatsapp_enabled").default(false).notNull(),
     emailEnabled: boolean("email_enabled").default(true).notNull(),
     hoursBefore: jsonb("hours_before").$type<number[]>().default([24]).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -1706,6 +1708,8 @@ export const campaignTemplates = pgTable("campaign_templates", {
   channel: campaignChannelEnum("channel").notNull(),
   content: text("content").notNull(),
   variables: jsonb("variables").$type<string[]>().default([]).notNull(),
+  whatsappTemplateName: text("whatsapp_template_name"),
+  whatsappTemplateLocale: text("whatsapp_template_locale"),
   active: boolean("active").default(true).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
@@ -1727,6 +1731,9 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
     .$type<Record<string, unknown>>()
     .notNull(),
   content: text("content").notNull(),
+  whatsappTemplateName: text("whatsapp_template_name"),
+  whatsappTemplateLocale: text("whatsapp_template_locale"),
+  whatsappTemplateParameters: jsonb("whatsapp_template_parameters").$type<string[]>().default([]).notNull(),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

@@ -14,7 +14,8 @@ import {
 
 import { inspectPublicToken, issuePublicToken } from "./public-tokens.js";
 
-export type ConsentDeliveryChannel = "email" | "in_person" | "sms";
+/** SMS is retained only to read historical consent evidence; new requests use WhatsApp. */
+export type ConsentDeliveryChannel = "email" | "in_person" | "whatsapp" | "sms";
 export type ConsentStatus = "expired" | "pending" | "revoked" | "signed";
 export type ConsentSignature = {
   type: "drawn" | "typed";

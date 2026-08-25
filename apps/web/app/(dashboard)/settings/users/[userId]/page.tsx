@@ -87,7 +87,7 @@ const groups: Array<{
     name: "Moduli",
     permissions: permissionDefinitions([
       [PERMISSION_KEYS.REVIEWS_REPLY, "Risponde alle recensioni", "Pubblica risposte alle recensioni"],
-      [PERMISSION_KEYS.MARKETING_SEND, "Invia campagne", "Invia campagne email o SMS"],
+      [PERMISSION_KEYS.MARKETING_SEND, "Invia campagne", "Invia campagne email o WhatsApp"],
       [PERMISSION_KEYS.INVENTORY_MANAGE, "Gestisce inventario", "Aggiorna prodotti e movimenti"],
       [PERMISSION_KEYS.WAITLIST_MANAGE, "Gestisce lista d'attesa", "Aggiorna e notifica le richieste"],
       [PERMISSION_KEYS.LOYALTY_MANAGE, "Gestisce punti fedelta", "Assegna o sottrae punti manualmente"],

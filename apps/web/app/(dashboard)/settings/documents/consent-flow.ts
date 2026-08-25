@@ -1,4 +1,5 @@
-export type ConsentDeliveryChannel = "email" | "in_person" | "sms";
+/** The legacy channel is retained only to render historical consent evidence; new requests use WhatsApp. */
+export type ConsentDeliveryChannel = "email" | "in_person" | "whatsapp" | "sms";
 export type ConsentStatus = "expired" | "pending" | "revoked" | "signed";
 
 export interface ConsentRequestInput {

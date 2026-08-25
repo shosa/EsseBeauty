@@ -8,14 +8,6 @@ import {
   type DeliveryReceipt,
 } from "../providers/communications.js";
 
-const SMS_LIMIT = 160;
-
-export function fitSms(message: string): string {
-  return message.length <= SMS_LIMIT
-    ? message
-    : `${message.slice(0, SMS_LIMIT - 1).trimEnd()}…`;
-}
-
 export async function sendEmail(
   to: string,
   subject: string,
@@ -27,19 +19,6 @@ export async function sendEmail(
     html,
     idempotencyKey: options.idempotencyKey ?? `email-${crypto.randomUUID()}`,
     subject,
-    to,
-  });
-}
-
-export async function sendSms(
-  to: string,
-  body: string,
-  options: { idempotencyKey?: string } = {},
-): Promise<DeliveryReceipt> {
-  return createCommunicationProviderRegistry().send({
-    channel: "sms",
-    idempotencyKey: options.idempotencyKey ?? `sms-${crypto.randomUUID()}`,
-    text: fitSms(body),
     to,
   });
 }

@@ -43,7 +43,7 @@ export async function registerReminderRoutes(app: FastifyInstance) {
   app.patch<{
     Params: { id: string };
     Body: {
-      sms_enabled: boolean;
+      whatsapp_enabled: boolean;
       email_enabled: boolean;
       hours_before: number[];
     };
@@ -64,7 +64,7 @@ export async function registerReminderRoutes(app: FastifyInstance) {
         .insert(reminderSettings)
         .values({
           salonId: request.salonId,
-          smsEnabled: request.body.sms_enabled,
+          whatsappEnabled: request.body.whatsapp_enabled,
           emailEnabled: request.body.email_enabled,
           hoursBefore: hours,
           updatedAt: new Date(),
@@ -72,7 +72,7 @@ export async function registerReminderRoutes(app: FastifyInstance) {
         .onConflictDoUpdate({
           target: reminderSettings.salonId,
           set: {
-            smsEnabled: request.body.sms_enabled,
+            whatsappEnabled: request.body.whatsapp_enabled,
             emailEnabled: request.body.email_enabled,
             hoursBefore: hours,
             updatedAt: new Date(),
