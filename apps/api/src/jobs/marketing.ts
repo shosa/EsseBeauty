@@ -4,6 +4,10 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DrizzleDB } from "@esse-beauty/db";
 import { campaignRecipients, campaignTemplates, communicationConsents, marketingCampaigns } from "@esse-beauty/db/schema";
 
+import { refreshCampaignStatus } from "./campaign-status.js";
+
+export { aggregateCampaignStatus, type AggregatedCampaignStatus } from "./campaign-status.js";
+
 import {
   createCommunicationProviderRegistry,
   type CommunicationProviderRegistry,
@@ -21,48 +25,6 @@ export interface CampaignQueue {
   add(name: string, data: CampaignBatchJob, options?: JobsOptions): Promise<unknown>;
 }
 
-export type AggregatedCampaignStatus =
-  | "queued"
-  | "processing"
-  | "sent"
-  | "failed"
-  | "partial"
-  | "cancelled";
-
-export function aggregateCampaignStatus(
-  recipients: ReadonlyArray<{ status: string }>,
-): AggregatedCampaignStatus {
-  if (recipients.length === 0) return "failed";
-  const statuses = new Set(recipients.map((recipient) => recipient.status));
-  if ([...statuses].every((status) => status === "cancelled")) return "cancelled";
-  if ([...statuses].every((status) => status === "sent")) return "sent";
-  if ([...statuses].every((status) => status === "failed")) return "failed";
-  if (statuses.has("skipped")) return statuses.has("sent") ? "partial" : "failed";
-  if (statuses.has("processing")) return "processing";
-  if (statuses.has("pending") || statuses.has("queued")) {
-    return statuses.size === 1 ? "queued" : "processing";
-  }
-  if (statuses.has("sent") && statuses.has("failed")) return "partial";
-  return "processing";
-}
-
-async function refreshCampaignStatus(db: DrizzleDB, campaignId: string) {
-  const recipients = await db
-    .select({ status: campaignRecipients.status })
-    .from(campaignRecipients)
-    .where(eq(campaignRecipients.campaignId, campaignId));
-  const status = aggregateCampaignStatus(recipients);
-  const terminal = ["sent", "failed", "partial", "cancelled"].includes(status);
-  await db
-    .update(marketingCampaigns)
-    .set({
-      sentAt: terminal && status !== "cancelled" ? new Date() : null,
-      status,
-      updatedAt: new Date(),
-    })
-    .where(eq(marketingCampaigns.id, campaignId));
-  return status;
-}
 
 export async function processCampaignBatch(
   db: DrizzleDB,
@@ -140,6 +102,11 @@ export async function processCampaignBatch(
         )))[0];
         if (!template || !template.active || template.whatsappApprovalStatus !== "approved" || !template.whatsappTemplateName || !template.whatsappTemplateLocale || !campaign.whatsappTemplateName || !campaign.whatsappTemplateLocale || campaign.whatsappTemplateApprovalStatus !== "approved") {
           await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED", status: "failed", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+        if (campaign.whatsappTemplateParameters.length !== template.variables.length) {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH", status: "failed", updatedAt: new Date() })
             .where(eq(campaignRecipients.id, recipient.id));
           continue;
         }

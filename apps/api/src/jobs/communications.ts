@@ -21,6 +21,7 @@ import {
 } from "../providers/whatsapp-cloud-provider.js";
 import { issueStablePublicToken } from "../lib/public-tokens.js";
 import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
+import { refreshCampaignStatus } from "./campaign-status.js";
 
 const LEASE_MS = 5 * 60_000;
 const RETRY_DELAY_MS = 30_000;
@@ -89,14 +90,39 @@ export async function enqueueCommunication(
     if (!account || !account.enabled || account.status !== "ready") throw new Error("PROVIDER_NOT_CONFIGURED");
 
     const existing = (await tx
-      .select({ messageId: communicationMessages.id, outboxId: communicationOutbox.id })
+      .select({
+        messageId: communicationMessages.id,
+        messageStatus: communicationMessages.status,
+        outboxId: communicationOutbox.id,
+        outboxStatus: communicationOutbox.status,
+      })
       .from(communicationMessages)
       .innerJoin(communicationOutbox, eq(communicationOutbox.messageId, communicationMessages.id))
       .where(and(
         eq(communicationMessages.accountId, account.id),
         eq(communicationMessages.clientIdempotencyKey, input.idempotencyKey),
       )))[0];
-    if (existing) return existing;
+    if (existing) {
+      if (existing.messageStatus === "failed" && existing.outboxStatus === "exhausted") {
+        const now = new Date();
+        await tx.update(communicationMessages).set({
+          failedAt: null,
+          failureCode: null,
+          status: "queued",
+          updatedAt: now,
+        }).where(eq(communicationMessages.id, existing.messageId));
+        await tx.update(communicationOutbox).set({
+          attempts: 0,
+          availableAt: now,
+          lastErrorCode: null,
+          leaseExpiresAt: null,
+          leaseOwner: null,
+          status: "pending",
+          updatedAt: now,
+        }).where(eq(communicationOutbox.id, existing.outboxId));
+      }
+      return { messageId: existing.messageId, outboxId: existing.outboxId };
+    }
 
     const normalizedPhone = input.to.replace(/\D/g, "");
     if (normalizedPhone.length < 8 || normalizedPhone.length > 15) throw new Error("INVALID_DESTINATION");
@@ -221,14 +247,15 @@ async function updateProductState(
       updatedAt: new Date(),
     }).where(eq(reviewInvitations.id, source.sourceId));
   } else if (source.sourceType === "campaign_recipient") {
-    await db.update(campaignRecipients).set({
+    const recipient = (await db.update(campaignRecipients).set({
       error: state === "accepted" ? null : "PROVIDER_DELIVERY_FAILED",
       providerMessageId: receipt?.providerMessageId ?? null,
       providerName: receipt?.provider ?? null,
       sentAt: state === "accepted" ? receipt?.acceptedAt ?? new Date() : null,
       status: state === "accepted" ? "sent" : "failed",
       updatedAt: new Date(),
-    }).where(eq(campaignRecipients.id, source.sourceId));
+    }).where(eq(campaignRecipients.id, source.sourceId)).returning({ campaignId: campaignRecipients.campaignId }))[0];
+    if (recipient) await refreshCampaignStatus(db, recipient.campaignId);
   }
 }
 

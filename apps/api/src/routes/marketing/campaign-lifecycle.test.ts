@@ -217,7 +217,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
 
       const withoutConsent = await app.inject({
         headers: { cookie: `esse-session=${data.ownerToken}` }, method: "POST",
-        payload: { channel: "whatsapp", content: "ignored", destination: "+393331234567", whatsapp_template_locale: "it", whatsapp_template_name: "promo" },
+        payload: { channel: "whatsapp", content: "ignored", destination: "+393331234567", template_id: randomUUID() },
         url: `/api/salons/${data.salonId}/campaigns/test-send`,
       });
       expect(withoutConsent.statusCode).toBe(403);
@@ -300,6 +300,150 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
     }
   });
 
+  it("does not make skipped recipients terminal while queued work remains", () => {
+    expect(aggregateCampaignStatus([{ status: "skipped" }, { status: "queued" }])).toBe("processing");
+    expect(aggregateCampaignStatus([{ status: "sent" }, { status: "sent" }])).toBe("sent");
+    expect(aggregateCampaignStatus([{ status: "sent" }, { status: "skipped" }])).toBe("partial");
+    expect(aggregateCampaignStatus([{ status: "failed" }, { status: "skipped" }])).toBe("failed");
+  });
+
+  it("clears WhatsApp approval provenance when an approved template contract changes", async () => {
+    const data = await fixture();
+    const app = createApp({
+      campaignQueue: testDependencies().campaignQueue,
+      db,
+      env: { API_CORS_ORIGIN: "http://localhost:3000" },
+    });
+    try {
+      const template = (await db.insert(campaignTemplates).values({
+        active: true,
+        channel: "whatsapp",
+        content: "Promo",
+        name: "Promo",
+        salonId: data.salonId,
+        variables: ["customer_name"],
+        whatsappApprovalSource: "meta_template_sync",
+        whatsappApprovalStatus: "approved",
+        whatsappApprovedAt: new Date(),
+        whatsappTemplateLocale: "it",
+        whatsappTemplateName: "promo_v1",
+      }).returning())[0]!;
+      const response = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "PATCH",
+        payload: {
+          channel: "whatsapp",
+          content: "Promo",
+          name: "Promo",
+          variables: ["customer_name", "offer"],
+          whatsapp_template_locale: "it",
+          whatsapp_template_name: "promo_v1",
+        },
+        url: `/api/salons/${data.salonId}/campaign-templates/${template.id}`,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json()).toMatchObject({
+        whatsappApprovalSource: null,
+        whatsappApprovalStatus: null,
+        whatsappApprovedAt: null,
+        variables: ["customer_name", "offer"],
+      });
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("creates WhatsApp campaigns and test sends only from an approved tenant template contract", async () => {
+    const data = await fixture();
+    await db.update(customers).set({ phone: "+393331112233", phoneNormalized: "+393331112233" })
+      .where(eq(customers.id, data.customers[0]!.id));
+    await db.insert(communicationConsents).values({
+      capturedAt: new Date(),
+      capturedSource: "test",
+      channel: "whatsapp",
+      customerId: data.customers[0]!.id,
+      purpose: "marketing",
+      salonId: data.salonId,
+      status: "granted",
+    });
+    const template = (await db.insert(campaignTemplates).values({
+      active: true,
+      channel: "whatsapp",
+      content: "Meta-backed promotion",
+      name: "Promo",
+      salonId: data.salonId,
+      variables: ["customer_name", "offer"],
+      whatsappApprovalSource: "meta_template_sync",
+      whatsappApprovalStatus: "approved",
+      whatsappApprovedAt: new Date(),
+      whatsappTemplateLocale: "it",
+      whatsappTemplateName: "promo_v1",
+    }).returning())[0]!;
+    const app = createApp({
+      campaignQueue: testDependencies().campaignQueue,
+      db,
+      env: { API_CORS_ORIGIN: "http://localhost:3000" },
+    });
+    try {
+      const mismatchedTest = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: {
+          channel: "whatsapp",
+          content: "ignored",
+          destination: "+393331112233",
+          template_id: template.id,
+          whatsapp_template_parameters: ["Cliente Uno"],
+        },
+        url: `/api/salons/${data.salonId}/campaigns/test-send`,
+      });
+      expect(mismatchedTest.statusCode).toBe(400);
+      expect(mismatchedTest.json()).toEqual({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH" });
+
+      const mismatchedCampaign = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: {
+          channel: "whatsapp",
+          name: "Campagna promozionale",
+          target_segment: { type: "all" },
+          template_id: template.id,
+          whatsapp_template_parameters: ["Cliente Uno"],
+        },
+        url: `/api/salons/${data.salonId}/campaigns`,
+      });
+      expect(mismatchedCampaign.statusCode).toBe(400);
+      expect(mismatchedCampaign.json()).toEqual({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH" });
+
+      const created = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: {
+          channel: "whatsapp",
+          name: "Campagna promozionale",
+          target_segment: { type: "all" },
+          template_id: template.id,
+          whatsapp_template_parameters: ["Cliente Uno", "Sconto 20%"],
+        },
+        url: `/api/salons/${data.salonId}/campaigns`,
+      });
+      expect(created.statusCode, created.body).toBe(201);
+      expect(created.json()).toMatchObject({
+        channel: "whatsapp",
+        content: "Meta-backed promotion",
+        templateId: template.id,
+        whatsappTemplateApprovalStatus: "approved",
+        whatsappTemplateLocale: "it",
+        whatsappTemplateName: "promo_v1",
+        whatsappTemplateParameters: ["Cliente Uno", "Sconto 20%"],
+      });
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
   it("excludes WhatsApp marketing recipients without explicit WhatsApp consent", async () => {
     const data = await fixture();
     await db.update(customers).set({ phone: "+393331112233", phoneNormalized: "+393331112233" })
@@ -373,6 +517,28 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       expect(enqueue).not.toHaveBeenCalled();
       const stored = (await db.select().from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0];
       expect(stored).toMatchObject({ error: "WHATSAPP_MARKETING_CONSENT_REVOKED", status: "skipped" });
+    } finally { await data.cleanup(); }
+  });
+
+  it("does not enqueue a WhatsApp campaign whose parameters violate its approved template contract", async () => {
+    const data = await fixture();
+    await db.update(customers).set({ phone: "+393331112233", phoneNormalized: "+393331112233" })
+      .where(eq(customers.id, data.customers[0]!.id));
+    await db.insert(communicationConsents).values({ capturedAt: new Date(), capturedSource: "test", channel: "whatsapp", customerId: data.customers[0]!.id, purpose: "marketing", salonId: data.salonId, status: "granted" });
+    const template = (await db.insert(campaignTemplates).values({
+      active: true, channel: "whatsapp", content: "Promo", name: "Promo", salonId: data.salonId,
+      variables: ["customer_name", "offer"], whatsappApprovalSource: "meta_template_sync", whatsappApprovalStatus: "approved", whatsappApprovedAt: new Date(), whatsappTemplateLocale: "it", whatsappTemplateName: "promo_v1",
+    }).returning())[0]!;
+    const campaign = (await db.insert(marketingCampaigns).values({
+      channel: "whatsapp", content: template.content, name: "Promo", salonId: data.salonId, status: "queued", targetSegment: { type: "all" }, templateId: template.id,
+      whatsappTemplateApprovalStatus: "approved", whatsappTemplateLocale: "it", whatsappTemplateName: "promo_v1", whatsappTemplateParameters: ["Cliente Uno"],
+    }).returning())[0]!;
+    const recipient = (await db.insert(campaignRecipients).values({ campaignId: campaign.id, customerId: data.customers[0]!.id, destination: "+393331112233", salonId: data.salonId, status: "queued" }).returning())[0]!;
+    const enqueue = vi.fn();
+    try {
+      await processCampaignBatch(db, { data: { campaignId: campaign.id, recipientIds: [recipient.id] } }, undefined, enqueue);
+      expect(enqueue).not.toHaveBeenCalled();
+      expect((await db.select({ status: campaignRecipients.status, error: campaignRecipients.error }).from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0]).toEqual({ status: "failed", error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH" });
     } finally { await data.cleanup(); }
   });
 

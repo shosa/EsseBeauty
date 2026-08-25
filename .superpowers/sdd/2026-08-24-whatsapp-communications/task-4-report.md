@@ -85,3 +85,32 @@ Active product delivery now uses tenant-scoped WhatsApp template messages throug
 ### Final concerns
 
 - The only remaining local concern is non-blocking Redis `NOAUTH` stderr during the marketing route test's best-effort outbox wake. It does not affect transactional persistence or the passing assertions; configure test Redis authentication to remove it.
+
+## Fix round 2/5
+
+### Changes
+
+- Approved WhatsApp template contract edits (Meta name, locale, or variables) now clear approval status, source, and timestamp in the locked update transaction.
+- WhatsApp campaign creation and test sends use an approved tenant `template_id`; Meta identifiers are server-resolved and parameter arrays must match the approved template variable count. The new-campaign UI selects approved templates and collects their declared parameters instead of allowing editable Meta identifiers.
+- Campaign aggregation keeps campaigns processing while queued work remains, and the communications outbox refreshes the parent campaign after terminal provider acceptance/failure.
+- Re-enqueueing a failed/exhausted durable message with its stable idempotency key reactivates its existing message/outbox pair; successful work remains idempotent and is never duplicated.
+
+### TDD RED/GREEN evidence
+
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/routes/marketing/campaign-lifecycle.test.ts -t "clears WhatsApp approval"` failed because approval provenance remained approved after a contract edit; GREEN passed after the transactional invalidation.
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/routes/marketing/campaign-lifecycle.test.ts -t "creates WhatsApp campaigns"` returned `INVALID_REQUEST` rather than the required template-contract outcome; GREEN passed after approved-template selection/parameter validation.
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/routes/marketing/campaign-lifecycle.test.ts -t "does not make skipped"` returned `failed` for skipped plus queued work; GREEN passed after aggregation correction.
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/communications.test.ts -t "refreshes the parent campaign"` left the parent campaign `queued`; GREEN passed after outbox refresh.
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/jobs/communications.test.ts -t "reactivates an exhausted"` left the retried recipient queued; GREEN passed after durable outbox reactivation.
+- RED: `corepack pnpm --filter @esse-beauty/web exec vitest run whatsapp-product-flows.test.ts -t "submits WhatsApp campaigns"` failed because the active UI used editable Meta name/locale; GREEN passed using `selectedTemplateId` and `template_id`.
+
+### Focused verification
+
+- `corepack pnpm --filter @esse-beauty/api exec vitest run src/routes/marketing/campaign-lifecycle.test.ts src/jobs/communications.test.ts` — 2 files, 21 tests passed.
+- `corepack pnpm --filter @esse-beauty/web exec vitest run whatsapp-product-flows.test.ts` — 1 file, 2 tests passed.
+- `corepack pnpm --filter @esse-beauty/api typecheck` — passed.
+- `corepack pnpm --filter @esse-beauty/web typecheck` — passed.
+
+### Concerns
+
+- The known local Redis `NOAUTH` stderr remains non-blocking during a best-effort outbox wake in the marketing lifecycle test; no provider delivery assertion is affected.

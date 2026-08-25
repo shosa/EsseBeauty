@@ -16,7 +16,7 @@ type Segment =
   | { type: "tag"; tag: string }
   | { type: "high_loyalty"; min_points: number };
 
-interface CampaignTemplate { channel: Channel; content: string; id: string; name: string; whatsappTemplateLocale?: string | null; whatsappTemplateName?: string | null }
+interface CampaignTemplate { channel: Channel; content: string; id: string; name: string; variables: string[]; whatsappApprovalStatus?: "approved" | null }
 interface PreviewRow { customer_id: string; destination: string | null; name: string; reason?: string }
 interface Preview { eligible: PreviewRow[]; eligible_count: number; excluded: PreviewRow[]; excluded_count: number }
 
@@ -27,8 +27,8 @@ export default function NewCampaignPage() {
   const [channel, setChannel] = useState<Channel>("email");
   const [segment, setSegment] = useState("all");
   const [content, setContent] = useState("");
-  const [templateLocale, setTemplateLocale] = useState("it");
-  const [templateName, setTemplateName] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateParameters, setTemplateParameters] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState("");
   const [preview, setPreview] = useState<Preview>();
@@ -75,7 +75,7 @@ export default function NewCampaignPage() {
     if (readiness?.[channel] !== "ready") { setError("Provider non configurato per questo canale."); return; }
     const response = await fetch(`${api}/api/salons/${salon.id}/campaigns/test-send`, {
       method: "POST", credentials: "include", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ channel, content, destination: testDestination, whatsapp_template_locale: templateLocale, whatsapp_template_name: templateName }),
+      body: JSON.stringify({ channel, content, destination: testDestination, ...(channel === "whatsapp" && { template_id: selectedTemplateId, whatsapp_template_parameters: templateParameters }) }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({})) as { error?: string };
@@ -89,9 +89,10 @@ export default function NewCampaignPage() {
     if (!salon) return;
     setError("");
     if (!preview || preview.eligible_count === 0) { setError("Genera prima l'anteprima destinatari e verifica che contenga almeno un recapito valido."); return; }
+    if (channel === "whatsapp" && !selectedTemplateId) { setError("Seleziona un modello Meta WhatsApp approvato."); return; }
     const response = await fetch(`${api}/api/salons/${salon.id}/campaigns`, {
       method: "POST", credentials: "include", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: data.get("name"), channel, target_segment: segmentConfig(data), content, scheduled_at: data.get("scheduled") || undefined, whatsapp_template_locale: templateLocale, whatsapp_template_name: templateName }),
+      body: JSON.stringify({ name: data.get("name"), channel, target_segment: segmentConfig(data), ...(channel === "email" && { content }), ...(channel === "whatsapp" && { template_id: selectedTemplateId, whatsapp_template_parameters: templateParameters }), scheduled_at: data.get("scheduled") || undefined }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({})) as { error?: string };
@@ -105,7 +106,7 @@ export default function NewCampaignPage() {
   function applyTemplate(templateId: string) {
     const template = templates.find((item) => item.id === templateId);
     if (!template) return;
-    setChannel(template.channel); setContent(template.content); setTemplateLocale(template.whatsappTemplateLocale ?? "it"); setTemplateName(template.whatsappTemplateName ?? ""); invalidatePreview();
+    setSelectedTemplateId(template.id); setChannel(template.channel); setContent(template.content); setTemplateParameters(template.variables.map(() => "")); invalidatePreview();
   }
 
   return (
@@ -119,7 +120,7 @@ export default function NewCampaignPage() {
             <label className="font-semibold">Nome<input name="name" required className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label>
             <label className="font-semibold">Modello
               <select defaultValue="" onChange={(event) => applyTemplate(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3">
-                <option value="">Nessun modello</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.channel.toUpperCase()}</option>)}
+                <option value="">Nessun modello</option>{templates.filter((template) => template.channel !== "whatsapp" || template.whatsappApprovalStatus === "approved").map((template) => <option key={template.id} value={template.id}>{template.name} · {template.channel.toUpperCase()}</option>)}
               </select>
               <Link href="/marketing/templates" className="mt-2 inline-block text-sm font-bold text-[#792f59]">Gestisci modelli</Link>
             </label>
@@ -133,8 +134,8 @@ export default function NewCampaignPage() {
           {segment === "inactive" && <input name="days" type="number" min="1" required placeholder="Giorni dall'ultima visita" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
           {segment === "tag" && <input name="tag" required placeholder="Tag" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
           {segment === "high_loyalty" && <input name="points" type="number" min="0" required placeholder="Punti minimi" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
-          <label className="mt-5 block font-semibold">Contenuto<textarea required value={content} onChange={(event) => setContent(event.target.value)} rows={7} className="mt-2 w-full rounded-xl border p-3" /></label>
-          {channel === "whatsapp" && <div className="mt-5 grid gap-3 sm:grid-cols-2"><label className="font-semibold">Nome modello Meta<input required value={templateName} onChange={(event) => setTemplateName(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label><label className="font-semibold">Locale modello<input required value={templateLocale} onChange={(event) => setTemplateLocale(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label></div>}
+          <label className="mt-5 block font-semibold">Contenuto<textarea required value={content} readOnly={channel === "whatsapp"} onChange={(event) => setContent(event.target.value)} rows={7} className="mt-2 w-full rounded-xl border p-3" /></label>
+          {channel === "whatsapp" && <div className="mt-5 grid gap-3"><p className="text-sm text-slate-600">WhatsApp usa esclusivamente il modello Meta selezionato e approvato.</p>{templates.find((template) => template.id === selectedTemplateId)?.variables.map((variable, index) => <label className="font-semibold" key={variable}>{variable}<input required value={templateParameters[index] ?? ""} onChange={(event) => setTemplateParameters((current) => current.map((value, parameterIndex) => parameterIndex === index ? event.target.value : value))} className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label>)}</div>}
           <label className="mt-5 block font-semibold">Programma invio (facoltativo)<input name="scheduled" type="datetime-local" className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label>
         </SectionCard>
 
@@ -147,7 +148,7 @@ export default function NewCampaignPage() {
         </SectionCard>
 
         <SectionCard title="Invio di prova" subtitle="Invia solo al recapito indicato; non crea destinatari nella campagna.">
-          <div className="flex flex-col gap-3 sm:flex-row"><input value={testDestination} onChange={(event) => setTestDestination(event.target.value)} placeholder={channel === "email" ? "nome@esempio.it" : "+39..."} className="min-h-12 flex-1 rounded-xl border px-3" /><Button type="button" variant="secondary" disabled={!content || !testDestination} onClick={() => void sendTest()}>Invia test</Button></div>
+          <div className="flex flex-col gap-3 sm:flex-row"><input value={testDestination} onChange={(event) => setTestDestination(event.target.value)} placeholder={channel === "email" ? "nome@esempio.it" : "+39..."} className="min-h-12 flex-1 rounded-xl border px-3" /><Button type="button" variant="secondary" disabled={!content || !testDestination || (channel === "whatsapp" && !selectedTemplateId)} onClick={() => void sendTest()}>Invia test</Button></div>
         </SectionCard>
         <Button className="min-h-12 w-full" type="submit" disabled={!preview?.eligible_count}>Salva bozza e continua</Button>
       </form>

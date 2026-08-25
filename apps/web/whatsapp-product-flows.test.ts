@@ -20,4 +20,12 @@ describe("active product communication UI", () => {
     expect(sources.join("\n")).toContain("WhatsApp");
     expect(sources.join("\n")).not.toContain("SMS");
   });
+
+  it("submits WhatsApp campaigns by selected approved template ID rather than editable Meta identifiers", async () => {
+    const source = await readFile(resolve(import.meta.dirname, "app/(dashboard)/marketing/new/page.tsx"), "utf8");
+    expect(source).toContain("selectedTemplateId");
+    expect(source).toContain("template_id: selectedTemplateId");
+    expect(source).not.toContain("whatsapp_template_name: templateName");
+    expect(source).not.toContain("whatsapp_template_locale: templateLocale");
+  });
 });

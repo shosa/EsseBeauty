@@ -7,6 +7,8 @@ import type {
 } from "fastify";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
+import type { DrizzleDB } from "@esse-beauty/db";
+
 import {
   appointments,
   campaignRecipients,
@@ -225,27 +227,24 @@ async function enqueueBatches(
 
 function validTestSendBody(value: unknown): value is {
   channel: CampaignChannel;
-  content: string;
+  content?: string;
   destination: string;
   subject?: string;
-  whatsapp_template_locale?: string;
-  whatsapp_template_name?: string;
+  template_id?: string;
   whatsapp_template_parameters?: string[];
 } {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
   return (
     (body.channel === "email" || body.channel === "whatsapp") &&
-    typeof body.content === "string" &&
-    body.content.trim().length > 0 &&
     typeof body.destination === "string" &&
     body.destination.trim().length > 0 &&
     (body.subject === undefined || typeof body.subject === "string") &&
-    (body.channel !== "whatsapp" || (
-      typeof body.whatsapp_template_name === "string" && body.whatsapp_template_name.trim().length > 0 &&
-      typeof body.whatsapp_template_locale === "string" && body.whatsapp_template_locale.trim().length > 0 &&
-      (body.whatsapp_template_parameters === undefined || (Array.isArray(body.whatsapp_template_parameters) && body.whatsapp_template_parameters.every((item) => typeof item === "string")))
-    ))
+    (body.channel === "email"
+      ? typeof body.content === "string" && body.content.trim().length > 0
+      : typeof body.template_id === "string" && body.template_id.trim().length > 0 &&
+        body.whatsapp_template_name === undefined && body.whatsapp_template_locale === undefined &&
+        (body.whatsapp_template_parameters === undefined || (Array.isArray(body.whatsapp_template_parameters) && body.whatsapp_template_parameters.every((item) => typeof item === "string"))))
   );
 }
 
@@ -262,30 +261,51 @@ function validSegment(value: unknown): value is Segment {
 
 function validCampaignDraft(value: unknown): value is {
   channel: CampaignChannel;
-  content: string;
+  content?: string;
   name: string;
   scheduled_at?: string;
   target_segment: Segment;
-  whatsapp_template_locale?: string;
-  whatsapp_template_name?: string;
+  template_id?: string;
   whatsapp_template_parameters?: string[];
 } {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
   return (
     (body.channel === "email" || body.channel === "whatsapp") &&
-    typeof body.content === "string" && body.content.trim().length > 0 &&
     typeof body.name === "string" && body.name.trim().length > 0 &&
     validSegment(body.target_segment) &&
-    (body.channel !== "whatsapp" || (
-      typeof body.whatsapp_template_name === "string" && body.whatsapp_template_name.trim().length > 0 &&
-      typeof body.whatsapp_template_locale === "string" && body.whatsapp_template_locale.trim().length > 0 &&
-      (body.whatsapp_template_parameters === undefined || (Array.isArray(body.whatsapp_template_parameters) && body.whatsapp_template_parameters.every((item) => typeof item === "string")))
-    )) &&
+    (body.channel === "email"
+      ? typeof body.content === "string" && body.content.trim().length > 0
+      : typeof body.template_id === "string" && body.template_id.trim().length > 0 &&
+        body.whatsapp_template_name === undefined && body.whatsapp_template_locale === undefined &&
+        (body.whatsapp_template_parameters === undefined || (Array.isArray(body.whatsapp_template_parameters) && body.whatsapp_template_parameters.every((item) => typeof item === "string")))) &&
     (body.scheduled_at === undefined || (
       typeof body.scheduled_at === "string" && !Number.isNaN(Date.parse(body.scheduled_at))
     ))
   );
+}
+
+async function approvedWhatsAppTemplate(
+  db: DrizzleDB,
+  salonId: string,
+  templateId: string,
+) {
+  return (await db.select().from(campaignTemplates).where(and(
+    eq(campaignTemplates.id, templateId),
+    eq(campaignTemplates.salonId, salonId),
+    eq(campaignTemplates.channel, "whatsapp"),
+    eq(campaignTemplates.active, true),
+    eq(campaignTemplates.whatsappApprovalStatus, "approved"),
+  )))[0];
+}
+
+function hasMatchingTemplateParameters(
+  template: typeof campaignTemplates.$inferSelect,
+  parameters: string[],
+): boolean {
+  return Boolean(template.whatsappTemplateName) &&
+    Boolean(template.whatsappTemplateLocale) &&
+    parameters.length === template.variables.length;
 }
 
 function validTemplateBody(value: unknown): value is {
@@ -371,6 +391,7 @@ export async function registerMarketingRoutes(
       }
       const body = request.body;
       try {
+        let whatsappTemplate: typeof campaignTemplates.$inferSelect | undefined;
         if (body.channel === "whatsapp") {
           const normalized = body.destination.replace(/\D/g, "");
           const customer = (await app.db.select({ id: customers.id }).from(customers).where(and(
@@ -382,17 +403,17 @@ export async function registerMarketingRoutes(
             eq(communicationConsents.channel, "whatsapp"), eq(communicationConsents.purpose, "marketing"), eq(communicationConsents.status, "granted"),
           )))[0];
           if (!consent) return reply.code(403).send({ error: "WHATSAPP_MARKETING_CONSENT_REQUIRED" });
-          const template = (await app.db.select({ id: campaignTemplates.id }).from(campaignTemplates).where(and(
-            eq(campaignTemplates.salonId, request.salonId), eq(campaignTemplates.channel, "whatsapp"), eq(campaignTemplates.active, true),
-            eq(campaignTemplates.whatsappApprovalStatus, "approved"), eq(campaignTemplates.whatsappTemplateName, body.whatsapp_template_name!), eq(campaignTemplates.whatsappTemplateLocale, body.whatsapp_template_locale!),
-          )))[0];
-          if (!template) return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+          whatsappTemplate = await approvedWhatsAppTemplate(app.db, request.salonId, body.template_id!);
+          if (!whatsappTemplate) return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+          if (!hasMatchingTemplateParameters(whatsappTemplate, body.whatsapp_template_parameters ?? [])) {
+            return reply.code(400).send({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH" });
+          }
         }
         const receipt = body.channel === "email" ? await providers.send(
           body.channel === "email"
             ? {
                 channel: "email",
-                html: body.content,
+                html: body.content!,
                 idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
                 subject: body.subject?.trim() || "Test comunicazione",
                 to: body.destination,
@@ -404,8 +425,8 @@ export async function registerMarketingRoutes(
           salonId: request.salonId,
           sourceType: "marketing_test",
           template: {
-            locale: body.whatsapp_template_locale!,
-            name: body.whatsapp_template_name!,
+            locale: whatsappTemplate!.whatsappTemplateLocale!,
+            name: whatsappTemplate!.whatsappTemplateName!,
             parameters: body.whatsapp_template_parameters ?? [],
           },
           to: body.destination,
@@ -470,14 +491,15 @@ export async function registerMarketingRoutes(
       if (!validTemplateBody(request.body)) {
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
+      const body = request.body;
       const rows = await app.db.insert(campaignTemplates).values({
-        channel: request.body.channel,
-        content: request.body.content,
-        name: request.body.name.trim(),
+        channel: body.channel,
+        content: body.content,
+        name: body.name.trim(),
         salonId: request.salonId,
-        variables: request.body.variables ?? [],
-        whatsappTemplateLocale: request.body.whatsapp_template_locale?.trim() || null,
-        whatsappTemplateName: request.body.whatsapp_template_name?.trim() || null,
+        variables: body.variables ?? [],
+        whatsappTemplateLocale: body.whatsapp_template_locale?.trim() || null,
+        whatsappTemplateName: body.whatsapp_template_name?.trim() || null,
       }).returning();
       return reply.code(201).send(rows[0]);
     },
@@ -490,18 +512,37 @@ export async function registerMarketingRoutes(
       if (!validTemplateBody(request.body)) {
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
-      const rows = await app.db.update(campaignTemplates).set({
-        channel: request.body.channel,
-        content: request.body.content,
-        name: request.body.name.trim(),
-        updatedAt: new Date(),
-        variables: request.body.variables ?? [],
-        whatsappTemplateLocale: request.body.whatsapp_template_locale?.trim() || null,
-        whatsappTemplateName: request.body.whatsapp_template_name?.trim() || null,
-      }).where(and(
-        eq(campaignTemplates.id, request.params.templateId),
-        eq(campaignTemplates.salonId, request.salonId),
-      )).returning();
+      const body = request.body;
+      const rows = await app.db.transaction(async (tx) => {
+        const existing = (await tx.select().from(campaignTemplates).where(and(
+          eq(campaignTemplates.id, request.params.templateId),
+          eq(campaignTemplates.salonId, request.salonId),
+        )).for("update"))[0];
+        if (!existing) return [];
+        const variables = body.variables ?? [];
+        const whatsappTemplateLocale = body.whatsapp_template_locale?.trim() || null;
+        const whatsappTemplateName = body.whatsapp_template_name?.trim() || null;
+        const contractChanged = existing.channel === "whatsapp" && (
+          body.channel !== "whatsapp" ||
+          existing.whatsappTemplateLocale !== whatsappTemplateLocale ||
+          existing.whatsappTemplateName !== whatsappTemplateName ||
+          JSON.stringify(existing.variables) !== JSON.stringify(variables)
+        );
+        return tx.update(campaignTemplates).set({
+          channel: body.channel,
+          content: body.content,
+          name: body.name.trim(),
+          updatedAt: new Date(),
+          variables,
+          whatsappTemplateLocale,
+          whatsappTemplateName,
+          ...(contractChanged && {
+            whatsappApprovalSource: null,
+            whatsappApprovalStatus: null,
+            whatsappApprovedAt: null,
+          }),
+        }).where(eq(campaignTemplates.id, existing.id)).returning();
+      });
       return rows[0] ?? reply.code(404).send({ error: "TEMPLATE_NOT_FOUND" });
     },
   );
@@ -575,18 +616,23 @@ export async function registerMarketingRoutes(
       name: string;
       channel: CampaignChannel;
       target_segment: Segment;
-      content: string;
+      content?: string;
       scheduled_at?: string;
-      whatsapp_template_locale?: string;
-      whatsapp_template_name?: string;
+      template_id?: string;
       whatsapp_template_parameters?: string[];
     };
   }>("/api/salons/:id/campaigns", { preHandler: guard }, async (request, reply) => {
     if (!validCampaignDraft(request.body)) {
       return reply.code(400).send({ error: "INVALID_REQUEST" });
     }
-    if (request.body.channel === "whatsapp") {
+    const template = request.body.channel === "whatsapp"
+      ? await approvedWhatsAppTemplate(app.db, request.salonId, request.body.template_id!)
+      : undefined;
+    if (request.body.channel === "whatsapp" && !template) {
       return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+    }
+    if (template && !hasMatchingTemplateParameters(template, request.body.whatsapp_template_parameters ?? [])) {
+      return reply.code(400).send({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH" });
     }
     const preview = await resolveSegmentPreview(
       app,
@@ -601,9 +647,11 @@ export async function registerMarketingRoutes(
         name: request.body.name,
         channel: request.body.channel,
         targetSegment: request.body.target_segment,
-        content: request.body.content,
-        whatsappTemplateLocale: request.body.whatsapp_template_locale?.trim() || null,
-        whatsappTemplateName: request.body.whatsapp_template_name?.trim() || null,
+        content: template?.content ?? request.body.content!,
+        templateId: template?.id ?? null,
+        whatsappTemplateApprovalStatus: template?.whatsappApprovalStatus ?? null,
+        whatsappTemplateLocale: template?.whatsappTemplateLocale ?? null,
+        whatsappTemplateName: template?.whatsappTemplateName ?? null,
         whatsappTemplateParameters: request.body.whatsapp_template_parameters ?? [],
         recipientPreview: [...preview.eligible, ...preview.excluded].slice(0, 40),
         scheduledAt: request.body.scheduled_at
@@ -682,6 +730,12 @@ export async function registerMarketingRoutes(
     }
     if (campaign.channel === "whatsapp" && (campaign.whatsappTemplateApprovalStatus !== "approved" || !campaign.templateId || !campaign.whatsappTemplateName || !campaign.whatsappTemplateLocale)) {
       return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+    }
+    if (campaign.channel === "whatsapp") {
+      const template = await approvedWhatsAppTemplate(app.db, request.salonId, campaign.templateId!);
+      if (!template || !hasMatchingTemplateParameters(template, campaign.whatsappTemplateParameters)) {
+        return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+      }
     }
     const whatsappReady = campaign.channel === "whatsapp" && (await app.db.select({ id: communicationProviderAccounts.id }).from(communicationProviderAccounts).where(and(
       eq(communicationProviderAccounts.salonId, request.salonId),

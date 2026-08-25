@@ -10,6 +10,8 @@ import {
   communicationOutbox,
   communicationProviderAccounts,
   communicationProviderSecrets,
+  campaignRecipients,
+  marketingCampaigns,
   salons,
 } from "@esse-beauty/db/schema";
 
@@ -132,6 +134,84 @@ postgresSuite("durable WhatsApp outbox with PostgreSQL", () => {
       }, { add: vi.fn(async () => { throw new Error("redis unavailable"); }) });
       const rows = await db.execute(sql<{ count: number }>`select count(*)::int count from communication_outbox where id = ${result.outboxId}::uuid`);
       expect(rows).toEqual([{ count: 1 }]);
+    } finally {
+      await db.delete(salons).where(eq(salons.id, data.salonId));
+    }
+  });
+
+  it("refreshes the parent campaign only after the outbox provider accepts its recipient", async () => {
+    const data = await fixture();
+    const queue = { add: vi.fn(async () => undefined) };
+    try {
+      const campaign = (await db.insert(marketingCampaigns).values({
+        channel: "whatsapp",
+        content: "Promo",
+        name: "Promo",
+        salonId: data.salonId,
+        status: "queued",
+        targetSegment: { type: "all" },
+      }).returning())[0]!;
+      const recipient = (await db.insert(campaignRecipients).values({
+        campaignId: campaign.id,
+        destination: "+393331234567",
+        salonId: data.salonId,
+        status: "queued",
+      }).returning())[0]!;
+      const queued = await enqueueCommunication(db, {
+        idempotencyKey: `campaign-recipient-${recipient.id}`,
+        kind: "template",
+        salonId: data.salonId,
+        sourceId: recipient.id,
+        sourceType: "campaign_recipient",
+        template: { locale: "it", name: "promo", parameters: [] },
+        to: recipient.destination,
+      }, queue);
+      await processCommunicationOutbox(db, { data: { outboxId: queued.outboxId } } as Job<CommunicationOutboxJob>, {
+        sender: async () => ({ acceptedAt: new Date(), provider: "meta_cloud_api", providerMessageId: "wamid.campaign" }),
+      });
+      expect((await db.select({ status: campaignRecipients.status }).from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0]?.status).toBe("sent");
+      expect((await db.select({ status: marketingCampaigns.status }).from(marketingCampaigns).where(eq(marketingCampaigns.id, campaign.id)))[0]?.status).toBe("sent");
+    } finally {
+      await db.delete(salons).where(eq(salons.id, data.salonId));
+    }
+  });
+
+  it("reactivates an exhausted campaign recipient outbox for an explicit stable-idempotency retry", async () => {
+    const data = await fixture();
+    const queue = { add: vi.fn(async () => undefined) };
+    try {
+      const campaign = (await db.insert(marketingCampaigns).values({
+        channel: "whatsapp", content: "Promo", name: "Promo", salonId: data.salonId, status: "queued", targetSegment: { type: "all" },
+      }).returning())[0]!;
+      const recipient = (await db.insert(campaignRecipients).values({
+        campaignId: campaign.id, destination: "+393331234567", salonId: data.salonId, status: "queued",
+      }).returning())[0]!;
+      const input = {
+        idempotencyKey: `campaign-recipient-${recipient.id}`,
+        kind: "template" as const,
+        salonId: data.salonId,
+        sourceId: recipient.id,
+        sourceType: "campaign_recipient",
+        template: { locale: "it", name: "promo", parameters: [] },
+        to: recipient.destination,
+      };
+      const first = await enqueueCommunication(db, input, queue);
+      await db.update(communicationOutbox).set({ attempts: 4 }).where(eq(communicationOutbox.id, first.outboxId));
+      await expect(processCommunicationOutbox(db, { data: { outboxId: first.outboxId } } as Job<CommunicationOutboxJob>, {
+        sender: async () => { throw Object.assign(new Error("temporary"), { code: "META_UNAVAILABLE", retryable: true }); },
+      })).rejects.toThrow("COMMUNICATION_DELIVERY_FAILED");
+      expect((await db.select({ status: campaignRecipients.status }).from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0]?.status).toBe("failed");
+      expect((await db.select({ status: marketingCampaigns.status }).from(marketingCampaigns).where(eq(marketingCampaigns.id, campaign.id)))[0]?.status).toBe("failed");
+
+      await db.update(campaignRecipients).set({ error: null, status: "queued" }).where(eq(campaignRecipients.id, recipient.id));
+      const retried = await enqueueCommunication(db, input, queue);
+      expect(retried).toEqual(first);
+      await processCommunicationOutbox(db, { data: { outboxId: retried.outboxId } } as Job<CommunicationOutboxJob>, {
+        sender: async () => ({ acceptedAt: new Date(), provider: "meta_cloud_api", providerMessageId: "wamid.retry" }),
+      });
+      expect((await db.select({ status: campaignRecipients.status }).from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0]?.status).toBe("sent");
+      expect((await db.select({ status: marketingCampaigns.status }).from(marketingCampaigns).where(eq(marketingCampaigns.id, campaign.id)))[0]?.status).toBe("sent");
+      expect((await db.select({ attempts: communicationOutbox.attempts, status: communicationOutbox.status }).from(communicationOutbox).where(eq(communicationOutbox.id, retried.outboxId)))[0]).toEqual({ attempts: 1, status: "delivered" });
     } finally {
       await db.delete(salons).where(eq(salons.id, data.salonId));
     }
