@@ -28,10 +28,10 @@ type Enqueue = (
   queue?: CommunicationQueue,
 ) => Promise<{ messageId: string; outboxId: string }>;
 
-type WorkspaceEvent = {
+export type WorkspaceEvent = {
   conversation_id?: string;
   message_id?: string;
-  type: "message.queued" | "conversation.read" | "workspace.updated";
+  type: "message.queued" | "message.received" | "conversation.read" | "workspace.updated";
 };
 
 interface CommunicationRouteOptions {
@@ -43,7 +43,7 @@ const SERVICE_WINDOW_MS = 24 * 60 * 60_000;
 const channelForSalon = (salonId: string) => `communications:${salonId}`;
 let publisher: Redis | undefined;
 
-async function publishCommunicationEvent(salonId: string, event: WorkspaceEvent): Promise<void> {
+export async function publishCommunicationEvent(salonId: string, event: WorkspaceEvent): Promise<void> {
   try {
     publisher ??= new Redis(redisConnection());
     await publisher.publish(channelForSalon(salonId), JSON.stringify(event));
@@ -209,7 +209,10 @@ export function registerCommunicationRoutes(
     const limit = parseLimit(request.query.limit, 30);
     const cursor = parseCursor(request.query.cursor);
     const query = request.query.q?.trim();
-    const filters = [eq(communicationConversations.salonId, request.salonId)];
+    const filters = [
+      eq(communicationConversations.salonId, request.salonId),
+      or(isNull(communicationUserState.archived), eq(communicationUserState.archived, false))!,
+    ];
     if (cursor) filters.push(lt(communicationConversations.lastMessageAt, cursor));
     if (query) {
       const pattern = `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
@@ -234,6 +237,11 @@ export function registerCommunicationRoutes(
       .leftJoin(customers, and(
         eq(customers.id, communicationConversations.customerId),
         eq(customers.salonId, request.salonId),
+      ))
+      .leftJoin(communicationUserState, and(
+        eq(communicationUserState.conversationId, communicationConversations.id),
+        eq(communicationUserState.salonId, request.salonId),
+        eq(communicationUserState.userId, request.user.id),
       ))
       .where(and(...filters))
       .orderBy(desc(communicationConversations.lastMessageAt), desc(communicationConversations.createdAt))
@@ -374,6 +382,7 @@ export function registerCommunicationRoutes(
         )).orderBy(desc(communicationMessages.createdAt)).limit(1))[0];
     if (request.body.message_id && !message) return response.code(404).send({ error: "MESSAGE_NOT_FOUND" });
     await app.db.insert(communicationUserState).values({
+      archived: false,
       conversationId: conversation.id,
       lastOpenedAt: new Date(),
       lastReadMessageId: message?.id,
@@ -381,10 +390,70 @@ export function registerCommunicationRoutes(
       userId: request.user.id,
     }).onConflictDoUpdate({
       target: [communicationUserState.salonId, communicationUserState.userId, communicationUserState.conversationId],
-      set: { lastOpenedAt: new Date(), lastReadMessageId: message?.id, updatedAt: new Date() },
+      set: { archived: false, lastOpenedAt: new Date(), lastReadMessageId: message?.id, updatedAt: new Date() },
     });
     await publish(request.salonId, { conversation_id: conversation.id, message_id: message?.id, type: "conversation.read" });
     return { last_read_message_id: message?.id ?? null, unread_count: 0 };
+  });
+
+  app.patch<{
+    Params: { conversationId: string; id: string };
+  }>("/api/salons/:id/communications/conversations/:conversationId/unread", { preHandler: view }, async (request, response) => {
+    if (!ensureSalon(request.salonId, request.params.id, response)) return;
+    const conversation = await tenantConversation(app.db, request.salonId, request.params.conversationId);
+    if (!conversation) return response.code(404).send({ error: "NOT_FOUND" });
+    const latestInbound = (await app.db.select({ createdAt: communicationMessages.createdAt })
+      .from(communicationMessages)
+      .where(and(
+        eq(communicationMessages.salonId, request.salonId),
+        eq(communicationMessages.conversationId, conversation.id),
+        eq(communicationMessages.direction, "inbound" as const),
+      ))
+      .orderBy(desc(communicationMessages.createdAt))
+      .limit(1))[0];
+    if (!latestInbound) return { unread_count: 0 };
+    const previousMessage = (await app.db.select({ id: communicationMessages.id })
+      .from(communicationMessages)
+      .where(and(
+        eq(communicationMessages.salonId, request.salonId),
+        eq(communicationMessages.conversationId, conversation.id),
+        lt(communicationMessages.createdAt, latestInbound.createdAt),
+      ))
+      .orderBy(desc(communicationMessages.createdAt))
+      .limit(1))[0];
+    await app.db.insert(communicationUserState).values({
+      archived: false,
+      conversationId: conversation.id,
+      lastReadMessageId: previousMessage?.id,
+      salonId: request.salonId,
+      userId: request.user.id,
+    }).onConflictDoUpdate({
+      target: [communicationUserState.salonId, communicationUserState.userId, communicationUserState.conversationId],
+      set: { archived: false, lastReadMessageId: previousMessage?.id ?? null, updatedAt: new Date() },
+    });
+    const unreadCount = await unreadForUser(app.db, request.salonId, request.user.id, conversation.id);
+    await publish(request.salonId, { conversation_id: conversation.id, type: "workspace.updated" });
+    return { unread_count: unreadCount };
+  });
+
+  app.delete<{
+    Params: { conversationId: string; id: string };
+  }>("/api/salons/:id/communications/conversations/:conversationId", { preHandler: view }, async (request, response) => {
+    if (!ensureSalon(request.salonId, request.params.id, response)) return;
+    const conversation = await tenantConversation(app.db, request.salonId, request.params.conversationId);
+    if (!conversation) return response.code(404).send({ error: "NOT_FOUND" });
+    await app.db.insert(communicationUserState).values({
+      archived: true,
+      conversationId: conversation.id,
+      salonId: request.salonId,
+      selected: false,
+      userId: request.user.id,
+    }).onConflictDoUpdate({
+      target: [communicationUserState.salonId, communicationUserState.userId, communicationUserState.conversationId],
+      set: { archived: true, selected: false, updatedAt: new Date() },
+    });
+    await publish(request.salonId, { conversation_id: conversation.id, type: "workspace.updated" });
+    return { deleted: true };
   });
 
   app.get<{ Params: { id: string } }>("/api/salons/:id/communications/workspace-state", { preHandler: view }, async (request, response) => {
@@ -433,6 +502,7 @@ export function registerCommunicationRoutes(
         ));
       }
       await tx.insert(communicationUserState).values({
+        archived: false,
         conversationId: conversation.id,
         draft,
         lastOpenedAt: new Date(),
@@ -443,6 +513,7 @@ export function registerCommunicationRoutes(
         target: [communicationUserState.salonId, communicationUserState.userId, communicationUserState.conversationId],
         set: {
           ...(draftProvided ? { draft } : {}),
+          archived: false,
           lastOpenedAt: new Date(),
           selected,
           updatedAt: new Date(),

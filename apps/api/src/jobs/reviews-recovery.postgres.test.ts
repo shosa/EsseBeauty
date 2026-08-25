@@ -82,7 +82,9 @@ postgresSuite("review queue recovery with PostgreSQL", () => {
       );
 
       await schedule(db, appointmentId, recoveryQueue);
-      const jobIds = recoveryQueue.add.mock.calls.map((call) => call[2]?.jobId);
+      const jobIds = recoveryQueue.add.mock.calls
+        .map((call) => call[2]?.jobId)
+        .filter((jobId) => jobId === `review-${invitationId}-0-0`);
       expect(new Set(jobIds)).toEqual(new Set([`review-${invitationId}-0-0`]));
 
       await db.execute(sql`

@@ -540,10 +540,6 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-      if (await hasPendingStaffTask(app, request, request.salonId, request.params.notificationId)) {
-        return reply.code(409).send({ error: "TASK_STILL_PENDING" });
-      }
-
       const rows = await app.db
         .update(notifications)
         .set({ readAt: new Date() })

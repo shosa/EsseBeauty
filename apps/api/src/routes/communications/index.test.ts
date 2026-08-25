@@ -184,6 +184,68 @@ postgresSuite("WhatsApp conversation workspace with PostgreSQL", () => {
     }
   });
 
+  it("can mark a read conversation unread again for the current user", async () => {
+    const data = await fixture();
+    const { server } = app();
+    try {
+      await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "PATCH",
+        payload: { message_id: data.messageId },
+        url: `/api/salons/${data.salonId}/communications/conversations/${data.conversationId}/read`,
+      });
+
+      const markedUnread = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "PATCH",
+        url: `/api/salons/${data.salonId}/communications/conversations/${data.conversationId}/unread`,
+      });
+      expect(markedUnread.statusCode, markedUnread.body).toBe(200);
+      expect(markedUnread.json()).toEqual({ unread_count: 1 });
+
+      const listed = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "GET",
+        url: `/api/salons/${data.salonId}/communications/conversations`,
+      });
+      expect(listed.json()).toMatchObject({
+        items: [expect.objectContaining({ id: data.conversationId, unread_count: 1 })],
+        unread_count: 1,
+      });
+    } finally {
+      await server.close();
+      await cleanup(data.salonId, data.otherSalonId);
+    }
+  });
+
+  it("removes a conversation only from the current user's drawer", async () => {
+    const data = await fixture();
+    const { server } = app();
+    try {
+      const removed = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "DELETE",
+        url: `/api/salons/${data.salonId}/communications/conversations/${data.conversationId}`,
+      });
+      expect(removed.statusCode, removed.body).toBe(200);
+
+      const listed = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "GET",
+        url: `/api/salons/${data.salonId}/communications/conversations`,
+      });
+      expect(listed.json()).toMatchObject({ items: [], unread_count: 0 });
+
+      const messageStillExists = await db.select({ id: communicationMessages.id })
+        .from(communicationMessages)
+        .where(eq(communicationMessages.id, data.messageId));
+      expect(messageStillExists).toHaveLength(1);
+    } finally {
+      await server.close();
+      await cleanup(data.salonId, data.otherSalonId);
+    }
+  });
+
   it("lists tenant contacts and creates or reuses their normalized conversation", async () => {
     const data = await fixture();
     const { server } = app();

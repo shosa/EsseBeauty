@@ -20,7 +20,7 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
-function notificationMutationApp() {
+function notificationMutationApp({ accessible = false, pending = false } = {}) {
   const employee = {
     active: true,
     id: "employee-id",
@@ -36,7 +36,9 @@ function notificationMutationApp() {
           return {
             innerJoin() {
               return {
-                where: async () => "sessionId" in selection ? [employee] : [],
+                where: async () => "sessionId" in selection
+                  ? [employee]
+                  : "status" in selection && pending ? [{ status: "pending" }] : [],
               };
             },
           };
@@ -50,9 +52,10 @@ function notificationMutationApp() {
             where(condition: SQL) {
               const params = dialect.sqlToQuery(condition).params;
               const notificationIsVisible = params.includes(employee.id)
-                && params.includes(employee.role);
+                && params.includes(employee.role)
+                && accessible;
               return {
-                returning: async () => notificationIsVisible ? [] : [{ id: "owner-notification" }],
+                returning: async () => notificationIsVisible ? [{ id: "visible-notification" }] : [],
               };
             },
           };
@@ -160,5 +163,17 @@ describe("shell route helpers", () => {
     });
 
     expect(response.statusCode, response.body).toBe(404);
+  });
+
+  it("allows a pending task notification to be acknowledged without completing the task", async () => {
+    const employee = notificationMutationApp({ accessible: true, pending: true });
+
+    const response = await employee.inject({
+      headers: { cookie: "esse-session=employee-session" },
+      method: "PATCH",
+      url: "/api/salons/salon-id/notifications/visible-notification/read",
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
   });
 });

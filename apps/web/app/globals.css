@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @source "../../../packages/ui";
 
+@keyframes notification-life {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 :root {
   color-scheme: light;
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;

@@ -109,7 +109,7 @@ const RequestIcon = Download;
 const ProfileIcon = UserRound;
 const BackIcon = ChevronLeft;
 
-const tabs: Array<{ icon: () => ReactNode; key: Tab; label: string }> = [
+const tabs: Array<{ icon: typeof CalendarDays; key: Tab; label: string }> = [
   { icon: TodayIcon, key: "today", label: "Oggi" },
   { icon: AgendaIcon, key: "agenda", label: "Agenda" },
   { icon: RequestIcon, key: "requests", label: "Richieste" },

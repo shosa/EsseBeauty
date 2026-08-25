@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHmac, randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import Fastify from "fastify";
 
@@ -38,16 +38,16 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
     return { accountId, phoneNumberId: `phone-${salonId}`, salonId, wabaId: `waba-${salonId}`, webhookKey };
   }
 
-  function app() {
+  function app(publish = vi.fn(async () => undefined)) {
     const server = Fastify();
     server.decorate("db", db);
-    registerWhatsAppWebhookRoutes(server, { appSecret: "meta-app-secret" });
-    return server;
+    registerWhatsAppWebhookRoutes(server, { appSecret: "meta-app-secret", publish });
+    return { publish, server };
   }
 
   it("answers Meta's challenge only for the tenant verification token", async () => {
     const data = await fixture();
-    const server = app();
+    const { server } = app();
     try {
       const ok = await server.inject({ method: "GET", url: `/api/webhooks/whatsapp/${data.webhookKey}?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=12345` });
       expect(ok.statusCode).toBe(200);
@@ -70,7 +70,7 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
       phoneNormalized: "+393331234567",
       salonId: data.salonId,
     });
-    const server = app();
+    const { publish, server } = app();
     const payload = {
       entry: [{
         changes: [{
@@ -104,6 +104,7 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
           (select coalesce(sum(unread_count), 0)::int from communication_conversations where salon_id = ${data.salonId}::uuid) unread
       `);
       expect(rows).toEqual([{ events: 1, messages: 1, unread: 1 }]);
+      expect(publish).toHaveBeenCalledWith(data.salonId, expect.objectContaining({ type: "message.received" }));
       const linked = await db.select({ customerId: communicationConversations.customerId })
         .from(communicationConversations)
         .where(eq(communicationConversations.salonId, data.salonId));
@@ -116,7 +117,7 @@ postgresSuite("signed WhatsApp webhook with PostgreSQL", () => {
 
   it("accepts a signed delivery status even when the referenced message is not stored locally", async () => {
     const data = await fixture();
-    const server = app();
+    const { server } = app();
     const payload = {
       entry: [{
         changes: [{

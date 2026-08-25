@@ -13,9 +13,11 @@ import {
 } from "@esse-beauty/db/schema";
 
 import { decryptProviderSecret } from "../../lib/provider-credentials.js";
+import { publishCommunicationEvent, type WorkspaceEvent } from "../communications/index.js";
 
 interface WebhookOptions {
   appSecret?: string;
+  publish?: (salonId: string, event: WorkspaceEvent) => Promise<void>;
 }
 
 interface MetaStatus {
@@ -76,11 +78,11 @@ async function processInbound(
   app: FastifyInstance,
   account: typeof communicationProviderAccounts.$inferSelect,
   message: MetaMessage,
-): Promise<void> {
+): Promise<{ conversationId: string; messageId?: string } | undefined> {
   if (!message.id || !message.from) return;
   const participantPhone = message.from.replace(/\D/g, "");
   if (!participantPhone) return;
-  await app.db.transaction(async (tx) => {
+  return app.db.transaction(async (tx) => {
     const event = (await tx.insert(communicationWebhookEvents).values({
       accountId: account.id,
       eventType: "message.inbound",
@@ -110,7 +112,7 @@ async function processInbound(
     )))[0];
     if (!conversation) throw new Error("CONVERSATION_CREATE_FAILED");
     const timestamp = providerDate(message.timestamp);
-    await tx.insert(communicationMessages).values({
+    const insertedMessage = (await tx.insert(communicationMessages).values({
       accountId: account.id,
       body: messageBody(message),
       conversationId: conversation.id,
@@ -121,7 +123,7 @@ async function processInbound(
       salonId: account.salonId,
       sentAt: timestamp,
       status: "delivered",
-    }).onConflictDoNothing({ target: [communicationMessages.accountId, communicationMessages.providerMessageId] });
+    }).onConflictDoNothing({ target: [communicationMessages.accountId, communicationMessages.providerMessageId] }).returning({ id: communicationMessages.id }))[0];
     await tx.update(communicationConversations).set({
       ...(customer && { customerId: customer.id }),
       lastInboundAt: timestamp,
@@ -130,6 +132,7 @@ async function processInbound(
       unreadCount: sql`${communicationConversations.unreadCount} + 1`,
       updatedAt: new Date(),
     }).where(eq(communicationConversations.id, conversation.id));
+    return { conversationId: conversation.id, messageId: insertedMessage?.id };
   });
 }
 
@@ -181,6 +184,7 @@ async function accountForKey(app: FastifyInstance, webhookKey: string) {
 }
 
 export function registerWhatsAppWebhookRoutes(app: FastifyInstance, options: WebhookOptions = {}): void {
+  const publish = options.publish ?? publishCommunicationEvent;
   void app.register(async (scope) => {
     scope.addContentTypeParser("application/json", { parseAs: "buffer" }, (request, body, done) => {
       const raw = body as Buffer;
@@ -232,7 +236,10 @@ export function registerWhatsAppWebhookRoutes(app: FastifyInstance, options: Web
             if (change.value?.metadata?.phone_number_id !== account.phoneNumberId) {
               return reply.code(403).send({ error: "PHONE_NUMBER_MISMATCH" });
             }
-            for (const message of change.value.messages ?? []) await processInbound(scope, account, message);
+            for (const message of change.value.messages ?? []) {
+              const received = await processInbound(scope, account, message);
+              if (received) await publish(account.salonId, { conversation_id: received.conversationId, message_id: received.messageId, type: "message.received" });
+            }
             for (const status of change.value.statuses ?? []) await processStatus(scope, account, status);
           }
         }

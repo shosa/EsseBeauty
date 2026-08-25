@@ -3,7 +3,16 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { initialWorkspaceState, mergeWorkspaceState } from "./app/(dashboard)/_components/CommunicationWorkspaceProvider";
+import {
+  initialWorkspaceState,
+  markConversationRead,
+  markConversationUnread,
+  mergeWorkspaceState,
+  newlyUnreadConversations,
+  reconcileConversationRefresh,
+  removeConversation,
+  shouldNotifyIncomingConversation,
+} from "./app/(dashboard)/_components/CommunicationWorkspaceProvider";
 
 describe("global WhatsApp workspace", () => {
   it("restores a stable selected conversation and draft from server state", () => {
@@ -51,5 +60,64 @@ describe("global WhatsApp workspace", () => {
     expect(drawer).toContain('aria-label="Apri rubrica clienti"');
     expect(drawer).toContain("/clients/${selected.customer_id}");
     expect(drawer).toContain("Rubrica clienti");
+  });
+
+  it("updates unread badges immediately when a conversation action succeeds", () => {
+    const conversations = [{ id: "one", unread_count: 3 }, { id: "two", unread_count: 0 }];
+    expect(markConversationRead(conversations, "one")).toEqual([
+      { id: "one", unread_count: 0 },
+      { id: "two", unread_count: 0 },
+    ]);
+    expect(markConversationUnread(conversations, "two")).toEqual([
+      { id: "one", unread_count: 3 },
+      { id: "two", unread_count: 1 },
+    ]);
+    expect(removeConversation(conversations, "one")).toEqual([{ id: "two", unread_count: 0 }]);
+  });
+
+  it("shows an incoming message preview even when its conversation is already open", () => {
+    expect(shouldNotifyIncomingConversation(false, "one", "one")).toBe(true);
+    expect(shouldNotifyIncomingConversation(true, "one", "two")).toBe(true);
+    expect(shouldNotifyIncomingConversation(true, "one", "one")).toBe(true);
+  });
+
+  it("does not show historical unread chats as new previews on initial load", () => {
+    expect(newlyUnreadConversations([], [{ id: "one", unread_count: 2 }], false)).toEqual([]);
+  });
+
+  it("detects a new unread message when fallback polling refreshes the list", () => {
+    const previous = [{ id: "one", last_message_at: "2026-08-25T08:00:00.000Z", unread_count: 0 }];
+    const incoming = [{ id: "one", last_message_at: "2026-08-25T08:01:00.000Z", unread_count: 1 }];
+    expect(newlyUnreadConversations(previous, incoming, true)).toEqual(incoming);
+  });
+
+  it("does not repeat a preview when polling restores the unread count for the same message", () => {
+    const previous = [{ id: "one", last_message_at: "2026-08-25T08:01:00.000Z", unread_count: 0 }];
+    const staleServerResponse = [{ id: "one", last_message_at: "2026-08-25T08:01:00.000Z", unread_count: 1 }];
+    expect(newlyUnreadConversations(previous, staleServerResponse, true)).toEqual([]);
+  });
+
+  it("ignores a stale refresh response after a conversation was marked read", () => {
+    const optimistic = [{ id: "one", unread_count: 0 }];
+    const staleServerResponse = [{ id: "one", unread_count: 3 }];
+    expect(reconcileConversationRefresh(optimistic, staleServerResponse, 4, 5)).toEqual(optimistic);
+    expect(reconcileConversationRefresh(optimistic, staleServerResponse, 5, 5)).toEqual(staleServerResponse);
+  });
+
+  it("keeps a conversation read while its server mutation is still pending", () => {
+    const reconcileWithPendingReads = reconcileConversationRefresh as unknown as (
+      current: Array<{ id: string; unread_count: number }>,
+      incoming: Array<{ id: string; unread_count: number }>,
+      requestVersion: number,
+      activeVersion: number,
+      pendingReadIds: ReadonlySet<string>,
+    ) => Array<{ id: string; unread_count: number }>;
+    expect(reconcileWithPendingReads(
+      [{ id: "one", unread_count: 0 }],
+      [{ id: "one", unread_count: 3 }],
+      5,
+      5,
+      new Set(["one"]),
+    )).toEqual([{ id: "one", unread_count: 0 }]);
   });
 });

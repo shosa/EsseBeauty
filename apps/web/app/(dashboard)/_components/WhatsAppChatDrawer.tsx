@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCheck, ContactRound, ExternalLink, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
+import { ArrowLeft, CheckCheck, ContactRound, EllipsisVertical, ExternalLink, Eye, EyeOff, LoaderCircle, MessageCircle, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
 
 import { useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
 
@@ -23,6 +23,7 @@ export function WhatsAppChatDrawer() {
   const [mobileListOpen, setMobileListOpen] = useState(false);
   const [addressBookOpen, setAddressBookOpen] = useState(false);
   const [contactQuery, setContactQuery] = useState("");
+  const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!workspace.open) return;
@@ -87,14 +88,14 @@ export function WhatsAppChatDrawer() {
               <button aria-label="Chiudi chat WhatsApp" className="grid size-10 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 sm:hidden" onClick={workspace.close} type="button"><X className="size-5" /></button>
             </div>
             <div className="mt-4 flex items-center gap-2">
-              <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-stone-500 shadow-sm transition focus-within:border-[#792f59] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#792f59]/10"><Search className="size-4 shrink-0" /><span className="sr-only">Cerca conversazione</span><input className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none" onChange={(event) => workspace.setSearch(event.target.value)} placeholder="Cerca chat…" value={workspace.search} /></label>
+              <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-stone-500 shadow-sm transition focus-within:border-[#792f59] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#792f59]/10"><Search className="size-4 shrink-0" /><span className="sr-only">Cerca conversazione</span><input className="!min-h-0 min-w-0 flex-1 !border-0 !bg-transparent !p-0 text-sm !shadow-none outline-none hover:!border-0 focus:!border-0 focus:!shadow-none" onChange={(event) => workspace.setSearch(event.target.value)} placeholder="Cerca chat…" value={workspace.search} /></label>
               <button aria-label="Apri rubrica clienti" className={`grid size-11 shrink-0 place-items-center rounded-2xl border shadow-sm transition ${addressBookOpen ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white text-[#792f59] hover:bg-[#fbf3f7]"}`} onClick={() => { setAddressBookOpen((value) => !value); workspace.setSearch(""); }} title="Rubrica clienti" type="button"><ContactRound className="size-5" /></button>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {addressBookOpen && <div>
               <div className="mb-2 flex items-center gap-2 px-2 py-1"><button aria-label="Torna alle conversazioni" className="grid size-8 place-items-center rounded-lg text-stone-500 hover:bg-stone-100" onClick={() => setAddressBookOpen(false)} type="button"><ArrowLeft className="size-4" /></button><div><b className="block text-sm text-stone-900">Rubrica clienti</b><span className="text-[11px] text-stone-500">Scegli chi contattare</span></div></div>
-              <label className="mb-3 flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-stone-500"><Search className="size-4" /><span className="sr-only">Cerca nella rubrica clienti</span><input className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none" onChange={(event) => setContactQuery(event.target.value)} placeholder="Nome o telefono" value={contactQuery} /></label>
+              <label className="mb-3 flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-stone-500"><Search className="size-4" /><span className="sr-only">Cerca nella rubrica clienti</span><input className="!min-h-0 min-w-0 flex-1 !border-0 !bg-transparent !p-0 text-sm !shadow-none outline-none hover:!border-0 focus:!border-0 focus:!shadow-none" onChange={(event) => setContactQuery(event.target.value)} placeholder="Nome o telefono" value={contactQuery} /></label>
               {workspace.contactsLoading && <p className="flex items-center gap-2 p-4 text-sm text-stone-500"><LoaderCircle className="size-4 animate-spin" /> Caricamento rubrica…</p>}
               {!workspace.contactsLoading && workspace.contacts.length === 0 && <p className="p-5 text-center text-xs leading-5 text-stone-500">Nessun cliente con un numero WhatsApp valido.</p>}
               {workspace.contacts.map((contact) => <button className="mb-1 flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f5e4ed]" key={contact.customer_id} onClick={async () => { if (await workspace.openConversationForCustomer(contact.customer_id)) { setAddressBookOpen(false); setMobileListOpen(false); } }} type="button"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#792f59] text-xs font-black text-white">{contact.full_name.slice(0, 2).toUpperCase()}</span><span className="min-w-0"><b className="block truncate text-sm text-stone-900">{contact.full_name}</b><span className="text-xs text-stone-500">{contact.phone}</span></span></button>)}
@@ -103,10 +104,22 @@ export function WhatsAppChatDrawer() {
             {workspace.loading && <p className="flex items-center gap-2 p-4 text-sm text-stone-500"><LoaderCircle className="size-4 animate-spin" /> Caricamento…</p>}
             {!workspace.loading && workspace.conversations.length === 0 && <div className="p-6 text-center"><MessageCircle className="mx-auto size-8 text-stone-300" /><p className="mt-3 text-sm font-bold text-stone-700">Nessuna conversazione</p><p className="mt-1 text-xs leading-5 text-stone-500">I messaggi ricevuti tramite Cloud API appariranno qui.</p></div>}
             {workspace.conversations.map((conversation) => (
-              <button className={`mb-1 flex w-full gap-3 rounded-2xl p-3 text-left transition ${conversation.id === workspace.selectedConversationId ? "bg-[#f5e4ed]" : "hover:bg-stone-50"}`} key={conversation.id} onClick={() => { workspace.selectConversation(conversation.id); setMobileListOpen(false); }} type="button">
-                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#2f6f4e] text-xs font-black text-white">{displayName(conversation.customer_name, conversation.participant_phone).slice(0, 2).toUpperCase()}</span>
-                <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm text-stone-900">{displayName(conversation.customer_name, conversation.participant_phone)}</b>{conversation.unread_count > 0 && <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] font-black text-white">{conversation.unread_count}</span>}</span><span className="mt-1 block truncate text-xs text-stone-500">{conversation.last_message_preview ?? "Conversazione avviata"}</span></span>
-              </button>
+              <div className={`relative mb-1 flex items-center rounded-2xl transition ${conversation.id === workspace.selectedConversationId ? "bg-[#f5e4ed]" : "hover:bg-stone-50"}`} key={conversation.id} onContextMenu={(event) => { event.preventDefault(); setMenuConversationId(conversation.id); }}>
+                <button className="flex min-w-0 flex-1 gap-3 p-3 pr-1 text-left" onClick={() => { setMenuConversationId(null); workspace.selectConversation(conversation.id); setMobileListOpen(false); }} type="button">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#2f6f4e] text-xs font-black text-white">{displayName(conversation.customer_name, conversation.participant_phone).slice(0, 2).toUpperCase()}</span>
+                  <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm text-stone-900">{displayName(conversation.customer_name, conversation.participant_phone)}</b>{conversation.unread_count > 0 && <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] font-black text-white">{conversation.unread_count}</span>}</span><span className="mt-1 block truncate text-xs text-stone-500">{conversation.last_message_preview ?? "Conversazione avviata"}</span></span>
+                </button>
+                <button aria-expanded={menuConversationId === conversation.id} aria-haspopup="menu" aria-label={`Opzioni conversazione ${displayName(conversation.customer_name, conversation.participant_phone)}`} className="mr-2 grid size-8 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-white hover:text-stone-800" onClick={() => setMenuConversationId((current) => current === conversation.id ? null : conversation.id)} type="button"><EllipsisVertical className="size-4" /></button>
+                {menuConversationId === conversation.id && <>
+                  <button aria-label="Chiudi menu conversazione" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenuConversationId(null)} type="button" />
+                  <div className="absolute right-2 top-11 z-20 min-w-48 rounded-xl border border-stone-200 bg-white p-1.5 text-sm shadow-2xl" role="menu">
+                    {conversation.unread_count > 0
+                      ? <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold hover:bg-stone-50" onClick={() => { setMenuConversationId(null); void workspace.markRead(conversation.id); }} role="menuitem" type="button"><Eye className="size-4" /> Segna come letto</button>
+                      : <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold hover:bg-stone-50" onClick={() => { setMenuConversationId(null); void workspace.markUnread(conversation.id); }} role="menuitem" type="button"><EyeOff className="size-4" /> Segna da leggere</button>}
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold text-red-700 hover:bg-red-50" onClick={() => { setMenuConversationId(null); void workspace.deleteConversation(conversation.id); }} role="menuitem" type="button"><Trash2 className="size-4" /> Cancella dalla lista</button>
+                  </div>
+                </>}
+              </div>
             ))}
             </>}
           </div>

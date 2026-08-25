@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ComponentType, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { type ComponentType, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageSquareText, Plus, X } from "lucide-react";
 
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled, useModules } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
@@ -29,6 +29,7 @@ import {
   SettingsIcon,
   StaffIcon,
   WaitlistIcon,
+  WhatsAppIcon,
 } from "./Icons";
 import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./shell-config";
 import { AppRail } from "./AppRail";
@@ -37,6 +38,7 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { CommunicationWorkspaceProvider, useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
 import { WhatsAppChatDrawer } from "./WhatsAppChatDrawer";
 import { appForPath, browserTitleForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
+import { applyNotificationSnapshot, markNotificationRead, playIncomingMessageSound, type ShellNotification } from "./notification-state";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
@@ -109,7 +111,7 @@ interface SearchResult {
   title: string;
 }
 
-interface NotificationItem {
+interface NotificationItem extends ShellNotification {
   body?: string;
   category?: string;
   channel?: string;
@@ -235,43 +237,10 @@ function CommandPalette({ actions, onClose, open, salonId }: { actions: readonly
   );
 }
 
-function NotificationCenter({ onClose, open, salonId, onRead }: { onClose(): void; open: boolean; salonId?: string; onRead(): void }) {
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [error, setError] = useState("");
-
-  function load() {
-    if (!open || !salonId) return;
-    void fetch(`${api}/api/salons/${salonId}/notifications`, { credentials: "include" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Centro notifiche non disponibile.");
-        const data = await response.json() as { items?: NotificationItem[] };
-        setItems(data.items ?? []);
-        setError("");
-      })
-      .catch((reason: unknown) => {
-        setItems([]);
-        setError(reason instanceof Error ? reason.message : "Centro notifiche non disponibile.");
-      });
-  }
-
-  useEffect(load, [open, salonId]);
-
-  async function markRead(item: NotificationItem) {
-    if (!salonId) return;
-    await fetch(`${api}/api/salons/${salonId}/notifications/${item.id}/read`, { credentials: "include", method: "PATCH" });
-    onRead();
-    load();
-  }
-
-  async function archive(item: NotificationItem) {
-    if (!salonId) return;
-    await fetch(`${api}/api/salons/${salonId}/notifications/${item.id}`, { credentials: "include", method: "DELETE" });
-    onRead();
-    load();
-  }
-
+function NotificationCenter({ error, items, onArchive, onClose, onMarkAllRead, onMarkRead, onOpenItem, open }: { error: string; items: NotificationItem[]; onArchive(item: NotificationItem): void; onClose(): void; onMarkAllRead(): void; onMarkRead(item: NotificationItem): void; onOpenItem(item: NotificationItem): void; open: boolean }) {
   return (
     <Drawer onClose={onClose} open={open} title="Notifiche">
+      {items.some((item) => !item.read_at) && <div className="mb-4 flex justify-end"><Button onClick={onMarkAllRead} size="sm" variant="outline">Segna tutte come lette</Button></div>}
       {error && <InlineError>{error}</InlineError>}
       {!error && items.length === 0 && <EmptyState description="Appuntamenti, recensioni, scorte e richieste appariranno qui." title="Nessuna notifica" />}
       <div className="space-y-3">
@@ -286,20 +255,36 @@ function NotificationCenter({ onClose, open, salonId, onRead }: { onClose(): voi
             </div>
             {item.body && <p className="mt-2 text-sm leading-6 text-stone-500">{item.body}</p>}
             <div className="mt-4 flex flex-wrap gap-2">
-              {item.href && <Link className="rounded-xl bg-[#402334] px-3 py-2 text-xs font-bold text-white" href={item.href} onClick={onClose}>Apri</Link>}
-              {item.entity_type === "staff_availability_request" ? (
-                <StatusBadge status="pending">Da completare</StatusBadge>
-              ) : (
-                <>
-                  {!item.read_at && <Button onClick={() => void markRead(item)} size="sm" variant="outline">Letta</Button>}
-                  <Button onClick={() => void archive(item)} size="sm" variant="tableAction">Archivia</Button>
-                </>
-              )}
+              {item.href && <button className="rounded-xl bg-[#402334] px-3 py-2 text-xs font-bold text-white" onClick={() => onOpenItem(item)} type="button">Apri</button>}
+              {item.entity_type === "staff_availability_request" && <StatusBadge status="pending">Da completare</StatusBadge>}
+              {!item.read_at && <Button onClick={() => onMarkRead(item)} size="sm" variant="outline">Letta</Button>}
+              <Button onClick={() => onArchive(item)} size="sm" variant="tableAction">Archivia</Button>
             </div>
           </article>
         ))}
       </div>
     </Drawer>
+  );
+}
+
+function NotificationPreviewCard({ item, onDismiss, onOpen }: { item: Pick<NotificationItem, "body" | "title">; onDismiss(): void; onOpen(): void }) {
+  const dismissRef = useRef(onDismiss);
+  useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => dismissRef.current(), 6_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <article className="pointer-events-auto relative isolate mb-3 w-[min(360px,calc(100vw-2rem))] rounded-[22px] border border-[#b8dfc9] bg-white shadow-[0_22px_70px_rgb(35_112_73_/_0.18)]" role="status">
+      <div className="relative z-10 flex items-start gap-3 rounded-t-[21px] bg-white p-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" /></span>
+        <button className="min-w-0 flex-1 text-left" onClick={onOpen} type="button"><b className="block truncate text-sm text-stone-950">{item.title}</b>{item.body && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-stone-500">{item.body}</span>}</button>
+        <button aria-label="Chiudi anteprima notifica" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-stone-100" onClick={onDismiss} type="button"><X className="size-4" /></button>
+      </div>
+      <div className="relative z-10 h-1 origin-left animate-[notification-life_6s_linear_forwards] overflow-hidden rounded-b-[21px] bg-[#25D366]" />
+      <span aria-hidden="true" className="absolute -bottom-[11px] right-5 h-3 w-[18px] bg-[#b8dfc9]" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
+      <span aria-hidden="true" className="absolute -bottom-[9px] right-[21px] h-[10px] w-4 bg-white" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
+    </article>
   );
 }
 
@@ -422,7 +407,26 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notificationItems, setNotificationItems] = useState<NotificationItem[]>([]);
+  const [notificationError, setNotificationError] = useState("");
+  const [notificationPreviews, setNotificationPreviews] = useState<NotificationItem[]>([]);
+  const [whatsappPreviews, setWhatsappPreviews] = useState<Array<{ body: string; conversationId: string; id: string; title: string }>>([]);
+  const notificationItemsRef = useRef<NotificationItem[]>([]);
+  const notificationsInitializedRef = useRef(false);
+  const notificationRequestPendingRef = useRef(false);
+  const notificationMutationCountRef = useRef(0);
   const communications = useCommunicationWorkspace();
+
+  useEffect(() => {
+    function incoming(rawEvent: Event) {
+      const detail = (rawEvent as CustomEvent<{ body: string; conversationId: string; id: string; title: string }>).detail;
+      if (!detail?.id || !detail.conversationId) return;
+      playIncomingMessageSound();
+      setWhatsappPreviews((current) => [...current.filter((item) => item.id !== detail.id), detail].slice(-3));
+    }
+    window.addEventListener("esse:whatsapp-message", incoming);
+    return () => window.removeEventListener("esse:whatsapp-message", incoming);
+  }, []);
 
   const grantedPermissions = useMemo(() => new Set(permissions), [permissions]);
 
@@ -476,11 +480,82 @@ function ShellContent({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  function loadUnread() {
+  const loadNotifications = useCallback(async () => {
+    if (!salon?.id || notificationRequestPendingRef.current || notificationMutationCountRef.current > 0) return;
+    notificationRequestPendingRef.current = true;
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/notifications`, { credentials: "include" });
+      if (!response.ok) throw new Error("Centro notifiche non disponibile.");
+      const data = await response.json() as { items?: NotificationItem[] };
+      const snapshot = applyNotificationSnapshot(notificationItemsRef.current, data.items ?? [], notificationsInitializedRef.current);
+      notificationItemsRef.current = snapshot.items as NotificationItem[];
+      setNotificationItems(snapshot.items as NotificationItem[]);
+      setUnreadCount(snapshot.unreadCount);
+      if (snapshot.previews.length > 0) {
+        setNotificationPreviews((current) => [...current, ...(snapshot.previews as NotificationItem[])].filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index).slice(-3));
+      }
+      notificationsInitializedRef.current = true;
+      setNotificationError("");
+    } catch (reason) {
+      setNotificationError(reason instanceof Error ? reason.message : "Centro notifiche non disponibile.");
+    } finally {
+      notificationRequestPendingRef.current = false;
+    }
+  }, [salon?.id]);
+
+  function replaceNotifications(items: NotificationItem[]) {
+    notificationItemsRef.current = items;
+    setNotificationItems(items);
+    setUnreadCount(items.reduce((total, item) => total + (item.read_at ? 0 : 1), 0));
+  }
+
+  async function markRead(item: NotificationItem) {
+    if (!salon?.id || item.read_at) return;
+    const previous = notificationItemsRef.current;
+    notificationMutationCountRef.current += 1;
+    replaceNotifications(markNotificationRead(previous, item.id) as NotificationItem[]);
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/notifications/${item.id}/read`, { credentials: "include", method: "PATCH" });
+      if (!response.ok) {
+        replaceNotifications(previous);
+        setNotificationError("Impossibile aggiornare la notifica.");
+      }
+    } catch {
+      replaceNotifications(previous);
+      setNotificationError("Impossibile aggiornare la notifica.");
+    } finally {
+      notificationMutationCountRef.current -= 1;
+    }
+  }
+
+  async function archiveNotification(item: NotificationItem) {
     if (!salon?.id) return;
-    void fetch(`${api}/api/salons/${salon.id}/notifications`, { credentials: "include" })
-      .then((response) => response.ok ? response.json() : { unread_count: 0 })
-      .then((data: { unread_count?: number }) => setUnreadCount(data.unread_count ?? 0));
+    const previous = notificationItemsRef.current;
+    notificationMutationCountRef.current += 1;
+    replaceNotifications(previous.filter((candidate) => candidate.id !== item.id));
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/notifications/${item.id}`, { credentials: "include", method: "DELETE" });
+      if (!response.ok) {
+        replaceNotifications(previous);
+        setNotificationError("Impossibile archiviare la notifica.");
+      }
+    } catch {
+      replaceNotifications(previous);
+      setNotificationError("Impossibile archiviare la notifica.");
+    } finally {
+      notificationMutationCountRef.current -= 1;
+    }
+  }
+
+  function openNotification(item: NotificationItem) {
+    setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id));
+    void markRead(item);
+    if (item.href) {
+      setNotificationsOpen(false);
+      router.push(item.href);
+    } else {
+      setNotificationsOpen(true);
+    }
   }
 
   function loadStaffRequestCount() {
@@ -496,24 +571,30 @@ function ShellContent({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    loadUnread();
+    void loadNotifications();
     loadStaffRequestCount();
-    const interval = window.setInterval(() => {
-      loadUnread();
-      loadStaffRequestCount();
-    }, 30_000);
+    const notificationInterval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadNotifications();
+    }, 3_000);
+    const staffInterval = window.setInterval(loadStaffRequestCount, 30_000);
     function refresh() {
-      loadUnread();
+      void loadNotifications();
       loadStaffRequestCount();
     }
+    function visibility() {
+      if (document.visibilityState === "visible") void loadNotifications();
+    }
     window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visibility);
     window.addEventListener("esse:staff-requests-updated", refresh);
     return () => {
-      window.clearInterval(interval);
+      window.clearInterval(notificationInterval);
+      window.clearInterval(staffInterval);
       window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("esse:staff-requests-updated", refresh);
     };
-  }, [salon?.id]);
+  }, [loadNotifications, salon?.id]);
 
   useEffect(() => {
     if (!salon?.id) return;
@@ -557,8 +638,21 @@ function ShellContent({ children }: { children: ReactNode }) {
       />
       <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={currentTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
-      <NotificationCenter onClose={() => setNotificationsOpen(false)} onRead={loadUnread} open={notificationsOpen} salonId={salon?.id} />
+      <NotificationCenter
+        error={notificationError}
+        items={notificationItems}
+        onArchive={(item) => void archiveNotification(item)}
+        onClose={() => setNotificationsOpen(false)}
+        onMarkAllRead={() => void Promise.all(notificationItems.filter((item) => !item.read_at).map(markRead))}
+        onMarkRead={(item) => void markRead(item)}
+        onOpenItem={openNotification}
+        open={notificationsOpen}
+      />
       <WhatsAppChatDrawer />
+      <div className="pointer-events-none fixed right-4 top-20 z-[90] flex flex-col gap-3">
+        {whatsappPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => { setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id)); communications.selectConversation(item.conversationId); communications.openChat(); }} />)}
+        {notificationPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => openNotification(item)} />)}
+      </div>
       <main className={`${currentApp?.tabs?.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
       <MobileAppNavigation apps={apps} pathname={pathname} />
     </div>
