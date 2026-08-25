@@ -42,4 +42,14 @@ describe("global WhatsApp workspace", () => {
     expect(provider).not.toContain("close: () => setOpen(false)");
     expect(provider).not.toContain("openChat: () => setOpen(true)");
   });
+
+  it("offers a customer address book and links associated chat headers to the customer profile", () => {
+    const provider = readFileSync(resolve("app/(dashboard)/_components/CommunicationWorkspaceProvider.tsx"), "utf8");
+    const drawer = readFileSync(resolve("app/(dashboard)/_components/WhatsAppChatDrawer.tsx"), "utf8");
+    expect(provider).toContain("customer_id");
+    expect(provider).toContain("openConversationForCustomer");
+    expect(drawer).toContain('aria-label="Apri rubrica clienti"');
+    expect(drawer).toContain("/clients/${selected.customer_id}");
+    expect(drawer).toContain("Rubrica clienti");
+  });
 });

@@ -2,12 +2,13 @@ import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance, FastifyReply } from "fastify";
 import Redis from "ioredis";
-import { and, count, desc, eq, gt, ilike, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, ilike, isNotNull, isNull, lt, or } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import {
   communicationConversations,
   communicationMessages,
+  communicationProviderAccounts,
   communicationUserState,
   customers,
 } from "@esse-beauty/db/schema";
@@ -127,6 +128,81 @@ export function registerCommunicationRoutes(
 
   app.get<{
     Params: { id: string };
+    Querystring: { q?: string };
+  }>("/api/salons/:id/communications/contacts", { preHandler: view }, async (request, response) => {
+    if (!ensureSalon(request.salonId, request.params.id, response)) return;
+    const query = request.query.q?.trim();
+    const filters = [
+      eq(customers.salonId, request.salonId),
+      eq(customers.blocked, false),
+      isNull(customers.archivedAt),
+      isNotNull(customers.phoneNormalized),
+    ];
+    if (query) {
+      const pattern = `%${query.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+      filters.push(or(
+        ilike(customers.fullName, pattern),
+        ilike(customers.phone, pattern),
+        ilike(customers.phoneNormalized, pattern),
+      )!);
+    }
+    const rows = await app.db.select({
+      customerId: customers.id,
+      fullName: customers.fullName,
+      phone: customers.phoneNormalized,
+    }).from(customers).where(and(...filters)).orderBy(asc(customers.fullName)).limit(30);
+    return {
+      items: rows.map((row) => ({ customer_id: row.customerId, full_name: row.fullName, phone: row.phone })),
+    };
+  });
+
+  app.post<{
+    Body: { customer_id?: string };
+    Params: { id: string };
+  }>("/api/salons/:id/communications/conversations", { preHandler: reply }, async (request, response) => {
+    if (!ensureSalon(request.salonId, request.params.id, response)) return;
+    if (!request.body.customer_id) return response.code(400).send({ error: "CUSTOMER_REQUIRED" });
+    const customer = (await app.db.select({
+      fullName: customers.fullName,
+      id: customers.id,
+      phone: customers.phoneNormalized,
+    }).from(customers).where(and(
+      eq(customers.id, request.body.customer_id),
+      eq(customers.salonId, request.salonId),
+    )).limit(1))[0];
+    if (!customer) return response.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+    if (!customer.phone) return response.code(422).send({ error: "CUSTOMER_PHONE_REQUIRED" });
+    const participantPhone = customer.phone.replace(/\D/g, "");
+    if (participantPhone.length < 8 || participantPhone.length > 15) {
+      return response.code(422).send({ error: "CUSTOMER_PHONE_REQUIRED" });
+    }
+    const account = (await app.db.select({ id: communicationProviderAccounts.id })
+      .from(communicationProviderAccounts)
+      .where(and(
+        eq(communicationProviderAccounts.salonId, request.salonId),
+        eq(communicationProviderAccounts.enabled, true),
+      )).limit(1))[0];
+    if (!account) return response.code(503).send({ error: "PROVIDER_NOT_CONFIGURED" });
+    const conversation = (await app.db.insert(communicationConversations).values({
+      accountId: account.id,
+      customerId: customer.id,
+      participantPhone,
+      salonId: request.salonId,
+    }).onConflictDoUpdate({
+      target: [communicationConversations.accountId, communicationConversations.participantPhone],
+      set: { customerId: customer.id, updatedAt: new Date() },
+    }).returning())[0]!;
+    await publish(request.salonId, { conversation_id: conversation.id, type: "workspace.updated" });
+    return {
+      customer_id: customer.id,
+      customer_name: customer.fullName,
+      id: conversation.id,
+      participant_phone: conversation.participantPhone,
+    };
+  });
+
+  app.get<{
+    Params: { id: string };
     Querystring: { cursor?: string; limit?: string; q?: string };
   }>("/api/salons/:id/communications/conversations", { preHandler: view }, async (request, response) => {
     if (!ensureSalon(request.salonId, request.params.id, response)) return;
@@ -145,6 +221,7 @@ export function registerCommunicationRoutes(
     }
     const rows = await app.db
       .select({
+        customerId: customers.id,
         customerName: customers.fullName,
         id: communicationConversations.id,
         lastInboundAt: communicationConversations.lastInboundAt,
@@ -164,6 +241,7 @@ export function registerCommunicationRoutes(
     const page = rows.slice(0, limit);
     const items = await Promise.all(page.map(async (row) => ({
       customer_name: row.customerName,
+      customer_id: row.customerId,
       id: row.id,
       last_inbound_at: row.lastInboundAt?.toISOString() ?? null,
       last_message_at: row.lastMessageAt?.toISOString() ?? null,
@@ -202,6 +280,7 @@ export function registerCommunicationRoutes(
     const page = rows.slice(0, limit);
     return {
       conversation: {
+        customer_id: conversation.customerId,
         id: conversation.id,
         last_inbound_at: conversation.lastInboundAt?.toISOString() ?? null,
         participant_phone: conversation.participantPhone,

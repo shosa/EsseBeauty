@@ -45,6 +45,8 @@ postgresSuite("WhatsApp conversation workspace with PostgreSQL", () => {
     const ownerId = randomUUID();
     const employeeId = randomUUID();
     const customerId = randomUUID();
+    const noPhoneCustomerId = randomUUID();
+    const foreignCustomerId = randomUUID();
     const ownerToken = randomUUID();
     const employeeToken = randomUUID();
     await db.insert(salons).values([
@@ -59,7 +61,11 @@ postgresSuite("WhatsApp conversation workspace with PostgreSQL", () => {
       { expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(ownerToken), userId: ownerId },
       { expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(employeeToken), userId: employeeId },
     ]);
-    await db.insert(customers).values({ fullName: "Maria Rossi", id: customerId, phone: "+393331234567", salonId });
+    await db.insert(customers).values([
+      { fullName: "Maria Rossi", id: customerId, phone: "3331234567", phoneNormalized: "+393331234567", salonId },
+      { fullName: "Senza Telefono", id: noPhoneCustomerId, salonId },
+      { fullName: "Cliente Altro Salone", id: foreignCustomerId, phone: "+447700900123", phoneNormalized: "+447700900123", salonId: otherSalonId },
+    ]);
     const [account, foreignAccount] = await db.insert(communicationProviderAccounts).values([
       { enabled: true, phoneNumberId: `phone-${salonId}`, salonId, status: "ready", wabaId: `waba-${salonId}` },
       { enabled: true, phoneNumberId: `phone-${otherSalonId}`, salonId: otherSalonId, status: "ready", wabaId: `waba-${otherSalonId}` },
@@ -77,7 +83,7 @@ postgresSuite("WhatsApp conversation workspace with PostgreSQL", () => {
       salonId,
       status: "delivered",
     }).returning();
-    return { conversationId: conversation!.id, employeeToken, foreignConversationId: foreignConversation!.id, messageId: message!.id, otherSalonId, ownerId, ownerToken, salonId };
+    return { conversationId: conversation!.id, customerId, employeeToken, foreignConversationId: foreignConversation!.id, foreignCustomerId, messageId: message!.id, noPhoneCustomerId, otherSalonId, ownerId, ownerToken, salonId };
   }
 
   async function cleanup(salonId: string, otherSalonId: string) {
@@ -172,6 +178,65 @@ postgresSuite("WhatsApp conversation workspace with PostgreSQL", () => {
 
       const restored = await server.inject({ headers: { cookie: `esse-session=${data.ownerToken}` }, method: "GET", url: `/api/salons/${data.salonId}/communications/workspace-state` });
       expect(restored.json()).toMatchObject({ draft: "Bozza stabile", last_read_message_id: data.messageId, selected_conversation_id: data.conversationId });
+    } finally {
+      await server.close();
+      await cleanup(data.salonId, data.otherSalonId);
+    }
+  });
+
+  it("lists tenant contacts and creates or reuses their normalized conversation", async () => {
+    const data = await fixture();
+    const { server } = app();
+    try {
+      const contacts = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "GET",
+        url: `/api/salons/${data.salonId}/communications/contacts?q=Maria`,
+      });
+      expect(contacts.statusCode, contacts.body).toBe(200);
+      expect(contacts.json()).toEqual({ items: [{ customer_id: data.customerId, full_name: "Maria Rossi", phone: "+393331234567" }] });
+
+      const first = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { customer_id: data.customerId },
+        url: `/api/salons/${data.salonId}/communications/conversations`,
+      });
+      const second = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { customer_id: data.customerId },
+        url: `/api/salons/${data.salonId}/communications/conversations`,
+      });
+      expect(first.statusCode, first.body).toBe(200);
+      expect(second.statusCode, second.body).toBe(200);
+      expect(first.json()).toMatchObject({ customer_id: data.customerId, id: data.conversationId, participant_phone: "393331234567" });
+      expect(second.json()).toEqual(first.json());
+    } finally {
+      await server.close();
+      await cleanup(data.salonId, data.otherSalonId);
+    }
+  });
+
+  it("rejects contacts without a valid phone and customers from another salon", async () => {
+    const data = await fixture();
+    const { server } = app();
+    try {
+      const missingPhone = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { customer_id: data.noPhoneCustomerId },
+        url: `/api/salons/${data.salonId}/communications/conversations`,
+      });
+      const foreign = await server.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { customer_id: data.foreignCustomerId },
+        url: `/api/salons/${data.salonId}/communications/conversations`,
+      });
+      expect(missingPhone.statusCode).toBe(422);
+      expect(missingPhone.json()).toEqual({ error: "CUSTOMER_PHONE_REQUIRED" });
+      expect(foreign.statusCode).toBe(404);
     } finally {
       await server.close();
       await cleanup(data.salonId, data.otherSalonId);

@@ -1,7 +1,8 @@
 "use client";
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { CheckCheck, ExternalLink, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, CheckCheck, ContactRound, ExternalLink, LoaderCircle, MessageCircle, RefreshCw, Search, Send, X } from "lucide-react";
 
 import { useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
 
@@ -20,6 +21,8 @@ export function WhatsAppChatDrawer() {
   const [templateName, setTemplateName] = useState("");
   const [templateLocale, setTemplateLocale] = useState("it");
   const [mobileListOpen, setMobileListOpen] = useState(false);
+  const [addressBookOpen, setAddressBookOpen] = useState(false);
+  const [contactQuery, setContactQuery] = useState("");
 
   useEffect(() => {
     if (!workspace.open) return;
@@ -45,6 +48,12 @@ export function WhatsAppChatDrawer() {
       previous?.focus();
     };
   }, [workspace.close, workspace.open]);
+
+  useEffect(() => {
+    if (!workspace.open || !addressBookOpen) return;
+    const timer = setTimeout(() => void workspace.loadContacts(contactQuery), 200);
+    return () => clearTimeout(timer);
+  }, [addressBookOpen, contactQuery, workspace.loadContacts, workspace.open]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -77,9 +86,20 @@ export function WhatsAppChatDrawer() {
               <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Cloud API</p><h2 className="text-xl font-black text-[#2d1d27]">WhatsApp</h2></div>
               <button aria-label="Chiudi chat WhatsApp" className="grid size-10 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 sm:hidden" onClick={workspace.close} type="button"><X className="size-5" /></button>
             </div>
-            <label className="mt-4 flex h-11 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-stone-500"><Search className="size-4" /><span className="sr-only">Cerca conversazione</span><input className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none" onChange={(event) => workspace.setSearch(event.target.value)} placeholder="Cerca cliente o numero" value={workspace.search} /></label>
+            <div className="mt-4 flex items-center gap-2">
+              <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 text-stone-500 shadow-sm transition focus-within:border-[#792f59] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#792f59]/10"><Search className="size-4 shrink-0" /><span className="sr-only">Cerca conversazione</span><input className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none" onChange={(event) => workspace.setSearch(event.target.value)} placeholder="Cerca chat…" value={workspace.search} /></label>
+              <button aria-label="Apri rubrica clienti" className={`grid size-11 shrink-0 place-items-center rounded-2xl border shadow-sm transition ${addressBookOpen ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white text-[#792f59] hover:bg-[#fbf3f7]"}`} onClick={() => { setAddressBookOpen((value) => !value); workspace.setSearch(""); }} title="Rubrica clienti" type="button"><ContactRound className="size-5" /></button>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {addressBookOpen && <div>
+              <div className="mb-2 flex items-center gap-2 px-2 py-1"><button aria-label="Torna alle conversazioni" className="grid size-8 place-items-center rounded-lg text-stone-500 hover:bg-stone-100" onClick={() => setAddressBookOpen(false)} type="button"><ArrowLeft className="size-4" /></button><div><b className="block text-sm text-stone-900">Rubrica clienti</b><span className="text-[11px] text-stone-500">Scegli chi contattare</span></div></div>
+              <label className="mb-3 flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-stone-500"><Search className="size-4" /><span className="sr-only">Cerca nella rubrica clienti</span><input className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none" onChange={(event) => setContactQuery(event.target.value)} placeholder="Nome o telefono" value={contactQuery} /></label>
+              {workspace.contactsLoading && <p className="flex items-center gap-2 p-4 text-sm text-stone-500"><LoaderCircle className="size-4 animate-spin" /> Caricamento rubrica…</p>}
+              {!workspace.contactsLoading && workspace.contacts.length === 0 && <p className="p-5 text-center text-xs leading-5 text-stone-500">Nessun cliente con un numero WhatsApp valido.</p>}
+              {workspace.contacts.map((contact) => <button className="mb-1 flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-[#f5e4ed]" key={contact.customer_id} onClick={async () => { if (await workspace.openConversationForCustomer(contact.customer_id)) { setAddressBookOpen(false); setMobileListOpen(false); } }} type="button"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#792f59] text-xs font-black text-white">{contact.full_name.slice(0, 2).toUpperCase()}</span><span className="min-w-0"><b className="block truncate text-sm text-stone-900">{contact.full_name}</b><span className="text-xs text-stone-500">{contact.phone}</span></span></button>)}
+            </div>}
+            {!addressBookOpen && <>
             {workspace.loading && <p className="flex items-center gap-2 p-4 text-sm text-stone-500"><LoaderCircle className="size-4 animate-spin" /> Caricamento…</p>}
             {!workspace.loading && workspace.conversations.length === 0 && <div className="p-6 text-center"><MessageCircle className="mx-auto size-8 text-stone-300" /><p className="mt-3 text-sm font-bold text-stone-700">Nessuna conversazione</p><p className="mt-1 text-xs leading-5 text-stone-500">I messaggi ricevuti tramite Cloud API appariranno qui.</p></div>}
             {workspace.conversations.map((conversation) => (
@@ -88,13 +108,14 @@ export function WhatsAppChatDrawer() {
                 <span className="min-w-0 flex-1"><span className="flex items-center gap-2"><b className="truncate text-sm text-stone-900">{displayName(conversation.customer_name, conversation.participant_phone)}</b>{conversation.unread_count > 0 && <span className="ml-auto grid min-w-5 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] font-black text-white">{conversation.unread_count}</span>}</span><span className="mt-1 block truncate text-xs text-stone-500">{conversation.last_message_preview ?? "Conversazione avviata"}</span></span>
               </button>
             ))}
+            </>}
           </div>
         </section>
 
         <section className={`${selected && !mobileListOpen ? "flex" : "hidden sm:flex"} min-w-0 flex-1 flex-col`}>
           <header className="flex min-h-16 items-center gap-3 border-b border-stone-200 bg-white px-4">
             <button aria-label="Torna alle conversazioni" className="grid size-9 place-items-center rounded-lg border border-stone-200 sm:hidden" onClick={() => setMobileListOpen(true)} type="button">←</button>
-            {selected ? <><span className="grid size-10 place-items-center rounded-full bg-[#2f6f4e] text-xs font-black text-white">{displayName(selected.customer_name, selected.participant_phone).slice(0, 2).toUpperCase()}</span><div className="min-w-0"><b className="block truncate text-sm text-stone-950">{displayName(selected.customer_name, selected.participant_phone)}</b><span className="text-xs text-stone-500">+{selected.participant_phone}</span></div><a aria-label="Apri WhatsApp Web esterno" className="ml-auto grid size-10 place-items-center rounded-xl border border-stone-200 text-[#2f6f4e]" href={`https://wa.me/${selected.participant_phone}`} rel="noreferrer" target="_blank" title="WhatsApp Web esterno, non sincronizzato con EsseBeauty"><ExternalLink className="size-4" /></a></> : <b className="text-sm text-stone-700">Seleziona una conversazione</b>}
+            {selected ? <><span className="grid size-10 place-items-center rounded-full bg-[#2f6f4e] text-xs font-black text-white">{displayName(selected.customer_name, selected.participant_phone).slice(0, 2).toUpperCase()}</span><div className="min-w-0">{selected.customer_id ? <Link className="block truncate text-sm font-black text-stone-950 underline-offset-4 hover:text-[#792f59] hover:underline" href={`/clients/${selected.customer_id}`} onClick={workspace.close}>{displayName(selected.customer_name, selected.participant_phone)}</Link> : <b className="block truncate text-sm text-stone-950">{displayName(selected.customer_name, selected.participant_phone)}</b>}<span className="text-xs text-stone-500">+{selected.participant_phone}</span></div><a aria-label="Apri WhatsApp Web esterno" className="ml-auto grid size-10 place-items-center rounded-xl border border-stone-200 text-[#2f6f4e]" href={`https://wa.me/${selected.participant_phone}`} rel="noreferrer" target="_blank" title="WhatsApp Web esterno, non sincronizzato con EsseBeauty"><ExternalLink className="size-4" /></a></> : <b className="text-sm text-stone-700">Seleziona una conversazione</b>}
             <button aria-label="Chiudi chat WhatsApp" className="grid size-10 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50" onClick={workspace.close} type="button"><X className="size-5" /></button>
           </header>
 

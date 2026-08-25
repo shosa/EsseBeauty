@@ -7,6 +7,7 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { useAuth } from "../../../lib/auth-context";
 
 export interface CommunicationConversation {
+  customer_id: string | null;
   customer_name: string | null;
   id: string;
   last_inbound_at: string | null;
@@ -15,6 +16,12 @@ export interface CommunicationConversation {
   participant_phone: string;
   status: string;
   unread_count: number;
+}
+
+export interface CommunicationContact {
+  customer_id: string;
+  full_name: string;
+  phone: string;
 }
 
 export interface CommunicationMessage {
@@ -39,7 +46,7 @@ interface ServerWorkspaceState {
 }
 
 interface ThreadResponse {
-  conversation: { id: string; last_inbound_at: string | null; participant_phone: string; service_window_open: boolean };
+  conversation: { customer_id: string | null; id: string; last_inbound_at: string | null; participant_phone: string; service_window_open: boolean };
   items: CommunicationMessage[];
 }
 
@@ -47,12 +54,16 @@ interface CommunicationWorkspaceValue extends WorkspaceState {
   canReply: boolean;
   canView: boolean;
   close(): void;
+  contacts: CommunicationContact[];
+  contactsLoading: boolean;
   conversations: CommunicationConversation[];
   error: string;
   loading: boolean;
   messages: CommunicationMessage[];
   open: boolean;
   openChat(): void;
+  openConversationForCustomer(customerId: string): Promise<boolean>;
+  loadContacts(query: string): Promise<void>;
   refresh(): Promise<void>;
   search: string;
   selectConversation(id: string): void;
@@ -81,6 +92,8 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
   const canReply = hasPermission(PERMISSION_KEYS.COMMUNICATIONS_REPLY);
   const [workspace, setWorkspace] = useState(initialWorkspaceState);
   const [conversations, setConversations] = useState<CommunicationConversation[]>([]);
+  const [contacts, setContacts] = useState<CommunicationContact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
   const [messages, setMessages] = useState<CommunicationMessage[]>([]);
   const [serviceWindowOpen, setServiceWindowOpen] = useState(false);
   const [open, setOpen] = useState(false);
@@ -116,6 +129,23 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
       method: "PATCH",
     });
   }, [basePath]);
+
+  const loadContacts = useCallback(async (query: string) => {
+    if (!canView) return;
+    setContactsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set("q", query.trim());
+      const response = await fetch(`${basePath}/contacts?${params}`, { credentials: "include" });
+      if (!response.ok) throw new Error("Rubrica clienti non disponibile.");
+      const data = await response.json() as { items?: CommunicationContact[] };
+      setContacts(data.items ?? []);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Rubrica clienti non disponibile.");
+    } finally {
+      setContactsLoading(false);
+    }
+  }, [basePath, canView]);
 
   useEffect(() => {
     if (!canView) return;
@@ -189,6 +219,32 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     }).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Stato chat non salvato."));
   }, [basePath, conversations, refresh]);
 
+  const openConversationForCustomer = useCallback(async (customerId: string) => {
+    if (!canReply) return false;
+    setError("");
+    const response = await fetch(`${basePath}/conversations`, {
+      body: JSON.stringify({ customer_id: customerId }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      setError(data.error === "CUSTOMER_PHONE_REQUIRED" ? "Il cliente non ha un numero WhatsApp valido." : "Conversazione WhatsApp non disponibile.");
+      return false;
+    }
+    const conversation = await response.json() as { id: string };
+    setWorkspace((current) => ({ ...current, selectedConversationId: conversation.id }));
+    await fetch(`${basePath}/workspace-state`, {
+      body: JSON.stringify({ conversation_id: conversation.id, selected: true }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    }).catch(() => undefined);
+    await Promise.all([refresh(), loadThread(conversation.id)]);
+    return true;
+  }, [basePath, canReply, loadThread, refresh]);
+
   const setDraft = useCallback((draft: string) => {
     setWorkspace((current) => ({ ...current, draft }));
     if (!workspace.selectedConversationId) return;
@@ -228,12 +284,16 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     canReply,
     canView,
     close,
+    contacts,
+    contactsLoading,
     conversations,
     error,
     loading,
     messages,
     open,
     openChat,
+    openConversationForCustomer,
+    loadContacts,
     refresh,
     search,
     selectConversation,
@@ -243,7 +303,7 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     setDraft,
     setSearch,
     unreadCount: conversations.reduce((total, conversation) => total + conversation.unread_count, 0),
-  }), [workspace, canReply, canView, close, conversations, error, loading, messages, open, openChat, refresh, search, selectConversation, selectedConversation, sendMessage, serviceWindowOpen, setDraft]);
+  }), [workspace, canReply, canView, close, contacts, contactsLoading, conversations, error, loadContacts, loading, messages, open, openChat, openConversationForCustomer, refresh, search, selectConversation, selectedConversation, sendMessage, serviceWindowOpen, setDraft]);
 
   return <CommunicationWorkspaceContext.Provider value={value}>{children}</CommunicationWorkspaceContext.Provider>;
 }
