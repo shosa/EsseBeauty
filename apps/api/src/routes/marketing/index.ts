@@ -308,6 +308,16 @@ function hasMatchingTemplateParameters(
     parameters.length === template.variables.length;
 }
 
+function hasCurrentWhatsAppTemplateSnapshot(
+  campaign: typeof marketingCampaigns.$inferSelect,
+  template: typeof campaignTemplates.$inferSelect,
+): boolean {
+  return campaign.whatsappTemplateApprovalStatus === "approved" &&
+    campaign.whatsappTemplateName === template.whatsappTemplateName &&
+    campaign.whatsappTemplateLocale === template.whatsappTemplateLocale &&
+    hasMatchingTemplateParameters(template, campaign.whatsappTemplateParameters);
+}
+
 function validTemplateBody(value: unknown): value is {
   channel: CampaignChannel;
   content: string;
@@ -733,8 +743,8 @@ export async function registerMarketingRoutes(
     }
     if (campaign.channel === "whatsapp") {
       const template = await approvedWhatsAppTemplate(app.db, request.salonId, campaign.templateId!);
-      if (!template || !hasMatchingTemplateParameters(template, campaign.whatsappTemplateParameters)) {
-        return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED" });
+      if (!template || !hasCurrentWhatsAppTemplateSnapshot(campaign, template)) {
+        return reply.code(409).send({ error: "WHATSAPP_TEMPLATE_SNAPSHOT_STALE" });
       }
     }
     const whatsappReady = campaign.channel === "whatsapp" && (await app.db.select({ id: communicationProviderAccounts.id }).from(communicationProviderAccounts).where(and(

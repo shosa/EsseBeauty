@@ -114,3 +114,10 @@ Active product delivery now uses tenant-scoped WhatsApp template messages throug
 ### Concerns
 
 - The known local Redis `NOAUTH` stderr remains non-blocking during a best-effort outbox wake in the marketing lifecycle test; no provider delivery assertion is affected.
+
+## Fix round 3/5
+
+- Scheduling and the marketing worker now require the campaign's stored approved WhatsApp template name and locale snapshot to exactly match the currently active approved tenant template. A mismatch fails truthfully with `WHATSAPP_TEMPLATE_SNAPSHOT_STALE`, requiring re-selection/recreation of the draft before delivery.
+- RED: `corepack pnpm --filter @esse-beauty/api exec vitest run src/routes/marketing/campaign-lifecycle.test.ts -t "blocks an old WhatsApp draft"` returned `503` (provider readiness) for an edited-and-reapproved template instead of rejecting stale draft state.
+- GREEN: the same command — 1 file, 1 test passed; it covers schedule rejection and worker enqueue suppression after edit → reapproval.
+- `corepack pnpm --filter @esse-beauty/api typecheck` — passed.

@@ -105,6 +105,11 @@ export async function processCampaignBatch(
             .where(eq(campaignRecipients.id, recipient.id));
           continue;
         }
+        if (campaign.whatsappTemplateName !== template.whatsappTemplateName || campaign.whatsappTemplateLocale !== template.whatsappTemplateLocale) {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_SNAPSHOT_STALE", status: "failed", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
         if (campaign.whatsappTemplateParameters.length !== template.variables.length) {
           await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH", status: "failed", updatedAt: new Date() })
             .where(eq(campaignRecipients.id, recipient.id));

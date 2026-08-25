@@ -542,6 +542,27 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
     } finally { await data.cleanup(); }
   });
 
+  it("blocks an old WhatsApp draft after its selected template is edited and reapproved", async () => {
+    const data = await fixture();
+    await db.update(customers).set({ phone: "+393331112233", phoneNormalized: "+393331112233" }).where(eq(customers.id, data.customers[0]!.id));
+    await db.insert(communicationConsents).values({ capturedAt: new Date(), capturedSource: "test", channel: "whatsapp", customerId: data.customers[0]!.id, purpose: "marketing", salonId: data.salonId, status: "granted" });
+    const template = (await db.insert(campaignTemplates).values({ active: true, channel: "whatsapp", content: "Promo", name: "Promo", salonId: data.salonId, variables: ["customer_name"], whatsappApprovalSource: "meta_sync", whatsappApprovalStatus: "approved", whatsappApprovedAt: new Date(), whatsappTemplateLocale: "it", whatsappTemplateName: "promo_v1" }).returning())[0]!;
+    const campaign = (await db.insert(marketingCampaigns).values({ channel: "whatsapp", content: "Promo", name: "Draft", salonId: data.salonId, status: "draft", targetSegment: { type: "all" }, templateId: template.id, whatsappTemplateApprovalStatus: "approved", whatsappTemplateLocale: "it", whatsappTemplateName: "promo_v1", whatsappTemplateParameters: ["Cliente Uno"] }).returning())[0]!;
+    await db.update(campaignTemplates).set({ whatsappApprovalSource: "meta_sync", whatsappApprovalStatus: "approved", whatsappApprovedAt: new Date(), whatsappTemplateName: "promo_v2" }).where(eq(campaignTemplates.id, template.id));
+    const app = createApp({ campaignQueue: testDependencies().campaignQueue, db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+    try {
+      const scheduled = await app.inject({ headers: { cookie: `esse-session=${data.ownerToken}` }, method: "POST", url: `/api/salons/${data.salonId}/campaigns/${campaign.id}/schedule` });
+      expect(scheduled.statusCode).toBe(409);
+      expect(scheduled.json()).toEqual({ error: "WHATSAPP_TEMPLATE_SNAPSHOT_STALE" });
+      const recipient = (await db.insert(campaignRecipients).values({ campaignId: campaign.id, customerId: data.customers[0]!.id, destination: "+393331112233", salonId: data.salonId, status: "queued" }).returning())[0]!;
+      await db.update(marketingCampaigns).set({ status: "queued" }).where(eq(marketingCampaigns.id, campaign.id));
+      const enqueue = vi.fn();
+      await processCampaignBatch(db, { data: { campaignId: campaign.id, recipientIds: [recipient.id] } }, undefined, enqueue);
+      expect(enqueue).not.toHaveBeenCalled();
+      expect((await db.select({ error: campaignRecipients.error, status: campaignRecipients.status }).from(campaignRecipients).where(eq(campaignRecipients.id, recipient.id)))[0]).toEqual({ error: "WHATSAPP_TEMPLATE_SNAPSHOT_STALE", status: "failed" });
+    } finally { await app.close(); await data.cleanup(); }
+  });
+
   it("queues an immediate campaign durably and can cancel only before processing", async () => {
     const data = await fixture();
     const dependencies = testDependencies();
