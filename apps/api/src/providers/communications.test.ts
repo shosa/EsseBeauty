@@ -6,20 +6,15 @@ import {
   providerStatus,
 } from "./communications.js";
 import { ResendProvider } from "./resend-provider.js";
-import { TwilioProvider } from "./twilio-provider.js";
 
 describe("communication provider readiness", () => {
-  it("reports both channels as not configured when provider credentials are absent", () => {
-    expect(providerStatus({})).toEqual({
-      email: "not_configured",
-      sms: "not_configured",
-    });
+  it("reports email as not configured when provider credentials are absent", () => {
+    expect(providerStatus({})).toEqual({ email: "not_configured" });
   });
 
   it("does not expose a partially configured provider as ready", () => {
     expect(providerStatus({ RESEND_API_KEY: "re_test" })).toEqual({
       email: "not_configured",
-      sms: "not_configured",
     });
   });
 
@@ -27,14 +22,13 @@ describe("communication provider readiness", () => {
     const registry = createCommunicationProviderRegistry({});
 
     expect(() => registry.require("email")).toThrow(ProviderNotConfiguredError);
-    await expect(
-      registry.send({
-        channel: "sms",
-        idempotencyKey: "test-sms-1",
-        text: "Promemoria",
-        to: "+393331234567",
-      }),
-    ).rejects.toMatchObject({ code: "PROVIDER_NOT_CONFIGURED" });
+    await expect(registry.send({
+      channel: "email",
+      html: "<p>Promemoria</p>",
+      idempotencyKey: "test-email-1",
+      subject: "Promemoria",
+      to: "cliente@example.test",
+    })).rejects.toMatchObject({ code: "PROVIDER_NOT_CONFIGURED" });
   });
 });
 
@@ -78,37 +72,4 @@ describe("provider adapters", () => {
     });
   });
 
-  it("returns the Twilio message id and preserves SMS content within the adapter boundary", async () => {
-    const calls: unknown[] = [];
-    const provider = new TwilioProvider(
-      {
-        messages: {
-          async create(payload) {
-            calls.push(payload);
-            return { sid: "SM123" };
-          },
-        },
-      },
-      "+390212345678",
-    );
-
-    const receipt = await provider.send({
-      channel: "sms",
-      idempotencyKey: "campaign-recipient-2",
-      text: "Promo di settembre",
-      to: "+393331234567",
-    });
-
-    expect(calls).toEqual([
-      {
-        body: "Promo di settembre",
-        from: "+390212345678",
-        to: "+393331234567",
-      },
-    ]);
-    expect(receipt).toMatchObject({
-      provider: "twilio",
-      providerMessageId: "SM123",
-    });
-  });
 });

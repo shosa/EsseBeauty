@@ -42,7 +42,7 @@ postgresSuite("password recovery with PostgreSQL", () => {
     const providers: CommunicationProviderRegistry = {
       require: () => ({ send }),
       send,
-      status: () => ({ email: "ready", sms: "not_configured" }),
+      status: () => ({ email: "ready" }),
     };
     const app = createApp({ authProviders: providers, db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
     try {
@@ -75,7 +75,7 @@ postgresSuite("password recovery with PostgreSQL", () => {
         return { acceptedAt: new Date(), provider: "resend", providerMessageId: "mail-2" };
       } }),
       async send(message) { return this.require(message.channel).send(message); },
-      status: () => ({ email: "ready", sms: "not_configured" }),
+      status: () => ({ email: "ready" }),
     };
     await db.insert(authSessions).values({ expiresAt: new Date(Date.now() + 60_000), tokenHash: hashSessionToken(randomUUID()), userId: data.userId });
     const app = createApp({ authProviders: providers, db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });

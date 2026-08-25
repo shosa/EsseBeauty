@@ -143,7 +143,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
         messages.push(message);
         return {
           acceptedAt: new Date("2026-08-24T10:00:00.000Z"),
-          provider: message.channel === "email" ? "resend" : "twilio",
+          provider: "resend",
           providerMessageId: `provider-${messages.length}`,
         };
       },
@@ -151,7 +151,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
     const providers = {
       require: vi.fn(() => provider),
       send: provider.send,
-      status: () => ({ email: "ready", sms: "ready" }),
+      status: () => ({ email: "ready" }),
     } as CommunicationProviderRegistry;
     const jobs: Array<{ data: { campaignId: string; recipientIds: string[] } }> = [];
     const campaignQueue = {
@@ -729,7 +729,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
         async send() {
           throw new ProviderNotConfiguredError("email");
         },
-        status: () => ({ email: "not_configured", sms: "not_configured" }),
+        status: () => ({ email: "not_configured" }),
       } as CommunicationProviderRegistry;
 
       await processCampaignBatch(

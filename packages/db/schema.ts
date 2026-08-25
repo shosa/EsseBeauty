@@ -51,6 +51,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "voucher",
   "other",
 ]);
+// Historical SMS compatibility: retained so applied rows remain readable; runtime writes use WhatsApp.
 export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
   "pending",
@@ -60,6 +61,7 @@ export const reminderStatusEnum = pgEnum("reminder_status", [
 ]);
 export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
   "email",
+  // Historical SMS compatibility; no active delivery path writes this value.
   "sms",
   "whatsapp",
 ]);
@@ -78,6 +80,7 @@ export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "booked",
   "expired",
 ]);
+// Historical SMS compatibility: old campaigns remain queryable and are never sendable.
 export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms", "whatsapp"]);
 export const campaignStatusEnum = pgEnum("campaign_status", [
   "draft",
@@ -104,7 +107,9 @@ export const notificationPriorityEnum = pgEnum("notification_priority", [
 export const notificationChannelEnum = pgEnum("notification_channel", [
   "in_app",
   "email",
+  // Historical SMS compatibility; active notification contracts expose WhatsApp instead.
   "sms",
+  "whatsapp",
   "push",
 ]);
 export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
@@ -115,6 +120,7 @@ export const consentSignatureStatusEnum = pgEnum("consent_signature_status", [
 ]);
 export const consentDeliveryChannelEnum = pgEnum("consent_delivery_channel", [
   "email",
+  // Historical SMS compatibility for consent evidence.
   "sms",
   "whatsapp",
   "in_person",
@@ -138,6 +144,7 @@ export const communicationSecretKindEnum = pgEnum("communication_secret_kind", [
   "access_token",
   "webhook_verify_token",
 ]);
+// Historical SMS compatibility: tenant WhatsApp outbox is the only active non-email channel.
 export const communicationChannelEnum = pgEnum("communication_channel", ["email", "sms", "whatsapp"]);
 export const communicationConsentPurposeEnum = pgEnum("communication_consent_purpose", ["marketing", "transactional"]);
 export const communicationConsentStatusEnum = pgEnum("communication_consent_status", ["granted", "revoked"]);
