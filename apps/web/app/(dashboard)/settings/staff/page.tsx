@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Settings2, UserRoundX } from "lucide-react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
 import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge, Switch } from "@esse-beauty/ui";
@@ -86,9 +87,9 @@ export default function SettingsStaffPage() {
                 <Switch checked={member.active} onCheckedChange={() => void toggle(member)} />
               </div>
               <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per accesso e orari."}</p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Link href={`/staff/${member.id}`} className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-stone-700 hover:border-[#792f59] hover:text-[#792f59]">Configura</Link>
-                <Button onClick={() => setConfirmDelete(member)} variant="destructive">Disattiva</Button>
+              <div className="mt-5 flex justify-end gap-2 border-t border-stone-100 pt-4">
+                <Link aria-label={`Configura ${member.displayName}`} href={`/staff/${member.id}`} className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-[#792f59] hover:bg-[#fff8fb] hover:text-[#792f59]" title="Configura"><Settings2 className="size-5" /></Link>
+                <Button aria-label={`Disattiva ${member.displayName}`} className="size-11 p-0" onClick={() => setConfirmDelete(member)} title="Disattiva" variant="destructive"><UserRoundX className="size-5" /></Button>
               </div>
             </SectionCard>
           ))}

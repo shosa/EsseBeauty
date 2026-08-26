@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 
 import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
@@ -170,7 +171,7 @@ export default function PermissionsPage() {
       <SectionCard className="xl:col-span-7" title={`Permessi attivi (${activeBlocks.length})`} subtitle="Blocchi correnti e futuri già presenti in agenda per tutto il team.">
         {activeBlocks.length === 0 ? <EmptyState title="Nessun permesso attivo" description="Le assenze approvate o inserite manualmente compariranno qui." /> : <div className="grid gap-3 md:grid-cols-2">
           {activeBlocks.map((item) => <article className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4" key={item.id}>
-            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.staff_name}</p><strong className="mt-1 block">{item.reason || "Non disponibile"}</strong></div><Button onClick={() => void removeBlock(item)} size="sm" variant="destructive">Elimina</Button></div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.staff_name}</p><strong className="mt-1 block">{item.reason || "Non disponibile"}</strong></div><Button aria-label={`Elimina permesso di ${item.staff_name}`} className="size-10 p-0" onClick={() => void removeBlock(item)} size="sm" title="Elimina permesso" variant="destructive"><Trash2 className="size-4" /></Button></div>
             <p className="mt-3 text-sm leading-6 text-stone-500">{dateTime(item.starts_at)}<br />fino a {dateTime(item.ends_at)}</p>
           </article>)}
         </div>}

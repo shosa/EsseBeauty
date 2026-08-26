@@ -6,7 +6,7 @@ import type {
 } from "react";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 
 export const designTokens = {
   layout: {
@@ -974,11 +974,13 @@ export function ScheduleEditor({
                     />
                     <Button
                       aria-label={`Rimuovi fascia ${index + 1} di ${day.label}`}
+                      className="size-10 p-0 text-red-700 hover:bg-red-50 hover:text-red-800"
                       onClick={() => removeInterval(day.key, index)}
                       size="sm"
+                      title="Rimuovi fascia"
                       variant="ghost"
                     >
-                      Rimuovi
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 ))}

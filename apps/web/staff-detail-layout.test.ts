@@ -10,6 +10,7 @@ const staffDetail = readFileSync(
 const staffDirectory = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "settings", "staff", "page.tsx"), "utf8");
 const staffPermissions = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "settings", "permissions", "page.tsx"), "utf8");
 const newStaff = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "settings", "staff", "new", "page.tsx"), "utf8");
+const sharedUi = readFileSync(join(import.meta.dirname, "..", "..", "packages", "ui", "index.tsx"), "utf8");
 
 describe("staff detail operational layout", () => {
   it("uses the campaign-style twelve-column workspace with paired operational panels", () => {
@@ -37,5 +38,13 @@ describe("staff detail operational layout", () => {
     expect(staffPermissions).toContain("Trash2");
     expect(newStaff).toContain('aria-label="Annulla creazione collaboratore"');
     expect(newStaff).toContain("X");
+  });
+
+  it("uses a Lucide icon to remove working-hour intervals", () => {
+    const scheduleEditor = sharedUi.slice(sharedUi.indexOf("export function ScheduleEditor"), sharedUi.indexOf("export function Breadcrumbs"));
+
+    expect(scheduleEditor).toContain("<Trash2");
+    expect(scheduleEditor).toContain("aria-label={`Rimuovi fascia");
+    expect(scheduleEditor).not.toContain(">\n                      Rimuovi\n");
   });
 });

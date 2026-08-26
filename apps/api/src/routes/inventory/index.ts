@@ -1,9 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, lt } from "drizzle-orm";
 
 import {
   appointments,
   customers,
+  inventoryDocumentLines,
+  inventoryDocuments,
   inventoryMovements,
   inventoryProducts,
   sales,
@@ -12,6 +15,14 @@ import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { registerInventoryCatalogRoutes } from "./catalog.js";
+import { registerInventoryDocumentRoutes } from "./documents.js";
+import {
+  createDrizzleWarehouseRepository,
+  WarehouseConflictError,
+  WarehouseValidationError,
+  postWarehouseDocument,
+} from "./warehouse-service.js";
 
 const guard = [
   authenticate,
@@ -20,6 +31,8 @@ const guard = [
 ];
 
 export async function registerInventoryRoutes(app: FastifyInstance) {
+  await registerInventoryCatalogRoutes(app);
+  await registerInventoryDocumentRoutes(app);
   app.get<{
     Params: { id: string };
     Querystring: { low_stock?: string };
@@ -72,6 +85,9 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
         unitPriceCents: request.body.unit_price_cents,
         supplier: request.body.supplier,
         active: request.body.active,
+        itemType: "resale",
+        trackStock: true,
+        sellable: true,
       })
       .returning();
     return reply.code(201).send(rows[0]);
@@ -144,7 +160,7 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
 
   app.post<{
     Params: { id: string; productId: string };
-    Body: { delta: number; reason: string };
+    Body: { delta: number; reason: string; unit_cost_cents?: number };
   }>(
     "/api/salons/:id/inventory/:productId/movements",
     { preHandler: guard },
@@ -153,30 +169,61 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "INVALID_MOVEMENT" });
       }
       const products = await app.db
-        .update(inventoryProducts)
-        .set({
-          stockQuantity: sql`${inventoryProducts.stockQuantity} + ${request.body.delta}`,
-        })
+        .select()
+        .from(inventoryProducts)
         .where(
           and(
             eq(inventoryProducts.id, request.params.productId),
             eq(inventoryProducts.salonId, request.salonId),
           ),
-        )
-        .returning();
+        );
       if (!products[0]) {
         return reply.code(404).send({ error: "PRODUCT_NOT_FOUND" });
       }
-      const rows = await app.db
-        .insert(inventoryMovements)
-        .values({
+      const product = products[0];
+      const unitCostCents = request.body.unit_cost_cents ?? product.lastCostCents ?? product.averageCostCents;
+      if (request.body.delta > 0 && unitCostCents <= 0) {
+        return reply.code(422).send({
+          error: "INVALID_DOCUMENT_LINES",
+          line_errors: [{ line: 1, field: "unit_cost_cents", message: "A positive adjustment requires a unit cost" }],
+        });
+      }
+      const document = await app.db.transaction(async (tx) => {
+        const documents = await tx.insert(inventoryDocuments).values({
+          createdByUserId: request.user.id,
+          documentDate: new Date(),
+          internalNumber: `ADJ-${randomUUID()}`,
+          kind: "adjustment",
+          notes: request.body.reason,
           salonId: request.salonId,
-          productId: request.params.productId,
-          delta: request.body.delta,
-          reason: request.body.reason,
-        })
-        .returning();
-      return reply.code(201).send(rows[0]);
+        }).returning();
+        const created = documents[0]!;
+        await tx.insert(inventoryDocumentLines).values({
+          description: request.body.reason,
+          documentId: created.id,
+          itemType: product.itemType,
+          lineNumber: 1,
+          productId: product.id,
+          quantity: Math.abs(request.body.delta),
+          salonId: request.salonId,
+          stockDelta: request.body.delta,
+          taxRateBasisPoints: 0,
+          unitCostCents,
+        });
+        return created;
+      });
+      try {
+        const result = await postWarehouseDocument(createDrizzleWarehouseRepository(app.db), {
+          actorUserId: request.user.id,
+          documentId: document.id,
+          salonId: request.salonId,
+        });
+        return reply.code(201).send(result);
+      } catch (error) {
+        if (error instanceof WarehouseConflictError) return reply.code(409).send({ error: error.code });
+        if (error instanceof WarehouseValidationError) return reply.code(error.code === "LINE_INVALID" ? 422 : error.statusCode).send({ error: error.code, ...(error.code === "LINE_INVALID" && { line_errors: [] }) });
+        throw error;
+      }
     },
   );
 

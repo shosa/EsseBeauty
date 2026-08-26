@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
 import type { WorkingHours } from "@esse-beauty/shared";
 
@@ -55,7 +56,7 @@ export default function NewStaffPage() {
         <FormField label="Nome visibile" required><input required name="display_name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <FormField label="Bio o note interne"><textarea name="bio" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
         <div className="flex justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={() => router.push("/staff/manage")}>Annulla</Button>
+          <Button aria-label="Annulla creazione collaboratore" className="size-11 p-0" type="button" title="Annulla" variant="ghost" onClick={() => router.push("/staff/manage")}><X className="size-5" /></Button>
           <Button type="submit">Crea</Button>
         </div>
       </form>
