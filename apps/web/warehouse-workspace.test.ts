@@ -15,4 +15,17 @@ describe("warehouse workspace", () => {
     }
     for (const action of ["Carico", "Scarico", "Inventario", "Importa"]) expect(workspace).toContain(action);
   });
+
+  it("keeps future operational actions visibly unavailable", () => {
+    const workspace = readFileSync(join(dashboard, "inventory", "warehouse-workspace.tsx"), "utf8");
+    expect(workspace).toContain('disabled title="Disponibile nei prossimi incrementi"');
+  });
+
+  it("matches the API strict low-stock rule and exposes complete tab semantics", () => {
+    const workspace = readFileSync(join(dashboard, "inventory", "warehouse-workspace.tsx"), "utf8");
+    expect(workspace).toContain("stockQuantity < item.lowStockThreshold");
+    expect(workspace).toContain("aria-controls={panelId}");
+    expect(workspace).toContain('role="tabpanel"');
+    expect(workspace).toContain("aria-live");
+  });
 });
