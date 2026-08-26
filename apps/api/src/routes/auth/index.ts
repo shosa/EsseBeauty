@@ -143,7 +143,7 @@ function setSessionCookie(
     maxAge: SESSION_DURATION_MS / 1000,
     path: "/",
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.COOKIE_SECURE !== "false",
   });
 }
 

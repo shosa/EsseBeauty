@@ -115,4 +115,30 @@ postgresSuite("password recovery with PostgreSQL", () => {
       await db.delete(salons).where(eq(salons.id, data.salonId));
     }
   });
+
+  it("allows the session cookie over HTTP when COOKIE_SECURE is false in production", async () => {
+    const data = await fixture();
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousCookieSecure = process.env.COOKIE_SECURE;
+    process.env.NODE_ENV = "production";
+    process.env.COOKIE_SECURE = "false";
+    const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+    try {
+      const response = await app.inject({
+        method: "POST",
+        payload: { email: data.email, password: "vecchia-password" },
+        url: "/api/auth/login",
+      });
+
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.headers["set-cookie"]).not.toMatch(/;\s*Secure(?:;|$)/i);
+    } finally {
+      await app.close();
+      await db.delete(salons).where(eq(salons.id, data.salonId));
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+      if (previousCookieSecure === undefined) delete process.env.COOKIE_SECURE;
+      else process.env.COOKIE_SECURE = previousCookieSecure;
+    }
+  });
 });

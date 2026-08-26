@@ -72,6 +72,7 @@ services:
       NODE_ENV: production
       PORT: 3001
       API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
