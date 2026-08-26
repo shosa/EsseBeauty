@@ -11,6 +11,7 @@ const routeRoot = resolve(import.meta.dirname);
 const catalogSource = readFileSync(resolve(routeRoot, "catalog.ts"), "utf8");
 const countsSource = readFileSync(resolve(routeRoot, "counts.ts"), "utf8");
 const documentsSource = readFileSync(resolve(routeRoot, "documents.ts"), "utf8");
+const reportingSource = readFileSync(resolve(routeRoot, "reporting.ts"), "utf8");
 const indexSource = readFileSync(resolve(routeRoot, "index.ts"), "utf8");
 
 describe("warehouse route contract", () => {
@@ -68,5 +69,20 @@ describe("warehouse route contract", () => {
     expect(preview).toMatchObject({ matched: 1, unmatched: 1 });
     expect(preview.rows[0]).toMatchObject({ product_id: "product-1", quantity: 2 });
     expect(preview.errors).toEqual([{ field: "barcode", line: 2, message: "Product not found" }]);
+  });
+
+  test("exposes reporting metrics, operational reports and scoped filters", () => {
+    for (const metric of ["stock_value_cents", "low_stock_count", "draft_documents", "purchase_total_cents", "expense_total_cents", "asset_value_cents"]) {
+      expect(reportingSource).toContain(metric);
+    }
+    for (const report of ["valuation", "consumption", "purchases", "waste", "suppliers"]) {
+      expect(reportingSource).toContain(report);
+    }
+    for (const filter of ["date_from", "date_to", "supplier_id", "category", "item_type"]) {
+      expect(reportingSource).toContain(filter);
+    }
+    for (const route of ["/summary", "/expenses", "/assets", "/reports"]) {
+      expect(`${reportingSource}${indexSource}`).toContain(route);
+    }
   });
 });
