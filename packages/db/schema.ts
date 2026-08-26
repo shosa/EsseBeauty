@@ -1863,6 +1863,7 @@ export const inventorySuppliers = pgTable(
   },
   (table) => [
     uniqueIndex("inventory_suppliers_salon_name_unique").on(table.salonId, table.name),
+    uniqueIndex("inventory_suppliers_id_salon_unique").on(table.id, table.salonId),
     index("inventory_suppliers_salon_active_idx").on(table.salonId, table.active),
   ],
 );
@@ -2106,6 +2107,11 @@ export const inventoryMovements = pgTable(
   (table) => [
     uniqueIndex("inventory_movements_id_salon_unique").on(table.id, table.salonId),
     index("inventory_movements_salon_product_date_idx").on(table.salonId, table.productId, table.createdAt),
+    foreignKey({
+      columns: [table.productId, table.salonId],
+      foreignColumns: [inventoryProducts.id, inventoryProducts.salonId],
+      name: "inventory_movements_product_salon_id_fk",
+    }),
     foreignKey({
       columns: [table.documentId, table.salonId],
       foreignColumns: [inventoryDocuments.id, inventoryDocuments.salonId],

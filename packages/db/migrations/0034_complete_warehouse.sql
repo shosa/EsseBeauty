@@ -318,25 +318,44 @@ ALTER TABLE inventory_movements ADD CONSTRAINT inventory_movements_reverses_move
 --> statement-breakpoint
 ALTER TABLE inventory_movements ADD CONSTRAINT inventory_movements_reversal_salon_id_fk FOREIGN KEY (reverses_movement_id, salon_id) REFERENCES inventory_movements(id, salon_id);
 --> statement-breakpoint
+ALTER TABLE inventory_movements ADD CONSTRAINT inventory_movements_product_salon_id_fk FOREIGN KEY (product_id, salon_id) REFERENCES inventory_products(id, salon_id);
+--> statement-breakpoint
 
 CREATE OR REPLACE FUNCTION warehouse_document_lines_draft_guard()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  parent_status text;
+  old_parent_status text;
+  new_parent_status text;
 BEGIN
   IF TG_OP = 'DELETE' THEN
-    SELECT status INTO parent_status
+    SELECT status INTO old_parent_status
     FROM inventory_documents
     WHERE id = OLD.document_id AND salon_id = OLD.salon_id;
-  ELSE
-    SELECT status INTO parent_status
+    IF old_parent_status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'Warehouse document lines can only change while the old parent document is draft';
+    END IF;
+  ELSIF TG_OP = 'INSERT' THEN
+    SELECT status INTO new_parent_status
     FROM inventory_documents
     WHERE id = NEW.document_id AND salon_id = NEW.salon_id;
-  END IF;
-  IF parent_status IS DISTINCT FROM 'draft' THEN
-    RAISE EXCEPTION 'Warehouse document lines can only change while the parent document is draft';
+    IF new_parent_status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'Warehouse document lines can only change while the new parent document is draft';
+    END IF;
+  ELSE
+    IF OLD.document_id <> NEW.document_id OR OLD.salon_id <> NEW.salon_id THEN
+      RAISE EXCEPTION 'Warehouse document lines cannot move between documents or salons';
+    END IF;
+    SELECT status INTO old_parent_status
+    FROM inventory_documents
+    WHERE id = OLD.document_id AND salon_id = OLD.salon_id;
+    SELECT status INTO new_parent_status
+    FROM inventory_documents
+    WHERE id = NEW.document_id AND salon_id = NEW.salon_id;
+    IF old_parent_status IS DISTINCT FROM 'draft' OR new_parent_status IS DISTINCT FROM 'draft' THEN
+      RAISE EXCEPTION 'Warehouse document lines can only change while both parent versions are draft';
+    END IF;
   END IF;
   RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;

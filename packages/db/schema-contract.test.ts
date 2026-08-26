@@ -43,6 +43,7 @@ import {
   inventoryDocumentLines,
   inventoryDocuments,
   inventoryExpenses,
+  inventoryMovements,
   inventoryProducts,
   inventorySuppliers,
 } from "./schema.js";
@@ -108,6 +109,7 @@ const tenantScopedWarehouseRows = [
   inventoryCountLines.salonId,
   inventoryExpenses.salonId,
   inventoryAssets.salonId,
+  inventoryMovements.salonId,
 ];
 
 if (tenantScopedWarehouseRows.some((column) => !column)) {
@@ -136,8 +138,12 @@ for (const requirement of [
   "salon_id uuid NOT NULL",
   "inventory_document_lines_document_salon_id",
   "inventory_count_lines_count_salon_id",
+  "inventory_movements_product_salon_id_fk",
+  "inventory_suppliers_id_salon_unique",
   "warehouse_document_lines_draft_guard",
   "warehouse_documents_immutable_guard",
+  "OLD.document_id <> NEW.document_id",
+  "OLD.salon_id <> NEW.salon_id",
   "--> statement-breakpoint",
 ]) {
   if (!migrationSource.includes(requirement)) {
