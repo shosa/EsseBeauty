@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   doublePrecision,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -1900,6 +1901,12 @@ export const inventoryProducts = pgTable("inventory_products", {
     .defaultNow()
     .notNull(),
 }, (table) => [
+  uniqueIndex("inventory_products_id_salon_unique").on(table.id, table.salonId),
+  foreignKey({
+    columns: [table.preferredSupplierId, table.salonId],
+    foreignColumns: [inventorySuppliers.id, inventorySuppliers.salonId],
+    name: "inventory_products_preferred_supplier_salon_id_fk",
+  }),
   check("inventory_products_item_type_valid", sql`${table.itemType} in ('resale', 'consumable', 'equipment', 'expense')`),
   check("inventory_products_unit_scale_positive", sql`${table.unitScale} > 0`),
 ]);
@@ -1951,6 +1958,9 @@ export const inventoryDocuments = pgTable(
       onDelete: "set null",
     }),
     postedAt: timestamp("posted_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
     reversalOfDocumentId: uuid("reversal_of_document_id").references(
       (): AnyPgColumn => inventoryDocuments.id,
       { onDelete: "set null" },
@@ -1962,6 +1972,7 @@ export const inventoryDocuments = pgTable(
       table.salonId,
       table.internalNumber,
     ),
+    uniqueIndex("inventory_documents_id_salon_unique").on(table.id, table.salonId),
     index("inventory_documents_salon_status_date_idx").on(
       table.salonId,
       table.status,
@@ -1978,6 +1989,16 @@ export const inventoryDocuments = pgTable(
     check("inventory_documents_net_total_non_negative", sql`${table.netTotalCents} >= 0`),
     check("inventory_documents_tax_total_non_negative", sql`${table.taxTotalCents} >= 0`),
     check("inventory_documents_total_non_negative", sql`${table.totalCents} >= 0`),
+    foreignKey({
+      columns: [table.supplierId, table.salonId],
+      foreignColumns: [inventorySuppliers.id, inventorySuppliers.salonId],
+      name: "inventory_documents_supplier_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.reversalOfDocumentId, table.salonId],
+      foreignColumns: [table.id, table.salonId],
+      name: "inventory_documents_reversal_salon_id_fk",
+    }),
   ],
 );
 
@@ -1987,7 +2008,10 @@ export const inventoryDocumentLines = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     documentId: uuid("document_id")
       .notNull()
-      .references(() => inventoryDocuments.id, { onDelete: "cascade" }),
+      .references(() => inventoryDocuments.id, { onDelete: "restrict" }),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
     productId: uuid("product_id").references(() => inventoryProducts.id, {
       onDelete: "set null",
     }),
@@ -2016,6 +2040,7 @@ export const inventoryDocumentLines = pgTable(
       table.documentId,
       table.lineNumber,
     ),
+    uniqueIndex("inventory_document_lines_id_salon_unique").on(table.id, table.salonId),
     index("inventory_document_lines_product_idx").on(table.productId),
     check("inventory_document_lines_item_type_valid", sql`${table.itemType} in ('resale', 'consumable', 'equipment', 'expense')`),
     check("inventory_document_lines_unit_scale_positive", sql`${table.unitScale} > 0`),
@@ -2024,6 +2049,21 @@ export const inventoryDocumentLines = pgTable(
     check("inventory_document_lines_net_non_negative", sql`${table.netCents} >= 0`),
     check("inventory_document_lines_tax_non_negative", sql`${table.taxCents} >= 0`),
     check("inventory_document_lines_total_non_negative", sql`${table.totalCents} >= 0`),
+    foreignKey({
+      columns: [table.documentId, table.salonId],
+      foreignColumns: [inventoryDocuments.id, inventoryDocuments.salonId],
+      name: "inventory_document_lines_document_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.productId, table.salonId],
+      foreignColumns: [inventoryProducts.id, inventoryProducts.salonId],
+      name: "inventory_document_lines_product_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.supplierId, table.salonId],
+      foreignColumns: [inventorySuppliers.id, inventorySuppliers.salonId],
+      name: "inventory_document_lines_supplier_salon_id_fk",
+    }),
   ],
 );
 
@@ -2063,7 +2103,25 @@ export const inventoryMovements = pgTable(
   note: text("note"),
   ...timestamps,
   },
-  (table) => [index("inventory_movements_salon_product_date_idx").on(table.salonId, table.productId, table.createdAt)],
+  (table) => [
+    uniqueIndex("inventory_movements_id_salon_unique").on(table.id, table.salonId),
+    index("inventory_movements_salon_product_date_idx").on(table.salonId, table.productId, table.createdAt),
+    foreignKey({
+      columns: [table.documentId, table.salonId],
+      foreignColumns: [inventoryDocuments.id, inventoryDocuments.salonId],
+      name: "inventory_movements_document_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.documentLineId, table.salonId],
+      foreignColumns: [inventoryDocumentLines.id, inventoryDocumentLines.salonId],
+      name: "inventory_movements_document_line_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.reversesMovementId, table.salonId],
+      foreignColumns: [table.id, table.salonId],
+      name: "inventory_movements_reversal_salon_id_fk",
+    }),
+  ],
 );
 
 export const inventoryCounts = pgTable(
@@ -2091,7 +2149,13 @@ export const inventoryCounts = pgTable(
   },
   (table) => [
     index("inventory_counts_salon_status_date_idx").on(table.salonId, table.status, table.openedAt),
+    uniqueIndex("inventory_counts_id_salon_unique").on(table.id, table.salonId),
     check("inventory_counts_status_valid", sql`${table.status} in ('draft', 'counting', 'posted', 'cancelled')`),
+    foreignKey({
+      columns: [table.documentId, table.salonId],
+      foreignColumns: [inventoryDocuments.id, inventoryDocuments.salonId],
+      name: "inventory_counts_document_salon_id_fk",
+    }),
   ],
 );
 
@@ -2101,10 +2165,13 @@ export const inventoryCountLines = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     countId: uuid("count_id")
       .notNull()
-      .references(() => inventoryCounts.id, { onDelete: "cascade" }),
+      .references(() => inventoryCounts.id, { onDelete: "restrict" }),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
     productId: uuid("product_id")
       .notNull()
-      .references(() => inventoryProducts.id, { onDelete: "cascade" }),
+      .references(() => inventoryProducts.id, { onDelete: "restrict" }),
     theoreticalQuantity: integer("theoretical_quantity").notNull(),
     countedQuantity: integer("counted_quantity"),
     differenceQuantity: integer("difference_quantity"),
@@ -2114,7 +2181,18 @@ export const inventoryCountLines = pgTable(
   },
   (table) => [
     uniqueIndex("inventory_count_lines_count_product_unique").on(table.countId, table.productId),
+    uniqueIndex("inventory_count_lines_id_salon_unique").on(table.id, table.salonId),
     index("inventory_count_lines_product_idx").on(table.productId),
+    foreignKey({
+      columns: [table.countId, table.salonId],
+      foreignColumns: [inventoryCounts.id, inventoryCounts.salonId],
+      name: "inventory_count_lines_count_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.productId, table.salonId],
+      foreignColumns: [inventoryProducts.id, inventoryProducts.salonId],
+      name: "inventory_count_lines_product_salon_id_fk",
+    }),
   ],
 );
 
@@ -2148,6 +2226,21 @@ export const inventoryExpenses = pgTable(
     check("inventory_expenses_net_non_negative", sql`${table.netCents} >= 0`),
     check("inventory_expenses_tax_non_negative", sql`${table.taxCents} >= 0`),
     check("inventory_expenses_total_non_negative", sql`${table.totalCents} >= 0`),
+    foreignKey({
+      columns: [table.documentId, table.salonId],
+      foreignColumns: [inventoryDocuments.id, inventoryDocuments.salonId],
+      name: "inventory_expenses_document_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.documentLineId, table.salonId],
+      foreignColumns: [inventoryDocumentLines.id, inventoryDocumentLines.salonId],
+      name: "inventory_expenses_document_line_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.supplierId, table.salonId],
+      foreignColumns: [inventorySuppliers.id, inventorySuppliers.salonId],
+      name: "inventory_expenses_supplier_salon_id_fk",
+    }),
   ],
 );
 
@@ -2182,6 +2275,21 @@ export const inventoryAssets = pgTable(
     index("inventory_assets_salon_purchase_date_idx").on(table.salonId, table.purchaseDate),
     check("inventory_assets_status_valid", sql`${table.status} in ('active', 'disposed')`),
     check("inventory_assets_purchase_cost_non_negative", sql`${table.purchaseCostCents} >= 0`),
+    foreignKey({
+      columns: [table.documentId, table.salonId],
+      foreignColumns: [inventoryDocuments.id, inventoryDocuments.salonId],
+      name: "inventory_assets_document_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.documentLineId, table.salonId],
+      foreignColumns: [inventoryDocumentLines.id, inventoryDocumentLines.salonId],
+      name: "inventory_assets_document_line_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.supplierId, table.salonId],
+      foreignColumns: [inventorySuppliers.id, inventorySuppliers.salonId],
+      name: "inventory_assets_supplier_salon_id_fk",
+    }),
   ],
 );
 
