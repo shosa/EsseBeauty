@@ -161,11 +161,20 @@ async function lockTrackedProducts(
     }
     productIds.add(line.productId);
   }
+  const products = await lockProductsForUpdate(tx, salonId, productIds);
+  return new Map([...products].filter(([, product]) => product.trackStock));
+}
+
+async function lockProductsForUpdate(
+  tx: WarehouseTransaction,
+  salonId: string,
+  productIds: Iterable<string>,
+): Promise<Map<string, WarehouseProductRecord>> {
   const products = new Map<string, WarehouseProductRecord>();
-  for (const productId of [...productIds].sort()) {
+  for (const productId of [...new Set(productIds)].sort()) {
     const product = await tx.findProductForUpdate(salonId, productId);
     if (!product) fail("PRODUCT_NOT_FOUND");
-    if (product.trackStock) products.set(product.id, product);
+    products.set(product.id, product);
   }
   return products;
 }
@@ -330,6 +339,11 @@ export async function reverseWarehouseDocument(
     const sourceMovements = await tx.findMovementsForDocument(input.salonId, source.id);
     const sourceExpenses = await tx.findExpensesForDocument(input.salonId, source.id);
     const sourceAssets = await tx.findAssetsForDocument(input.salonId, source.id);
+    const products = await lockProductsForUpdate(
+      tx,
+      input.salonId,
+      sourceMovements.map((movement) => movement.productId),
+    );
     const reversal = await tx.createDocument({
       competenceDate: source.competenceDate,
       createdByUserId: input.actorUserId,
@@ -368,7 +382,7 @@ export async function reverseWarehouseDocument(
     }
     const movementIds: string[] = [];
     for (const movement of sourceMovements) {
-      const product = await tx.findProductForUpdate(input.salonId, movement.productId);
+      const product = products.get(movement.productId);
       if (!product) fail("PRODUCT_NOT_FOUND");
       movementIds.push(await applyStockMovement(tx, {
         actorUserId: input.actorUserId,
@@ -438,10 +452,19 @@ export async function reconcileInventoryCount(
     if (count.status === "posted") fail("COUNT_ALREADY_POSTED");
     if (count.status !== "draft" && count.status !== "counting") fail("COUNT_INVALID");
     const countLines = await tx.findCountLinesForUpdate(input.salonId, count.id);
-    const movementIds: string[] = [];
+    const reconciledCountLines: Array<WarehouseCountLineRecord & { countedQuantity: number }> = [];
     for (const countLine of countLines) {
       if (countLine.countedQuantity === null || !isInteger(countLine.countedQuantity)) fail("COUNT_INVALID");
-      const product = await tx.findProductForUpdate(input.salonId, countLine.productId);
+      reconciledCountLines.push({ ...countLine, countedQuantity: countLine.countedQuantity });
+    }
+    const products = await lockProductsForUpdate(
+      tx,
+      input.salonId,
+      reconciledCountLines.map((countLine) => countLine.productId),
+    );
+    const movementIds: string[] = [];
+    for (const countLine of reconciledCountLines) {
+      const product = products.get(countLine.productId);
       if (!product) fail("PRODUCT_NOT_FOUND");
       if (!product.trackStock) fail("UNTRACKED_PRODUCT");
       const differenceQuantity = countLine.countedQuantity - countLine.theoreticalQuantity;

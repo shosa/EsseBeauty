@@ -61,6 +61,27 @@ function line(overrides: Partial<WarehouseDocumentLineRecord> = {}): WarehouseDo
   };
 }
 
+function movement(overrides: Partial<WarehouseState["movements"][number]> = {}): WarehouseState["movements"][number] {
+  return {
+    createdByUserId: "owner-1",
+    delta: 1,
+    documentId: "document-1",
+    documentLineId: null,
+    id: "movement-1",
+    movementType: "document_posting",
+    note: null,
+    productId: "product-1",
+    reason: "purchase",
+    reversesMovementId: null,
+    salonId: "salon-1",
+    stockAfter: 1,
+    stockBefore: 0,
+    unitCostCents: 1_000,
+    valueCents: 1_000,
+    ...overrides,
+  };
+}
+
 function state(overrides: Partial<WarehouseState> = {}): WarehouseState {
   return {
     assets: [],
@@ -84,8 +105,9 @@ function state(overrides: Partial<WarehouseState> = {}): WarehouseState {
   };
 }
 
-function memoryRepository(initial: WarehouseState): { repository: WarehouseRepository; state: WarehouseState } {
+function memoryRepository(initial: WarehouseState): { productLocks: string[]; repository: WarehouseRepository; state: WarehouseState } {
   let current = structuredClone(initial);
+  const productLocks: string[] = [];
 
   function transactionView(draft: WarehouseState) {
     const findDocument = (salonId: string, documentId: string) =>
@@ -149,6 +171,7 @@ function memoryRepository(initial: WarehouseState): { repository: WarehouseRepos
         return draft.movements.filter((item) => item.documentId === documentId && item.salonId === salonId);
       },
       async findProductForUpdate(salonId: string, productId: string) {
+        productLocks.push(productId);
         return draft.products.find((item) => item.id === productId && item.salonId === salonId);
       },
       async markCountPosted(salonId: string, countId: string, actorUserId: string) {
@@ -201,6 +224,7 @@ function memoryRepository(initial: WarehouseState): { repository: WarehouseRepos
   }
 
   return {
+    productLocks,
     get state() { return current; },
     repository: {
       async transaction<T>(work: (tx: WarehouseTransaction) => Promise<T>): Promise<T> {
@@ -323,6 +347,26 @@ describe("warehouse document posting", () => {
     expect(memory.state.expenses.find((item) => item.reversesExpenseId === "expense-2")).toMatchObject({ netCents: -2_000, totalCents: -2_000 });
     expect(memory.state.assets.find((item) => item.reversesAssetId === "asset-3")).toMatchObject({ purchaseCostCents: -5_000 });
   });
+
+  it("locks reversal products once in lexical order before replaying source movements", async () => {
+    const memory = memoryRepository(state({
+      documents: [document({ status: "posted" })],
+      lines: [],
+      movements: [
+        movement({ id: "movement-z-1", productId: "product-z" }),
+        movement({ id: "movement-a-1", productId: "product-a" }),
+        movement({ id: "movement-z-2", productId: "product-z" }),
+      ],
+      products: [
+        { allowNegativeStock: false, averageCostCents: 100, id: "product-a", lastCostCents: 100, salonId: "salon-1", stockQuantity: 1, trackStock: true },
+        { allowNegativeStock: false, averageCostCents: 100, id: "product-z", lastCostCents: 100, salonId: "salon-1", stockQuantity: 2, trackStock: true },
+      ],
+    }));
+
+    await reverseWarehouseDocument(memory.repository, { actorUserId: "owner-1", documentId: "document-1", salonId: "salon-1" });
+
+    expect(memory.productLocks).toEqual(["product-a", "product-z"]);
+  });
 });
 
 describe("inventory count reconciliation", () => {
@@ -344,5 +388,23 @@ describe("inventory count reconciliation", () => {
     expect(memory.state.countLines[0]).toMatchObject({ differenceQuantity: 3, differenceValueCents: 3_000 });
     expect(memory.state.products[0]?.stockQuantity).toBe(5);
     expect(memory.state.movements[0]).toMatchObject({ documentId: "document-1" });
+  });
+
+  it("locks count products once in lexical order before reconciling count lines", async () => {
+    const memory = memoryRepository(state({
+      counts: [{ documentId: null, id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
+      countLines: [
+        { countId: "count-1", countedQuantity: 1, differenceQuantity: null, differenceValueCents: 0, id: "count-line-z", productId: "product-z", salonId: "salon-1", theoreticalQuantity: 1 },
+        { countId: "count-1", countedQuantity: 1, differenceQuantity: null, differenceValueCents: 0, id: "count-line-a", productId: "product-a", salonId: "salon-1", theoreticalQuantity: 1 },
+      ],
+      products: [
+        { allowNegativeStock: false, averageCostCents: 100, id: "product-a", lastCostCents: 100, salonId: "salon-1", stockQuantity: 1, trackStock: true },
+        { allowNegativeStock: false, averageCostCents: 100, id: "product-z", lastCostCents: 100, salonId: "salon-1", stockQuantity: 1, trackStock: true },
+      ],
+    }));
+
+    await reconcileInventoryCount(memory.repository, { actorUserId: "owner-1", countId: "count-1", salonId: "salon-1" });
+
+    expect(memory.productLocks).toEqual(["product-a", "product-z"]);
   });
 });
