@@ -546,6 +546,44 @@ export async function registerPlatformRoutes(
     },
   );
 
+  app.delete<{
+    Body: { confirmation: string };
+    Params: { salonId: string };
+  }>(
+    "/api/platform/salons/:salonId",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      const rows = await app.db
+        .select({ id: salons.id, name: salons.name, slug: salons.slug })
+        .from(salons)
+        .where(eq(salons.id, request.params.salonId))
+        .limit(1);
+      const salon = rows[0];
+      if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+      if (request.body.confirmation?.trim() !== salon.slug) {
+        return reply.code(422).send({ error: "SALON_CONFIRMATION_MISMATCH" });
+      }
+
+      await app.db.transaction(async (tx) => {
+        await tx.insert(platformAuditLog).values({
+          action: "salon.deleted",
+          actorAdminId: request.platformAdmin.id,
+          diff: { deleted: true, name: salon.name, slug: salon.slug },
+          ipAddress: request.ip,
+          metadata: { confirmation: salon.slug },
+          salonId: salon.id,
+          summary: `Eliminato definitivamente il salone ${salon.name}`,
+          targetId: salon.id,
+          targetType: "salon",
+          userAgent: request.headers["user-agent"],
+        });
+        await tx.delete(salons).where(eq(salons.id, salon.id));
+      });
+
+      return { deleted: true };
+    },
+  );
+
   app.get<{
     Params: { salonId: string };
   }>(

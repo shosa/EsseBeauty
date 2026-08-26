@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { type ComponentType, type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Activity, Building2, CalendarDays, Megaphone, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 
 import { MODULE_KEYS, type ModuleKey } from "@esse-beauty/feature-flags";
 import {
@@ -11,7 +12,6 @@ import {
   PageHeader,
   SaveToast,
   SectionCard,
-  StatusBadge,
   Switch,
 } from "@esse-beauty/ui";
 
@@ -93,6 +93,14 @@ interface SalonOwner {
   role: "owner";
 }
 
+interface PlatformOverview {
+  appointments: number;
+  campaigns: number;
+  module_usage: Array<{ enabled: number; module_key: string }>;
+  salons: { active: number; churnRisk: number; suspended: number; total: number; trial: number };
+  sessions: number;
+}
+
 function emptyFeatureState(): FeatureState {
   return Object.fromEntries(
     featureCatalog.map((item) => [item.key, false]),
@@ -117,6 +125,7 @@ function friendlyError(value: string): string {
     OWNER_REQUIRED: "Inserisci nome ed email del titolare.",
     OWNER_NOT_FOUND: "Il titolare del salone non è disponibile.",
     PASSWORD_TOO_SHORT: "La password deve avere almeno 10 caratteri.",
+    SALON_CONFIRMATION_MISMATCH: "Scrivi esattamente lo slug del salone per confermare.",
     SALON_NOT_FOUND: "Il salone selezionato non è più disponibile.",
     UNAUTHENTICATED: "Sessione scaduta. Accedi di nuovo.",
   };
@@ -128,12 +137,15 @@ export default function PlatformPage() {
   const [error, setError] = useState("");
   const [features, setFeatures] = useState<FeatureState>(emptyFeatureState);
   const [featuresLoadedFor, setFeaturesLoadedFor] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deletingSalon, setDeletingSalon] = useState(false);
   const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<Panel>("identity");
   const [pendingFeature, setPendingFeature] = useState<ModuleKey>();
   const [query, setQuery] = useState("");
   const [owner, setOwner] = useState<SalonOwner | null>(null);
   const [ownerLoading, setOwnerLoading] = useState(false);
+  const [overview, setOverview] = useState<PlatformOverview | null>(null);
   const [salons, setSalons] = useState<PlatformSalon[]>([]);
   const [selectedSalonId, setSelectedSalonId] = useState("");
   const [session, setSession] = useState<PlatformSession | null>(null);
@@ -151,8 +163,6 @@ export default function PlatformPage() {
         )
       : salons;
   }, [query, salons]);
-  const activeSalons = salons.filter((salon) => salon.active).length;
-  const pendingOnboarding = salons.filter((salon) => !salon.onboarding_completed).length;
   const enabledFeatures = Object.values(features).filter(Boolean).length;
 
   const request = useCallback(async <T,>(
@@ -176,6 +186,10 @@ export default function PlatformPage() {
   const loadSalons = useCallback(async () => {
     const rows = await request<PlatformSalon[]>("/api/platform/salons");
     setSalons(rows);
+  }, [request]);
+
+  const loadOverview = useCallback(async () => {
+    setOverview(await request<PlatformOverview>("/api/platform/overview"));
   }, [request]);
 
   const loadFeatures = useCallback(async (salonId: string) => {
@@ -204,7 +218,7 @@ export default function PlatformPage() {
       try {
         const current = await request<PlatformSession>("/api/platform/auth/me");
         setSession(current);
-        await loadSalons();
+        await Promise.all([loadSalons(), loadOverview()]);
       } catch {
         const status = await request<{ required: boolean }>("/api/platform/auth/bootstrap/status");
         setBootstrapRequired(status.required);
@@ -213,7 +227,7 @@ export default function PlatformPage() {
       }
     }
     void boot();
-  }, [loadSalons, request]);
+  }, [loadOverview, loadSalons, request]);
 
   useEffect(() => {
     if (panel === "features" && selectedSalon?.id && featuresLoadedFor !== selectedSalon.id) {
@@ -243,6 +257,7 @@ export default function PlatformPage() {
     setError("");
     setSuccess("");
     setPanel("identity");
+    setDeleteConfirmation("");
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
@@ -398,6 +413,25 @@ export default function PlatformPage() {
     }
   }
 
+  async function deleteSalon() {
+    if (!selectedSalon || deleteConfirmation !== selectedSalon.slug) return;
+    setDeletingSalon(true);
+    setError("");
+    try {
+      await request(`/api/platform/salons/${selectedSalon.id}`, {
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+        method: "DELETE",
+      });
+      closeSalonCard();
+      await Promise.all([loadSalons(), loadOverview()]);
+      setSuccess("Salone e dati tenant eliminati definitivamente.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Eliminazione non riuscita.");
+    } finally {
+      setDeletingSalon(false);
+    }
+  }
+
   function closeSalonCard() {
     setSelectedSalonId("");
     setFeatures(emptyFeatureState());
@@ -406,6 +440,7 @@ export default function PlatformPage() {
     setPanel("identity");
     setError("");
     setSuccess("");
+    setDeleteConfirmation("");
   }
 
   if (loading) {
@@ -459,11 +494,26 @@ export default function PlatformPage() {
       <SaveToast variant="success" visible={Boolean(success)}>{success}</SaveToast>
       {error && <InlineError className="mb-5">{error}</InlineError>}
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <span className="rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-bold text-stone-700">{salons.length} saloni</span>
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">{activeSalons} operativi</span>
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900">{pendingOnboarding} da configurare</span>
-      </div>
+      <section aria-label="Panoramica piattaforma" className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          [Building2, "Tenant", overview?.salons.total ?? salons.length, `${overview?.salons.active ?? 0} operativi`],
+          [UsersRound, "Sessioni attive", overview?.sessions ?? 0, "Accessi gestionali"],
+          [CalendarDays, "Appuntamenti", overview?.appointments ?? 0, "Storico complessivo"],
+          [Megaphone, "Campagne", overview?.campaigns ?? 0, "Tutti i saloni"],
+          [Activity, "Da presidiare", (overview?.salons.suspended ?? 0) + (overview?.salons.churnRisk ?? 0), `${overview?.salons.trial ?? 0} in prova`],
+        ].map(([Icon, label, value, note]) => {
+          const MetricIcon = Icon as typeof Building2;
+          return (
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm" key={String(label)}>
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="text-xs font-black uppercase tracking-wider text-stone-400">{String(label)}</p><p className="mt-1 text-2xl font-black text-stone-950">{String(value)}</p></div>
+                <span className="grid size-10 place-items-center rounded-xl bg-cyan-50 text-teal-700"><MetricIcon className="size-5" /></span>
+              </div>
+              <p className="mt-2 text-xs text-stone-500">{String(note)}</p>
+            </div>
+          );
+        })}
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
         <aside>
@@ -499,9 +549,7 @@ export default function PlatformPage() {
                     </span>
                     <span className={`mt-1 size-2.5 shrink-0 rounded-full ${salon.active ? "bg-emerald-500" : "bg-stone-300"}`} />
                   </span>
-                  <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wider ${salon.onboarding_completed ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
-                    {salon.onboarding_completed ? "Configurato" : `Primo avvio · step ${salon.onboarding_step}`}
-                  </span>
+                  {!salon.onboarding_completed && <span className="mt-2 block text-[11px] font-bold text-amber-800">Configurazione ferma allo step {salon.onboarding_step}</span>}
                 </button>
               ))}
             </div>
@@ -518,10 +566,7 @@ export default function PlatformPage() {
                   <p className="mt-1 text-sm text-stone-500">/{selectedSalon.slug} · {selectedSalon.timezone}</p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <StatusBadge status={selectedSalon.onboarding_completed ? "active" : "pending"}>
-                    {selectedSalon.onboarding_completed ? "Onboarding completato" : `Onboarding step ${selectedSalon.onboarding_step}`}
-                  </StatusBadge>
-                  <StatusBadge status={selectedSalon.active ? "active" : "inactive"}>{selectedSalon.active ? "Operativo" : "Sospeso"}</StatusBadge>
+                  <span className="inline-flex items-center gap-2 text-sm font-bold text-stone-600"><span className={`size-2.5 rounded-full ${selectedSalon.active ? "bg-emerald-500" : "bg-stone-300"}`} />{selectedSalon.active ? "Operativo" : "Sospeso"}</span>
                   <button
                     aria-label="Chiudi scheda salone"
                     className="grid size-10 place-items-center rounded-full border border-stone-200 text-xl font-semibold text-stone-500 transition hover:border-teal-600 hover:bg-cyan-50 hover:text-teal-800"
@@ -552,18 +597,24 @@ export default function PlatformPage() {
           )}
 
           {panel !== "new" && !selectedSalon && (
-            <section className="grid min-h-[520px] place-items-center rounded-2xl border border-dashed border-cyan-300 bg-white p-8 text-center">
-              <div className="grid min-h-80 place-items-center text-center">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[.18em] text-teal-700">Console amministrativa</p>
-                  <h2 className="mt-2 text-3xl font-bold text-stone-950">Seleziona un salone</h2>
-                  <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-stone-500">
-                    Da qui controlli configurazione iniziale, licenza, accesso del titolare e moduli abilitati.
-                  </p>
+            <SectionCard title="Panoramica piattaforma" subtitle="Controllo operativo multi-tenant, adozione dei moduli e segnali che richiedono attenzione.">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-stone-200 p-5">
+                  <div className="flex items-center gap-3"><ShieldCheck className="size-5 text-teal-700" /><h3 className="font-bold text-stone-950">Stato tenant</h3></div>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div><dt className="text-stone-500">In prova</dt><dd className="text-xl font-black">{overview?.salons.trial ?? 0}</dd></div>
+                    <div><dt className="text-stone-500">Sospesi</dt><dd className="text-xl font-black">{overview?.salons.suspended ?? 0}</dd></div>
+                    <div><dt className="text-stone-500">Rischio abbandono</dt><dd className="text-xl font-black">{overview?.salons.churnRisk ?? 0}</dd></div>
+                    <div><dt className="text-stone-500">Moduli attivati</dt><dd className="text-xl font-black">{overview?.module_usage.reduce((sum, row) => sum + row.enabled, 0) ?? 0}</dd></div>
+                  </dl>
+                </div>
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-5">
+                  <h3 className="font-bold text-stone-950">Azione rapida</h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">Seleziona un tenant dalla lista per amministrare licenza, titolare e moduli, oppure crea un nuovo salone.</p>
                   <Button className={`mt-5 ${adminPrimaryButton}`} onClick={() => setPanel("new")} variant="primary">Crea un nuovo salone</Button>
                 </div>
               </div>
-            </section>
+            </SectionCard>
           )}
 
           {panel === "new" && (
@@ -611,7 +662,7 @@ export default function PlatformPage() {
           )}
 
           {panel === "identity" && selectedSalon && (
-            <SectionCard title="Dati salone" subtitle="Informazioni principali usate dal gestionale e dalla pagina prenotazioni.">
+            <div className="space-y-5"><SectionCard title="Dati salone" subtitle="Informazioni principali usate dal gestionale e dalla pagina prenotazioni.">
               <form className="grid gap-4 md:grid-cols-2" onSubmit={saveSalon}>
                 <FormField label="Nome salone" required>
                   <input defaultValue={selectedSalon.name} name="name" required />
@@ -640,6 +691,16 @@ export default function PlatformPage() {
                 </div>
               </form>
             </SectionCard>
+            <SectionCard className="border-rose-200" title="Eliminazione tenant" subtitle="Operazione irreversibile: elimina il salone e tutti i dati operativi collegati.">
+              <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+                <FormField label={`Scrivi ${selectedSalon.slug} per confermare`} description="Il registro Platform conserva solo la traccia amministrativa dell'eliminazione.">
+                  <input autoComplete="off" onChange={(event) => setDeleteConfirmation(event.target.value)} value={deleteConfirmation} />
+                </FormField>
+                <Button className="!border-rose-700 !bg-rose-700 hover:!bg-rose-800" disabled={deletingSalon || deleteConfirmation !== selectedSalon.slug} onClick={() => void deleteSalon()} type="button" variant="primary">
+                  <Trash2 className="size-4" /> Elimina definitivamente il salone
+                </Button>
+              </div>
+            </SectionCard></div>
           )}
 
           {panel === "access" && selectedSalon && (
@@ -729,10 +790,7 @@ export default function PlatformPage() {
                             onCheckedChange={(checked) => void toggleFeature(item.key, checked)}
                           />
                         </div>
-                        <div className="mt-4 flex items-center justify-between">
-                          <StatusBadge status={enabled ? "active" : "inactive"}>{enabled ? "Inclusa" : "Non inclusa"}</StatusBadge>
-                          {busy && <span className="text-xs font-semibold text-stone-500">Salvataggio...</span>}
-                        </div>
+                        {busy && <p className="mt-4 text-right text-xs font-semibold text-stone-500">Salvataggio...</p>}
                       </div>
                     );
                   })}

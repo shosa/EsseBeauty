@@ -12,4 +12,14 @@ describe("platform tier contract", () => {
     expect(platform).toContain('"/api/platform/salons/:salonId/modules/:key"');
     expect(platform).toContain("authenticatePlatform");
   });
+
+  it("protects tenant deletion with explicit slug confirmation and an audit event", () => {
+    const platform = readFileSync(join(process.cwd(), "src", "routes", "platform", "index.ts"), "utf8");
+
+    expect(platform).toContain('"/api/platform/salons/:salonId"');
+    expect(platform).toContain("confirmation: string");
+    expect(platform).toContain("SALON_CONFIRMATION_MISMATCH");
+    expect(platform).toContain('action: "salon.deleted"');
+    expect(platform).toContain(".delete(salons)");
+  });
 });
