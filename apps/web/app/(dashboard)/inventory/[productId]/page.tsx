@@ -98,7 +98,7 @@ export default function InventoryProductPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <div className="mx-auto max-w-5xl">
-        <Breadcrumbs items={[{ href: "/inventory", label: "Inventario" }, { label: product?.name ?? "Prodotto" }]} />
+        <Breadcrumbs items={[{ href: "/inventory", label: "Magazzino" }, { label: product?.name ?? "Prodotto" }]} />
         {error && <div className="mt-4"><InlineError>{error}</InlineError></div>}
         {!product ? (
           <EmptyState title="Prodotto non trovato" description="Potrebbe essere archiviato o non accessibile." />

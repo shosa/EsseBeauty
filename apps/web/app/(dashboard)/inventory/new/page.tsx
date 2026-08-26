@@ -42,7 +42,7 @@ export default function NewInventoryProductPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:grid-cols-2">
         <div className="md:col-span-2">
-          <Breadcrumbs items={[{ href: "/inventory", label: "Inventario" }, { label: "Nuovo prodotto" }]} />
+          <Breadcrumbs items={[{ href: "/inventory", label: "Magazzino" }, { label: "Nuovo prodotto" }]} />
           <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-rose-700">Magazzino</p>
           <h1 className="mt-2 text-3xl font-bold">Nuovo prodotto</h1>
         </div>
