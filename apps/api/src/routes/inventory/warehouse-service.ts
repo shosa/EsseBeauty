@@ -255,7 +255,33 @@ export async function postWarehouseDocument(
       taxTotalCents += totals.taxCents;
       totalCents += totals.totalCents;
       const product = line.productId ? products.get(line.productId) : undefined;
-      if (product && line.stockDelta !== 0) {
+      if (product && document.kind === "adjustment" && line.destination === "revaluation") {
+        if (line.stockDelta !== 0 || line.unitCostCents <= 0) fail("MISSING_POSITIVE_ADJUSTMENT_COST");
+        const averageCostBefore = product.averageCostCents;
+        const updated = await tx.updateProduct(input.salonId, product.id, {
+          averageCostCents: line.unitCostCents,
+          lastCostCents: line.unitCostCents,
+          stockQuantity: product.stockQuantity,
+        });
+        Object.assign(product, updated);
+        const movement = await tx.createMovement({
+          createdByUserId: input.actorUserId,
+          delta: 0,
+          documentId: document.id,
+          documentLineId: line.id,
+          movementType: "revaluation",
+          note: document.notes,
+          productId: product.id,
+          reason: document.kind,
+          reversesMovementId: null,
+          salonId: input.salonId,
+          stockAfter: product.stockQuantity,
+          stockBefore: product.stockQuantity,
+          unitCostCents: averageCostBefore,
+          valueCents: (line.unitCostCents - averageCostBefore) * product.stockQuantity,
+        });
+        movementIds.push(movement.id);
+      } else if (product && line.stockDelta !== 0) {
         const unitCostCents = line.quantity === 0 ? 0 : Math.round(totals.netCents / line.quantity);
         if (document.kind === "adjustment" && line.stockDelta > 0 && unitCostCents <= 0) {
           fail("MISSING_POSITIVE_ADJUSTMENT_COST");
@@ -362,6 +388,7 @@ export async function reverseWarehouseDocument(
     for (const line of sourceLines) {
       const reversalLine = await tx.createDocumentLine({
         description: `Reversal: ${line.description}`,
+        destination: line.destination,
         discountCents: line.discountCents,
         documentId: reversal.id,
         itemType: line.itemType,
@@ -384,6 +411,34 @@ export async function reverseWarehouseDocument(
     for (const movement of sourceMovements) {
       const product = products.get(movement.productId);
       if (!product) fail("PRODUCT_NOT_FOUND");
+      if (movement.movementType === "revaluation") {
+        const stockQuantity = product.stockQuantity;
+        const currentAverageCostCents = product.averageCostCents;
+        const updated = await tx.updateProduct(input.salonId, product.id, {
+          averageCostCents: movement.unitCostCents,
+          lastCostCents: movement.unitCostCents,
+          stockQuantity,
+        });
+        Object.assign(product, updated);
+        const compensation = await tx.createMovement({
+          createdByUserId: input.actorUserId,
+          delta: 0,
+          documentId: reversal.id,
+          documentLineId: movement.documentLineId ? reversalLineIds.get(movement.documentLineId) ?? null : null,
+          movementType: "document_reversal",
+          note: `Reversal of revaluation ${movement.id}`,
+          productId: product.id,
+          reason: "reversal",
+          reversesMovementId: movement.id,
+          salonId: input.salonId,
+          stockAfter: stockQuantity,
+          stockBefore: stockQuantity,
+          unitCostCents: currentAverageCostCents,
+          valueCents: -movement.valueCents,
+        });
+        movementIds.push(compensation.id);
+        continue;
+      }
       movementIds.push(await applyStockMovement(tx, {
         actorUserId: input.actorUserId,
         delta: -movement.delta,

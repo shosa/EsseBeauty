@@ -45,6 +45,7 @@ export interface WarehouseDocumentRecord {
 
 export interface WarehouseDocumentLineRecord {
   description: string;
+  destination: string | null;
   discountCents: number;
   documentId: string;
   id: string;

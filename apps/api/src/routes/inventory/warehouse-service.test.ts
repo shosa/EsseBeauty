@@ -41,6 +41,7 @@ function document(overrides: Partial<WarehouseDocumentRecord> = {}): WarehouseDo
 function line(overrides: Partial<WarehouseDocumentLineRecord> = {}): WarehouseDocumentLineRecord {
   return {
     description: "Prodotto",
+    destination: null,
     discountCents: 0,
     documentId: "document-1",
     id: "line-1",
@@ -302,6 +303,39 @@ describe("warehouse document posting", () => {
       documentId: "document-1",
       salonId: "salon-1",
     })).rejects.toMatchObject({ code: "MISSING_POSITIVE_ADJUSTMENT_COST" });
+  });
+
+  it("revalues average cost through an audited zero-quantity adjustment", async () => {
+    const memory = memoryRepository(state({
+      documents: [document({ kind: "adjustment", notes: "Rivalutazione manuale" })],
+      lines: [line({ destination: "revaluation", quantity: 0, stockDelta: 0, unitCostCents: 1_200 })],
+      products: [{ allowNegativeStock: false, averageCostCents: 900, id: "product-1", lastCostCents: 850, salonId: "salon-1", stockQuantity: 5, trackStock: true }],
+    }));
+
+    await postWarehouseDocument(memory.repository, {
+      actorUserId: "owner-1",
+      documentId: "document-1",
+      salonId: "salon-1",
+    });
+
+    expect(memory.state.products[0]).toMatchObject({ averageCostCents: 1_200, lastCostCents: 1_200, stockQuantity: 5 });
+    expect(memory.state.movements[0]).toMatchObject({
+      delta: 0,
+      movementType: "revaluation",
+      stockAfter: 5,
+      stockBefore: 5,
+      unitCostCents: 900,
+      valueCents: 1_500,
+    });
+
+    await reverseWarehouseDocument(memory.repository, {
+      actorUserId: "owner-1",
+      documentId: "document-1",
+      salonId: "salon-1",
+    });
+
+    expect(memory.state.products[0]).toMatchObject({ averageCostCents: 900, lastCostCents: 900, stockQuantity: 5 });
+    expect(memory.state.movements[1]).toMatchObject({ delta: 0, reversesMovementId: memory.state.movements[0]?.id, valueCents: -1_500 });
   });
 
   it("rolls back every effect when a tracked line would violate the negative-stock policy", async () => {
