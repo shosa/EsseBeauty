@@ -66,6 +66,12 @@ function toDate(value: string | undefined, fallback = new Date()) {
   return Number.isNaN(date.valueOf()) ? undefined : date;
 }
 
+export function parseDocumentDateFilter(value: string, endOfDay: boolean) {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const date = new Date(dateOnly ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z` : value);
+  return Number.isNaN(date.valueOf()) ? undefined : date;
+}
+
 function lineValues(lines: DocumentLineInput[], salonId: string, documentId: string) {
   return lines.map((line, index) => ({
     description: line.description.trim(),
@@ -111,8 +117,8 @@ export async function registerInventoryDocumentRoutes(app: FastifyInstance) {
     const filters = [eq(inventoryDocuments.salonId, request.salonId)];
     if (request.query.kind) filters.push(eq(inventoryDocuments.kind, request.query.kind));
     if (request.query.status) filters.push(eq(inventoryDocuments.status, request.query.status));
-    const dateFrom = request.query.date_from ? toDate(request.query.date_from) : undefined;
-    const dateTo = request.query.date_to ? toDate(request.query.date_to) : undefined;
+    const dateFrom = request.query.date_from ? parseDocumentDateFilter(request.query.date_from, false) : undefined;
+    const dateTo = request.query.date_to ? parseDocumentDateFilter(request.query.date_to, true) : undefined;
     if ((request.query.date_from && !dateFrom) || (request.query.date_to && !dateTo) || (dateFrom && dateTo && dateFrom > dateTo)) return reply.code(422).send({ error: "INVALID_DATE_FILTER" });
     if (dateFrom) filters.push(gte(inventoryDocuments.documentDate, dateFrom));
     if (dateTo) filters.push(lte(inventoryDocuments.documentDate, dateTo));

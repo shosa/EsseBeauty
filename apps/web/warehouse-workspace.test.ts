@@ -64,6 +64,7 @@ describe("warehouse workspace", () => {
     const line = { key: "line-1", product_id: "p1", description: "Servizio", item_type: "resale", quantity: 1, unit_cost_cents: 100, discount_cents: 0, tax_rate_basis_points: 0, stock_delta: 1, destination: "stock" } as Parameters<typeof normalizeLineForItemType>[0];
     expect(normalizeLineForItemType(line, "expense")).toMatchObject({ product_id: null, stock_delta: 0, item_type: "expense" });
     expect(createLine({ id: "p2", name: "Lampada", sku: "LAMP", itemType: "equipment", averageCostCents: 100, lastCostCents: 100 } as never, "purchase")).toMatchObject({ product_id: null, stock_delta: 0, item_type: "equipment" });
+    expect(createLine({ id: "p3", name: "Crema", sku: "CRM", itemType: "resale", averageCostCents: 100, lastCostCents: 100 } as never, "purchase")).toMatchObject({ product_id: "p3", stock_delta: 1 });
   });
 
   it("maps API line errors back to stable editable row keys and fields", () => {
@@ -87,5 +88,6 @@ describe("warehouse workspace", () => {
     expect(workspace).toContain('openOperation("count")');
     expect(operationDialog).toContain("Inventario fisico");
     expect(workspace).toContain("startWithPaste");
+    expect(operationDialog).toContain('mode === "count" ? "count"');
   });
 });

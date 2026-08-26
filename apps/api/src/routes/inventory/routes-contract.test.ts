@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 
 import { productValues } from "./catalog.js";
+import { parseDocumentDateFilter } from "./documents.js";
 
 const routeRoot = resolve(import.meta.dirname);
 const catalogSource = readFileSync(resolve(routeRoot, "catalog.ts"), "utf8");
@@ -50,5 +51,7 @@ describe("warehouse route contract", () => {
     expect(documentsSource).toContain("gte(inventoryDocuments.documentDate");
     expect(documentsSource).toContain("lte(inventoryDocuments.documentDate");
     expect(documentsSource).toContain("INVALID_DATE_FILTER");
+    expect(parseDocumentDateFilter("2026-08-26", false)?.toISOString()).toBe("2026-08-26T00:00:00.000Z");
+    expect(parseDocumentDateFilter("2026-08-26", true)?.toISOString()).toBe("2026-08-26T23:59:59.999Z");
   });
 });
