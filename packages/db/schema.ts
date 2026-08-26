@@ -1813,6 +1813,59 @@ export const campaignRecipients = pgTable(
   ],
 );
 
+export const WAREHOUSE_DOCUMENT_KINDS = [
+  "opening",
+  "purchase",
+  "supplier_invoice",
+  "internal_use",
+  "waste",
+  "supplier_return",
+  "adjustment",
+  "count",
+  "credit_note",
+  "equipment_purchase",
+  "expense",
+] as const;
+
+export const WAREHOUSE_DOCUMENT_STATUSES = [
+  "draft",
+  "posted",
+  "cancelled",
+  "reversed",
+] as const;
+
+export const inventorySuppliers = pgTable(
+  "inventory_suppliers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    contactName: text("contact_name"),
+    vatNumber: text("vat_number"),
+    taxCode: text("tax_code"),
+    email: text("email"),
+    phone: text("phone"),
+    address: text("address"),
+    city: text("city"),
+    postalCode: text("postal_code"),
+    country: text("country"),
+    paymentTerms: text("payment_terms"),
+    notes: text("notes"),
+    active: boolean("active").default(true).notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("inventory_suppliers_salon_name_unique").on(table.salonId, table.name),
+    index("inventory_suppliers_salon_active_idx").on(table.salonId, table.active),
+  ],
+);
+
 export const inventoryProducts = pgTable("inventory_products", {
   id: uuid("id").defaultRandom().primaryKey(),
   salonId: uuid("salon_id")
@@ -1829,12 +1882,27 @@ export const inventoryProducts = pgTable("inventory_products", {
   reorderQuantity: integer("reorder_quantity").default(0).notNull(),
   supplier: text("supplier"),
   preferredSupplier: text("preferred_supplier"),
+  itemType: text("item_type").default("resale").notNull(),
+  unit: text("unit").default("pz").notNull(),
+  unitScale: integer("unit_scale").default(1).notNull(),
+  trackStock: boolean("track_stock").default(true).notNull(),
+  sellable: boolean("sellable").default(true).notNull(),
+  internallyConsumable: boolean("internally_consumable").default(false).notNull(),
+  averageCostCents: integer("average_cost_cents").default(0).notNull(),
+  lastCostCents: integer("last_cost_cents").default(0).notNull(),
+  preferredSupplierId: uuid("preferred_supplier_id").references(
+    () => inventorySuppliers.id,
+    { onDelete: "set null" },
+  ),
   allowNegativeStock: boolean("allow_negative_stock").default(false).notNull(),
   active: boolean("active").default(true).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => [
+  check("inventory_products_item_type_valid", sql`${table.itemType} in ('resale', 'consumable', 'equipment', 'expense')`),
+  check("inventory_products_unit_scale_positive", sql`${table.unitScale} > 0`),
+]);
 
 export const inventoryReorderRequests = pgTable("inventory_reorder_requests", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1855,7 +1923,113 @@ export const inventoryReorderRequests = pgTable("inventory_reorder_requests", {
   ...timestamps,
 });
 
-export const inventoryMovements = pgTable("inventory_movements", {
+export const inventoryDocuments = pgTable(
+  "inventory_documents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    internalNumber: text("internal_number").notNull(),
+    kind: text("kind").notNull(),
+    status: text("status").default("draft").notNull(),
+    supplierId: uuid("supplier_id").references(() => inventorySuppliers.id, {
+      onDelete: "set null",
+    }),
+    externalReference: text("external_reference"),
+    documentDate: timestamp("document_date", { withTimezone: true }).defaultNow().notNull(),
+    competenceDate: timestamp("competence_date", { withTimezone: true }),
+    notes: text("notes"),
+    attachmentUrl: text("attachment_url"),
+    netTotalCents: integer("net_total_cents").default(0).notNull(),
+    taxTotalCents: integer("tax_total_cents").default(0).notNull(),
+    totalCents: integer("total_cents").default(0).notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    postedByUserId: uuid("posted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    reversalOfDocumentId: uuid("reversal_of_document_id").references(
+      (): AnyPgColumn => inventoryDocuments.id,
+      { onDelete: "set null" },
+    ),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("inventory_documents_salon_internal_number_unique").on(
+      table.salonId,
+      table.internalNumber,
+    ),
+    index("inventory_documents_salon_status_date_idx").on(
+      table.salonId,
+      table.status,
+      table.documentDate,
+    ),
+    check(
+      "inventory_documents_kind_valid",
+      sql`${table.kind} in ('opening', 'purchase', 'supplier_invoice', 'internal_use', 'waste', 'supplier_return', 'adjustment', 'count', 'credit_note', 'equipment_purchase', 'expense')`,
+    ),
+    check(
+      "inventory_documents_status_valid",
+      sql`${table.status} in ('draft', 'posted', 'cancelled', 'reversed')`,
+    ),
+    check("inventory_documents_net_total_non_negative", sql`${table.netTotalCents} >= 0`),
+    check("inventory_documents_tax_total_non_negative", sql`${table.taxTotalCents} >= 0`),
+    check("inventory_documents_total_non_negative", sql`${table.totalCents} >= 0`),
+  ],
+);
+
+export const inventoryDocumentLines = pgTable(
+  "inventory_document_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => inventoryDocuments.id, { onDelete: "cascade" }),
+    productId: uuid("product_id").references(() => inventoryProducts.id, {
+      onDelete: "set null",
+    }),
+    supplierId: uuid("supplier_id").references(() => inventorySuppliers.id, {
+      onDelete: "set null",
+    }),
+    lineNumber: integer("line_number").notNull(),
+    description: text("description").notNull(),
+    itemType: text("item_type").default("resale").notNull(),
+    quantity: integer("quantity").notNull(),
+    unit: text("unit").default("pz").notNull(),
+    unitScale: integer("unit_scale").default(1).notNull(),
+    stockDelta: integer("stock_delta").default(0).notNull(),
+    unitCostCents: integer("unit_cost_cents").default(0).notNull(),
+    discountCents: integer("discount_cents").default(0).notNull(),
+    taxRateBasisPoints: integer("tax_rate_basis_points").default(0).notNull(),
+    netCents: integer("net_cents").default(0).notNull(),
+    taxCents: integer("tax_cents").default(0).notNull(),
+    totalCents: integer("total_cents").default(0).notNull(),
+    destination: text("destination"),
+    note: text("note"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("inventory_document_lines_document_line_unique").on(
+      table.documentId,
+      table.lineNumber,
+    ),
+    index("inventory_document_lines_product_idx").on(table.productId),
+    check("inventory_document_lines_item_type_valid", sql`${table.itemType} in ('resale', 'consumable', 'equipment', 'expense')`),
+    check("inventory_document_lines_unit_scale_positive", sql`${table.unitScale} > 0`),
+    check("inventory_document_lines_unit_cost_non_negative", sql`${table.unitCostCents} >= 0`),
+    check("inventory_document_lines_discount_non_negative", sql`${table.discountCents} >= 0`),
+    check("inventory_document_lines_net_non_negative", sql`${table.netCents} >= 0`),
+    check("inventory_document_lines_tax_non_negative", sql`${table.taxCents} >= 0`),
+    check("inventory_document_lines_total_non_negative", sql`${table.totalCents} >= 0`),
+  ],
+);
+
+export const inventoryMovements = pgTable(
+  "inventory_movements",
+  {
   id: uuid("id").defaultRandom().primaryKey(),
   salonId: uuid("salon_id")
     .notNull()
@@ -1872,9 +2046,144 @@ export const inventoryMovements = pgTable("inventory_movements", {
     onDelete: "set null",
   }),
   stockAfter: integer("stock_after"),
+  documentId: uuid("document_id").references(() => inventoryDocuments.id, {
+    onDelete: "set null",
+  }),
+  documentLineId: uuid("document_line_id").references(() => inventoryDocumentLines.id, {
+    onDelete: "set null",
+  }),
+  movementType: text("movement_type"),
+  stockBefore: integer("stock_before"),
+  unitCostCents: integer("unit_cost_cents"),
+  valueCents: integer("value_cents"),
+  reversesMovementId: uuid("reverses_movement_id").references(
+    (): AnyPgColumn => inventoryMovements.id,
+    { onDelete: "set null" },
+  ),
   note: text("note"),
   ...timestamps,
-});
+  },
+  (table) => [index("inventory_movements_salon_product_date_idx").on(table.salonId, table.productId, table.createdAt)],
+);
+
+export const inventoryCounts = pgTable(
+  "inventory_counts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id").references(() => inventoryDocuments.id, {
+      onDelete: "set null",
+    }),
+    status: text("status").default("draft").notNull(),
+    category: text("category"),
+    openedAt: timestamp("opened_at", { withTimezone: true }).defaultNow().notNull(),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    postedByUserId: uuid("posted_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (table) => [
+    index("inventory_counts_salon_status_date_idx").on(table.salonId, table.status, table.openedAt),
+    check("inventory_counts_status_valid", sql`${table.status} in ('draft', 'counting', 'posted', 'cancelled')`),
+  ],
+);
+
+export const inventoryCountLines = pgTable(
+  "inventory_count_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    countId: uuid("count_id")
+      .notNull()
+      .references(() => inventoryCounts.id, { onDelete: "cascade" }),
+    productId: uuid("product_id")
+      .notNull()
+      .references(() => inventoryProducts.id, { onDelete: "cascade" }),
+    theoreticalQuantity: integer("theoretical_quantity").notNull(),
+    countedQuantity: integer("counted_quantity"),
+    differenceQuantity: integer("difference_quantity"),
+    differenceValueCents: integer("difference_value_cents").default(0).notNull(),
+    note: text("note"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("inventory_count_lines_count_product_unique").on(table.countId, table.productId),
+    index("inventory_count_lines_product_idx").on(table.productId),
+  ],
+);
+
+export const inventoryExpenses = pgTable(
+  "inventory_expenses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => inventoryDocuments.id, { onDelete: "restrict" }),
+    documentLineId: uuid("document_line_id").references(() => inventoryDocumentLines.id, {
+      onDelete: "set null",
+    }),
+    supplierId: uuid("supplier_id").references(() => inventorySuppliers.id, {
+      onDelete: "set null",
+    }),
+    category: text("category").notNull(),
+    competenceDate: timestamp("competence_date", { withTimezone: true }).notNull(),
+    description: text("description").notNull(),
+    netCents: integer("net_cents").default(0).notNull(),
+    taxCents: integer("tax_cents").default(0).notNull(),
+    totalCents: integer("total_cents").default(0).notNull(),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (table) => [
+    index("inventory_expenses_salon_competence_date_idx").on(table.salonId, table.competenceDate),
+    check("inventory_expenses_net_non_negative", sql`${table.netCents} >= 0`),
+    check("inventory_expenses_tax_non_negative", sql`${table.taxCents} >= 0`),
+    check("inventory_expenses_total_non_negative", sql`${table.totalCents} >= 0`),
+  ],
+);
+
+export const inventoryAssets = pgTable(
+  "inventory_assets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    documentId: uuid("document_id")
+      .notNull()
+      .references(() => inventoryDocuments.id, { onDelete: "restrict" }),
+    documentLineId: uuid("document_line_id").references(() => inventoryDocumentLines.id, {
+      onDelete: "set null",
+    }),
+    supplierId: uuid("supplier_id").references(() => inventorySuppliers.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull(),
+    serialNumber: text("serial_number"),
+    purchaseDate: timestamp("purchase_date", { withTimezone: true }).notNull(),
+    purchaseCostCents: integer("purchase_cost_cents").default(0).notNull(),
+    warrantyExpiresAt: timestamp("warranty_expires_at", { withTimezone: true }),
+    status: text("status").default("active").notNull(),
+    disposedAt: timestamp("disposed_at", { withTimezone: true }),
+    disposalNotes: text("disposal_notes"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (table) => [
+    index("inventory_assets_salon_purchase_date_idx").on(table.salonId, table.purchaseDate),
+    check("inventory_assets_status_valid", sql`${table.status} in ('active', 'disposed')`),
+    check("inventory_assets_purchase_cost_non_negative", sql`${table.purchaseCostCents} >= 0`),
+  ],
+);
 
 export const consentTemplates = pgTable(
   "consent_templates",

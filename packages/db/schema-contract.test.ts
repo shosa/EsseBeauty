@@ -34,6 +34,13 @@ import {
   serviceStaff,
   staffAvailabilityRequests,
   userInterfacePreferences,
+  inventoryAssets,
+  inventoryCountLines,
+  inventoryCounts,
+  inventoryDocumentLines,
+  inventoryDocuments,
+  inventoryExpenses,
+  inventorySuppliers,
 } from "./schema.js";
 
 const plannedTables = [
@@ -76,4 +83,18 @@ const plannedTables = [
 
 if (plannedTables.length !== 37) {
   throw new Error("Schema remediation contract is incomplete.");
+}
+
+const warehouseTables = [
+  inventorySuppliers,
+  inventoryDocuments,
+  inventoryDocumentLines,
+  inventoryCounts,
+  inventoryCountLines,
+  inventoryExpenses,
+  inventoryAssets,
+];
+
+if (warehouseTables.length !== 7 || warehouseTables.some((table) => !table)) {
+  throw new Error("Warehouse schema contract is incomplete.");
 }

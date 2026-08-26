@@ -239,6 +239,13 @@
       "when": 1787817600000,
       "tag": "0033_whatsapp_product_flow_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787904000000,
+      "tag": "0034_complete_warehouse",
+      "breakpoints": true
     }
   ]
 }
