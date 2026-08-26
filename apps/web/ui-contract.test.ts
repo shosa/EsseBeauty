@@ -9,6 +9,7 @@ import {
   Breadcrumbs,
   DataTable,
   EmptyState,
+  ExpandableAction,
   FormField,
   InlineError,
   InboxItem,
@@ -43,6 +44,7 @@ describe("shared UI foundation contract", () => {
     expect(StatusBadge).toBeTypeOf("function");
     expect(TableSkeleton).toBeTypeOf("function");
     expect(EmptyState).toBeTypeOf("function");
+    expect(ExpandableAction).toBeTypeOf("function");
     expect(FormField).toBeTypeOf("function");
     expect(InlineError).toBeTypeOf("function");
     expect(SaveToast).toBeTypeOf("function");

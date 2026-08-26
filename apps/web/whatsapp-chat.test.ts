@@ -62,6 +62,14 @@ describe("global WhatsApp workspace", () => {
     expect(drawer).toContain("Rubrica clienti");
   });
 
+  it("confirms destructive conversation removal and explains its scope", () => {
+    const drawer = readFileSync(resolve("app/(dashboard)/_components/WhatsAppChatDrawer.tsx"), "utf8");
+    expect(drawer).toContain("Elimina conversazione");
+    expect(drawer).toContain("Rimuove la conversazione dalla tua lista");
+    expect(drawer).toContain("deleteConversationId");
+    expect(drawer).toContain("ConfirmDialog");
+  });
+
   it("updates unread badges immediately when a conversation action succeeds", () => {
     const conversations = [{ id: "one", unread_count: 3 }, { id: "two", unread_count: 0 }];
     expect(markConversationRead(conversations, "one")).toEqual([

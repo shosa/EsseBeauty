@@ -1,5 +1,6 @@
 import type {
   ButtonHTMLAttributes,
+  ComponentType,
   HTMLAttributes,
   MouseEvent,
   ReactNode,
@@ -153,6 +154,57 @@ export function Button({
       type={type}
       {...props}
     />
+  );
+}
+
+export type ExpandableActionTone =
+  | "amber"
+  | "emerald"
+  | "fuchsia"
+  | "indigo"
+  | "orange"
+  | "rose"
+  | "sky"
+  | "teal"
+  | "violet";
+
+const expandableActionTones: Record<ExpandableActionTone, string> = {
+  amber: "border-amber-300 text-amber-700 hover:border-amber-600 hover:bg-amber-600 focus-visible:border-amber-600 focus-visible:bg-amber-600",
+  emerald: "border-emerald-300 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-600 focus-visible:border-emerald-600 focus-visible:bg-emerald-600",
+  fuchsia: "border-fuchsia-300 text-fuchsia-700 hover:border-fuchsia-600 hover:bg-fuchsia-600 focus-visible:border-fuchsia-600 focus-visible:bg-fuchsia-600",
+  indigo: "border-indigo-300 text-indigo-700 hover:border-indigo-600 hover:bg-indigo-600 focus-visible:border-indigo-600 focus-visible:bg-indigo-600",
+  orange: "border-orange-300 text-orange-700 hover:border-orange-600 hover:bg-orange-600 focus-visible:border-orange-600 focus-visible:bg-orange-600",
+  rose: "border-rose-300 text-rose-700 hover:border-rose-600 hover:bg-rose-600 focus-visible:border-rose-600 focus-visible:bg-rose-600",
+  sky: "border-sky-300 text-sky-700 hover:border-sky-600 hover:bg-sky-600 focus-visible:border-sky-600 focus-visible:bg-sky-600",
+  teal: "border-teal-300 text-teal-700 hover:border-teal-600 hover:bg-teal-600 focus-visible:border-teal-600 focus-visible:bg-teal-600",
+  violet: "border-violet-300 text-violet-700 hover:border-violet-600 hover:bg-violet-600 focus-visible:border-violet-600 focus-visible:bg-violet-600",
+};
+
+export function ExpandableAction({
+  className = "",
+  icon: Icon,
+  label,
+  tone,
+  type = "button",
+  ...props
+}: Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  tone: ExpandableActionTone;
+}) {
+  return (
+    <button
+      aria-label={label}
+      className={`group inline-flex min-h-10 items-center justify-center overflow-hidden rounded-xl border bg-white px-3 font-bold shadow-sm transition-all duration-300 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-950/10 ${expandableActionTones[tone]} ${className}`}
+      title={label}
+      type={type}
+      {...props}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:ml-2 group-hover:max-w-48 group-hover:opacity-100 group-focus-visible:ml-2 group-focus-visible:max-w-48 group-focus-visible:opacity-100">
+        {label}
+      </span>
+    </button>
   );
 }
 

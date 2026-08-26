@@ -139,10 +139,21 @@ export function resolveProductReference(
   const normalized = reference.trim().toLocaleLowerCase("it-IT");
   if (!normalized) return undefined;
   return products.find((product) =>
-    [product.id, product.sku ?? "", product.name].some(
+    [product.id, product.sku ?? "", product.name, productReferenceLabel(product)].some(
       (value) => value.trim().toLocaleLowerCase("it-IT") === normalized,
     ),
   );
+}
+
+export function productReferenceLabel(product: Pick<WarehouseProduct, "name" | "sku">) {
+  return product.sku ? `${product.name} · ${product.sku}` : product.name;
+}
+
+function dateInputValue(value: string | Date = new Date()) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 export function normalizeLineForItemType(
@@ -217,7 +228,7 @@ export function parsePastedRows(
     if (!product) {
       errors.push({
         row: index + 1,
-        message: "Articolo non trovato: usa ID, SKU o nome esatto",
+        message: "Articolo non trovato: usa SKU o nome esatto",
       });
       return;
     }
@@ -275,6 +286,8 @@ export function WarehouseOperationDialog({
   const [lines, setLines] = useState<EditableWarehouseLine[]>([]);
   const [supplierId, setSupplierId] = useState("");
   const [reference, setReference] = useState("");
+  const [documentDate, setDocumentDate] = useState(() => dateInputValue());
+  const [competenceDate, setCompetenceDate] = useState("");
   const [kind, setKind] = useState<WarehouseDocumentKind>(
     mode === "purchase" || mode === "issue"
       ? mode === "issue"
@@ -323,6 +336,8 @@ export function WarehouseOperationDialog({
     );
     setSupplierId(initialDocument?.supplierId ?? "");
     setReference(initialDocument?.externalReference ?? "");
+    setDocumentDate(dateInputValue(initialDocument?.documentDate ?? new Date()));
+    setCompetenceDate(initialDocument?.competenceDate ? dateInputValue(initialDocument.competenceDate) : "");
     setNotes(initialDocument?.notes ?? "");
     setReason("");
     setKind(
@@ -450,6 +465,8 @@ export function WarehouseOperationDialog({
       const input: WarehouseDocumentInput = {
         kind,
         external_reference: reference || null,
+        document_date: documentDate,
+        competence_date: competenceDate || null,
         supplier_id: mode === "purchase" ? supplierId || null : null,
         notes: [reason, notes].filter(Boolean).join(" · ") || null,
         lines: lines.map((line) => ({
@@ -628,7 +645,7 @@ export function WarehouseOperationDialog({
             </div>
           )}
           <div
-            className={`grid gap-3 ${mode === "purchase" ? "md:grid-cols-4" : "md:grid-cols-3"}`}
+            className={`grid gap-3 ${mode === "purchase" ? "md:grid-cols-3 xl:grid-cols-6" : "md:grid-cols-3"}`}
           >
             {mode === "purchase" && (
               <>
@@ -654,6 +671,25 @@ export function WarehouseOperationDialog({
                     onChange={(event) => setReference(event.target.value)}
                     placeholder="Fattura, DDT..."
                     value={reference}
+                  />
+                </label>
+                <label className="text-xs font-bold text-stone-600">
+                  Data documento
+                  <input
+                    className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 px-2 text-sm"
+                    onChange={(event) => setDocumentDate(event.target.value)}
+                    required
+                    type="date"
+                    value={documentDate}
+                  />
+                </label>
+                <label className="text-xs font-bold text-stone-600">
+                  Data competenza
+                  <input
+                    className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 px-2 text-sm"
+                    onChange={(event) => setCompetenceDate(event.target.value)}
+                    type="date"
+                    value={competenceDate}
                   />
                 </label>
                 <label className="text-xs font-bold text-stone-600">
@@ -719,8 +755,7 @@ export function WarehouseOperationDialog({
             {products.map((product) => (
               <option
                 key={product.id}
-                label={`${product.name}${product.sku ? ` · ${product.sku}` : ""}`}
-                value={product.id}
+                value={productReferenceLabel(product)}
               />
             ))}
           </datalist>
@@ -1075,7 +1110,7 @@ export function WarehouseOperationDialog({
                   <textarea
                     className="min-h-20 min-w-[320px] rounded-md border border-stone-200 p-2 text-xs"
                     onChange={(event) => setPaste(event.target.value)}
-                    placeholder="ID, SKU o nome\tQuantità\tCosto €\tIVA %"
+                    placeholder="SKU o nome\tQuantità\tCosto €\tIVA %"
                     value={paste}
                   />
                   <Button

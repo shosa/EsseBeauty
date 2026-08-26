@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCheck, ContactRound, EllipsisVertical, ExternalLink, Eye, EyeOff, LoaderCircle, MessageCircle, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
+import { ConfirmDialog } from "@esse-beauty/ui";
 
 import { useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
 
@@ -24,6 +25,7 @@ export function WhatsAppChatDrawer() {
   const [addressBookOpen, setAddressBookOpen] = useState(false);
   const [contactQuery, setContactQuery] = useState("");
   const [menuConversationId, setMenuConversationId] = useState<string | null>(null);
+  const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!workspace.open) return;
@@ -68,6 +70,13 @@ export function WhatsAppChatDrawer() {
     composerRef.current?.focus();
   }
 
+  async function confirmConversationDelete() {
+    if (!deleteConversationId) return;
+    const conversationId = deleteConversationId;
+    setDeleteConversationId(null);
+    await workspace.deleteConversation(conversationId);
+  }
+
   if (!workspace.canView || !workspace.open) return null;
   const selected = workspace.selectedConversation;
 
@@ -76,12 +85,12 @@ export function WhatsAppChatDrawer() {
       <aside
         aria-label="Chat WhatsApp"
         aria-modal="true"
-        className="absolute inset-y-0 right-0 flex w-full max-w-[760px] overflow-hidden bg-[#f5f1f3] shadow-[-24px_0_80px_rgb(32_20_27_/_0.28)] outline-none"
+        className="absolute inset-y-0 right-0 flex w-full max-w-[900px] overflow-hidden border-l border-white/60 bg-[#f5f1f3] shadow-[-24px_0_80px_rgb(32_20_27_/_0.28)] outline-none"
         ref={panelRef}
         role="dialog"
         tabIndex={-1}
       >
-        <section className={`${selected && !mobileListOpen ? "hidden sm:flex" : "flex"} w-full flex-col border-r border-stone-200 bg-white sm:w-[290px] sm:shrink-0`}>
+        <section className={`${selected && !mobileListOpen ? "hidden sm:flex" : "flex"} w-full flex-col border-r border-stone-200 bg-white sm:w-[320px] sm:shrink-0`}>
           <div className="border-b border-stone-200 p-4">
             <div className="flex items-center justify-between gap-3">
               <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Cloud API</p><h2 className="text-xl font-black text-[#2d1d27]">WhatsApp</h2></div>
@@ -116,7 +125,7 @@ export function WhatsAppChatDrawer() {
                     {conversation.unread_count > 0
                       ? <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold hover:bg-stone-50" onClick={() => { setMenuConversationId(null); void workspace.markRead(conversation.id); }} role="menuitem" type="button"><Eye className="size-4" /> Segna come letto</button>
                       : <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold hover:bg-stone-50" onClick={() => { setMenuConversationId(null); void workspace.markUnread(conversation.id); }} role="menuitem" type="button"><EyeOff className="size-4" /> Segna da leggere</button>}
-                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold text-red-700 hover:bg-red-50" onClick={() => { setMenuConversationId(null); void workspace.deleteConversation(conversation.id); }} role="menuitem" type="button"><Trash2 className="size-4" /> Cancella dalla lista</button>
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-bold text-red-700 hover:bg-red-50" onClick={() => { setMenuConversationId(null); setDeleteConversationId(conversation.id); }} role="menuitem" type="button"><Trash2 className="size-4" /> Elimina conversazione</button>
                   </div>
                 </>}
               </div>
@@ -157,6 +166,15 @@ export function WhatsAppChatDrawer() {
           </>}
         </section>
       </aside>
+      <ConfirmDialog
+        confirmLabel="Elimina dalla lista"
+        description="Rimuove la conversazione dalla tua lista WhatsApp senza cancellare il cliente o lo storico condiviso con altri operatori."
+        destructive
+        onCancel={() => setDeleteConversationId(null)}
+        onConfirm={() => void confirmConversationDelete()}
+        open={Boolean(deleteConversationId)}
+        title="Elimina conversazione?"
+      />
     </div>
   );
 }

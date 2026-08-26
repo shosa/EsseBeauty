@@ -10,13 +10,13 @@ import {
   Plus,
   RotateCcw,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   AppPage,
   Button,
   Dialog,
   EmptyState,
+  ExpandableAction,
   PageHeaderMetrics,
   SectionCard,
   StatusBadge,
@@ -67,51 +67,6 @@ type OperationMode =
   | "waste"
   | "revaluation"
   | "issue";
-
-const quickActionTones = {
-  fuchsia:
-    "border-fuchsia-300 text-fuchsia-700 hover:border-fuchsia-600 hover:bg-fuchsia-600 focus-visible:border-fuchsia-600 focus-visible:bg-fuchsia-600",
-  emerald:
-    "border-emerald-300 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-600 focus-visible:border-emerald-600 focus-visible:bg-emerald-600",
-  sky: "border-sky-300 text-sky-700 hover:border-sky-600 hover:bg-sky-600 focus-visible:border-sky-600 focus-visible:bg-sky-600",
-  amber:
-    "border-amber-300 text-amber-700 hover:border-amber-500 hover:bg-amber-500 focus-visible:border-amber-500 focus-visible:bg-amber-500",
-  indigo:
-    "border-indigo-300 text-indigo-700 hover:border-indigo-600 hover:bg-indigo-600 focus-visible:border-indigo-600 focus-visible:bg-indigo-600",
-  violet:
-    "border-violet-300 text-violet-700 hover:border-violet-600 hover:bg-violet-600 focus-visible:border-violet-600 focus-visible:bg-violet-600",
-  rose: "border-rose-300 text-rose-700 hover:border-rose-600 hover:bg-rose-600 focus-visible:border-rose-600 focus-visible:bg-rose-600",
-  orange:
-    "border-orange-300 text-orange-700 hover:border-orange-600 hover:bg-orange-600 focus-visible:border-orange-600 focus-visible:bg-orange-600",
-  teal: "border-teal-300 text-teal-700 hover:border-teal-600 hover:bg-teal-600 focus-visible:border-teal-600 focus-visible:bg-teal-600",
-} as const;
-
-function WarehouseQuickAction({
-  icon: Icon,
-  label,
-  onClick,
-  tone,
-}: {
-  icon: LucideIcon;
-  label: string;
-  onClick(): void;
-  tone: keyof typeof quickActionTones;
-}) {
-  return (
-    <button
-      aria-label={label}
-      className={`group inline-flex h-9 shrink-0 items-center overflow-hidden rounded-lg border bg-white px-2.5 font-bold shadow-sm transition-all duration-300 ease-out hover:text-white hover:shadow-md focus-visible:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${quickActionTones[tone]}`}
-      onClick={onClick}
-      title={label}
-      type="button"
-    >
-      <Icon className="size-4 shrink-0" />
-      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:ml-2 group-hover:max-w-40 group-hover:opacity-100 group-focus-visible:ml-2 group-focus-visible:max-w-40 group-focus-visible:opacity-100">
-        {label}
-      </span>
-    </button>
-  );
-}
 
 function readDocumentFilter<T extends string>(
   key: string,
@@ -392,31 +347,31 @@ export function WarehouseWorkspace() {
       <PageHeaderMetrics
         actions={
           <div className="flex flex-wrap gap-2">
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={Plus}
               label="Nuovo documento"
               onClick={() => openOperation("purchase")}
               tone="fuchsia"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={ArrowDownToLine}
               label="Carico"
               onClick={() => openOperation("purchase")}
               tone="emerald"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={ArrowUpFromLine}
               label="Scarico"
               onClick={() => openOperation("issue")}
               tone="sky"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={ClipboardList}
               label="Inventario"
               onClick={() => setActiveTab("counts")}
               tone="amber"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={FileUp}
               label="Importa"
               onClick={() => {
@@ -425,25 +380,25 @@ export function WarehouseWorkspace() {
               }}
               tone="indigo"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={ArrowDownToLine}
               label="Rettifica scorte"
               onClick={() => openOperation("adjustment")}
               tone="violet"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={PackagePlus}
               label="Registra scarto"
               onClick={() => openOperation("waste")}
               tone="rose"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={RotateCcw}
               label="Rivaluta costi"
               onClick={() => openOperation("revaluation")}
               tone="orange"
             />
-            <WarehouseQuickAction
+            <ExpandableAction
               icon={Archive}
               label="Articolo"
               onClick={() => window.location.assign("/inventory/new")}

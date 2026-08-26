@@ -6,6 +6,7 @@ import {
   createLine,
   normalizeLineForItemType,
   parsePastedRows,
+  productReferenceLabel,
   resolveProductReference,
 } from "./app/(dashboard)/inventory/_components/WarehouseOperationDialog";
 import { parseWarehousePaste } from "./app/(dashboard)/inventory/_components/WarehouseCounts";
@@ -61,9 +62,10 @@ describe("warehouse workspace", () => {
       join(dashboard, "inventory", "warehouse-workspace.tsx"),
       "utf8",
     );
-    expect(workspace).toContain("WarehouseQuickAction");
-    expect(workspace).toContain("group-hover:max-w-");
-    expect(workspace).toContain("group-focus-visible:max-w-");
+    const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
+    expect(workspace).toContain("ExpandableAction");
+    expect(ui).toContain("group-hover:max-w-");
+    expect(ui).toContain("group-focus-visible:max-w-");
     for (const color of [
       "fuchsia",
       "emerald",
@@ -75,8 +77,8 @@ describe("warehouse workspace", () => {
       "orange",
       "teal",
     ]) {
-      expect(workspace).toContain(`border-${color}-`);
-      expect(workspace).toContain(`hover:bg-${color}-`);
+      expect(ui).toContain(`border-${color}-`);
+      expect(ui).toContain(`hover:bg-${color}-`);
     }
   });
 
@@ -153,6 +155,26 @@ describe("warehouse workspace", () => {
         "Crema",
       )?.id,
     ).toBe("p1");
+    expect(productReferenceLabel(products[0] as never)).toBe("Crema · CRM-01");
+    expect(
+      resolveProductReference(
+        products as Parameters<typeof resolveProductReference>[0],
+        "Crema · CRM-01",
+      )?.id,
+    ).toBe("p1");
+  });
+
+  it("collects document and competence dates without exposing product UUIDs", () => {
+    const operationDialog = readFileSync(
+      join(dashboard, "inventory", "_components", "WarehouseOperationDialog.tsx"),
+      "utf8",
+    );
+    expect(operationDialog).toContain('type="date"');
+    expect(operationDialog).toContain("document_date: documentDate");
+    expect(operationDialog).toContain("competence_date: competenceDate || null");
+    expect(operationDialog).toContain("productReferenceLabel(product)");
+    expect(operationDialog).not.toContain('value={product.id}');
+    expect(operationDialog).not.toContain("ID, SKU o nome");
   });
 
   it("maps pasted product rows and rejects malformed numeric values", () => {

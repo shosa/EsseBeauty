@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, EmptyState, InboxItem, InlineError, PageHeader, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, InboxItem, InlineError, PageHeader, PageSkeleton, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../lib/auth-context";
 import { HomeKpiStrip } from "./_components/HomeKpiStrip";
@@ -99,12 +99,6 @@ export default function DashboardPage() {
           { detail: "Profili nel CRM", label: "Clienti", value: countOf(customers, (item) => item.total) },
           { detail: "Richiedono attenzione", label: "Da fare", value: notifications.status === "ready" ? notifications.data.unread_count : "—" },
       ]} />
-      <nav aria-label="Azioni rapide" className="mb-5 flex flex-wrap gap-2">
-        <Link className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold" href="/calendar">Agenda</Link>
-        <Link className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold" href="/sales">Apri cassa</Link>
-        <Link className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-semibold" href="/clients">Clienti</Link>
-      </nav>
-
       <div className="grid gap-5 xl:grid-cols-[1.55fr_.8fr]">
         <TodayTimeline action={<Link className="text-sm font-bold text-[#792f59] hover:underline" href="/calendar">Apri calendario</Link>}>
           {todayAppointments.status === "loading" && <div className="space-y-3">{[1, 2, 3].map((item) => <div className="h-16 animate-pulse rounded-xl bg-stone-100" key={item} />)}</div>}
@@ -133,7 +127,7 @@ export default function DashboardPage() {
             <Link className="mb-2 block rounded-xl border border-[#eadde4] bg-white p-3 transition hover:border-[#b85888]" href={item.href} key={item.id}>
               <div className="flex items-start justify-between gap-2">
                 <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-[#8f3a68]">{notificationLabel(item)}</p><b className="mt-1 block text-sm">{item.title}</b></div>
-                <StatusBadge status={item.priority === "high" ? "waiting" : "active"}>{item.priority ?? "normal"}</StatusBadge>
+                {item.priority === "high" && <span className="text-[10px] font-black uppercase tracking-[.12em] text-rose-700">Urgente</span>}
               </div>
               {item.body && <p className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500">{item.body}</p>}
             </Link>
