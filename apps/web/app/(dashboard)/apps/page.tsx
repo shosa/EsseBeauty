@@ -7,9 +7,7 @@ import { useModules } from "@esse-beauty/feature-flags";
 import { AppPage, EmptyState } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
-import { APP_DOMAINS, visibleApps } from "../_components/app-registry";
-
-const ESSENTIAL_APP_KEYS = new Set(["home", "calendar", "sales"]);
+import { APP_DOMAINS, drawerApps, visibleApps } from "../_components/app-registry";
 
 export default function AppsPage() {
   const { permissions } = useAuth();
@@ -22,12 +20,12 @@ export default function AppsPage() {
     ),
     [modules, permissions],
   );
-  const drawerApps = useMemo(() => apps.filter((app) => !ESSENTIAL_APP_KEYS.has(app.key)), [apps]);
+  const availableApps = useMemo(() => drawerApps(apps), [apps]);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("it");
-    if (!normalized) return drawerApps;
-    return drawerApps.filter((app) => `${app.label} ${app.description}`.toLocaleLowerCase("it").includes(normalized));
-  }, [drawerApps, query]);
+    if (!normalized) return availableApps;
+    return availableApps.filter((app) => `${app.label} ${app.description}`.toLocaleLowerCase("it").includes(normalized));
+  }, [availableApps, query]);
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

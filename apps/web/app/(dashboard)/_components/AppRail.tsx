@@ -23,6 +23,7 @@ function FourDotsIcon() {
 export function AppRail({
   apps,
   logout,
+  onAppsOpen,
   onNotificationsOpen,
   pathname,
   unreadCount,
@@ -30,6 +31,7 @@ export function AppRail({
 }: {
   apps: readonly AppDefinition[];
   logout(): void;
+  onAppsOpen(): void;
   onNotificationsOpen(): void;
   pathname: string;
   unreadCount: number;
@@ -44,7 +46,7 @@ export function AppRail({
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[76px] flex-col items-center border-r border-white/10 bg-[#2d1d27] px-2 py-3 text-white shadow-[8px_0_28px_rgb(45_29_39_/_0.12)] md:flex">
       <Link aria-label="EsseBeauty Home" className="grid size-12 place-items-center rounded-xl bg-white text-lg font-black text-[#792f59]" href="/">E</Link>
       <nav aria-label="App fissate" className="mt-4 flex flex-1 flex-col items-center gap-1.5">
-        <Link aria-label="Apri tutte le app" className="grid size-12 place-items-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" href="/apps" title="Tutte le app"><FourDotsIcon /></Link>
+        <button aria-label="Apri tutte le app" className="grid size-12 place-items-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white" onClick={onAppsOpen} title="Tutte le app" type="button"><FourDotsIcon /></button>
         <span className="my-1 h-px w-8 bg-white/10" />
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
           {pinned.map((app) => <Link aria-current={activePath(pathname, app.href) ? "page" : undefined} aria-label={app.label} className={`grid size-12 place-items-center rounded-xl transition ${activePath(pathname, app.href) ? "bg-white text-[#792f59] shadow-md" : "text-white/65 hover:bg-white/10 hover:text-white"}`} href={app.href} key={app.key} title={app.label}><app.icon /></Link>)}

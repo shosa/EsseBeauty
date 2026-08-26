@@ -9,11 +9,23 @@ import {
   appForPath,
   browserTitleForPath,
   contextTabsForPath,
+  drawerApps,
   visibleApps,
   visibleQuickActions,
 } from "./app/(dashboard)/_components/app-registry.js";
 
 describe("app-oriented dashboard registry", () => {
+  it("keeps Agenda and Cassa available in the app drawer while omitting Home", () => {
+    const availableApps = drawerApps(APP_REGISTRY);
+
+    expect(availableApps.map((app) => app.key)).toEqual(expect.arrayContaining(["calendar", "sales"]));
+    expect(availableApps.map((app) => app.key)).not.toContain("home");
+    expect(availableApps.map((app) => app.key)).not.toContain("reminders");
+    expect(availableApps.map((app) => app.key)).not.toContain("documents");
+    expect(availableApps.find((app) => app.key === "calendar")?.domain).toBe("control");
+    expect(availableApps.find((app) => app.key === "sales")?.domain).toBe("control");
+  });
+
   it("groups every dashboard destination into the four approved domains", () => {
     expect(APP_DOMAINS.map((domain) => domain.key)).toEqual([
       "day",
@@ -105,6 +117,17 @@ describe("app-oriented dashboard registry", () => {
         new Set([PERMISSION_KEYS.SETTINGS_USERS]),
       ).map((tab) => tab.label),
     ).toEqual(["Team e accessi"]);
+  });
+
+  it("owns permissions as the third Staff tab instead of a Settings tab", () => {
+    const allPermissions = new Set(Object.values(PERMISSION_KEYS));
+
+    expect(contextTabsForPath("/staff/permissions", allPermissions).map((tab) => [tab.label, tab.href])).toEqual([
+      ["Operatività", "/staff"],
+      ["Collaboratori", "/staff/manage"],
+      ["Permessi", "/staff/permissions"],
+    ]);
+    expect(contextTabsForPath("/settings", allPermissions).map((tab) => tab.href)).not.toContain("/settings/permissions");
   });
 
   it("uses correct Italian labels and provides contextual tabs", () => {

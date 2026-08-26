@@ -10,12 +10,10 @@ import {
   ClientsIcon,
   DashboardIcon,
   DoorIcon,
-  DocumentsIcon,
   InventoryIcon,
   LoyaltyIcon,
   MarketingIcon,
   PackagesIcon,
-  RemindersIcon,
   ReportsIcon,
   ReviewsIcon,
   SalesIcon,
@@ -77,7 +75,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#7c3aed",
     description: "Appuntamenti, risorse e disponibilità",
-    domain: "day",
+    domain: "control",
     href: "/calendar",
     icon: CalendarIcon,
     key: "calendar",
@@ -121,7 +119,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#0f766e",
     description: "Vendite, pagamenti e chiusura",
-    domain: "day",
+    domain: "control",
     href: "/sales",
     icon: SalesIcon,
     key: "sales",
@@ -171,6 +169,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     tabs: [
       { href: "/staff", label: "Operatività" },
       { href: "/staff/manage", label: "Collaboratori", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
+      { href: "/staff/permissions", label: "Permessi", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
     ],
   },
   {
@@ -286,7 +285,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     href: "/inventory",
     icon: InventoryIcon,
     key: "inventory",
-    label: "Inventario",
+    label: "Magazzino",
     moduleKey: MODULE_KEYS.INVENTORY,
     paths: ["/inventory"],
     permissions: [PERMISSION_KEYS.INVENTORY_MANAGE],
@@ -322,18 +321,6 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     moduleKey: MODULE_KEYS.STAFF_PERF,
     paths: ["/reports"],
     permissions: [PERMISSION_KEYS.REPORTS_VIEW_OWN, PERMISSION_KEYS.REPORTS_VIEW_ALL],
-  },
-  {
-    accent: "#475569",
-    description: "Documenti e consensi",
-    domain: "control",
-    href: "/settings/documents",
-    icon: DocumentsIcon,
-    key: "documents",
-    label: "Consensi",
-    moduleKey: MODULE_KEYS.DOCUMENTS,
-    paths: ["/settings/documents"],
-    permissions: [PERMISSION_KEYS.SETTINGS_SALON, PERMISSION_KEYS.CLIENTS_VIEW],
   },
   {
     accent: "#7e22ce",
@@ -392,11 +379,6 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
         permissions: [PERMISSION_KEYS.SETTINGS_USERS],
       },
       {
-        href: "/settings/permissions",
-        label: "Operatività",
-        permissions: [PERMISSION_KEYS.SETTINGS_STAFF],
-      },
-      {
         href: "/settings/reminders",
         label: "Comunicazioni",
         permissions: [PERMISSION_KEYS.SETTINGS_SALON],
@@ -407,18 +389,6 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
         permissions: [PERMISSION_KEYS.SETTINGS_SALON],
       },
     ],
-  },
-  {
-    accent: "#b45309",
-    description: "Promemoria automatici",
-    domain: "control",
-    href: "/settings/reminders",
-    icon: RemindersIcon,
-    key: "reminders",
-    label: "Promemoria",
-    moduleKey: MODULE_KEYS.REMINDERS,
-    paths: ["/settings/reminders"],
-    permissions: [PERMISSION_KEYS.SETTINGS_SALON],
   },
 ] as const;
 
@@ -456,6 +426,10 @@ export function visibleApps(
     (app) => (!app.moduleKey || enabledModules.has(app.moduleKey))
       && hasPermission(app.permissions, grantedPermissions),
   );
+}
+
+export function drawerApps(apps: readonly AppDefinition[]): AppDefinition[] {
+  return apps.filter((app) => app.key !== "home");
 }
 
 export function visibleQuickActions(

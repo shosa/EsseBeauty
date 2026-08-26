@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
-import { BellRing, FileSignature, History, MapPinned, MessageCircle, ShieldCheck, SlidersHorizontal, Smartphone, Users } from "lucide-react";
+import { type ReactNode, useEffect } from "react";
+import { BellRing, FileSignature, History, MapPinned, MessageCircle, SlidersHorizontal, Smartphone, Users } from "lucide-react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [staffRequestCount, setStaffRequestCount] = useState(0);
   const reminders = useModuleEnabled(MODULE_KEYS.REMINDERS);
   const documents = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const audit = useModuleEnabled(MODULE_KEYS.AUDIT_COMPLIANCE);
@@ -27,22 +26,12 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (legacyDestination) router.replace(legacyDestination);
   }, [legacyDestination, router]);
-  useEffect(() => {
-    setStaffRequestCount(Number(document.documentElement.dataset.staffPendingCount ?? 0));
-    function update(event: Event) {
-      setStaffRequestCount(Number((event as CustomEvent<number>).detail ?? 0));
-    }
-    window.addEventListener("esse:staff-request-count", update);
-    return () => window.removeEventListener("esse:staff-request-count", update);
-  }, []);
-
   const groups = [
     {
       label: "Salone",
       links: [
         { href: "/settings", icon: SlidersHorizontal, label: "Centro controllo" },
         { href: "/settings/users", icon: Users, label: "Utenti" },
-        { badge: staffRequestCount, href: "/settings/permissions", icon: ShieldCheck, label: "Permessi" },
         { href: "/settings/pwa", icon: Smartphone, label: "App Clienti" },
         { href: "/settings/locations", icon: MapPinned, label: "Sedi" },
       ],
@@ -74,7 +63,6 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
               <div className="space-y-1">
                 {group.links.map((item) => {
                   const active = item.href === "/settings" ? pathname === item.href : pathname.startsWith(item.href);
-                  const badge = "badge" in item ? item.badge ?? 0 : 0;
                   const Icon = item.icon;
                   return (
                     <Link
@@ -84,7 +72,6 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
                       key={item.href}
                     >
                       <span className="flex min-w-0 items-center gap-2.5"><Icon className={`size-4 shrink-0 ${active ? "text-[#792f59]" : "text-stone-400"}`} /><span className="truncate">{item.label}</span></span>
-                      {badge > 0 && <span className="grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(badge, 9)}</span>}
                     </Link>
                   );
                 })}

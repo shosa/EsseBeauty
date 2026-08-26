@@ -16,6 +16,16 @@ describe("campaign operations", () => {
     expect(source).toContain("Destinazioni escluse");
   });
 
+  it("organizes campaign creation as a responsive operational grid", () => {
+    const source = page("new");
+    expect(source).toContain("xl:grid-cols-12");
+    expect(source).toContain("xl:col-span-7");
+    expect(source).toContain("xl:col-span-5");
+    expect(source).toContain("xl:col-span-8");
+    expect(source).toContain("xl:col-span-4");
+    expect(source).toContain("xl:col-span-12");
+  });
+
   it("exposes truthful recovery and cancellation actions", () => {
     const source = page("[campaignId]");
     expect(source).toContain("Riprova falliti");

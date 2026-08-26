@@ -19,20 +19,28 @@ describe("apps directory navigation", () => {
     expect(page).toContain("Cerca app");
     expect(page).toContain('data-ui="app-drawer"');
     expect(page).toContain("aspect-square");
-    expect(page).toContain("ESSENTIAL_APP_KEYS");
-    expect(page).toContain("!ESSENTIAL_APP_KEYS.has(app.key)");
+    expect(page).toContain("drawerApps(apps)");
   });
 
-  it("navigates every Apps control to /apps without modal state", () => {
+  it("opens every Apps control in the global animated overlay", () => {
     const shell = readFileSync(join(components, "DashboardShell.tsx"), "utf8");
+    const overlay = readFileSync(join(components, "AppDrawerOverlay.tsx"), "utf8");
     const rail = readFileSync(join(components, "AppRail.tsx"), "utf8");
     const topbar = readFileSync(join(components, "WorkspaceTopbar.tsx"), "utf8");
     const mobile = readFileSync(join(components, "MobileAppNavigation.tsx"), "utf8");
 
-    expect(`${rail}${topbar}${mobile}`).toContain('href="/apps"');
-    expect(shell).not.toContain("launcherOpen");
-    expect(shell).not.toContain("<AppLauncher");
-    expect(`${rail}${topbar}${mobile}`).not.toContain("onLauncherOpen");
+    expect(shell).toContain("launcherOpen");
+    expect(shell).toContain("<AppDrawerOverlay");
+    expect(`${rail}${topbar}${mobile}`).toContain("onAppsOpen");
+    expect(`${rail}${topbar}${mobile}`).not.toContain('href="/apps"');
+    expect(overlay).toContain("APP_DOMAINS");
+    expect(overlay).toContain("drawerApps(apps)");
+    expect(overlay).toContain("esse-app-drawer-item");
+    expect(overlay).toContain("grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7");
+    expect(overlay).toContain('role="dialog"');
+    expect(overlay).toContain("md:left-[76px]");
+    expect(overlay).toContain("absolute inset-y-0 left-0 w-full");
+    expect(overlay).toContain("md:w-[min(1120px,calc(100vw-76px))]");
   });
 
   it("centers exactly the three essential pinned apps in the desktop rail", () => {

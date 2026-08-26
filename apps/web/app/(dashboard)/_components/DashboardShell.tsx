@@ -18,7 +18,6 @@ import {
   LoyaltyIcon,
   LogoutIcon,
   MarketingIcon,
-  ModuleIcon,
   MoreIcon,
   RemindersIcon,
   ReportsIcon,
@@ -33,6 +32,7 @@ import {
 } from "./Icons";
 import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./shell-config";
 import { AppRail } from "./AppRail";
+import { AppDrawerOverlay } from "./AppDrawerOverlay";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { CommunicationWorkspaceProvider, useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
@@ -55,14 +55,12 @@ const primary: Array<{ href: string; icon: IconComponent; label: string; section
 ];
 
 const moduleLinks = [
-  { moduleKey: MODULE_KEYS.REMINDERS, href: "/settings/reminders", icon: RemindersIcon, label: "Promemoria" },
   { moduleKey: MODULE_KEYS.REVIEWS, href: "/reviews", icon: ReviewsIcon, label: "Recensioni" },
   { moduleKey: MODULE_KEYS.WAITLIST, href: "/waitlist", icon: WaitlistIcon, label: "Lista attesa" },
   { moduleKey: MODULE_KEYS.LOYALTY, href: "/loyalty", icon: LoyaltyIcon, label: "Fedelta" },
   { moduleKey: MODULE_KEYS.MARKETING, href: "/marketing", icon: MarketingIcon, label: "Marketing" },
-  { moduleKey: MODULE_KEYS.INVENTORY, href: "/inventory", icon: InventoryIcon, label: "Inventario" },
+  { moduleKey: MODULE_KEYS.INVENTORY, href: "/inventory", icon: InventoryIcon, label: "Magazzino" },
   { moduleKey: MODULE_KEYS.STAFF_PERF, href: "/reports", icon: ReportsIcon, label: "Report" },
-  { moduleKey: MODULE_KEYS.DOCUMENTS, href: "/settings/documents", icon: ModuleIcon, label: "Consensi" },
   { moduleKey: MODULE_KEYS.PACKAGES, href: "/packages", icon: ServicesIcon, label: "Pacchetti" },
   { moduleKey: MODULE_KEYS.AUDIT_COMPLIANCE, href: "/settings/audit", icon: ReportsIcon, label: "Attività" },
 ];
@@ -70,7 +68,7 @@ const moduleLinks = [
 const settingsLinks = [
   { href: "/settings", icon: SettingsIcon, label: "Centro controllo" },
   { href: "/settings/users", icon: StaffIcon, label: "Utenti" },
-  { href: "/settings/permissions", icon: RemindersIcon, label: "Permessi e assenze" },
+  { href: "/staff/permissions", icon: RemindersIcon, label: "Permessi e assenze" },
 ];
 
 const workspaceSections = [
@@ -96,7 +94,7 @@ function currentSection(pathname: string) {
     ["/cabins", "Relazioni", "Cabine"],
     ["/packages", "Relazioni", "Pacchetti"],
     ["/loyalty", "Relazioni", "Fedeltà"],
-    ["/inventory", "Operatività", "Inventario"],
+    ["/inventory", "Operatività", "Magazzino"],
     ["/reviews", "Operatività", "Recensioni"],
     ["/waitlist", "Operatività", "Lista d’attesa"],
     ["/marketing", "Operatività", "Marketing"],
@@ -366,7 +364,7 @@ function UnifiedSideNavigation({
         >
           <div ref={scrollContentRef}>
             <nav className="space-y-1">
-              {sectionLinks.map((item) => <NavigationLink badge={item.href === "/settings/permissions" ? staffRequestCount : 0} collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
+              {sectionLinks.map((item) => <NavigationLink badge={item.href === "/staff/permissions" ? staffRequestCount : 0} collapsed={collapsed} href={item.href} icon={item.icon} key={item.href} label={item.label} />)}
             </nav>
 
             <div className="mt-6 border-t border-stone-100 pt-5">
@@ -407,6 +405,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [launcherOpen, setLauncherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
@@ -637,12 +636,14 @@ function ShellContent({ children }: { children: ReactNode }) {
       <AppRail
         apps={apps}
         logout={() => void logout()}
+        onAppsOpen={() => setLauncherOpen(true)}
         onNotificationsOpen={() => setNotificationsOpen(true)}
         pathname={pathname}
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={topbarTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
+      <AppDrawerOverlay apps={apps} onClose={() => setLauncherOpen(false)} open={launcherOpen} />
+      <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onAppsOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={topbarTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter
         error={notificationError}
@@ -660,7 +661,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         {notificationPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => openNotification(item)} />)}
       </div>
       <main className={`${topbarTabs.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
-      <MobileAppNavigation apps={apps} pathname={pathname} />
+      <MobileAppNavigation apps={apps} onAppsOpen={() => setLauncherOpen(true)} pathname={pathname} />
     </div>
   );
 }

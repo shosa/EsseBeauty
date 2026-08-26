@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { CalendarClock, MapPinned, Smartphone, UserRound } from "lucide-react";
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, FormField, PageHeader, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, PageHeader, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
 import { useAuth } from "../../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -152,10 +153,11 @@ export default function StaffDetailPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message || error)} variant={error ? "error" : "success"}>{error || message}</SaveToast>
+      <Breadcrumbs items={[{ href: "/staff", label: "Staff" }, { label: member.displayName }]} />
       <PageHeader eyebrow="Profilo staff" title={member.displayName} subtitle="Anagrafica, accesso App Staff e orari ricorrenti." />
 
-      <div className="grid gap-5 xl:grid-cols-12">
-        <SectionCard className="xl:col-span-5" title="Profilo" subtitle="Dati visibili nel gestionale e nelle aree collegate al collaboratore.">
+      <div className="grid gap-4 xl:grid-cols-12">
+        <SectionCard className="xl:col-span-5" title={<span className="flex items-center gap-2"><UserRound className="size-5 text-[#792f59]" />Profilo</span>} subtitle="Dati visibili nel gestionale e nelle aree collegate al collaboratore.">
           <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_170px]">
             <FormField label="Nome collaboratore" required>
               <input className="w-full" value={member.displayName} onChange={(event) => setMember({ ...member, displayName: event.target.value })} />
@@ -178,7 +180,7 @@ export default function StaffDetailPage() {
           </div>
         </SectionCard>
 
-        <SectionCard className="xl:col-span-7" title="Accesso App Staff" subtitle="Credenziali usate dal collaboratore per accedere alla propria app operativa.">
+        <SectionCard className="xl:col-span-7" title={<span className="flex items-center gap-2"><Smartphone className="size-5 text-[#792f59]" />Accesso App Staff</span>} subtitle="Credenziali usate dal collaboratore per accedere alla propria app operativa.">
           <form action={saveAccess}>
             <div className="grid gap-5 md:grid-cols-2">
               <FormField label="Email dipendente" required>
@@ -208,7 +210,7 @@ export default function StaffDetailPage() {
           </form>
         </SectionCard>
 
-        <SectionCard className="xl:col-span-12" title="Orari settimanali" subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
+        <SectionCard className="xl:col-span-8" title={<span className="flex items-center gap-2"><CalendarClock className="size-5 text-[#792f59]" />Orari settimanali</span>} subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4">
             <div>
               <strong className="block text-sm text-stone-900">Orario base del salone</strong>
@@ -225,11 +227,11 @@ export default function StaffDetailPage() {
           </div>
         </SectionCard>
 
-        <SectionCard className="xl:col-span-12" title="Sede e servizi abilitati" subtitle="Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.">
+        <SectionCard className="xl:col-span-4" title={<span className="flex items-center gap-2"><MapPinned className="size-5 text-[#792f59]" />Sede e servizi</span>} subtitle="Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.">
           {locations.length > 0 && (
             <div>
               <p className="text-sm font-bold text-stone-900">Sede di lavoro</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                 {locations.filter((location) => location.active).map((location) => (
                   <button
                     className={`rounded-xl border p-4 text-left transition ${locationId === location.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}

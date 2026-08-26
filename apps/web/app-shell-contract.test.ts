@@ -20,11 +20,12 @@ describe("hybrid app workspace shell", () => {
     const mobile = readFileSync(join(components, "MobileAppNavigation.tsx"), "utf8");
 
     expect(`${rail}${topbar}${mobile}`).toContain("Apri tutte le app");
-    expect(`${rail}${topbar}${mobile}`).toContain('href="/apps"');
+    expect(`${rail}${topbar}${mobile}`).toContain("onAppsOpen");
+    expect(`${rail}${topbar}${mobile}`).not.toContain('href="/apps"');
     expect(topbar).toContain("Ctrl+K");
     expect(mobile).toContain('label: "Home"');
     expect(mobile).toContain('label: "Agenda"');
     expect(mobile).toContain('label: "Cassa"');
-    expect(mobile).toContain('label: "Altro"');
+    expect(mobile).toContain("<span>Altro</span>");
   });
 });

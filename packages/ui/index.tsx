@@ -728,15 +728,20 @@ export function Dialog({
 
 export function Drawer({
   children,
+  footer,
   onClose,
   open,
+  size = "md",
   title,
 }: {
   children: ReactNode;
+  footer?: ReactNode;
   onClose(): void;
   open: boolean;
+  size?: "md" | "xl";
   title: string;
 }) {
+  const widths = { md: "max-w-md", xl: "max-w-3xl" };
   return (
     <AnimatePresence>
       {open && (
@@ -750,20 +755,21 @@ export function Drawer({
           <motion.aside
             animate={{ x: 0 }}
             aria-modal="true"
-            className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto border-l border-white/70 bg-white/95 p-6 shadow-[0_30px_90px_rgb(45_29_39_/_0.28)] backdrop-blur"
+            className={`absolute inset-y-0 right-0 flex h-full w-full ${widths[size]} flex-col overflow-hidden border-l border-white/70 bg-white/95 shadow-[0_30px_90px_rgb(45_29_39_/_0.28)] backdrop-blur`}
             exit={{ x: "100%" }}
             initial={{ x: "100%" }}
             onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
             role="dialog"
             transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.emphasized }}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6">
               <h2 className="text-xl font-bold text-stone-950">{title}</h2>
-              <button className="rounded-lg px-2 py-1 text-sm font-semibold text-stone-500 hover:bg-stone-100" onClick={onClose} type="button">
-                Chiudi
+              <button aria-label="Chiudi" className="grid size-9 shrink-0 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-950" onClick={onClose} type="button">
+                <X aria-hidden="true" className="size-5" />
               </button>
             </div>
-            <div className="mt-5">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-5">{children}</div>
+            {footer && <div className="shrink-0 border-t border-stone-200 bg-white/95 px-6 py-4 backdrop-blur">{footer}</div>}
           </motion.aside>
         </motion.div>
       )}

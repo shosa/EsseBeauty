@@ -15,7 +15,7 @@ export const DOCUMENTED_INTERNAL_REDIRECTS = {
     page: "(dashboard)/calendar/appointments/[appointmentId]/page.tsx",
   },
   "/settings/staff/requests": {
-    destination: "/settings/permissions",
+    destination: "/staff/permissions",
     page: "(dashboard)/settings/staff/requests/page.tsx",
   },
 } as const;
