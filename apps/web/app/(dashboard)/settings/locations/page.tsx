@@ -84,7 +84,7 @@ export default function LocationsPage() {
   }
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
+    <AppPage maxWidth="max-w-[1600px]">
       <PageHeader eyebrow="Organizzazione" status={<StatusBadge status="active">{activeLocations} attive</StatusBadge>} subtitle="Anagrafica e contatti delle sedi operative." title="Sedi" />
       {error && <InlineError className="mb-4">{error}</InlineError>}
       {message && <p className="mb-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</p>}

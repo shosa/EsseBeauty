@@ -72,7 +72,7 @@ export default function ReportsPage() {
   function selectPreset(value: string) { const next = presetDates(value); setPreset(value); setFromDate(next.from); setToDate(next.to); }
   function exportExcel() { if (salon) window.location.href = `${api}/api/salons/${salon.id}/reports/export?${new URLSearchParams(requestDates(fromDate, toDate))}`; }
 
-  return <AppPage maxWidth="max-w-[1800px]">
+  return <AppPage maxWidth="max-w-[1600px]">
     <PageHeader eyebrow="Analisi" title="Report operativi" subtitle="Volumi, qualità e rendimento in un'unica vista." status={<StatusBadge status={error ? "waiting" : "active"}>{canAll ? "Dati salone" : "Dati personali"}</StatusBadge>} />
 
     <div className="mb-3 flex flex-wrap items-end gap-2 border border-stone-200 bg-white p-2">

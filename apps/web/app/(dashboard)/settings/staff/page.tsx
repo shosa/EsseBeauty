@@ -66,7 +66,7 @@ export default function SettingsStaffPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<Link href="/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
+          actions={<Link href="/settings/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
           eyebrow="Core"
           title="Staff"
           subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."

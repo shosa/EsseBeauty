@@ -1,7 +1,7 @@
 export const quickCreateActions = [
   { href: "/calendar/appointments/new", key: "appointment", label: "Nuovo appuntamento" },
   { href: "/clients/new", key: "customer", label: "Nuovo cliente" },
-  { href: "/services/new", key: "service", label: "Nuovo servizio" },
+  { href: "/settings/services/new", key: "service", label: "Nuovo servizio" },
 ] as const;
 
 export const searchGroups = [

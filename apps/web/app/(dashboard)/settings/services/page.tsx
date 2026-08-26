@@ -142,7 +142,7 @@ export default function SettingsServicesPage() {
           actions={
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} variant="secondary">Nuova categoria</Button>
-              <Link href={selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new"} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Nuovo servizio</Link>
+              <Link href={selectedCategoryId ? `/settings/services/new?category=${selectedCategoryId}` : "/settings/services/new"} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Nuovo servizio</Link>
             </div>
           }
           eyebrow="Core"
@@ -211,7 +211,7 @@ export default function SettingsServicesPage() {
 
                   {visibleServices.length === 0 ? (
                     <EmptyState
-                      action={<Link href={`/services/new?category=${selectedCategory.id}`} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Aggiungi servizio</Link>}
+                      action={<Link href={`/settings/services/new?category=${selectedCategory.id}`} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Aggiungi servizio</Link>}
                       description={`Non ci sono ancora servizi nella categoria ${selectedCategory.name}.`}
                       title="Categoria vuota"
                     />

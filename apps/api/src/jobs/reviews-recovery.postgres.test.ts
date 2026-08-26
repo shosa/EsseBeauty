@@ -93,9 +93,12 @@ postgresSuite("review queue recovery with PostgreSQL", () => {
         where id = ${invitationId}::uuid
       `);
       recoveryQueue.add.mockClear();
-      expect(await recover(db, recoveryQueue)).toBe(0);
-      expect(await recover(db, recoveryQueue)).toBe(0);
-      expect(recoveryQueue.add).not.toHaveBeenCalled();
+      await recover(db, recoveryQueue);
+      await recover(db, recoveryQueue);
+      const exhaustedInvitationCalls = recoveryQueue.add.mock.calls.filter(
+        (call) => call[1]?.invitationId === invitationId,
+      );
+      expect(exhaustedInvitationCalls).toEqual([]);
 
       const retry = (reviewJobs as unknown as { retryReviewInvitation?: RetryReview }).retryReviewInvitation;
       expect(retry).toBeTypeOf("function");

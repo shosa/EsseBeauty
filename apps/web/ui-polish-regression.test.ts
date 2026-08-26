@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const dashboardRoot = join(process.cwd(), "app", "(dashboard)");
@@ -11,6 +11,14 @@ function dashboardPages(directory = dashboardRoot): string[] {
     if (entry.isDirectory()) return dashboardPages(path);
     return entry.name === "page.tsx" ? [path] : [];
   });
+}
+
+function dashboardLayoutSource(page: string): string {
+  const source = readFileSync(page, "utf8");
+  const reExport = source.match(/export \{ default \} from ["'](.+)["']/);
+  if (reExport?.[1]) return dashboardLayoutSource(join(dirname(page), `${reExport[1]}.tsx`));
+  if (source.includes("<WarehouseWorkspace")) return readFileSync(join(dirname(page), "warehouse-workspace.tsx"), "utf8");
+  return source;
 }
 
 const checkedFiles = [
@@ -37,12 +45,12 @@ describe("professional UI regression guard", () => {
 
   it("keeps every dashboard page aligned to the cash-register workspace and dashboard radii", () => {
     for (const page of dashboardPages()) {
-      const source = readFileSync(page, "utf8");
-      if (source.includes("redirect(") && !source.includes("return (")) continue;
-      expect(source, page).not.toContain("<main className=");
-      expect(source, page).not.toContain("rounded-3xl");
-      expect(source, page).not.toMatch(/rounded-\[(?!2rem)[^\]]+\]/);
-      expect(source, page).toContain('maxWidth="max-w-[1600px]"');
+      const layoutSource = dashboardLayoutSource(page);
+      if (layoutSource.includes("redirect(") && !layoutSource.includes("return (")) continue;
+      expect(layoutSource, page).not.toContain("<main className=");
+      expect(layoutSource, page).not.toContain("rounded-3xl");
+      expect(layoutSource, page).not.toMatch(/rounded-\[(?!2rem)[^\]]+\]/);
+      expect(layoutSource, page).toContain('maxWidth="max-w-[1600px]"');
     }
   });
 
@@ -321,7 +329,8 @@ describe("professional UI regression guard", () => {
     expect(sales).not.toContain('tab === "sales"');
     expect(sales).not.toContain('tab === "stats"');
     expect(accounting).toContain("Registro vendite");
-    expect(accounting).toContain("Chiusure contabili");
+    expect(accounting).toContain("Metodi di pagamento");
+    expect(accounting).toContain("exportRegister");
     expect(accounting).toContain("preset");
     expect(accounting).toContain("openSale");
     expect(shell).toContain('href: "/accounting"');

@@ -11,7 +11,7 @@ describe("public tokens", () => {
     const token = issuePublicToken(
       "review",
       "entity-id",
-      new Date("2026-08-25T12:00:00.000Z"),
+      new Date(Date.now() + 60_000),
     );
 
     expect(token.raw).not.toContain("entity-id");
