@@ -42,6 +42,7 @@ export type WarehouseErrorCode =
   | "DOCUMENT_NOT_POSTED"
   | "DOCUMENT_ALREADY_REVERSED"
   | "LINE_INVALID"
+  | "MISSING_POSITIVE_ADJUSTMENT_COST"
   | "NEGATIVE_STOCK_FORBIDDEN"
   | "PRODUCT_NOT_FOUND"
   | "UNTRACKED_PRODUCT";
@@ -56,6 +57,7 @@ const errorStatus: Record<WarehouseErrorCode, number> = {
   DOCUMENT_NOT_FOUND: 404,
   DOCUMENT_NOT_POSTED: 409,
   LINE_INVALID: 400,
+  MISSING_POSITIVE_ADJUSTMENT_COST: 400,
   NEGATIVE_STOCK_FORBIDDEN: 409,
   PRODUCT_NOT_FOUND: 404,
   UNTRACKED_PRODUCT: 400,
@@ -73,7 +75,7 @@ export class WarehouseConflictError extends Error {
 }
 
 export class WarehouseValidationError extends Error {
-  readonly code: Exclude<WarehouseErrorCode, WarehouseConflictError["code"]> | "NEGATIVE_STOCK_FORBIDDEN";
+  readonly code: Exclude<WarehouseErrorCode, WarehouseConflictError["code"]>;
   readonly statusCode: number;
 
   constructor(code: WarehouseValidationError["code"]) {
@@ -150,14 +152,18 @@ async function lockTrackedProducts(
   salonId: string,
   lines: WarehouseDocumentLineRecord[],
 ): Promise<Map<string, WarehouseProductRecord>> {
-  const products = new Map<string, WarehouseProductRecord>();
+  const productIds = new Set<string>();
   for (const line of lines) {
     validateLine(line);
     if (!line.productId) {
       if (line.stockDelta !== 0) fail("PRODUCT_NOT_FOUND");
       continue;
     }
-    const product = await tx.findProductForUpdate(salonId, line.productId);
+    productIds.add(line.productId);
+  }
+  const products = new Map<string, WarehouseProductRecord>();
+  for (const productId of [...productIds].sort()) {
+    const product = await tx.findProductForUpdate(salonId, productId);
     if (!product) fail("PRODUCT_NOT_FOUND");
     if (product.trackStock) products.set(product.id, product);
   }
@@ -178,21 +184,21 @@ async function applyStockMovement(
     reversesMovementId: string | null;
     salonId: string;
     unitCostCents: number;
-    valueCents: number;
+    updateLastCost: boolean;
   },
 ): Promise<string> {
   const stockBefore = input.product.stockQuantity;
   const stockAfter = stockBefore + input.delta;
   if (stockAfter < 0 && !input.product.allowNegativeStock) fail("NEGATIVE_STOCK_FORBIDDEN");
-  const averageCostCents = weightedAverageCost(
-    stockBefore,
-    input.product.averageCostCents,
-    input.delta,
-    input.unitCostCents,
-  );
+  const unitCostCents = input.delta > 0 ? input.unitCostCents : input.product.averageCostCents;
+  const averageCostCents = input.delta > 0
+    ? weightedAverageCost(stockBefore, input.product.averageCostCents, input.delta, unitCostCents)
+    : input.product.averageCostCents;
   const product = await tx.updateProduct(input.salonId, input.product.id, {
     averageCostCents,
-    lastCostCents: input.unitCostCents,
+    lastCostCents: input.delta > 0 && input.updateLastCost
+      ? unitCostCents
+      : input.product.lastCostCents,
     stockQuantity: stockAfter,
   });
   Object.assign(input.product, product);
@@ -209,8 +215,8 @@ async function applyStockMovement(
     salonId: input.salonId,
     stockAfter,
     stockBefore,
-    unitCostCents: input.unitCostCents,
-    valueCents: input.valueCents,
+    unitCostCents,
+    valueCents: input.delta * unitCostCents,
   });
   return movement.id;
 }
@@ -242,6 +248,9 @@ export async function postWarehouseDocument(
       const product = line.productId ? products.get(line.productId) : undefined;
       if (product && line.stockDelta !== 0) {
         const unitCostCents = line.quantity === 0 ? 0 : Math.round(totals.netCents / line.quantity);
+        if (document.kind === "adjustment" && line.stockDelta > 0 && unitCostCents <= 0) {
+          fail("MISSING_POSITIVE_ADJUSTMENT_COST");
+        }
         movementIds.push(await applyStockMovement(tx, {
           actorUserId: input.actorUserId,
           delta: line.stockDelta,
@@ -254,7 +263,7 @@ export async function postWarehouseDocument(
           reversesMovementId: null,
           salonId: input.salonId,
           unitCostCents,
-          valueCents: line.stockDelta * unitCostCents,
+          updateLastCost: document.kind === "purchase" || document.kind === "supplier_invoice",
         }));
       }
       if (line.itemType === "expense") {
@@ -270,6 +279,7 @@ export async function postWarehouseDocument(
           supplierId: line.supplierId ?? document.supplierId,
           taxCents: totals.taxCents,
           totalCents: totals.totalCents,
+          reversesExpenseId: null,
         });
         expenseIds.push(expense.id);
       }
@@ -284,6 +294,7 @@ export async function postWarehouseDocument(
           salonId: input.salonId,
           status: "active",
           supplierId: line.supplierId ?? document.supplierId,
+          reversesAssetId: null,
         });
         assetIds.push(asset.id);
       }
@@ -317,38 +328,41 @@ export async function reverseWarehouseDocument(
     if (source.status !== "posted") fail("DOCUMENT_NOT_POSTED");
     const sourceLines = await tx.findDocumentLinesForUpdate(input.salonId, source.id);
     const sourceMovements = await tx.findMovementsForDocument(input.salonId, source.id);
+    const sourceExpenses = await tx.findExpensesForDocument(input.salonId, source.id);
+    const sourceAssets = await tx.findAssetsForDocument(input.salonId, source.id);
     const reversal = await tx.createDocument({
       competenceDate: source.competenceDate,
       createdByUserId: input.actorUserId,
       documentDate: new Date(),
       internalNumber: `${source.internalNumber}-REV-${randomUUID().slice(0, 8)}`,
       kind: reversalKind(source.kind),
-      netTotalCents: 0,
+      netTotalCents: -source.netTotalCents,
       notes: `Reversal of ${source.internalNumber}`,
       reversalOfDocumentId: source.id,
       salonId: input.salonId,
       supplierId: source.supplierId,
-      taxTotalCents: 0,
-      totalCents: 0,
+      taxTotalCents: -source.taxTotalCents,
+      totalCents: -source.totalCents,
     });
     const reversalLineIds = new Map<string, string>();
     for (const line of sourceLines) {
       const reversalLine = await tx.createDocumentLine({
         description: `Reversal: ${line.description}`,
-        discountCents: 0,
+        discountCents: line.discountCents,
         documentId: reversal.id,
         itemType: line.itemType,
         lineNumber: line.lineNumber,
-        netCents: 0,
+        netCents: -line.netCents,
         productId: line.productId,
         quantity: line.quantity,
         salonId: input.salonId,
         stockDelta: -line.stockDelta,
         supplierId: line.supplierId,
-        taxCents: 0,
-        taxRateBasisPoints: 0,
-        totalCents: 0,
-        unitCostCents: 0,
+        taxCents: -line.taxCents,
+        taxRateBasisPoints: line.taxRateBasisPoints,
+        totalCents: -line.totalCents,
+        unitCostCents: line.unitCostCents,
+        reversesDocumentLineId: line.id,
       });
       reversalLineIds.set(line.id, reversalLine.id);
     }
@@ -367,15 +381,49 @@ export async function reverseWarehouseDocument(
         reason: "reversal",
         reversesMovementId: movement.id,
         salonId: input.salonId,
-        unitCostCents: movement.unitCostCents,
-        valueCents: -movement.valueCents,
+        unitCostCents: movement.delta > 0 ? product.averageCostCents : movement.unitCostCents,
+        updateLastCost: false,
       }));
+    }
+    const expenseIds: string[] = [];
+    for (const expense of sourceExpenses) {
+      const compensation = await tx.createExpense({
+        category: expense.category,
+        competenceDate: reversal.documentDate,
+        description: `Reversal: ${expense.description}`,
+        documentId: reversal.id,
+        documentLineId: expense.documentLineId ? reversalLineIds.get(expense.documentLineId) ?? null : null,
+        netCents: -expense.netCents,
+        notes: `Reversal of expense ${expense.id}`,
+        salonId: input.salonId,
+        supplierId: expense.supplierId,
+        taxCents: -expense.taxCents,
+        totalCents: -expense.totalCents,
+        reversesExpenseId: expense.id,
+      });
+      expenseIds.push(compensation.id);
+    }
+    const assetIds: string[] = [];
+    for (const asset of sourceAssets) {
+      const compensation = await tx.createAsset({
+        description: `Reversal: ${asset.description}`,
+        documentId: reversal.id,
+        documentLineId: asset.documentLineId ? reversalLineIds.get(asset.documentLineId) ?? null : null,
+        notes: `Reversal of asset ${asset.id}`,
+        purchaseCostCents: -asset.purchaseCostCents,
+        purchaseDate: reversal.documentDate,
+        salonId: input.salonId,
+        status: "disposed",
+        supplierId: asset.supplierId,
+        reversesAssetId: asset.id,
+      });
+      assetIds.push(compensation.id);
     }
     if (!(await tx.markDocumentPosted(input.salonId, reversal.id, input.actorUserId))) {
       fail("DOCUMENT_ALREADY_POSTED");
     }
     if (!(await tx.markDocumentReversed(input.salonId, source.id))) fail("DOCUMENT_ALREADY_REVERSED");
-    return { assetIds: [], documentId: reversal.id, expenseIds: [], movementIds, status: "posted" };
+    return { assetIds, documentId: reversal.id, expenseIds, movementIds, status: "posted" };
   });
 }
 
@@ -404,7 +452,7 @@ export async function reconcileInventoryCount(
         movementIds.push(await applyStockMovement(tx, {
           actorUserId: input.actorUserId,
           delta,
-          documentId: null,
+          documentId: count.documentId,
           documentLineId: null,
           movementType: "count_reconciliation",
           note: null,
@@ -413,7 +461,7 @@ export async function reconcileInventoryCount(
           reversesMovementId: null,
           salonId: input.salonId,
           unitCostCents: product.averageCostCents,
-          valueCents: delta * product.averageCostCents,
+          updateLastCost: false,
         }));
       }
     }
@@ -483,6 +531,14 @@ function drizzleTransaction(executor: DrizzleDB): WarehouseTransaction {
     async findDocumentLinesForUpdate(salonId, documentId) {
       const rows = await executor.select().from(inventoryDocumentLines).where(and(eq(inventoryDocumentLines.documentId, documentId), eq(inventoryDocumentLines.salonId, salonId))).for("update");
       return rows.map(asLineRecord);
+    },
+    async findExpensesForDocument(salonId, documentId) {
+      const rows = await executor.select().from(inventoryExpenses).where(and(eq(inventoryExpenses.documentId, documentId), eq(inventoryExpenses.salonId, salonId))).for("update");
+      return rows as WarehouseExpenseRecord[];
+    },
+    async findAssetsForDocument(salonId, documentId) {
+      const rows = await executor.select().from(inventoryAssets).where(and(eq(inventoryAssets.documentId, documentId), eq(inventoryAssets.salonId, salonId))).for("update");
+      return rows as WarehouseAssetRecord[];
     },
     async findMovementsForDocument(salonId, documentId) {
       const rows = await executor.select().from(inventoryMovements).where(and(eq(inventoryMovements.documentId, documentId), eq(inventoryMovements.salonId, salonId))).for("update");

@@ -9,7 +9,6 @@ import type {
 } from "./warehouse-types.js";
 import {
   WarehouseConflictError,
-  WarehouseValidationError,
   postWarehouseDocument,
   reconcileInventoryCount,
   reverseWarehouseDocument,
@@ -57,6 +56,7 @@ function line(overrides: Partial<WarehouseDocumentLineRecord> = {}): WarehouseDo
     taxRateBasisPoints: 0,
     totalCents: 0,
     unitCostCents: 1_000,
+    reversesDocumentLineId: null,
     ...overrides,
   };
 }
@@ -138,6 +138,12 @@ function memoryRepository(initial: WarehouseState): { repository: WarehouseRepos
       },
       async findDocumentLinesForUpdate(salonId: string, documentId: string) {
         return draft.lines.filter((item) => item.documentId === documentId && item.salonId === salonId);
+      },
+      async findExpensesForDocument(salonId: string, documentId: string) {
+        return draft.expenses.filter((item) => item.documentId === documentId && item.salonId === salonId);
+      },
+      async findAssetsForDocument(salonId: string, documentId: string) {
+        return draft.assets.filter((item) => item.documentId === documentId && item.salonId === salonId);
       },
       async findMovementsForDocument(salonId: string, documentId: string) {
         return draft.movements.filter((item) => item.documentId === documentId && item.salonId === salonId);
@@ -243,6 +249,37 @@ describe("warehouse document posting", () => {
     expect(memory.state.products[0]?.stockQuantity).toBe(1);
   });
 
+  it("uses net cost for inbound valuation while preserving valuation for an outbound issue", async () => {
+    const inbound = memoryRepository(state({
+      lines: [line({ quantity: 2, stockDelta: 2, unitCostCents: 1_000 })],
+      products: [{ allowNegativeStock: false, averageCostCents: 500, id: "product-1", lastCostCents: 500, salonId: "salon-1", stockQuantity: 4, trackStock: true }],
+    }));
+    await postWarehouseDocument(inbound.repository, { actorUserId: "owner-1", documentId: "document-1", salonId: "salon-1" });
+    expect(inbound.state.products[0]).toMatchObject({ averageCostCents: 667, lastCostCents: 1_000, stockQuantity: 6 });
+    expect(inbound.state.movements[0]).toMatchObject({ unitCostCents: 1_000, valueCents: 2_000 });
+
+    const outbound = memoryRepository(state({
+      lines: [line({ stockDelta: -1, unitCostCents: 50 })],
+      products: [{ allowNegativeStock: false, averageCostCents: 700, id: "product-1", lastCostCents: 650, salonId: "salon-1", stockQuantity: 3, trackStock: true }],
+    }));
+    await postWarehouseDocument(outbound.repository, { actorUserId: "owner-1", documentId: "document-1", salonId: "salon-1" });
+    expect(outbound.state.products[0]).toMatchObject({ averageCostCents: 700, lastCostCents: 650, stockQuantity: 2 });
+    expect(outbound.state.movements[0]).toMatchObject({ unitCostCents: 700, valueCents: -700 });
+  });
+
+  it("rejects a positive adjustment without an explicit usable cost", async () => {
+    const memory = memoryRepository(state({
+      documents: [document({ kind: "adjustment" })],
+      lines: [line({ stockDelta: 1, unitCostCents: 0 })],
+    }));
+
+    await expect(postWarehouseDocument(memory.repository, {
+      actorUserId: "owner-1",
+      documentId: "document-1",
+      salonId: "salon-1",
+    })).rejects.toMatchObject({ code: "MISSING_POSITIVE_ADJUSTMENT_COST" });
+  });
+
   it("rolls back every effect when a tracked line would violate the negative-stock policy", async () => {
     const memory = memoryRepository(state({
       lines: [line({ itemType: "consumable", stockDelta: -2 })],
@@ -254,12 +291,18 @@ describe("warehouse document posting", () => {
       actorUserId: "owner-1",
       documentId: "document-1",
       salonId: "salon-1",
-    })).rejects.toMatchObject({ code: "NEGATIVE_STOCK_FORBIDDEN" } satisfies Partial<WarehouseValidationError>);
+    })).rejects.toMatchObject({ code: "NEGATIVE_STOCK_FORBIDDEN" } satisfies Partial<WarehouseConflictError>);
     expect(memory.state).toEqual(before);
   });
 
-  it("reverses stock with immutable compensating movement links", async () => {
-    const memory = memoryRepository(state());
+  it("reverses stock and monetary rows with immutable signed compensation links", async () => {
+    const memory = memoryRepository(state({
+      lines: [
+        line(),
+        line({ description: "Materiali", id: "line-2", itemType: "expense", lineNumber: 2, productId: null, stockDelta: 0, unitCostCents: 2_000 }),
+        line({ description: "Lampada", id: "line-3", itemType: "equipment", lineNumber: 3, productId: null, stockDelta: 0, unitCostCents: 5_000 }),
+      ],
+    }));
     await postWarehouseDocument(memory.repository, { actorUserId: "owner-1", documentId: "document-1", salonId: "salon-1" });
 
     const reversal = await reverseWarehouseDocument(memory.repository, {
@@ -268,19 +311,24 @@ describe("warehouse document posting", () => {
       salonId: "salon-1",
     });
 
-    expect(reversal.status).toBe("posted");
+    expect(reversal).toMatchObject({ status: "posted" });
+    expect(reversal.assetIds).toHaveLength(1);
+    expect(reversal.expenseIds).toHaveLength(1);
     expect(memory.state.documents.find((item) => item.id === "document-1")?.status).toBe("reversed");
-    expect(memory.state.documents.find((item) => item.id === reversal.documentId)).toMatchObject({ reversalOfDocumentId: "document-1", status: "posted" });
+    expect(memory.state.documents.find((item) => item.id === reversal.documentId)).toMatchObject({ netTotalCents: -8_000, reversalOfDocumentId: "document-1", status: "posted", totalCents: -8_000 });
     expect(memory.state.products[0]?.stockQuantity).toBe(0);
     expect(memory.state.movements).toHaveLength(2);
     expect(memory.state.movements[1]).toMatchObject({ delta: -1, reversesMovementId: memory.state.movements[0]?.id, valueCents: -1_000 });
+    expect(memory.state.lines.find((item) => item.reversesDocumentLineId === "line-1")).toMatchObject({ netCents: -1_000, totalCents: -1_000 });
+    expect(memory.state.expenses.find((item) => item.reversesExpenseId === "expense-2")).toMatchObject({ netCents: -2_000, totalCents: -2_000 });
+    expect(memory.state.assets.find((item) => item.reversesAssetId === "asset-3")).toMatchObject({ purchaseCostCents: -5_000 });
   });
 });
 
 describe("inventory count reconciliation", () => {
   it("creates an immutable count adjustment from counted quantity", async () => {
     const memory = memoryRepository(state({
-      counts: [{ id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
+      counts: [{ documentId: "document-1", id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
       countLines: [{ countId: "count-1", countedQuantity: 5, differenceQuantity: null, differenceValueCents: 0, id: "count-line-1", productId: "product-1", salonId: "salon-1", theoreticalQuantity: 2 }],
       products: [{ allowNegativeStock: false, averageCostCents: 1_000, id: "product-1", lastCostCents: 1_000, salonId: "salon-1", stockQuantity: 2, trackStock: true }],
     }));
@@ -295,5 +343,6 @@ describe("inventory count reconciliation", () => {
     expect(memory.state.counts[0]).toMatchObject({ status: "posted" });
     expect(memory.state.countLines[0]).toMatchObject({ differenceQuantity: 3, differenceValueCents: 3_000 });
     expect(memory.state.products[0]?.stockQuantity).toBe(5);
+    expect(memory.state.movements[0]).toMatchObject({ documentId: "document-1" });
   });
 });

@@ -60,6 +60,7 @@ export interface WarehouseDocumentLineRecord {
   taxRateBasisPoints: number;
   totalCents: number;
   unitCostCents: number;
+  reversesDocumentLineId: string | null;
 }
 
 export interface WarehouseMovementRecord {
@@ -93,6 +94,7 @@ export interface WarehouseExpenseRecord {
   supplierId: string | null;
   taxCents: number;
   totalCents: number;
+  reversesExpenseId: string | null;
 }
 
 export interface WarehouseAssetRecord {
@@ -106,9 +108,11 @@ export interface WarehouseAssetRecord {
   salonId: string;
   status: "active" | "disposed";
   supplierId: string | null;
+  reversesAssetId: string | null;
 }
 
 export interface WarehouseCountRecord {
+  documentId: string | null;
   id: string;
   postedAt: Date | null;
   postedByUserId: string | null;
@@ -152,6 +156,8 @@ export interface WarehouseTransaction {
   findCountLinesForUpdate(salonId: string, countId: string): Promise<WarehouseCountLineRecord[]>;
   findDocumentForUpdate(salonId: string, documentId: string): Promise<WarehouseDocumentRecord | undefined>;
   findDocumentLinesForUpdate(salonId: string, documentId: string): Promise<WarehouseDocumentLineRecord[]>;
+  findExpensesForDocument(salonId: string, documentId: string): Promise<WarehouseExpenseRecord[]>;
+  findAssetsForDocument(salonId: string, documentId: string): Promise<WarehouseAssetRecord[]>;
   findMovementsForDocument(salonId: string, documentId: string): Promise<WarehouseMovementRecord[]>;
   findProductForUpdate(salonId: string, productId: string): Promise<WarehouseProductRecord | undefined>;
   markCountPosted(salonId: string, countId: string, actorUserId: string): Promise<boolean>;

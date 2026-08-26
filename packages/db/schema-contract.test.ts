@@ -86,7 +86,7 @@ const plannedTables = [
   userInterfacePreferences,
 ];
 
-if (plannedTables.length !== 37) {
+if (plannedTables.length !== 35) {
   throw new Error("Schema remediation contract is incomplete.");
 }
 
@@ -127,6 +127,16 @@ if (tenantScopedWarehouseParents.some((column) => !column)) {
   throw new Error("Warehouse parent rows must expose tenant scope.");
 }
 
+const warehouseReversalLinks = [
+  inventoryDocumentLines.reversesDocumentLineId,
+  inventoryExpenses.reversesExpenseId,
+  inventoryAssets.reversesAssetId,
+];
+
+if (warehouseReversalLinks.some((column) => !column)) {
+  throw new Error("Warehouse monetary rows must expose immutable reversal links.");
+}
+
 const migrationSource = readFileSync(
   join(process.cwd(), "migrations", "0034_complete_warehouse.sql"),
   "utf8",
@@ -142,6 +152,18 @@ for (const requirement of [
   "inventory_suppliers_id_salon_unique",
   "warehouse_document_lines_draft_guard",
   "warehouse_documents_immutable_guard",
+  "reverses_document_line_id uuid",
+  "reverses_expense_id uuid",
+  "reverses_asset_id uuid",
+  "inventory_document_lines_signed_amounts",
+  "inventory_expenses_signed_amounts",
+  "inventory_assets_signed_purchase_cost",
+  "inventory_documents_signed_totals",
+  "inventory_document_lines_reversal_salon_id_fk",
+  "inventory_expenses_reversal_salon_id_fk",
+  "inventory_assets_reversal_salon_id_fk",
+  "warehouse_expenses_immutable_guard",
+  "warehouse_assets_immutable_guard",
   "OLD.document_id <> NEW.document_id",
   "OLD.salon_id <> NEW.salon_id",
   "--> statement-breakpoint",

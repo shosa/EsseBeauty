@@ -81,9 +81,7 @@ CREATE TABLE inventory_documents (
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT inventory_documents_kind_valid CHECK (kind IN ('opening', 'purchase', 'supplier_invoice', 'internal_use', 'waste', 'supplier_return', 'adjustment', 'count', 'credit_note', 'equipment_purchase', 'expense')),
   CONSTRAINT inventory_documents_status_valid CHECK (status IN ('draft', 'posted', 'cancelled', 'reversed')),
-  CONSTRAINT inventory_documents_net_total_non_negative CHECK (net_total_cents >= 0),
-  CONSTRAINT inventory_documents_tax_total_non_negative CHECK (tax_total_cents >= 0),
-  CONSTRAINT inventory_documents_total_non_negative CHECK (total_cents >= 0)
+  CONSTRAINT inventory_documents_signed_totals CHECK ((reversal_of_document_id IS NULL AND net_total_cents >= 0 AND tax_total_cents >= 0 AND total_cents >= 0) OR (reversal_of_document_id IS NOT NULL AND net_total_cents <= 0 AND tax_total_cents <= 0 AND total_cents <= 0))
 );
 --> statement-breakpoint
 CREATE TABLE inventory_document_lines (
@@ -105,6 +103,7 @@ CREATE TABLE inventory_document_lines (
   net_cents integer DEFAULT 0 NOT NULL,
   tax_cents integer DEFAULT 0 NOT NULL,
   total_cents integer DEFAULT 0 NOT NULL,
+  reverses_document_line_id uuid,
   destination text,
   note text,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -112,9 +111,7 @@ CREATE TABLE inventory_document_lines (
   CONSTRAINT inventory_document_lines_unit_scale_positive CHECK (unit_scale > 0),
   CONSTRAINT inventory_document_lines_unit_cost_non_negative CHECK (unit_cost_cents >= 0),
   CONSTRAINT inventory_document_lines_discount_non_negative CHECK (discount_cents >= 0),
-  CONSTRAINT inventory_document_lines_net_non_negative CHECK (net_cents >= 0),
-  CONSTRAINT inventory_document_lines_tax_non_negative CHECK (tax_cents >= 0),
-  CONSTRAINT inventory_document_lines_total_non_negative CHECK (total_cents >= 0)
+  CONSTRAINT inventory_document_lines_signed_amounts CHECK ((reverses_document_line_id IS NULL AND net_cents >= 0 AND tax_cents >= 0 AND total_cents >= 0) OR (reverses_document_line_id IS NOT NULL AND net_cents <= 0 AND tax_cents <= 0 AND total_cents <= 0))
 );
 --> statement-breakpoint
 CREATE TABLE inventory_counts (
@@ -157,11 +154,10 @@ CREATE TABLE inventory_expenses (
   net_cents integer DEFAULT 0 NOT NULL,
   tax_cents integer DEFAULT 0 NOT NULL,
   total_cents integer DEFAULT 0 NOT NULL,
+  reverses_expense_id uuid,
   notes text,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
-  CONSTRAINT inventory_expenses_net_non_negative CHECK (net_cents >= 0),
-  CONSTRAINT inventory_expenses_tax_non_negative CHECK (tax_cents >= 0),
-  CONSTRAINT inventory_expenses_total_non_negative CHECK (total_cents >= 0)
+  CONSTRAINT inventory_expenses_signed_amounts CHECK ((reverses_expense_id IS NULL AND net_cents >= 0 AND tax_cents >= 0 AND total_cents >= 0) OR (reverses_expense_id IS NOT NULL AND net_cents <= 0 AND tax_cents <= 0 AND total_cents <= 0))
 );
 --> statement-breakpoint
 CREATE TABLE inventory_assets (
@@ -174,6 +170,7 @@ CREATE TABLE inventory_assets (
   serial_number text,
   purchase_date timestamp with time zone NOT NULL,
   purchase_cost_cents integer DEFAULT 0 NOT NULL,
+  reverses_asset_id uuid,
   warranty_expires_at timestamp with time zone,
   status text DEFAULT 'active' NOT NULL,
   disposed_at timestamp with time zone,
@@ -181,7 +178,7 @@ CREATE TABLE inventory_assets (
   notes text,
   created_at timestamp with time zone DEFAULT now() NOT NULL,
   CONSTRAINT inventory_assets_status_valid CHECK (status IN ('active', 'disposed')),
-  CONSTRAINT inventory_assets_purchase_cost_non_negative CHECK (purchase_cost_cents >= 0)
+  CONSTRAINT inventory_assets_signed_purchase_cost CHECK ((reverses_asset_id IS NULL AND purchase_cost_cents >= 0) OR (reverses_asset_id IS NOT NULL AND purchase_cost_cents <= 0))
 );
 --> statement-breakpoint
 
@@ -258,6 +255,10 @@ ALTER TABLE inventory_document_lines ADD CONSTRAINT inventory_document_lines_sup
 --> statement-breakpoint
 ALTER TABLE inventory_document_lines ADD CONSTRAINT inventory_document_lines_supplier_salon_id_fk FOREIGN KEY (supplier_id, salon_id) REFERENCES inventory_suppliers(id, salon_id);
 --> statement-breakpoint
+ALTER TABLE inventory_document_lines ADD CONSTRAINT inventory_document_lines_reverses_document_line_id_inventory_document_lines_id_fk FOREIGN KEY (reverses_document_line_id) REFERENCES inventory_document_lines(id) ON DELETE SET NULL;
+--> statement-breakpoint
+ALTER TABLE inventory_document_lines ADD CONSTRAINT inventory_document_lines_reversal_salon_id_fk FOREIGN KEY (reverses_document_line_id, salon_id) REFERENCES inventory_document_lines(id, salon_id);
+--> statement-breakpoint
 ALTER TABLE inventory_counts ADD CONSTRAINT inventory_counts_salon_id_salons_id_fk FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE;
 --> statement-breakpoint
 ALTER TABLE inventory_counts ADD CONSTRAINT inventory_counts_document_id_inventory_documents_id_fk FOREIGN KEY (document_id) REFERENCES inventory_documents(id) ON DELETE SET NULL;
@@ -292,6 +293,10 @@ ALTER TABLE inventory_expenses ADD CONSTRAINT inventory_expenses_supplier_id_inv
 --> statement-breakpoint
 ALTER TABLE inventory_expenses ADD CONSTRAINT inventory_expenses_supplier_salon_id_fk FOREIGN KEY (supplier_id, salon_id) REFERENCES inventory_suppliers(id, salon_id);
 --> statement-breakpoint
+ALTER TABLE inventory_expenses ADD CONSTRAINT inventory_expenses_reverses_expense_id_inventory_expenses_id_fk FOREIGN KEY (reverses_expense_id) REFERENCES inventory_expenses(id) ON DELETE SET NULL;
+--> statement-breakpoint
+ALTER TABLE inventory_expenses ADD CONSTRAINT inventory_expenses_reversal_salon_id_fk FOREIGN KEY (reverses_expense_id, salon_id) REFERENCES inventory_expenses(id, salon_id);
+--> statement-breakpoint
 ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_salon_id_salons_id_fk FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE;
 --> statement-breakpoint
 ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_document_id_inventory_documents_id_fk FOREIGN KEY (document_id) REFERENCES inventory_documents(id) ON DELETE RESTRICT;
@@ -305,6 +310,10 @@ ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_document_line_salon
 ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_supplier_id_inventory_suppliers_id_fk FOREIGN KEY (supplier_id) REFERENCES inventory_suppliers(id) ON DELETE SET NULL;
 --> statement-breakpoint
 ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_supplier_salon_id_fk FOREIGN KEY (supplier_id, salon_id) REFERENCES inventory_suppliers(id, salon_id);
+--> statement-breakpoint
+ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_reverses_asset_id_inventory_assets_id_fk FOREIGN KEY (reverses_asset_id) REFERENCES inventory_assets(id) ON DELETE SET NULL;
+--> statement-breakpoint
+ALTER TABLE inventory_assets ADD CONSTRAINT inventory_assets_reversal_salon_id_fk FOREIGN KEY (reverses_asset_id, salon_id) REFERENCES inventory_assets(id, salon_id);
 --> statement-breakpoint
 ALTER TABLE inventory_movements ADD CONSTRAINT inventory_movements_document_id_inventory_documents_id_fk FOREIGN KEY (document_id) REFERENCES inventory_documents(id) ON DELETE SET NULL;
 --> statement-breakpoint
@@ -398,6 +407,24 @@ $$;
 CREATE TRIGGER warehouse_documents_immutable_guard
 BEFORE UPDATE OR DELETE ON inventory_documents
 FOR EACH ROW EXECUTE FUNCTION warehouse_documents_immutable_guard();
+--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION warehouse_monetary_rows_immutable_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'Warehouse monetary rows are immutable';
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER warehouse_expenses_immutable_guard
+BEFORE UPDATE OR DELETE ON inventory_expenses
+FOR EACH ROW EXECUTE FUNCTION warehouse_monetary_rows_immutable_guard();
+--> statement-breakpoint
+CREATE TRIGGER warehouse_assets_immutable_guard
+BEFORE UPDATE OR DELETE ON inventory_assets
+FOR EACH ROW EXECUTE FUNCTION warehouse_monetary_rows_immutable_guard();
 --> statement-breakpoint
 
 -- Technical opening documents establish the warehouse ledger boundary only. They deliberately
