@@ -5,9 +5,11 @@ import { describe, expect, test } from "vitest";
 
 import { productValues } from "./catalog.js";
 import { parseDocumentDateFilter } from "./documents.js";
+import { previewWarehouseImport } from "./counts.js";
 
 const routeRoot = resolve(import.meta.dirname);
 const catalogSource = readFileSync(resolve(routeRoot, "catalog.ts"), "utf8");
+const countsSource = readFileSync(resolve(routeRoot, "counts.ts"), "utf8");
 const documentsSource = readFileSync(resolve(routeRoot, "documents.ts"), "utf8");
 const indexSource = readFileSync(resolve(routeRoot, "index.ts"), "utf8");
 
@@ -53,5 +55,18 @@ describe("warehouse route contract", () => {
     expect(documentsSource).toContain("INVALID_DATE_FILTER");
     expect(parseDocumentDateFilter("2026-08-26", false)?.toISOString()).toBe("2026-08-26T00:00:00.000Z");
     expect(parseDocumentDateFilter("2026-08-26", true)?.toISOString()).toBe("2026-08-26T23:59:59.999Z");
+  });
+
+  test("exposes tenant-scoped count sessions and a write-free import preview", () => {
+    for (const route of ["/counts", "/counts/:countId", "/counts/:countId/post", "/imports/preview"]) {
+      expect(`${indexSource}${countsSource}`).toContain(route);
+    }
+    const preview = previewWarehouseImport({
+      mapping: { barcode: "code", quantity: "qty" },
+      rows: [{ code: "8001", qty: "2" }, { code: "missing", qty: "1" }],
+    }, [{ barcode: "8001", id: "product-1", itemType: "resale", name: "Crema", sku: "CRM-1" }]);
+    expect(preview).toMatchObject({ matched: 1, unmatched: 1 });
+    expect(preview.rows[0]).toMatchObject({ product_id: "product-1", quantity: 2 });
+    expect(preview.errors).toEqual([{ field: "barcode", line: 2, message: "Product not found" }]);
   });
 });

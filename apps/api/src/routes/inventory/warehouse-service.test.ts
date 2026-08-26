@@ -183,6 +183,11 @@ function memoryRepository(initial: WarehouseState): { productLocks: string[]; re
         item.status = "posted";
         return true;
       },
+      async attachCountDocument(salonId: string, countId: string, documentId: string) {
+        const item = draft.counts.find((count) => count.id === countId && count.salonId === salonId);
+        if (!item) throw new Error("COUNT_NOT_FOUND");
+        item.documentId = documentId;
+      },
       async markDocumentPosted(salonId: string, documentId: string, actorUserId: string) {
         const item = draft.documents.find((doc) => doc.id === documentId && doc.salonId === salonId && doc.status === "draft");
         if (!item) return false;
@@ -404,10 +409,11 @@ describe("warehouse document posting", () => {
 });
 
 describe("inventory count reconciliation", () => {
-  it("creates an immutable count adjustment from counted quantity", async () => {
+  it("posts only snapshot differences through an adjustment document", async () => {
     const memory = memoryRepository(state({
-      counts: [{ documentId: "document-1", id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
+      counts: [{ documentId: null, id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
       countLines: [{ countId: "count-1", countedQuantity: 5, differenceQuantity: null, differenceValueCents: 0, id: "count-line-1", productId: "product-1", salonId: "salon-1", theoreticalQuantity: 2 }],
+      nextId: 2,
       products: [{ allowNegativeStock: false, averageCostCents: 1_000, id: "product-1", lastCostCents: 1_000, salonId: "salon-1", stockQuantity: 2, trackStock: true }],
     }));
 
@@ -417,11 +423,44 @@ describe("inventory count reconciliation", () => {
       salonId: "salon-1",
     });
 
-    expect(result).toMatchObject({ countId: "count-1", movementIds: ["movement-1"], status: "posted" });
+    expect(result).toMatchObject({ countId: "count-1", status: "posted" });
+    expect(result.movementIds).toHaveLength(1);
     expect(memory.state.counts[0]).toMatchObject({ status: "posted" });
     expect(memory.state.countLines[0]).toMatchObject({ differenceQuantity: 3, differenceValueCents: 3_000 });
     expect(memory.state.products[0]?.stockQuantity).toBe(5);
-    expect(memory.state.movements[0]).toMatchObject({ documentId: "document-1" });
+    const adjustment = memory.state.documents.find((item) => item.kind === "adjustment");
+    expect(adjustment).toMatchObject({ status: "posted" });
+    expect(memory.state.lines.filter((item) => item.documentId === adjustment?.id)).toMatchObject([
+      { productId: "product-1", stockDelta: 3 },
+    ]);
+    expect(memory.state.movements[0]).toMatchObject({ documentId: adjustment?.id, delta: 3 });
+  });
+
+  it("does not create a stock document for equal theoretical and counted quantities", async () => {
+    const memory = memoryRepository(state({
+      counts: [{ documentId: null, id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
+      countLines: [{ countId: "count-1", countedQuantity: 2, differenceQuantity: null, differenceValueCents: 0, id: "count-line-1", productId: "product-1", salonId: "salon-1", theoreticalQuantity: 2 }],
+      products: [{ allowNegativeStock: false, averageCostCents: 1_000, id: "product-1", lastCostCents: 1_000, salonId: "salon-1", stockQuantity: 2, trackStock: true }],
+    }));
+
+    const result = await reconcileInventoryCount(memory.repository, { actorUserId: "owner-1", countId: "count-1", salonId: "salon-1" });
+
+    expect(result).toMatchObject({ movementIds: [], status: "posted" });
+    expect(memory.state.documents.filter((item) => item.kind === "adjustment")).toEqual([]);
+    expect(memory.state.movements).toEqual([]);
+  });
+
+  it("rejects a second post without repeating the stock adjustment", async () => {
+    const memory = memoryRepository(state({
+      counts: [{ documentId: null, id: "count-1", postedAt: null, postedByUserId: null, salonId: "salon-1", status: "counting" }],
+      countLines: [{ countId: "count-1", countedQuantity: 1, differenceQuantity: null, differenceValueCents: 0, id: "count-line-1", productId: "product-1", salonId: "salon-1", theoreticalQuantity: 2 }],
+      nextId: 2,
+      products: [{ allowNegativeStock: false, averageCostCents: 1_000, id: "product-1", lastCostCents: 1_000, salonId: "salon-1", stockQuantity: 2, trackStock: true }],
+    }));
+
+    await reconcileInventoryCount(memory.repository, { actorUserId: "owner-1", countId: "count-1", salonId: "salon-1" });
+    await expect(reconcileInventoryCount(memory.repository, { actorUserId: "owner-1", countId: "count-1", salonId: "salon-1" })).rejects.toMatchObject({ code: "COUNT_ALREADY_POSTED" });
+    expect(memory.state.movements).toHaveLength(1);
   });
 
   it("locks count products once in lexical order before reconciling count lines", async () => {

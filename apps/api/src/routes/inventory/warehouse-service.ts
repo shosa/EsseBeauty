@@ -234,7 +234,13 @@ export async function postWarehouseDocument(
   repository: WarehouseRepository,
   input: PostWarehouseDocumentInput,
 ): Promise<PostWarehouseDocumentResult> {
-  return repository.transaction(async (tx) => {
+  return repository.transaction((tx) => postWarehouseDocumentInTransaction(tx, input));
+}
+
+async function postWarehouseDocumentInTransaction(
+  tx: WarehouseTransaction,
+  input: PostWarehouseDocumentInput,
+): Promise<PostWarehouseDocumentResult> {
     await assertActor(tx, input.salonId, input.actorUserId);
     const document = await tx.findDocumentForUpdate(input.salonId, input.documentId);
     if (!document) fail("DOCUMENT_NOT_FOUND");
@@ -344,7 +350,6 @@ export async function postWarehouseDocument(
       fail("DOCUMENT_ALREADY_POSTED");
     }
     return { assetIds, documentId: document.id, expenseIds, movementIds, status: "posted" };
-  });
 }
 
 function reversalKind(kind: WarehouseDocumentRecord["kind"]): WarehouseDocumentRecord["kind"] {
@@ -517,7 +522,7 @@ export async function reconcileInventoryCount(
       input.salonId,
       reconciledCountLines.map((countLine) => countLine.productId),
     );
-    const movementIds: string[] = [];
+    const adjustmentLines: WarehouseDocumentLineRecord[] = [];
     for (const countLine of reconciledCountLines) {
       const product = products.get(countLine.productId);
       if (!product) fail("PRODUCT_NOT_FOUND");
@@ -525,23 +530,54 @@ export async function reconcileInventoryCount(
       const differenceQuantity = countLine.countedQuantity - countLine.theoreticalQuantity;
       const differenceValueCents = differenceQuantity * product.averageCostCents;
       await tx.updateCountLine(input.salonId, countLine.id, { differenceQuantity, differenceValueCents });
-      const delta = countLine.countedQuantity - product.stockQuantity;
-      if (delta !== 0) {
-        movementIds.push(await applyStockMovement(tx, {
-          actorUserId: input.actorUserId,
-          delta,
-          documentId: count.documentId,
-          documentLineId: null,
-          movementType: "count_reconciliation",
-          note: null,
-          product,
-          reason: "count",
-          reversesMovementId: null,
-          salonId: input.salonId,
-          unitCostCents: product.averageCostCents,
-          updateLastCost: false,
-        }));
+      if (differenceQuantity === 0) continue;
+      adjustmentLines.push({
+        description: `Inventory count ${count.id}`,
+        destination: "count",
+        discountCents: 0,
+        documentId: "",
+        id: "",
+        itemType: "resale",
+        lineNumber: adjustmentLines.length + 1,
+        netCents: 0,
+        productId: product.id,
+        quantity: Math.abs(differenceQuantity),
+        salonId: input.salonId,
+        stockDelta: differenceQuantity,
+        supplierId: null,
+        taxCents: 0,
+        taxRateBasisPoints: 0,
+        totalCents: 0,
+        unitCostCents: product.averageCostCents,
+        reversesDocumentLineId: null,
+      });
+    }
+    let movementIds: string[] = [];
+    if (adjustmentLines.length) {
+      const adjustment = await tx.createDocument({
+        competenceDate: null,
+        createdByUserId: input.actorUserId,
+        documentDate: new Date(),
+        internalNumber: `COUNT-${count.id}`,
+        kind: "adjustment",
+        netTotalCents: 0,
+        notes: `Inventory count ${count.id}`,
+        reversalOfDocumentId: null,
+        salonId: input.salonId,
+        supplierId: null,
+        taxTotalCents: 0,
+        totalCents: 0,
+      });
+      await tx.attachCountDocument(input.salonId, count.id, adjustment.id);
+      for (const line of adjustmentLines) {
+        const { id: _id, ...lineInput } = line;
+        await tx.createDocumentLine({ ...lineInput, documentId: adjustment.id });
       }
+      movementIds = (await postWarehouseDocumentInTransaction(tx, {
+        actorUserId: input.actorUserId,
+        documentId: adjustment.id,
+        salonId: input.salonId,
+      })).movementIds;
     }
     if (!(await tx.markCountPosted(input.salonId, count.id, input.actorUserId))) fail("COUNT_ALREADY_POSTED");
     return { countId: count.id, movementIds, status: "posted" };
@@ -629,6 +665,10 @@ function drizzleTransaction(executor: DrizzleDB): WarehouseTransaction {
     async markCountPosted(salonId, countId, actorUserId) {
       const rows = await executor.update(inventoryCounts).set({ postedAt: new Date(), postedByUserId: actorUserId, status: "posted" }).where(and(eq(inventoryCounts.id, countId), eq(inventoryCounts.salonId, salonId), inArray(inventoryCounts.status, ["draft", "counting"]))).returning({ id: inventoryCounts.id });
       return rows.length === 1;
+    },
+    async attachCountDocument(salonId, countId, documentId) {
+      const rows = await executor.update(inventoryCounts).set({ documentId }).where(and(eq(inventoryCounts.id, countId), eq(inventoryCounts.salonId, salonId), inArray(inventoryCounts.status, ["draft", "counting"]))).returning({ id: inventoryCounts.id });
+      if (!rows[0]) throw new Error("COUNT_NOT_FOUND");
     },
     async markDocumentPosted(salonId, documentId, actorUserId) {
       const rows = await executor.update(inventoryDocuments).set({ postedAt: new Date(), postedByUserId: actorUserId, status: "posted", updatedAt: new Date() }).where(and(eq(inventoryDocuments.id, documentId), eq(inventoryDocuments.salonId, salonId), eq(inventoryDocuments.status, "draft"))).returning({ id: inventoryDocuments.id });

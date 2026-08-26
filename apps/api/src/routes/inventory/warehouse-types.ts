@@ -162,6 +162,7 @@ export interface WarehouseTransaction {
   findMovementsForDocument(salonId: string, documentId: string): Promise<WarehouseMovementRecord[]>;
   findProductForUpdate(salonId: string, productId: string): Promise<WarehouseProductRecord | undefined>;
   markCountPosted(salonId: string, countId: string, actorUserId: string): Promise<boolean>;
+  attachCountDocument(salonId: string, countId: string, documentId: string): Promise<void>;
   markDocumentPosted(salonId: string, documentId: string, actorUserId: string): Promise<boolean>;
   markDocumentReversed(salonId: string, documentId: string): Promise<boolean>;
   updateCountLine(

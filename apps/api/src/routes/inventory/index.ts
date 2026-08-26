@@ -16,6 +16,7 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { registerInventoryCatalogRoutes } from "./catalog.js";
+import { registerInventoryCountRoutes } from "./counts.js";
 import { registerInventoryDocumentRoutes } from "./documents.js";
 import {
   createDrizzleWarehouseRepository,
@@ -32,6 +33,7 @@ const guard = [
 
 export async function registerInventoryRoutes(app: FastifyInstance) {
   await registerInventoryCatalogRoutes(app);
+  await registerInventoryCountRoutes(app);
   await registerInventoryDocumentRoutes(app);
   app.get<{
     Params: { id: string };

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { mapWarehouseLineErrors } from "./app/(dashboard)/inventory/warehouse-api";
 import { createLine, normalizeLineForItemType, parsePastedRows, resolveProductReference } from "./app/(dashboard)/inventory/_components/WarehouseOperationDialog";
+import { parseWarehousePaste } from "./app/(dashboard)/inventory/_components/WarehouseCounts";
 
 const dashboard = join(process.cwd(), "app", "(dashboard)");
 
@@ -80,14 +81,23 @@ describe("warehouse workspace", () => {
     expect(result.errors.map((error) => error.message)).toEqual(["Quantità non valida", "Costo non valido", "IVA non valida"]);
   });
 
-  it("keeps quick actions semantically distinct", () => {
+  it("opens physical counts outside the document adjustment dialog", () => {
     const workspace = readFileSync(join(dashboard, "inventory", "warehouse-workspace.tsx"), "utf8");
     const operationDialog = readFileSync(join(dashboard, "inventory", "_components", "WarehouseOperationDialog.tsx"), "utf8");
-    expect(workspace).toContain('setOperation("purchase")');
+    const counts = readFileSync(join(dashboard, "inventory", "_components", "WarehouseCounts.tsx"), "utf8");
+    expect(workspace).toContain('setActiveTab("counts")');
     expect(workspace).toContain('openOperation("adjustment")');
-    expect(workspace).toContain('openOperation("count")');
-    expect(operationDialog).toContain("Inventario fisico");
-    expect(workspace).toContain("startWithPaste");
-    expect(operationDialog).toContain('mode === "count" ? "count"');
+    expect(workspace).toContain("WarehouseCounts");
+    expect(counts).toContain("Quantità teorica");
+    expect(counts).toContain("Quantità contata");
+    expect(counts).toContain("Differenza");
+    expect(operationDialog).not.toContain("Inventario fisico");
+  });
+
+  it("parses tabbed pasted count rows locally before preview matching", () => {
+    expect(parseWarehousePaste("CRM-01\t7\tScaffale A\n8001\t2")).toEqual([
+      { barcode: "", counted_quantity: 7, note: "Scaffale A", sku: "CRM-01" },
+      { barcode: "8001", counted_quantity: 2, note: "", sku: "" },
+    ]);
   });
 });

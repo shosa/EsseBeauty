@@ -1,4 +1,4 @@
-import type { WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
+import type { WarehouseCount, WarehouseImportPreview, WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
 
 export function mapWarehouseLineErrors(body: unknown, lines: Array<{ key: string }>) {
   const result: Record<string, Record<string, string>> = {};
@@ -40,6 +40,12 @@ export const warehouseApi = {
   saveDocument: (salonId: string, input: WarehouseDocumentInput, documentId?: string) => request<WarehouseDocument>(`${base(salonId)}/documents${documentId ? `/${encodeURIComponent(documentId)}` : ""}`, { method: documentId ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
   postDocument: (salonId: string, documentId: string) => request<{ documentId: string; status: "posted" }>(`${base(salonId)}/documents/${encodeURIComponent(documentId)}/post`, { method: "POST" }),
   reverseDocument: (salonId: string, documentId: string) => request<{ documentId: string; status: "posted" }>(`${base(salonId)}/documents/${encodeURIComponent(documentId)}/reverse`, { method: "POST" }),
+  getCounts: (salonId: string) => request<WarehouseCount[]>(`${base(salonId)}/counts`),
+  createCount: (salonId: string, input: { category?: string | null; notes?: string | null; product_ids?: string[] } = {}) => request<WarehouseCount>(`${base(salonId)}/counts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
+  getCount: (salonId: string, countId: string) => request<WarehouseCount>(`${base(salonId)}/counts/${encodeURIComponent(countId)}`),
+  saveCount: (salonId: string, countId: string, input: { notes?: string | null; lines: Array<{ product_id: string; counted_quantity?: number | null; note?: string | null }> }) => request<WarehouseCount>(`${base(salonId)}/counts/${encodeURIComponent(countId)}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
+  postCount: (salonId: string, countId: string) => request<{ countId: string; movementIds: string[]; status: "posted" }>(`${base(salonId)}/counts/${encodeURIComponent(countId)}/post`, { method: "POST" }),
+  previewImport: (salonId: string, input: { mapping: Record<string, string>; rows?: Array<Record<string, unknown>>; text?: string }) => request<WarehouseImportPreview>(`${base(salonId)}/imports/preview`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
   createSupplier: (salonId: string, input: Partial<WarehouseSupplier> & { name: string }) => request<WarehouseSupplier>(`${base(salonId)}/suppliers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(toSupplierInput(input)) }),
   updateSupplier: (salonId: string, supplierId: string, input: Partial<WarehouseSupplier> & { name?: string }) => request<WarehouseSupplier>(`${base(salonId)}/suppliers/${encodeURIComponent(supplierId)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(toSupplierInput(input)) }),
 };
