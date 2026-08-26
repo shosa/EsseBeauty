@@ -1,11 +1,14 @@
 export type WarehouseTab = "overview" | "products" | "movements" | "documents" | "counts" | "suppliers" | "costs" | "reports";
+export type WarehouseItemType = "resale" | "consumable" | "equipment" | "expense";
+export type WarehouseDocumentKind = "adjustment" | "count" | "credit_note" | "equipment_purchase" | "expense" | "internal_use" | "opening" | "purchase" | "supplier_invoice" | "supplier_return" | "waste";
+export type WarehouseDocumentStatus = "cancelled" | "draft" | "posted" | "reversed";
 
-export interface WarehouseSummary {
-  asset_value_cents: number;
-  draft_documents: number;
-  expense_total_cents: number;
-  low_stock_count: number;
-  purchase_total_cents: number;
-  stock_value_cents: number;
-  tracked_items: number;
-}
+export interface WarehouseSummary { asset_value_cents: number; draft_documents: number; expense_total_cents: number; low_stock_count: number; purchase_total_cents: number; stock_value_cents: number; tracked_items: number; products?: number; suppliers?: number; }
+export interface WarehouseProduct { id: string; name: string; sku: string | null; category: string | null; itemType: WarehouseItemType; unit: string; stockQuantity: number; lowStockThreshold: number; reorderQuantity: number; unitPriceCents: number; averageCostCents: number; lastCostCents: number; supplier: string | null; preferredSupplier: string | null; preferredSupplierId: string | null; trackStock: boolean; active: boolean; }
+export interface WarehouseSupplier { id: string; name: string; contactName: string | null; vatNumber: string | null; taxCode: string | null; email: string | null; phone: string | null; address: string | null; city: string | null; postalCode: string | null; country: string | null; paymentTerms: string | null; notes: string | null; active: boolean; }
+export interface WarehouseDocument { id: string; internalNumber: string; kind: WarehouseDocumentKind; status: WarehouseDocumentStatus; supplierId: string | null; externalReference: string | null; documentDate: string; competenceDate: string | null; notes: string | null; netTotalCents: number; taxTotalCents: number; totalCents: number; reversalOfDocumentId: string | null; }
+export interface WarehouseDocumentLine { id?: string; key?: string; productId: string | null; supplierId?: string | null; description: string; itemType: WarehouseItemType; quantity: number; unitCostCents: number; discountCents: number; taxRateBasisPoints: number; stockDelta: number; destination: string | null; unit?: string; unitScale?: number; }
+export interface WarehouseDocumentDetails extends WarehouseDocument { lines: WarehouseDocumentLine[]; }
+export interface EditableWarehouseLine { key: string; product_id: string | null; description: string; item_type: WarehouseItemType; quantity: number; unit_cost_cents: number; discount_cents: number; tax_rate_basis_points: number; stock_delta: number; destination: string; }
+export interface WarehouseDocumentInput { kind: WarehouseDocumentKind; internal_number?: string; external_reference?: string | null; document_date?: string; competence_date?: string | null; supplier_id?: string | null; notes?: string | null; lines: Array<{ description: string; item_type: WarehouseItemType; product_id: string | null; quantity: number; unit_cost_cents: number; discount_cents: number; tax_rate_basis_points: number; stock_delta: number; destination: string | null; unit?: string; unit_scale?: number; }>; }
+export interface WarehouseListFilters { q?: string; active?: boolean; low_stock?: boolean; item_type?: WarehouseItemType; supplier_id?: string; status?: WarehouseDocumentStatus; kind?: WarehouseDocumentKind; }

@@ -28,4 +28,18 @@ describe("warehouse workspace", () => {
     expect(workspace).toContain('role="tabpanel"');
     expect(workspace).toContain("aria-live");
   });
+
+  it("wires the dense operational components and bulk document vocabulary", () => {
+    const workspace = readFileSync(join(dashboard, "inventory", "warehouse-workspace.tsx"), "utf8");
+    const operationDialog = readFileSync(join(dashboard, "inventory", "_components", "WarehouseOperationDialog.tsx"), "utf8");
+    for (const component of ["WarehouseOverview", "WarehouseProducts", "WarehouseDocuments", "WarehouseOperationDialog", "WarehouseSuppliers"]) {
+      expect(workspace).toContain(component);
+    }
+    for (const field of ["Riferimento documento", "Fornitore", "Quantità", "Costo", "IVA", "Destinazione"]) {
+      expect(operationDialog).toContain(field);
+    }
+    expect(operationDialog).toContain("Incolla righe");
+    expect(operationDialog).toContain("Salva bozza");
+    expect(operationDialog).toContain("Registra documento");
+  });
 });
