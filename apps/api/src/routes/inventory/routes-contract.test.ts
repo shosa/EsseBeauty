@@ -37,4 +37,18 @@ describe("warehouse route contract", () => {
 
     expect(changes).toEqual({ name: "Crema" });
   });
+
+  test("defaults equipment and expense products to non-stock non-sellable", () => {
+    expect(productValues({ item_type: "equipment", name: "Lampada" }, "salon-1")).toMatchObject({ itemType: "equipment", trackStock: false, sellable: false });
+    expect(productValues({ item_type: "expense", name: "Servizio" }, "salon-1")).toMatchObject({ itemType: "expense", trackStock: false, sellable: false });
+    expect(productValues({ item_type: "equipment", name: "Tracked", track_stock: true, sellable: true }, "salon-1")).toMatchObject({ trackStock: true, sellable: true });
+  });
+
+  test("supports validated date bounds on document listing", () => {
+    expect(documentsSource).toContain("date_from");
+    expect(documentsSource).toContain("date_to");
+    expect(documentsSource).toContain("gte(inventoryDocuments.documentDate");
+    expect(documentsSource).toContain("lte(inventoryDocuments.documentDate");
+    expect(documentsSource).toContain("INVALID_DATE_FILTER");
+  });
 });

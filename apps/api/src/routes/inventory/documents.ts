@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 
 import {
   inventoryDocumentLines,
@@ -106,11 +106,16 @@ function documentValues(input: DocumentInput, salonId: string, actorId: string) 
 }
 
 export async function registerInventoryDocumentRoutes(app: FastifyInstance) {
-  app.get<{ Params: { id: string }; Querystring: { kind?: string; limit?: string; offset?: string; status?: string } }>("/api/salons/:id/inventory/documents", { preHandler: guard }, async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: { date_from?: string; date_to?: string; kind?: string; limit?: string; offset?: string; status?: string } }>("/api/salons/:id/inventory/documents", { preHandler: guard }, async (request, reply) => {
     if (ownsSalon(request, reply) !== true) return;
     const filters = [eq(inventoryDocuments.salonId, request.salonId)];
     if (request.query.kind) filters.push(eq(inventoryDocuments.kind, request.query.kind));
     if (request.query.status) filters.push(eq(inventoryDocuments.status, request.query.status));
+    const dateFrom = request.query.date_from ? toDate(request.query.date_from) : undefined;
+    const dateTo = request.query.date_to ? toDate(request.query.date_to) : undefined;
+    if ((request.query.date_from && !dateFrom) || (request.query.date_to && !dateTo) || (dateFrom && dateTo && dateFrom > dateTo)) return reply.code(422).send({ error: "INVALID_DATE_FILTER" });
+    if (dateFrom) filters.push(gte(inventoryDocuments.documentDate, dateFrom));
+    if (dateTo) filters.push(lte(inventoryDocuments.documentDate, dateTo));
     return app.db.select().from(inventoryDocuments).where(and(...filters)).orderBy(desc(inventoryDocuments.documentDate)).limit(limit(request.query.limit)).offset(offset(request.query.offset));
   });
 

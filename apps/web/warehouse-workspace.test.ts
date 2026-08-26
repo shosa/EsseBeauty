@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { mapWarehouseLineErrors } from "./app/(dashboard)/inventory/warehouse-api";
-import { normalizeLineForItemType, parsePastedRows, resolveProductReference } from "./app/(dashboard)/inventory/_components/WarehouseOperationDialog";
+import { createLine, normalizeLineForItemType, parsePastedRows, resolveProductReference } from "./app/(dashboard)/inventory/_components/WarehouseOperationDialog";
 
 const dashboard = join(process.cwd(), "app", "(dashboard)");
 
@@ -63,11 +63,29 @@ describe("warehouse workspace", () => {
   it("normalizes expense rows to non-stock lines", () => {
     const line = { key: "line-1", product_id: "p1", description: "Servizio", item_type: "resale", quantity: 1, unit_cost_cents: 100, discount_cents: 0, tax_rate_basis_points: 0, stock_delta: 1, destination: "stock" } as Parameters<typeof normalizeLineForItemType>[0];
     expect(normalizeLineForItemType(line, "expense")).toMatchObject({ product_id: null, stock_delta: 0, item_type: "expense" });
+    expect(createLine({ id: "p2", name: "Lampada", sku: "LAMP", itemType: "equipment", averageCostCents: 100, lastCostCents: 100 } as never, "purchase")).toMatchObject({ product_id: null, stock_delta: 0, item_type: "equipment" });
   });
 
   it("maps API line errors back to stable editable row keys and fields", () => {
     const lines = [{ key: "stable-1" }, { key: "stable-2" }] as Parameters<typeof mapWarehouseLineErrors>[1];
     const result = mapWarehouseLineErrors({ line_errors: [{ line: 2, field: "unit_cost_cents", message: "Costo obbligatorio" }] }, lines);
     expect(result).toEqual({ "stable-2": { unit_cost_cents: "Costo obbligatorio" } });
+  });
+
+  it("rejects fractional pasted quantities, costs, and tax rates", () => {
+    const products = [{ id: "p1", name: "Crema", sku: "CRM-01", itemType: "resale", lastCostCents: 100 }] as never[];
+    const result = parsePastedRows("p1\t1.5\t120\t2200\np1\t1\t120.5\t2200\np1\t1\t120\t2200.5", products as Parameters<typeof parsePastedRows>[1], "purchase");
+    expect(result.lines).toHaveLength(0);
+    expect(result.errors.map((error) => error.message)).toEqual(["Quantità non valida", "Costo non valido", "IVA non valida"]);
+  });
+
+  it("keeps quick actions semantically distinct", () => {
+    const workspace = readFileSync(join(dashboard, "inventory", "warehouse-workspace.tsx"), "utf8");
+    const operationDialog = readFileSync(join(dashboard, "inventory", "_components", "WarehouseOperationDialog.tsx"), "utf8");
+    expect(workspace).toContain('setOperation("purchase")');
+    expect(workspace).toContain('openOperation("adjustment")');
+    expect(workspace).toContain('openOperation("count")');
+    expect(operationDialog).toContain("Inventario fisico");
+    expect(workspace).toContain("startWithPaste");
   });
 });
