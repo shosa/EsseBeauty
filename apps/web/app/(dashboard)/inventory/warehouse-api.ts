@@ -1,5 +1,18 @@
 import type { WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
 
+export function mapWarehouseLineErrors(body: unknown, lines: Array<{ key: string }>) {
+  const result: Record<string, Record<string, string>> = {};
+  const errors = body && typeof body === "object" && "line_errors" in body && Array.isArray(body.line_errors) ? body.line_errors : [];
+  for (const item of errors) {
+    if (!item || typeof item !== "object") continue;
+    const value = item as { line?: number; field?: string; message?: string };
+    const key = typeof value.line === "number" ? lines[value.line - 1]?.key : undefined;
+    if (!key || !value.field || !value.message) continue;
+    result[key] = { ...result[key], [value.field]: value.message };
+  }
+  return result;
+}
+
 export class WarehouseApiError extends Error {
   constructor(public readonly status: number, public readonly body: unknown) { super(`Warehouse request failed (${status})`); this.name = "WarehouseApiError"; }
 }
@@ -34,4 +47,3 @@ export const warehouseApi = {
 function toSupplierInput(input: Partial<WarehouseSupplier> & { name?: string }) {
   return { name: input.name, contact_name: input.contactName, vat_number: input.vatNumber, tax_code: input.taxCode, email: input.email, phone: input.phone, address: input.address, city: input.city, postal_code: input.postalCode, country: input.country, payment_terms: input.paymentTerms, notes: input.notes };
 }
-
