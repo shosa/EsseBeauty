@@ -150,23 +150,21 @@ describe("professional UI regression guard", () => {
   it("keeps module activation in the central configurator", () => {
     const settingsLayout = readFileSync(join(dashboardRoot, "settings", "layout.tsx"), "utf8");
     const dashboardShell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
-    const platform = readFileSync(join(process.cwd(), "app", "platform", "page.tsx"), "utf8");
+    const platform = readFileSync(join(process.cwd(), "..", "platform", "app", "page.tsx"), "utf8");
     expect(existsSync(join(dashboardRoot, "settings", "modules", "page.tsx"))).toBe(false);
     expect(settingsLayout).not.toContain("/settings/modules");
     expect(dashboardShell).not.toContain("/settings/modules");
     expect(platform).toContain("/api/platform/salons");
-    expect(platform).toContain("modules/${featureKey}");
-    expect(platform).toContain("Moduli abilitati");
+    expect(platform).toContain("modules/${key}");
+    expect(platform).toContain("Moduli");
   });
 
   it("does not auto-open a salon card before an explicit selection", () => {
-    const platform = readFileSync(join(process.cwd(), "app", "platform", "page.tsx"), "utf8");
-    expect(platform).toContain("const [selectedSalonId, setSelectedSalonId] = useState(\"\")");
-    expect(platform).toContain("function closeSalonCard()");
-    expect(platform).toContain("onClick={closeSalonCard}");
-    expect(platform).toContain("panel !== \"new\" && !selectedSalon");
+    const platform = readFileSync(join(process.cwd(), "..", "platform", "app", "page.tsx"), "utf8");
+    expect(platform).toContain("const [selected, setSelected] = useState<PlatformSalon | null>(null)");
+    expect(platform).toContain("onClick={() => onOpen(salon)}");
+    expect(platform).toContain("{selected && <TenantDrawer");
     expect(platform).not.toContain("?? salons[0]");
-    expect(platform).not.toContain("setSelectedSalonId(rows[0]");
   });
 
   it("uses the app rail, directory page, and contextual workspace shell", () => {

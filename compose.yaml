@@ -73,7 +73,7 @@ services:
       PORT: 3001
       API_HOST: 0.0.0.0
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
       REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
@@ -114,6 +114,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
         NEXT_PUBLIC_PWA_URL: ${PWA_URL:-http://localhost:3002}
+        NEXT_PUBLIC_PLATFORM_URL: ${PLATFORM_URL:-http://localhost:3004}
     restart: unless-stopped
     init: true
     ports:
@@ -155,6 +156,23 @@ services:
     init: true
     ports:
       - "${STAFF_PWA_PORT:-3003}:3003"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - app
+
+  platform:
+    container_name: esse-beauty-platform
+    build:
+      context: .
+      dockerfile: apps/platform/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${PLATFORM_PORT:-3004}:3004"
     depends_on:
       api:
         condition: service_healthy

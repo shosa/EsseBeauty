@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --platform-bg: #f3f5f4;
+  --platform-ink: #14201f;
+  --platform-muted: #66726f;
+  --platform-line: #dce3e0;
+  --platform-green: #16745c;
+  --platform-green-dark: #0d4e40;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--platform-bg); color: var(--platform-ink); }
+body { min-height: 100vh; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; }
+button:not(:disabled), a[href] { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3 { font-family: var(--font-display), var(--font-sans), sans-serif; letter-spacing: -.025em; }
+
+.platform-input {
+  width: 100%; min-height: 42px; border: 1px solid var(--platform-line); border-radius: 10px;
+  background: #fff; padding: 0 12px; color: var(--platform-ink); outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+textarea.platform-input { min-height: 104px; padding-block: 11px; resize: vertical; }
+.platform-input:focus { border-color: #51a58e; box-shadow: 0 0 0 3px rgb(22 116 92 / .11); }
+
+.platform-card { border: 1px solid var(--platform-line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgb(20 32 31 / .025); }
+.platform-button {
+  display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid transparent; border-radius: 10px; padding: 0 14px; font-size: 13px; font-weight: 750;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+.platform-button:active:not(:disabled) { transform: translateY(1px); }
+.platform-button-primary { background: var(--platform-green); color: #fff; }
+.platform-button-primary:hover { background: var(--platform-green-dark); }
+.platform-button-secondary { border-color: var(--platform-line); background: #fff; color: #263432; }
+.platform-button-secondary:hover { border-color: #aebbb7; background: #f8faf9; }
+.platform-button-danger { border-color: #fecaca; background: #fff; color: #b42318; }
+.platform-button-danger:hover { background: #fff1f1; }
+
+.platform-scrollbar { scrollbar-color: #c9d3cf transparent; scrollbar-width: thin; }
+.platform-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.platform-scrollbar::-webkit-scrollbar-thumb { border-radius: 999px; background: #c9d3cf; }
+
+@keyframes platform-fade-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes platform-drawer-in { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: translateX(0); } }
+.platform-view { animation: platform-fade-in 180ms ease-out; }
+.platform-drawer { animation: platform-drawer-in 220ms cubic-bezier(.16,1,.3,1); }

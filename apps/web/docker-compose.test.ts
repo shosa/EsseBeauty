@@ -37,4 +37,14 @@ describe("production Docker topology", () => {
     expect(staffPwa?.ports).toContainEqual(expect.objectContaining({ published: "3003", target: 3003 }));
     expect(compose.services.api?.environment?.API_CORS_ORIGIN).toContain("http://localhost:3003");
   });
+
+  it("runs the platform control plane as a separate application on port 3004", () => {
+    const compose = renderedCompose();
+    const platform = compose.services.platform;
+
+    expect(platform).toBeDefined();
+    expect(platform?.build?.dockerfile).toBe("apps/platform/Dockerfile");
+    expect(platform?.ports).toContainEqual(expect.objectContaining({ published: "3004", target: 3004 }));
+    expect(compose.services.api?.environment?.API_CORS_ORIGIN).toContain("http://localhost:3004");
+  });
 });

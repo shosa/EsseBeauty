@@ -49,10 +49,13 @@ $allowedDevOrigins = @("192.168.1.*") + @($detectedDevOrigins)
 $apiCorsOrigins = @(
   [Environment]::GetEnvironmentVariable("API_CORS_ORIGIN", "Process") -split ","
 )
+$apiCorsOrigins += "http://localhost:3004"
+$apiCorsOrigins += "http://127.0.0.1:3004"
 foreach ($address in $detectedDevOrigins) {
   $apiCorsOrigins += "http://${address}:3000"
   $apiCorsOrigins += "http://${address}:3002"
   $apiCorsOrigins += "http://${address}:3003"
+  $apiCorsOrigins += "http://${address}:3004"
 }
 [Environment]::SetEnvironmentVariable(
   "API_CORS_ORIGIN",
@@ -60,7 +63,7 @@ foreach ($address in $detectedDevOrigins) {
   "Process"
 )
 
-$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003 -State Listen -ErrorAction SilentlyContinue
+$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003, 3004 -State Listen -ErrorAction SilentlyContinue
 if ($busyPorts) {
   $ports = ($busyPorts | Select-Object -ExpandProperty LocalPort -Unique) -join ", "
   throw "Development ports already in use: $ports. Stop the existing dev server or free these ports before running pnpm run dev."
@@ -98,4 +101,5 @@ corepack pnpm --parallel `
   --filter @esse-beauty/web `
   --filter @esse-beauty/pwa `
   --filter @esse-beauty/staff-pwa `
+  --filter @esse-beauty/platform `
   run dev

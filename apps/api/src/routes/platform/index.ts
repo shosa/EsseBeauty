@@ -271,8 +271,10 @@ export async function registerPlatformRoutes(
           onboarding_completed: sql<boolean>`${salons.onboardingCompletedAt} is not null`,
           onboarding_step: salons.onboardingStep,
           plan_id: salons.planId,
+          platform_status: salons.platformStatus,
           slug: salons.slug,
           timezone: salons.timezone,
+          trial_ends_at: salons.trialEndsAt,
           updated_at: salons.updatedAt,
         })
         .from(salons)
