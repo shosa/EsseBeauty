@@ -144,7 +144,9 @@ export async function registerInventoryCountRoutes(app: FastifyInstance) {
       const count = counts[0];
       if (!count) return { error: "COUNT_NOT_FOUND" as const };
       if (count.status !== "draft" && count.status !== "counting") return { error: "COUNT_ALREADY_POSTED" as const };
-      await tx.update(inventoryCounts).set({ ...(request.body.notes !== undefined && { notes: request.body.notes }) }).where(and(eq(inventoryCounts.id, count.id), eq(inventoryCounts.salonId, request.salonId)));
+      if (request.body.notes !== undefined) {
+        await tx.update(inventoryCounts).set({ notes: request.body.notes }).where(and(eq(inventoryCounts.id, count.id), eq(inventoryCounts.salonId, request.salonId)));
+      }
       for (const line of request.body.lines) await tx.update(inventoryCountLines).set({ ...(line.counted_quantity !== undefined && { countedQuantity: line.counted_quantity }), ...(line.note !== undefined && { note: line.note }) }).where(and(eq(inventoryCountLines.countId, count.id), eq(inventoryCountLines.productId, line.product_id), eq(inventoryCountLines.salonId, request.salonId)));
       return { count };
     });
