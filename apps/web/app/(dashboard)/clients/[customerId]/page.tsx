@@ -1,11 +1,11 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Ban, CalendarPlus, ShieldCheck, Trash2 } from "lucide-react";
 import { appointmentStatusLabel, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, Button, ConfirmDialog, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, ConfirmDialog, ExpandableAction, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
@@ -104,7 +104,12 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ blocked: !customer.blocked }),
     });
-    if (response.ok) setCustomer({ ...customer, blocked: !customer.blocked });
+    if (!response.ok) {
+      setError("Lo stato del cliente non è stato aggiornato.");
+      return;
+    }
+    setCustomer({ ...customer, blocked: !customer.blocked });
+    setMessage(customer.blocked ? "Cliente sbloccato." : "Cliente bloccato.");
   }
 
   async function removeCustomer() {
@@ -131,9 +136,9 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
         <p className="mt-1 text-sm text-stone-500">{customer.email ?? "Nessuna email"} - {customer.phone ?? "Nessun telefono"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => void toggleBlocked()} variant={customer.blocked ? "destructive" : "outline"}>{customer.blocked ? "Sblocca cliente" : "Blocca cliente"}</Button>
-        <Button onClick={() => setConfirmDelete(true)} variant="destructive">Elimina</Button>
-        <Link href="/calendar/appointments/new" className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 py-3 text-sm font-bold text-white">Nuovo appuntamento</Link>
+        <ExpandableAction icon={customer.blocked ? ShieldCheck : Ban} label={customer.blocked ? "Sblocca cliente" : "Blocca cliente"} onClick={() => void toggleBlocked()} tone={customer.blocked ? "emerald" : "orange"} />
+        <ExpandableAction icon={Trash2} label="Elimina cliente" onClick={() => setConfirmDelete(true)} tone="rose" />
+        <ExpandableAction icon={CalendarPlus} label="Nuovo appuntamento" onClick={() => router.push("/calendar/appointments/new")} tone="emerald" />
       </div>
     </header>
     <SaveToast visible={Boolean(message)}>{message}</SaveToast>
@@ -177,7 +182,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
           <div className="mt-4 space-y-3">
             {packages.length === 0 && <p className="rounded-xl bg-stone-50 p-5 text-center text-sm text-stone-500">Nessun pacchetto attivo.</p>}
             {packages.map((pack) => <article className="rounded-2xl border border-violet-200 bg-violet-50 p-4" key={pack.id}>
-              <div className="flex items-start justify-between gap-3"><div><strong className="text-lg">{pack.name}</strong><p className="mt-1 text-xs text-violet-700">{pack.expiresAt ? `Scade il ${new Date(pack.expiresAt).toLocaleDateString("it-IT")}` : "Nessuna scadenza"}</p></div><StatusBadge status="active">In corso</StatusBadge></div>
+              <div><strong className="text-lg">{pack.name}</strong><p className="mt-1 text-xs text-violet-700">{pack.expiresAt ? `Scade il ${new Date(pack.expiresAt).toLocaleDateString("it-IT")}` : "Nessuna scadenza"}</p></div>
               <div className="mt-4 space-y-3">{pack.items.map((item) => {
                 const percentage = item.totalQuantity ? Math.min(100, Math.round(item.usedQuantity / item.totalQuantity * 100)) : 0;
                 return <div key={item.name}><div className="flex justify-between text-xs"><strong>{item.name}</strong><span>{item.remainingQuantity} rimasti su {item.totalQuantity}</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-violet-600" style={{ width: `${percentage}%` }} /></div></div>;

@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { AppPage, Button, EmptyState, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { Search, UserPlus } from "lucide-react";
+import { AppPage, Button, EmptyState, ExpandableAction, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -112,7 +111,7 @@ export default function ClientsPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<Link className="inline-flex min-h-11 items-center rounded-xl bg-[#7b3159] px-4 py-3 text-sm font-bold text-white shadow-sm" href="/clients/new">Nuovo cliente</Link>}
+          actions={<ExpandableAction icon={UserPlus} label="Nuovo cliente" onClick={() => router.push("/clients/new")} tone="fuchsia" />}
           eyebrow="CRM"
           subtitle="Ricerca, segmenta e consulta rapidamente l’intera anagrafica del salone."
           title="Clienti"
