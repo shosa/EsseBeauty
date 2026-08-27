@@ -8,6 +8,7 @@ Lo stack comprende:
 - `esse-beauty-api`: Fastify su `http://localhost:3001`
 - `esse-beauty-web`: dashboard Next.js su `http://localhost:3000`
 - `esse-beauty-pwa`: portale clienti su `http://localhost:3002`
+- `esse-beauty-staff-pwa`: portale staff su `http://localhost:3003`
 
 L'autenticazione è locale: password hashate e sessioni revocabili sono salvate
 in PostgreSQL. Al primo avvio aprire `http://localhost:3000/login` per creare
@@ -39,7 +40,10 @@ corepack pnpm docker:up
 ```
 
 Le variabili `NEXT_PUBLIC_*` vengono incorporate durante la build. Dopo averle
-modificate è quindi necessario ricostruire `web` e `pwa`.
+modificate è quindi necessario ricostruire `web`, `pwa` e `staff-pwa`.
+
+Se `API_CORS_ORIGIN` è impostata esplicitamente sulla VPS, deve includere anche
+l'origine pubblica della PWA staff, per esempio `http://IP_VPS:3003`.
 
 ## Comandi
 
@@ -81,6 +85,7 @@ postgresql://postgres:postgres@db:5432/esse_beauty
 docker compose --env-file .env.docker ps
 docker compose --env-file .env.docker logs migrate
 docker compose --env-file .env.docker logs api
+docker compose --env-file .env.docker logs staff-pwa
 ```
 
 L'API viene avviata solo dopo il completamento delle migrazioni e dopo che

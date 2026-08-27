@@ -73,7 +73,7 @@ services:
       PORT: 3001
       API_HOST: 0.0.0.0
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
       REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
@@ -138,6 +138,23 @@ services:
       REVIEW_SESSION_SECRET: ${REVIEW_SESSION_SECRET:?REVIEW_SESSION_SECRET is required}
     ports:
       - "${PWA_PORT:-3002}:3002"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - app
+
+  staff-pwa:
+    container_name: esse-beauty-staff-pwa
+    build:
+      context: .
+      dockerfile: apps/staff-pwa/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${STAFF_PWA_PORT:-3003}:3003"
     depends_on:
       api:
         condition: service_healthy
