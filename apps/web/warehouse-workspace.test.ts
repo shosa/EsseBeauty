@@ -415,4 +415,12 @@ describe("warehouse completed operational areas", () => {
     expect(workspaceSource).toContain("WarehouseCosts");
     expect(workspaceSource).toContain("WarehouseReports");
   });
+
+  it("does not show a redundant healthy-stock badge in the page header", () => {
+    const workspaceSource = readFileSync(
+      join(dashboard, "inventory", "warehouse-workspace.tsx"),
+      "utf8",
+    );
+    expect(workspaceSource).not.toContain("Scorte ok");
+  });
 });

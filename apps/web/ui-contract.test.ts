@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   ActionBar,
@@ -58,5 +60,17 @@ describe("shared UI foundation contract", () => {
     expect(WorkspaceToolbar).toBeTypeOf("function");
     expect(KpiStrip).toBeTypeOf("function");
     expect(InboxItem).toBeTypeOf("function");
+  });
+
+  it("renders page actions below the title content and before the separate status area", () => {
+    const markup = renderToStaticMarkup(createElement(PageHeader, {
+      actions: createElement("button", { "data-slot": "action" }, "Crea"),
+      status: createElement("span", { "data-slot": "status" }, "Attivo"),
+      subtitle: "Descrizione",
+      title: "Clienti",
+    }));
+
+    expect(markup.indexOf("Descrizione")).toBeLessThan(markup.indexOf('data-slot="action"'));
+    expect(markup.indexOf('data-slot="action"')).toBeLessThan(markup.indexOf('data-slot="status"'));
   });
 });

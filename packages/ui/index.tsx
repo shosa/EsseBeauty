@@ -260,11 +260,9 @@ export function PageHeader({
           <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
           {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
           {meta && <div className="mt-3 flex flex-wrap gap-2">{meta}</div>}
+          {actions && <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {status}
-          {actions}
-        </div>
+        {status && <div className="flex flex-wrap items-center justify-end gap-2">{status}</div>}
       </div>
     </header>
   );
@@ -291,7 +289,8 @@ export function PageHeaderMetrics({
         {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p>}
         <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
         {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
-        {(status || actions) && <div className="mt-3 flex flex-wrap items-center gap-2">{status}{actions}</div>}
+        {actions && <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
+        {status && <div className="mt-3 flex flex-wrap items-center gap-2">{status}</div>}
       </div>
       <div className="grid grid-cols-2 border-y border-[#e5d9df] py-4 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none lg:border-y-0 lg:py-0">
         {metrics.map((metric, index) => (

@@ -21,7 +21,6 @@ import {
   ExpandableAction,
   PageHeaderMetrics,
   SectionCard,
-  StatusBadge,
 } from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 import { WarehouseDocuments } from "./_components/WarehouseDocuments";
@@ -480,15 +479,6 @@ export function WarehouseWorkspace() {
         ]}
         title="Magazzino operativo"
         subtitle="Scorte, acquisti e controlli operativi in un unico spazio."
-        status={
-          <StatusBadge
-            status={summary.low_stock_count > 0 ? "waiting" : "active"}
-          >
-            {summary.low_stock_count > 0
-              ? `${summary.low_stock_count} sotto soglia`
-              : "Scorte ok"}
-          </StatusBadge>
-        }
       />
       <div className="mb-5 flex flex-col gap-3 rounded-xl border border-stone-200 bg-white p-2 shadow-sm">
         <div
