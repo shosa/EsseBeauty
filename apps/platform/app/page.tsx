@@ -209,7 +209,7 @@ export default function PlatformPage() {
 
   async function removeTenant() {
     if (!selected) return;
-    try { await platformRequest(`/api/platform/salons/${selected.id}`, { method: "DELETE", body: JSON.stringify({ confirmation: deleteConfirmation }) }); setSelected(null); setDeleteConfirmation(""); await loadData(); setNotice("Salone eliminato definitivamente"); }
+    try { await platformRequest(`/api/platform/salons/${selected.id}?confirmation=${encodeURIComponent(deleteConfirmation.trim())}`, { method: "DELETE" }); setSelected(null); setDeleteConfirmation(""); await loadData(); setNotice("Salone eliminato definitivamente"); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "Eliminazione non riuscita."); }
   }
 

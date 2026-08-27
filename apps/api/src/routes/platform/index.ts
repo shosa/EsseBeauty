@@ -606,8 +606,9 @@ export async function registerPlatformRoutes(
   );
 
   app.delete<{
-    Body: { confirmation: string };
+    Body?: { confirmation?: string };
     Params: { salonId: string };
+    Querystring: { confirmation?: string };
   }>(
     "/api/platform/salons/:salonId",
     { preHandler: [authenticatePlatform] },
@@ -619,7 +620,8 @@ export async function registerPlatformRoutes(
         .limit(1);
       const salon = rows[0];
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
-      if (request.body.confirmation?.trim() !== salon.slug) {
+      const confirmation = request.query.confirmation ?? request.body?.confirmation;
+      if (confirmation?.trim() !== salon.slug) {
         return reply.code(422).send({ error: "SALON_CONFIRMATION_MISMATCH" });
       }
 
