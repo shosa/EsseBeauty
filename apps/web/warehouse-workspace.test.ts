@@ -403,3 +403,16 @@ describe("warehouse workspace", () => {
     });
   });
 });
+
+describe("warehouse completed operational areas", () => {
+  it("does not expose placeholder tabs", () => {
+    const workspaceSource = readFileSync(
+      join(dashboard, "inventory", "warehouse-workspace.tsx"),
+      "utf8",
+    );
+    expect(workspaceSource).not.toContain("Area in preparazione");
+    expect(workspaceSource).toContain("WarehouseMovements");
+    expect(workspaceSource).toContain("WarehouseCosts");
+    expect(workspaceSource).toContain("WarehouseReports");
+  });
+});

@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  ArrowLeftRight,
   ArrowDownToLine,
   ArrowUpFromLine,
   ClipboardList,
@@ -9,6 +10,7 @@ import {
   PackagePlus,
   Plus,
   RotateCcw,
+  ReceiptText,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -67,6 +69,55 @@ type OperationMode =
   | "waste"
   | "revaluation"
   | "issue";
+
+const money = new Intl.NumberFormat("it-IT", {
+  currency: "EUR",
+  style: "currency",
+});
+
+const documentKindLabels: Record<WarehouseDocumentKind, string> = {
+  adjustment: "Rettifica inventariale",
+  count: "Inventario",
+  credit_note: "Nota di credito",
+  equipment_purchase: "Acquisto attrezzatura",
+  expense: "Spesa",
+  internal_use: "Consumo interno",
+  opening: "Giacenza iniziale",
+  purchase: "Carico merce",
+  supplier_invoice: "Fattura fornitore",
+  supplier_return: "Reso a fornitore",
+  waste: "Scarto",
+};
+
+function WarehouseMovements({ documents, onOpen }: { documents: WarehouseDocument[]; onOpen: (id: string) => void }) {
+  const rows = [...documents]
+    .filter((document) => document.status === "posted" || document.status === "reversed")
+    .sort((a, b) => new Date(b.documentDate).getTime() - new Date(a.documentDate).getTime());
+  return (
+    <SectionCard title="Registro movimenti" subtitle="Carichi, scarichi, rettifiche e storni in ordine cronologico.">
+      {rows.length === 0 ? <EmptyState title="Nessun movimento registrato" description="I documenti contabilizzati compariranno qui automaticamente." /> : (
+        <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-stone-400"><th className="p-3">Data</th><th className="p-3">Operazione</th><th className="p-3">Riferimento</th><th className="p-3 text-right">Valore</th><th className="p-3"><span className="sr-only">Apri</span></th></tr></thead><tbody>{rows.map((document) => <tr className="border-b border-stone-100 last:border-0" key={document.id}><td className="p-3 font-semibold">{new Date(document.documentDate).toLocaleDateString("it-IT")}</td><td className="p-3"><span className="inline-flex items-center gap-2"><ArrowLeftRight className="size-4 text-teal-700" />{documentKindLabels[document.kind]}</span></td><td className="p-3 text-stone-600">{document.externalReference || document.internalNumber}</td><td className="p-3 text-right font-bold">{money.format(document.totalCents / 100)}</td><td className="p-3 text-right"><Button aria-label={`Apri ${document.internalNumber}`} onClick={() => onOpen(document.id)} size="sm" variant="tableAction">Apri</Button></td></tr>)}</tbody></table></div>
+      )}
+    </SectionCard>
+  );
+}
+
+function WarehouseCosts({ documents, onOpen }: { documents: WarehouseDocument[]; onOpen: (id: string) => void }) {
+  const rows = documents.filter((document) => document.status === "posted" && ["expense", "equipment_purchase"].includes(document.kind));
+  const expenseTotal = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.totalCents, 0);
+  const assetTotal = rows.filter((item) => item.kind === "equipment_purchase").reduce((sum, item) => sum + item.totalCents, 0);
+  return (
+    <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-5"><ReceiptText className="size-5 text-orange-700" /><p className="mt-3 text-sm font-bold text-stone-600">Spese operative</p><p className="text-2xl font-black">{money.format(expenseTotal / 100)}</p></div><div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-5"><Archive className="size-5 text-indigo-700" /><p className="mt-3 text-sm font-bold text-stone-600">Attrezzature acquistate</p><p className="text-2xl font-black">{money.format(assetTotal / 100)}</p></div></div><SectionCard title="Registro costi" subtitle="Spese e beni durevoli separati dalla giacenza destinata alla vendita.">{rows.length === 0 ? <EmptyState title="Nessun costo registrato" description="Registra una spesa o un acquisto attrezzatura dalle operazioni rapide." /> : <div className="grid gap-2">{rows.map((document) => <button className="flex w-full items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-left transition hover:border-teal-400 hover:bg-cyan-50/40" key={document.id} onClick={() => onOpen(document.id)} type="button"><span><b className="block">{documentKindLabels[document.kind]}</b><span className="text-xs text-stone-500">{new Date(document.documentDate).toLocaleDateString("it-IT")} · {document.externalReference || document.internalNumber}</span></span><b>{money.format(document.totalCents / 100)}</b></button>)}</div>}</SectionCard></div>
+  );
+}
+
+function WarehouseReports({ products, summary }: { products: WarehouseProduct[]; summary: WarehouseSummary }) {
+  const valued = products.filter((product) => product.trackStock).map((product) => ({ ...product, value: product.stockQuantity * product.averageCostCents })).sort((a, b) => b.value - a.value);
+  const total = valued.reduce((sum, product) => sum + product.value, 0);
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_1.3fr]"><SectionCard title="Indicatori economici" subtitle="Valori aggiornati in base ai documenti contabilizzati."><dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"><div className="rounded-xl bg-stone-50 p-4"><dt className="text-sm text-stone-500">Valore scorte</dt><dd className="mt-1 text-2xl font-black">{money.format(summary.stock_value_cents / 100)}</dd></div><div className="rounded-xl bg-stone-50 p-4"><dt className="text-sm text-stone-500">Acquisti</dt><dd className="mt-1 text-2xl font-black">{money.format(summary.purchase_total_cents / 100)}</dd></div><div className="rounded-xl bg-stone-50 p-4"><dt className="text-sm text-stone-500">Spese</dt><dd className="mt-1 text-2xl font-black">{money.format(summary.expense_total_cents / 100)}</dd></div></dl></SectionCard><SectionCard title="Valorizzazione articoli" subtitle="Giacenza per costo medio, dal valore più alto.">{valued.length === 0 ? <EmptyState title="Nessuna scorta valorizzata" description="Aggiungi articoli tracciati e contabilizza un carico." /> : <div className="space-y-3">{valued.slice(0, 12).map((product) => { const width = total > 0 ? Math.max(4, Math.round((product.value / total) * 100)) : 4; return <div key={product.id}><div className="flex justify-between gap-3 text-sm"><span className="font-bold">{product.name}</span><span>{money.format(product.value / 100)}</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-gradient-to-r from-teal-700 to-cyan-400" style={{ width: `${width}%` }} /></div></div>; })}</div>}</SectionCard></div>
+  );
+}
 
 function readDocumentFilter<T extends string>(
   key: string,
@@ -543,6 +594,9 @@ export function WarehouseWorkspace() {
             suppliers={suppliers}
           />
         )}
+        {activeTab === "movements" && (
+          <WarehouseMovements documents={documents} onOpen={(id) => void openDocument(id)} />
+        )}
         {activeTab === "counts" && (
           <WarehouseCounts
             counts={counts}
@@ -579,27 +633,11 @@ export function WarehouseWorkspace() {
             suppliers={suppliers}
           />
         )}
-        {!(
-          [
-            "overview",
-            "products",
-            "documents",
-            "counts",
-            "suppliers",
-          ] as WarehouseTab[]
-        ).includes(activeTab) && (
-          <SectionCard
-            title={
-              warehouseTabs.find((tab) => tab.id === activeTab)?.label ??
-              "Magazzino"
-            }
-            subtitle="Questa area operativa sarà disponibile nei prossimi incrementi."
-          >
-            <EmptyState
-              description="Continua a gestire scorte, documenti e fornitori dalle aree attive."
-              title="Area in preparazione"
-            />
-          </SectionCard>
+        {activeTab === "costs" && (
+          <WarehouseCosts documents={documents} onOpen={(id) => void openDocument(id)} />
+        )}
+        {activeTab === "reports" && (
+          <WarehouseReports products={products} summary={summary} />
         )}
       </div>
       {operation && (
