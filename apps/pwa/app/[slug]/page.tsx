@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight, CalendarDays, CalendarPlus, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -47,7 +48,7 @@ export default function SalonLanding() {
             <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>Benvenuta</p>
             <h1 className="mt-3 text-4xl font-bold">{brand?.heroTitle || profile?.salon.name || "Esse Beauty"}</h1>
             <p className="mt-3 text-sm leading-6 text-white/78">{brand?.heroSubtitle || "Il tuo spazio per prenderti cura di te, con la libertà di prenotare quando vuoi."}</p>
-            <Link href={`/${slug}/book`} className="mt-7 inline-grid min-h-12 w-full place-items-center rounded-2xl bg-white font-black text-[#402334] shadow-lg">Prenota ora</Link>
+            <Link href={`/${slug}/book`} className="mt-7 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white font-black text-[#402334] shadow-lg"><CalendarPlus className="size-5" />Prenota ora</Link>
           </div>
         </header>
 
@@ -56,19 +57,19 @@ export default function SalonLanding() {
 
         <section className="mt-5 grid grid-cols-2 gap-3">
           <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]" href={`/${slug}/appointments`}>
-            <span className="grid size-11 place-items-center rounded-2xl text-xl text-white" style={{ background: primary }}>⌁</span>
+            <span className="grid size-11 place-items-center rounded-2xl text-white" style={{ background: primary }}><CalendarDays className="size-5" /></span>
             <h2 className="mt-4 text-lg font-bold text-stone-950">I miei appuntamenti</h2>
             <p className="mt-1 text-sm leading-5 text-stone-500">Consulta le prenotazioni già effettuate.</p>
           </Link>
           <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]" href={`/${slug}/book`}>
-            <span className="grid size-11 place-items-center rounded-2xl text-xl font-black" style={{ background: accent, color: primary }}>＋</span>
+            <span className="grid size-11 place-items-center rounded-2xl" style={{ background: accent, color: primary }}><CalendarPlus className="size-5" /></span>
             <h2 className="mt-4 text-lg font-bold text-stone-950">Nuova prenotazione</h2>
             <p className="mt-1 text-sm leading-5 text-stone-500">Trova il trattamento e l’orario giusto.</p>
           </Link>
         </section>
 
         <section className="mt-7">
-          <p className="text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}>Da dove vuoi iniziare?</p>
+          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Sparkles className="size-4" />Da dove vuoi iniziare?</p>
           <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un’esperienza</h2>
           <div className="mt-4 grid gap-3">
             {categories.map((category) => (
@@ -83,7 +84,7 @@ export default function SalonLanding() {
                   </span>
                   <strong className="text-base text-stone-950">{category.name}</strong>
                 </div>
-                <span className="text-xl transition group-hover:translate-x-1" style={{ color: primary }}>→</span>
+                <ArrowRight className="size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
               </Link>
             ))}
           </div>

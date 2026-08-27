@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { CalendarClock, Search, Send, Trash2, UserRound } from "lucide-react";
 import { appointmentStatusLabel } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
@@ -15,7 +16,7 @@ export default function AppointmentsPage() {
   const [email, setEmail] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [profile, setProfile] = useState<Profile>();
-  const [requestedStartsAt, setRequestedStartsAt] = useState("");
+  const [requestedStartsAt, setRequestedStartsAt] = useState<Record<string, string>>({});
   const [searched, setSearched] = useState(false);
   const [toast, setToast] = useState("");
   const primary = profile?.branding?.primaryColor || "#402334";
@@ -34,6 +35,7 @@ export default function AppointmentsPage() {
   }
 
   async function cancel(appointmentId: string) {
+    if (!window.confirm("Vuoi annullare questo appuntamento?")) return;
     const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/appointments/${appointmentId}/cancel`, {
       body: JSON.stringify({ email }),
       headers: { "content-type": "application/json" },
@@ -45,12 +47,12 @@ export default function AppointmentsPage() {
 
   async function requestReschedule(appointmentId: string) {
     const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/appointments/${appointmentId}/reschedule-requests`, {
-      body: JSON.stringify({ email, requested_starts_at: requestedStartsAt }),
+      body: JSON.stringify({ email, requested_starts_at: requestedStartsAt[appointmentId] }),
       headers: { "content-type": "application/json" },
       method: "POST",
     });
     setToast(response.ok ? "Richiesta inviata al salone." : "Impossibile inviare la richiesta.");
-    if (response.ok) setRequestedStartsAt("");
+    if (response.ok) setRequestedStartsAt((current) => ({ ...current, [appointmentId]: "" }));
   }
 
   return (
@@ -64,26 +66,26 @@ export default function AppointmentsPage() {
         <div className="mt-6 rounded-[2rem] border border-white/80 bg-white/86 p-3 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
           <div className="flex gap-2">
             <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="La tua email" className="min-w-0 flex-1" />
-            <button disabled={!email.trim()} onClick={() => void search()} className="rounded-2xl px-5 font-black text-white disabled:opacity-40" style={{ background: primary }}>Cerca</button>
+            <button disabled={!email.trim()} onClick={() => void search()} className="flex items-center gap-2 rounded-2xl px-5 font-black text-white disabled:opacity-40" style={{ background: primary }}><Search className="size-4" />Cerca</button>
           </div>
         </div>
         {toast && <p className="mt-4 rounded-2xl bg-white/90 p-4 text-sm font-black text-stone-700 shadow-sm">{toast}</p>}
         <div className="mt-5 space-y-3">
           {items.map((item) => (
             <article key={item.id} className="rounded-[1.7rem] border border-white/80 bg-white/86 p-5 shadow-sm">
-              <p className="text-sm font-black" style={{ color: primary }}>{new Date(item.starts_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
+              <p className="flex items-center gap-2 text-sm font-black" style={{ color: primary }}><CalendarClock className="size-4" />{new Date(item.starts_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
               <h2 className="mt-2 text-xl font-black text-stone-950">{item.service_name}</h2>
-              <p className="mt-1 text-sm text-stone-500">con {item.staff_name} · {appointmentStatusLabel(item.status)}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-stone-500"><UserRound className="size-4" />con {item.staff_name} · {appointmentStatusLabel(item.status)}</p>
               {(profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && <div className="mt-4 rounded-2xl bg-stone-50 p-3">
                 {profile?.pwa?.allowReschedule !== false && <>
                 <label className="block text-xs font-black uppercase tracking-[.12em] text-stone-500">
                   Richiedi nuovo orario
-                  <input className="mt-2 w-full" type="datetime-local" value={requestedStartsAt} onChange={(event) => setRequestedStartsAt(event.target.value)} />
+                  <input className="mt-2 w-full" type="datetime-local" value={requestedStartsAt[item.id] ?? ""} onChange={(event) => setRequestedStartsAt((current) => ({ ...current, [item.id]: event.target.value }))} />
                 </label>
                 </>}
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {profile?.pwa?.allowReschedule !== false && <button disabled={!requestedStartsAt} onClick={() => void requestReschedule(item.id)} className="min-h-11 rounded-2xl bg-white px-3 text-xs font-black text-stone-700 disabled:opacity-40">Invia richiesta</button>}
-                  {profile?.pwa?.allowCancellation !== false && <button onClick={() => void cancel(item.id)} className="min-h-11 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700">Annulla</button>}
+                  {profile?.pwa?.allowReschedule !== false && <button disabled={!requestedStartsAt[item.id]} onClick={() => void requestReschedule(item.id)} className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-3 text-xs font-black text-stone-700 disabled:opacity-40"><Send className="size-4" />Invia richiesta</button>}
+                  {profile?.pwa?.allowCancellation !== false && <button onClick={() => void cancel(item.id)} className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700"><Trash2 className="size-4" />Annulla</button>}
                 </div>
               </div>}
             </article>

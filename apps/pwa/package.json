@@ -7,6 +7,7 @@
     "dev": "next dev --port 3002",
     "lint": "tsc --noEmit",
     "start": "next start --port 3002",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
