@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Settings2, UserRoundX } from "lucide-react";
+import { Power, PowerOff, Settings2, UserRoundPlus } from "lucide-react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
+import { staffStatusAction } from "./staff-status-action";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -24,7 +25,8 @@ interface Member {
 export default function SettingsStaffPage() {
   const [staff, setStaff] = useState<Member[]>([]);
   const [error, setError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<Member>();
+  const [confirmDeactivate, setConfirmDeactivate] = useState<Member>();
+  const [pendingId, setPendingId] = useState("");
   const { salon } = useAuth();
 
   async function load() {
@@ -39,34 +41,40 @@ export default function SettingsStaffPage() {
 
   useEffect(() => { void load(); }, [salon?.id]);
 
-  async function toggle(member: Member) {
+  async function setActive(member: Member, active: boolean) {
     if (!salon) return;
+    setError("");
+    setPendingId(member.id);
     const response = await fetch(`${api}/api/salons/${salon.id}/staff/${member.id}`, {
-      body: JSON.stringify({ active: !member.active }),
+      body: JSON.stringify({ active }),
       credentials: "include",
       headers: { "content-type": "application/json" },
       method: "PATCH",
     });
-    if (!response.ok) setError("Lo stato del collaboratore non è stato aggiornato.");
+    if (!response.ok) {
+      setError(`Il collaboratore non è stato ${active ? "riattivato" : "disattivato"}.`);
+      setPendingId("");
+      return;
+    }
+    setConfirmDeactivate(undefined);
     await load();
+    setPendingId("");
   }
 
-  async function remove() {
-    if (!salon || !confirmDelete) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/staff/${confirmDelete.id}`, {
-      credentials: "include",
-      method: "DELETE",
-    });
-    if (!response.ok) setError("Il collaboratore non è stato disattivato.");
-    setConfirmDelete(undefined);
-    await load();
+  function requestStatusChange(member: Member) {
+    const action = staffStatusAction(member.active);
+    if (action.confirmationRequired) {
+      setConfirmDeactivate(member);
+      return;
+    }
+    void setActive(member, action.nextActive);
   }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<Link href="/settings/staff/new" className="rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5">Nuovo collaboratore</Link>}
+          actions={<Link href="/settings/staff/new" className="inline-flex items-center gap-2 rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5"><UserRoundPlus className="size-4" />Nuovo collaboratore</Link>}
           eyebrow="Core"
           title="Staff"
           subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
@@ -74,21 +82,21 @@ export default function SettingsStaffPage() {
         {error && <InlineError className="mb-5">{error}</InlineError>}
         <section className="grid gap-4 md:grid-cols-2">
           {staff.map((member) => (
-            <SectionCard key={member.id}>
+            <SectionCard className={member.active ? "" : "bg-stone-50 opacity-70"} key={member.id}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex gap-3">
                   <span className="mt-1 h-12 w-2 rounded-full" style={{ background: member.color }} />
                   <div>
                     <Link href={`/staff/${member.id}`} className="text-lg font-bold hover:text-[#792f59]">{member.displayName}</Link>
                     <p className="text-sm text-stone-500">{member.specializations.join(", ") || "Specializzazioni da definire"}</p>
+                    <p className={`mt-1 inline-flex items-center gap-1.5 text-xs font-bold ${member.active ? "text-emerald-700" : "text-stone-500"}`}><span className={`size-1.5 rounded-full ${member.active ? "bg-emerald-500" : "bg-stone-400"}`} />{member.active ? "Operativo" : "Disattivato"}</p>
                   </div>
                 </div>
-                <Switch checked={member.active} onCheckedChange={() => void toggle(member)} />
               </div>
               <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per accesso e orari."}</p>
               <div className="mt-5 flex justify-end gap-2 border-t border-stone-100 pt-4">
                 <Link aria-label={`Configura ${member.displayName}`} href={`/staff/${member.id}`} className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-[#792f59] hover:bg-[#fff8fb] hover:text-[#792f59]" title="Configura"><Settings2 className="size-5" /></Link>
-                <Button aria-label={`Disattiva ${member.displayName}`} className="size-11 p-0" onClick={() => setConfirmDelete(member)} title="Disattiva" variant="destructive"><UserRoundX className="size-5" /></Button>
+                <Button aria-label={`${staffStatusAction(member.active).label} ${member.displayName}`} className={`size-11 p-0 ${member.active ? "" : "!border-emerald-300 !bg-emerald-50 !text-emerald-800 hover:!bg-emerald-100"}`} disabled={pendingId === member.id} onClick={() => requestStatusChange(member)} title={staffStatusAction(member.active).label} variant={member.active ? "destructive" : "outline"}>{member.active ? <PowerOff className="size-5" /> : <Power className="size-5" />}</Button>
               </div>
             </SectionCard>
           ))}
@@ -98,10 +106,10 @@ export default function SettingsStaffPage() {
         confirmLabel="Disattiva"
         destructive
         description="Il collaboratore verrà escluso dalle configurazioni attive senza eliminare lo storico."
-        onCancel={() => setConfirmDelete(undefined)}
-        onConfirm={() => void remove()}
-        open={Boolean(confirmDelete)}
-        title={`Disattivare ${confirmDelete?.displayName ?? "collaboratore"}?`}
+        onCancel={() => setConfirmDeactivate(undefined)}
+        onConfirm={() => confirmDeactivate && void setActive(confirmDeactivate, false)}
+        open={Boolean(confirmDeactivate)}
+        title={`Disattivare ${confirmDeactivate?.displayName ?? "collaboratore"}?`}
       />
     </AppPage>
   );

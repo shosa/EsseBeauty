@@ -31,9 +31,10 @@ describe("staff detail operational layout", () => {
 
   it("uses accessible icon controls for compact secondary staff actions", () => {
     expect(staffDirectory).toContain('aria-label={`Configura ${member.displayName}`}');
-    expect(staffDirectory).toContain('aria-label={`Disattiva ${member.displayName}`}');
+    expect(staffDirectory).toContain('aria-label={`${staffStatusAction(member.active).label} ${member.displayName}`}');
     expect(staffDirectory).toContain("Settings2");
-    expect(staffDirectory).toContain("UserRoundX");
+    expect(staffDirectory).toContain("PowerOff");
+    expect(staffDirectory).toContain("Power");
     expect(staffPermissions).toContain('aria-label={`Elimina permesso di ${item.staff_name}`}');
     expect(staffPermissions).toContain("Trash2");
     expect(newStaff).toContain('aria-label="Annulla creazione collaboratore"');
