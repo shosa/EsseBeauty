@@ -8,6 +8,10 @@ describe("platform operations console", () => {
   it("loads the global platform overview", () => {
     expect(source).toContain('"/api/platform/overview"');
     expect(source).toContain("Panoramica piattaforma");
+    expect(source).toContain('"/api/platform/plans"');
+    expect(source).toContain('"/api/platform/module-catalog"');
+    expect(source).toContain('"/api/platform/audit-log"');
+    expect(source).toContain('"/api/platform/system-templates"');
   });
 
   it("offers a protected salon deletion workflow", () => {

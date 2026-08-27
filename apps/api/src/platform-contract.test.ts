@@ -20,6 +20,9 @@ describe("platform tier contract", () => {
     expect(platform).toContain("confirmation: string");
     expect(platform).toContain("SALON_CONFIRMATION_MISMATCH");
     expect(platform).toContain('action: "salon.deleted"');
+    expect(platform).toContain('action: "salon.created"');
+    expect(platform).toContain('action: "salon.updated"');
+    expect(platform).toContain('action: "module.updated"');
     expect(platform).toContain(".delete(salons)");
   });
 });

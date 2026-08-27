@@ -101,6 +101,11 @@ interface PlatformOverview {
   sessions: number;
 }
 
+interface PlatformPlan { active: boolean; code: string; description: string | null; id: string; includedModules: string[]; name: string; }
+interface PlatformModule { defaultEnabled: boolean; description: string | null; globallyEnabled: boolean; moduleKey: ModuleKey; name: string; }
+interface PlatformAuditItem { action: string; createdAt: string; id: string; summary: string; targetType: string; }
+interface PlatformTemplate { active: boolean; body: string; channel: "email" | "in_app" | "push" | "whatsapp"; id: string; key: string; subject: string | null; }
+
 function emptyFeatureState(): FeatureState {
   return Object.fromEntries(
     featureCatalog.map((item) => [item.key, false]),
@@ -146,6 +151,10 @@ export default function PlatformPage() {
   const [owner, setOwner] = useState<SalonOwner | null>(null);
   const [ownerLoading, setOwnerLoading] = useState(false);
   const [overview, setOverview] = useState<PlatformOverview | null>(null);
+  const [plans, setPlans] = useState<PlatformPlan[]>([]);
+  const [moduleCatalog, setModuleCatalog] = useState<PlatformModule[]>([]);
+  const [auditItems, setAuditItems] = useState<PlatformAuditItem[]>([]);
+  const [systemTemplates, setSystemTemplates] = useState<PlatformTemplate[]>([]);
   const [salons, setSalons] = useState<PlatformSalon[]>([]);
   const [selectedSalonId, setSelectedSalonId] = useState("");
   const [session, setSession] = useState<PlatformSession | null>(null);
@@ -192,6 +201,19 @@ export default function PlatformPage() {
     setOverview(await request<PlatformOverview>("/api/platform/overview"));
   }, [request]);
 
+  const loadControlPlane = useCallback(async () => {
+    const [nextPlans, nextModules, nextAudit, nextTemplates] = await Promise.all([
+      request<PlatformPlan[]>("/api/platform/plans"),
+      request<PlatformModule[]>("/api/platform/module-catalog"),
+      request<PlatformAuditItem[]>("/api/platform/audit-log"),
+      request<PlatformTemplate[]>("/api/platform/system-templates"),
+    ]);
+    setPlans(nextPlans);
+    setModuleCatalog(nextModules);
+    setAuditItems(nextAudit);
+    setSystemTemplates(nextTemplates);
+  }, [request]);
+
   const loadFeatures = useCallback(async (salonId: string) => {
     const rows = await request<Array<{ enabled: boolean; module_key: ModuleKey }>>(
       `/api/platform/salons/${salonId}/modules`,
@@ -218,7 +240,7 @@ export default function PlatformPage() {
       try {
         const current = await request<PlatformSession>("/api/platform/auth/me");
         setSession(current);
-        await Promise.all([loadSalons(), loadOverview()]);
+        await Promise.all([loadSalons(), loadOverview(), loadControlPlane()]);
       } catch {
         const status = await request<{ required: boolean }>("/api/platform/auth/bootstrap/status");
         setBootstrapRequired(status.required);
@@ -227,7 +249,7 @@ export default function PlatformPage() {
       }
     }
     void boot();
-  }, [loadOverview, loadSalons, request]);
+  }, [loadControlPlane, loadOverview, loadSalons, request]);
 
   useEffect(() => {
     if (panel === "features" && selectedSalon?.id && featuresLoadedFor !== selectedSalon.id) {
@@ -432,6 +454,38 @@ export default function PlatformPage() {
     }
   }
 
+  async function createPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    try {
+      await request("/api/platform/plans", { body: JSON.stringify({ code: String(form.get("code")), description: String(form.get("description") || ""), name: String(form.get("name")) }), method: "POST" });
+      formElement.reset();
+      await loadControlPlane();
+      setSuccess("Piano commerciale creato.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Piano non creato."); }
+  }
+
+  async function toggleGlobalModule(item: PlatformModule) {
+    try {
+      await request("/api/platform/module-catalog", { body: JSON.stringify({ default_enabled: item.defaultEnabled, description: item.description, globally_enabled: !item.globallyEnabled, module_key: item.moduleKey, name: item.name }), method: "PUT" });
+      await loadControlPlane();
+      setSuccess("Disponibilità globale del modulo aggiornata.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Modulo non aggiornato."); }
+  }
+
+  async function saveSystemTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    try {
+      await request("/api/platform/system-templates", { body: JSON.stringify({ body: String(form.get("body")), channel: String(form.get("channel")), key: String(form.get("key")), subject: String(form.get("subject") || "") }), method: "PUT" });
+      formElement.reset();
+      await loadControlPlane();
+      setSuccess("Template di sistema salvato.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Template non salvato."); }
+  }
+
   function closeSalonCard() {
     setSelectedSalonId("");
     setFeatures(emptyFeatureState());
@@ -597,7 +651,7 @@ export default function PlatformPage() {
           )}
 
           {panel !== "new" && !selectedSalon && (
-            <SectionCard title="Panoramica piattaforma" subtitle="Controllo operativo multi-tenant, adozione dei moduli e segnali che richiedono attenzione.">
+            <><SectionCard title="Panoramica piattaforma" subtitle="Controllo operativo multi-tenant, adozione dei moduli e segnali che richiedono attenzione.">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-stone-200 p-5">
                   <div className="flex items-center gap-3"><ShieldCheck className="size-5 text-teal-700" /><h3 className="font-bold text-stone-950">Stato tenant</h3></div>
@@ -615,6 +669,22 @@ export default function PlatformPage() {
                 </div>
               </div>
             </SectionCard>
+            <div className="grid gap-5 xl:grid-cols-2">
+              <SectionCard title="Piani commerciali" subtitle={`${plans.length} configurazioni disponibili per i tenant.`}>
+                <div className="mb-4 grid gap-2">{plans.map((plan) => <div className="flex items-start justify-between gap-3 rounded-xl border border-stone-200 p-3" key={plan.id}><div><b>{plan.name}</b><p className="text-xs text-stone-500">{plan.code} · {plan.description || "Nessuna descrizione"}</p></div><span className={`mt-1 size-2.5 rounded-full ${plan.active ? "bg-emerald-500" : "bg-stone-300"}`} /></div>)}</div>
+                <form className="grid gap-3 border-t border-stone-100 pt-4 sm:grid-cols-2" onSubmit={createPlan}><FormField label="Nome" required><input name="name" required /></FormField><FormField label="Codice" required><input name="code" required /></FormField><div className="sm:col-span-2"><FormField label="Descrizione"><input name="description" /></FormField></div><div className="sm:col-span-2"><Button className={adminPrimaryButton} type="submit" variant="primary">Crea piano</Button></div></form>
+              </SectionCard>
+              <SectionCard title="Catalogo moduli" subtitle="Abilita o sospendi centralmente la disponibilità di una funzione.">
+                <div className="grid gap-2">{moduleCatalog.map((item) => <div className="flex items-center justify-between gap-4 rounded-xl border border-stone-200 p-3" key={item.moduleKey}><div><b className="text-sm">{item.name}</b><p className="text-xs text-stone-500">{item.description || item.moduleKey}</p></div><Switch checked={item.globallyEnabled} onCheckedChange={() => void toggleGlobalModule(item)} /></div>)}{moduleCatalog.length === 0 && <p className="text-sm text-stone-500">Il catalogo verrà popolato alla prima configurazione dei moduli.</p>}</div>
+              </SectionCard>
+              <SectionCard title="Template di sistema" subtitle="Messaggi centrali riutilizzabili dai flussi email, push e WhatsApp.">
+                <div className="mb-4 max-h-48 space-y-2 overflow-y-auto">{systemTemplates.map((item) => <div className="rounded-xl bg-stone-50 p-3" key={item.id}><div className="flex justify-between gap-3"><b className="text-sm">{item.key}</b><span className="text-[10px] font-black uppercase text-stone-400">{item.channel}</span></div><p className="mt-1 line-clamp-2 text-xs text-stone-500">{item.subject || item.body}</p></div>)}</div>
+                <form className="grid gap-3 border-t border-stone-100 pt-4" onSubmit={saveSystemTemplate}><div className="grid gap-3 sm:grid-cols-2"><FormField label="Chiave" required><input name="key" required /></FormField><FormField label="Canale" required><select defaultValue="email" name="channel"><option value="email">Email</option><option value="whatsapp">WhatsApp</option><option value="push">Push</option><option value="in_app">In-app</option></select></FormField></div><FormField label="Oggetto"><input name="subject" /></FormField><FormField label="Contenuto" required><textarea name="body" required rows={4} /></FormField><div><Button className={adminPrimaryButton} type="submit" variant="primary">Salva template</Button></div></form>
+              </SectionCard>
+              <SectionCard title="Audit amministrativo" subtitle="Ultime operazioni sensibili eseguite dalla console centrale.">
+                <div className="max-h-[430px] space-y-2 overflow-y-auto">{auditItems.slice(0, 40).map((item) => <div className="border-b border-stone-100 py-3 last:border-0" key={item.id}><div className="flex justify-between gap-3"><b className="text-sm">{item.summary}</b><time className="shrink-0 text-xs text-stone-400">{new Date(item.createdAt).toLocaleString("it-IT")}</time></div><p className="mt-1 text-xs text-stone-500">{item.action} · {item.targetType}</p></div>)}{auditItems.length === 0 && <p className="text-sm text-stone-500">Nessuna attività amministrativa registrata.</p>}</div>
+              </SectionCard>
+            </div></>
           )}
 
           {panel === "new" && (

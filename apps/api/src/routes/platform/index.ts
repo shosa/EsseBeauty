@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   FastifyInstance,
   FastifyReply,
+  FastifyRequest,
   preHandlerHookHandler,
 } from "fastify";
 import { and, asc, eq, sql } from "drizzle-orm";
@@ -82,6 +83,24 @@ async function createPlatformSession(
     expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
   });
   setPlatformSessionCookie(reply, token);
+}
+
+async function writePlatformAudit(
+  app: FastifyInstance,
+  request: FastifyRequest,
+  input: { action: string; diff?: Record<string, unknown>; salonId?: string | null; summary: string; targetId?: string; targetType: string },
+) {
+  await app.db.insert(platformAuditLog).values({
+    action: input.action,
+    actorAdminId: request.platformAdmin.id,
+    diff: input.diff ?? {},
+    ipAddress: request.ip,
+    salonId: input.salonId ?? null,
+    summary: input.summary,
+    targetId: input.targetId,
+    targetType: input.targetType,
+    userAgent: request.headers["user-agent"],
+  });
 }
 
 export const authenticatePlatform: preHandlerHookHandler = async (
@@ -332,6 +351,13 @@ export async function registerPlatformRoutes(
           updatedAt: new Date(),
         })
         .returning();
+      await writePlatformAudit(app, request, {
+        action: "plan.created",
+        diff: { code: request.body.code },
+        summary: `Creato il piano ${request.body.name}`,
+        targetId: rows[0]?.id,
+        targetType: "plan",
+      });
       return reply.code(201).send(rows[0]);
     },
   );
@@ -374,6 +400,13 @@ export async function registerPlatformRoutes(
           target: platformModuleCatalog.moduleKey,
         })
         .returning();
+      await writePlatformAudit(app, request, {
+        action: "module.catalog_updated",
+        diff: { globally_enabled: request.body.globally_enabled },
+        summary: `Aggiornato il modulo ${request.body.name}`,
+        targetId: request.body.module_key,
+        targetType: "module",
+      });
       return rows[0];
     },
   );
@@ -424,6 +457,13 @@ export async function registerPlatformRoutes(
           target: [platformSystemTemplates.key, platformSystemTemplates.channel],
         })
         .returning();
+      await writePlatformAudit(app, request, {
+        action: "template.updated",
+        diff: { channel },
+        summary: `Aggiornato il template ${request.body.key}`,
+        targetId: rows[0]?.id,
+        targetType: "system_template",
+      });
       return rows[0];
     },
   );
@@ -484,6 +524,14 @@ export async function registerPlatformRoutes(
         return createdSalon;
       });
 
+      await writePlatformAudit(app, request, {
+        action: "salon.created",
+        salonId: salon.id,
+        summary: `Creato il salone ${salon.name}`,
+        targetId: salon.id,
+        targetType: "salon",
+      });
+
       return reply.code(201).send(salon);
     },
   );
@@ -541,6 +589,15 @@ export async function registerPlatformRoutes(
         .returning();
       const salon = rows[0];
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+
+      await writePlatformAudit(app, request, {
+        action: "salon.updated",
+        diff: patch,
+        salonId: salon.id,
+        summary: `Aggiornato il salone ${salon.name}`,
+        targetId: salon.id,
+        targetType: "salon",
+      });
 
       return salon;
     },
@@ -752,6 +809,15 @@ export async function registerPlatformRoutes(
         });
 
       invalidateModuleCache(request.params.salonId, moduleKey);
+
+      await writePlatformAudit(app, request, {
+        action: "module.updated",
+        diff: { enabled: request.body.enabled },
+        salonId: request.params.salonId,
+        summary: `${request.body.enabled ? "Abilitato" : "Disabilitato"} il modulo ${moduleKey}`,
+        targetId: moduleKey,
+        targetType: "salon_module",
+      });
 
       return {
         enabled: request.body.enabled,
