@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
-import { CalendarDays, ClipboardList, Download, UserRound, ChevronLeft } from "lucide-react";
+import { CalendarDays, ClipboardList, Download, UserRound, ChevronLeft, CircleCheckBig, Save, Send, Trash2, UserCheck, UserX } from "lucide-react";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, PERMISSION_KEYS, type PermissionKey, type WorkingHours } from "@esse-beauty/shared";
 import { Button, EmptyState, FormField, InlineError, SaveToast, StatusBadge } from "@esse-beauty/ui";
@@ -122,6 +122,7 @@ function Surface({ children, className = "" }: { children: ReactNode; className?
 
 export default function StaffPwaHome() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointmentNotes, setAppointmentNotes] = useState("");
   const [todayItems, setTodayItems] = useState<Appointment[]>([]);
   const [availability, setAvailability] = useState<AvailabilityRequest[]>([]);
   const [calendarBlocks, setCalendarBlocks] = useState<CalendarBlock[]>([]);
@@ -201,6 +202,16 @@ export default function StaffPwaHome() {
       .catch(() => setError("Richieste non disponibili."));
   }, [session, tab]);
 
+  useEffect(() => {
+    if (!message) return;
+    const timeout = window.setTimeout(() => setMessage(""), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [message]);
+
+  useEffect(() => {
+    setAppointmentNotes(selected?.notes ?? "");
+  }, [selected?.id, selected?.notes]);
+
   async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -230,9 +241,36 @@ export default function StaffPwaHome() {
         method: "PATCH",
       });
       setAppointments((current) => current.map((item) => item.id === appointment.id ? { ...item, status } : item));
+      setTodayItems((current) => current.map((item) => item.id === appointment.id ? { ...item, status } : item));
       setMessage("Appuntamento aggiornato.");
     } catch {
       setError("Non puoi aggiornare questo appuntamento.");
+    }
+  }
+
+  async function saveAppointmentNotes() {
+    if (!selected) return;
+    try {
+      const updated = await request<{ id: string; notes: string | null }>(`/api/staff-app/appointments/${selected.id}/notes`, {
+        body: JSON.stringify({ notes: appointmentNotes }),
+        method: "PATCH",
+      });
+      const apply = (items: Appointment[]) => items.map((item) => item.id === updated.id ? { ...item, notes: updated.notes } : item);
+      setAppointments(apply);
+      setTodayItems(apply);
+      setMessage("Note interne salvate.");
+    } catch {
+      setError("Le note non sono state salvate.");
+    }
+  }
+
+  async function withdrawAvailabilityRequest(requestId: string) {
+    try {
+      await request(`/api/staff-app/availability-requests/${requestId}`, { method: "DELETE" });
+      setAvailability((current) => current.filter((item) => item.id !== requestId));
+      setMessage("Richiesta ritirata.");
+    } catch {
+      setError("Puoi ritirare solo richieste ancora in attesa.");
     }
   }
 
@@ -322,12 +360,13 @@ export default function StaffPwaHome() {
           </Surface>
           <Surface>
             <p className="text-xs font-black uppercase tracking-[.15em] text-stone-400">Note interne</p>
-            <p className="mt-3 text-sm leading-6 text-stone-700">{selected.notes || "Nessuna nota interna."}</p>
+            <textarea aria-label="Note interne appuntamento" className="mt-3" disabled={!canManageAgenda} maxLength={4000} onChange={(event) => setAppointmentNotes(event.target.value)} placeholder="Indicazioni operative visibili allo staff..." value={appointmentNotes} />
+            <div className="mt-3 flex justify-end"><Button disabled={!canManageAgenda || appointmentNotes === (selected.notes ?? "")} onClick={() => void saveAppointmentNotes()} size="sm" variant="outline"><Save className="size-4" />Salva note</Button></div>
           </Surface>
           <div className="sticky bottom-4 grid grid-cols-3 gap-2 rounded-[1.5rem] border border-white/80 bg-white/90 p-2 shadow-[0_20px_60px_rgb(45_29_39_/_0.18)] backdrop-blur">
-            <Button disabled={!canManageAgenda} onClick={() => void setStatus(selected, "confirmed")} size="sm" variant="outline">Check-in</Button>
-            <Button disabled={!canManageAgenda} onClick={() => void setStatus(selected, "completed")} size="sm" variant="primary">Completa</Button>
-            <Button disabled={!canManageAgenda} onClick={() => void setStatus(selected, "no_show")} size="sm" variant="outline">No-show</Button>
+            <Button disabled={!canManageAgenda} onClick={() => void setStatus(selected, "confirmed")} size="sm" variant="outline"><UserCheck className="size-4" />Check-in</Button>
+            <Button disabled={!canManageAgenda} onClick={() => void setStatus(selected, "completed")} size="sm" variant="primary"><CircleCheckBig className="size-4" />Completa</Button>
+            <Button disabled={!canManageAgenda} onClick={() => void setStatus(selected, "no_show")} size="sm" variant="outline"><UserX className="size-4" />No-show</Button>
           </div>
         </div>
       </main>
@@ -431,7 +470,7 @@ export default function StaffPwaHome() {
                 <FormField label="Dal" required><input name="starts_at" required type="datetime-local" /></FormField>
                 <FormField label="Al" required><input name="ends_at" required type="datetime-local" /></FormField>
                 <FormField label="Motivo"><textarea name="reason" placeholder="Ferie, visita, permesso..." /></FormField>
-                <Button className="w-full" disabled={!canManageAgenda} type="submit" variant="primary">Invia richiesta</Button>
+                <Button className="w-full" disabled={!canManageAgenda} type="submit" variant="primary"><Send className="size-4" />Invia richiesta</Button>
               </form>
             </Surface>
             <div>
@@ -442,6 +481,8 @@ export default function StaffPwaHome() {
                   <Surface className="p-4" key={item.id}>
                     <div className="flex items-start justify-between gap-3"><div><b className="text-sm">{dateTime(item.starts_at)}</b><p className="mt-1 text-xs text-stone-500">fino a {dateTime(item.ends_at)}</p></div><StatusBadge status={item.status}>{item.status}</StatusBadge></div>
                     {item.reason && <p className="mt-3 text-sm text-stone-600">{item.reason}</p>}
+                    {item.review_note && <p className="mt-3 rounded-xl bg-stone-50 p-3 text-xs text-stone-600"><b>Nota responsabile:</b> {item.review_note}</p>}
+                    {item.status === "pending" && <Button className="mt-3 !text-red-700" disabled={!canManageAgenda} onClick={() => void withdrawAvailabilityRequest(item.id)} size="sm" variant="ghost"><Trash2 className="size-4" />Ritira richiesta</Button>}
                   </Surface>
                 ))}
               </div>

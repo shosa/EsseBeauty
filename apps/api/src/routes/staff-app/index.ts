@@ -173,6 +173,27 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
     },
   );
 
+  app.patch<{
+    Body: { notes: string | null };
+    Params: { appointmentId: string };
+  }>(
+    "/api/staff-app/appointments/:appointmentId/notes",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const member = await requireOwnStaff(request, reply);
+      if (!member) return;
+      if (!(await ensurePermission(request, reply, PERMISSION_KEYS.CALENDAR_MANAGE_OWN))) return;
+      const notes = request.body.notes?.trim() || null;
+      if (notes && notes.length > 4_000) return reply.code(422).send({ error: "NOTES_TOO_LONG" });
+      const rows = await app.db.update(appointments).set({ internalNotes: notes, updatedAt: new Date() }).where(and(
+        eq(appointments.id, request.params.appointmentId),
+        eq(appointments.salonId, request.salonId),
+        eq(appointments.staffId, member.id),
+      )).returning({ id: appointments.id, notes: appointments.internalNotes });
+      return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+    },
+  );
+
   app.get("/api/staff-app/availability-requests", { preHandler: [authenticate] }, async (request, reply) => {
     const member = await requireOwnStaff(request, reply);
     if (!member) return;
@@ -204,20 +225,49 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
     if (!member) return;
     if (!(await ensurePermission(request, reply, PERMISSION_KEYS.CALENDAR_MANAGE_OWN))) return;
 
+    const startsAt = new Date(request.body.starts_at);
+    const endsAt = new Date(request.body.ends_at);
+    if (Number.isNaN(startsAt.valueOf()) || Number.isNaN(endsAt.valueOf()) || startsAt >= endsAt) {
+      return reply.code(422).send({ error: "INVALID_AVAILABILITY_RANGE" });
+    }
+
     const rows = await app.db
       .insert(staffAvailabilityRequests)
       .values({
-        endsAt: new Date(request.body.ends_at),
+        endsAt,
         reason: request.body.reason,
         salonId: request.salonId,
         staffId: member.id,
-        startsAt: new Date(request.body.starts_at),
+        startsAt,
       })
       .returning();
     const requestRow = rows[0]!;
     await ensureStaffRequestReviewNotifications(app, request.salonId, requestRow.id);
     return reply.code(201).send(requestRow);
   });
+
+  app.delete<{ Params: { requestId: string } }>(
+    "/api/staff-app/availability-requests/:requestId",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const member = await requireOwnStaff(request, reply);
+      if (!member) return;
+      if (!(await ensurePermission(request, reply, PERMISSION_KEYS.CALENDAR_MANAGE_OWN))) return;
+      const rows = await app.db.select({ status: staffAvailabilityRequests.status }).from(staffAvailabilityRequests).where(and(
+        eq(staffAvailabilityRequests.id, request.params.requestId),
+        eq(staffAvailabilityRequests.salonId, request.salonId),
+        eq(staffAvailabilityRequests.staffId, member.id),
+      )).limit(1);
+      if (!rows[0]) return reply.code(404).send({ error: "REQUEST_NOT_FOUND" });
+      if (rows[0].status !== "pending") return reply.code(409).send({ error: "REQUEST_NOT_PENDING" });
+      await app.db.delete(staffAvailabilityRequests).where(and(
+        eq(staffAvailabilityRequests.id, request.params.requestId),
+        eq(staffAvailabilityRequests.salonId, request.salonId),
+        eq(staffAvailabilityRequests.staffId, member.id),
+      ));
+      return { deleted: true };
+    },
+  );
 
   app.get<{
     Querystring: { from?: string; to?: string };

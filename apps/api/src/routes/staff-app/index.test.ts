@@ -9,6 +9,10 @@ describe("staff app route contract", () => {
     expect(source).toContain("eq(staff.salonId, request.salonId)");
     expect(source).toContain("/api/staff-app/appointments");
     expect(source).toContain("/api/staff-app/availability-requests");
+    expect(source).toContain("/api/staff-app/appointments/:appointmentId/notes");
+    expect(source).toContain("INVALID_AVAILABILITY_RANGE");
+    expect(source).toContain("REQUEST_NOT_PENDING");
+    expect(source).toContain(".delete(staffAvailabilityRequests)");
     expect(source).toContain("PERMISSION_KEYS.CALENDAR_VIEW_OWN");
     expect(source).toContain("PERMISSION_KEYS.CALENDAR_MANAGE_OWN");
     expect(source).toContain("PERMISSION_KEYS.REPORTS_VIEW_OWN");

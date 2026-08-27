@@ -141,7 +141,7 @@ importers:
         version: 15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       next-pwa:
         specifier: ^5.6.0
-        version: 5.6.0(@babel/core@7.29.7)(next@15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(postcss@8.5.15)(webpack@5.107.2(postcss@8.5.15))
+        version: 5.6.0(@babel/core@7.29.7)(lightningcss@1.32.0)(next@15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(postcss@8.5.15)(webpack@5.107.2(lightningcss@1.32.0)(postcss@8.5.15))
       react:
         specifier: ^19.1.0
         version: 19.2.7
@@ -173,6 +173,9 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
 
   apps/web:
     dependencies:
@@ -866,11 +869,11 @@ packages:
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
-    deprecated: 'Merged into tsx: https://tsx.hirok.io'
+    deprecated: 'Merged into tsx: https://tsx.is'
 
   '@esbuild-kit/esm-loader@2.6.5':
     resolution: {integrity: sha512-FxEMIkJKnodyA1OaCUoEvbYRkoZlLZ4d/eXFu9Fh8CbBBgP5EmZxrfTRyN0qpXZ4vOvqnE5YdRdcrmUUXuU+dA==}
-    deprecated: 'Merged into tsx: https://tsx.hirok.io'
+    deprecated: 'Merged into tsx: https://tsx.is'
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -6210,15 +6213,6 @@ snapshots:
       schema-utils: 2.7.1
       webpack: 5.107.2(lightningcss@1.32.0)(postcss@8.5.15)
 
-  babel-loader@8.4.1(@babel/core@7.29.7)(webpack@5.107.2(postcss@8.5.15)):
-    dependencies:
-      '@babel/core': 7.29.7
-      find-cache-dir: 3.3.2
-      loader-utils: 2.0.4
-      make-dir: 3.1.0
-      schema-utils: 2.7.1
-      webpack: 5.107.2(postcss@8.5.15)
-
   babel-plugin-polyfill-corejs2@0.4.17(@babel/core@7.29.7):
     dependencies:
       '@babel/compat-data': 7.29.7
@@ -6360,11 +6354,6 @@ snapshots:
     dependencies:
       del: 4.1.1
       webpack: 5.107.2(lightningcss@1.32.0)(postcss@8.5.15)
-
-  clean-webpack-plugin@4.0.0(webpack@5.107.2(postcss@8.5.15)):
-    dependencies:
-      del: 4.1.1
-      webpack: 5.107.2(postcss@8.5.15)
 
   client-only@0.0.1: {}
 
@@ -7490,33 +7479,6 @@ snapshots:
       - uglify-js
       - webpack
 
-  next-pwa@5.6.0(@babel/core@7.29.7)(next@15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(postcss@8.5.15)(webpack@5.107.2(postcss@8.5.15)):
-    dependencies:
-      babel-loader: 8.4.1(@babel/core@7.29.7)(webpack@5.107.2(postcss@8.5.15))
-      clean-webpack-plugin: 4.0.0(webpack@5.107.2(postcss@8.5.15))
-      globby: 11.1.0
-      next: 15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      terser-webpack-plugin: 5.6.1(postcss@8.5.15)(webpack@5.107.2(postcss@8.5.15))
-      workbox-webpack-plugin: 6.6.0(webpack@5.107.2(postcss@8.5.15))
-      workbox-window: 6.6.0
-    transitivePeerDependencies:
-      - '@babel/core'
-      - '@minify-html/node'
-      - '@swc/core'
-      - '@swc/css'
-      - '@swc/html'
-      - '@types/babel__core'
-      - clean-css
-      - cssnano
-      - csso
-      - esbuild
-      - html-minifier-terser
-      - lightningcss
-      - postcss
-      - supports-color
-      - uglify-js
-      - webpack
-
   next@15.5.19(@babel/core@7.29.7)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       '@next/env': 15.5.19
@@ -8149,16 +8111,6 @@ snapshots:
       lightningcss: 1.32.0
       postcss: 8.5.15
 
-  terser-webpack-plugin@5.6.1(postcss@8.5.15)(webpack@5.107.2(postcss@8.5.15)):
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      jest-worker: 27.5.1
-      schema-utils: 4.3.3
-      terser: 5.48.0
-      webpack: 5.107.2(postcss@8.5.15)
-    optionalDependencies:
-      postcss: 8.5.15
-
   terser@5.48.0:
     dependencies:
       '@jridgewell/source-map': 0.3.11
@@ -8438,45 +8390,6 @@ snapshots:
       - postcss
       - uglify-js
 
-  webpack@5.107.2(postcss@8.5.15):
-    dependencies:
-      '@types/estree': 1.0.9
-      '@types/json-schema': 7.0.15
-      '@webassemblyjs/ast': 1.14.1
-      '@webassemblyjs/wasm-edit': 1.14.1
-      '@webassemblyjs/wasm-parser': 1.14.1
-      acorn: 8.17.0
-      acorn-import-phases: 1.0.4(acorn@8.17.0)
-      browserslist: 4.28.2
-      chrome-trace-event: 1.0.4
-      enhanced-resolve: 5.24.0
-      es-module-lexer: 2.1.0
-      eslint-scope: 5.1.1
-      events: 3.3.0
-      glob-to-regexp: 0.4.1
-      graceful-fs: 4.2.11
-      loader-runner: 4.3.2
-      mime-db: 1.54.0
-      neo-async: 2.6.2
-      schema-utils: 4.3.3
-      tapable: 2.3.3
-      terser-webpack-plugin: 5.6.1(postcss@8.5.15)(webpack@5.107.2(postcss@8.5.15))
-      watchpack: 2.5.2
-      webpack-sources: 3.5.0
-    transitivePeerDependencies:
-      - '@minify-html/node'
-      - '@swc/core'
-      - '@swc/css'
-      - '@swc/html'
-      - clean-css
-      - cssnano
-      - csso
-      - esbuild
-      - html-minifier-terser
-      - lightningcss
-      - postcss
-      - uglify-js
-
   whatwg-url@7.1.0:
     dependencies:
       lodash.sortby: 4.7.0
@@ -8643,18 +8556,6 @@ snapshots:
       pretty-bytes: 5.6.0
       upath: 1.2.0
       webpack: 5.107.2(lightningcss@1.32.0)(postcss@8.5.15)
-      webpack-sources: 1.4.3
-      workbox-build: 6.6.0
-    transitivePeerDependencies:
-      - '@types/babel__core'
-      - supports-color
-
-  workbox-webpack-plugin@6.6.0(webpack@5.107.2(postcss@8.5.15)):
-    dependencies:
-      fast-json-stable-stringify: 2.1.0
-      pretty-bytes: 5.6.0
-      upath: 1.2.0
-      webpack: 5.107.2(postcss@8.5.15)
       webpack-sources: 1.4.3
       workbox-build: 6.6.0
     transitivePeerDependencies:
