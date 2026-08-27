@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -110,7 +110,6 @@ export default function ServiceDetailPage() {
               { detail: "Classificazione", label: "Categoria", value: service.category },
               { detail: "Disponibilità", label: "Stato", value: service.active ? "Attivo" : "Archiviato" },
             ]}
-            status={<StatusBadge status={service.active ? "active" : "archived"}>{service.active ? "Attivo" : "Archiviato"}</StatusBadge>}
             subtitle={service.category}
             title={service.name}
           />

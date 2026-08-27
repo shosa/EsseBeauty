@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { formatPrice } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { SERVICE_CATEGORY_ICONS, ServiceCategoryIcon } from "../../services/ServiceCategoryIcon";
@@ -148,7 +148,6 @@ export default function SettingsServicesPage() {
           eyebrow="Core"
           title="Catalogo servizi"
           subtitle="Organizza il catalogo per categorie, assegna un’icona e configura i servizi collegati."
-          status={<StatusBadge status="active">{categories.length} categorie · {items.length} servizi</StatusBadge>}
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}

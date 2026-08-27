@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createElement } from "react";
+import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import {
@@ -19,6 +19,7 @@ import {
   PageSkeleton,
   AppPage,
   PageHeader,
+  PageHeaderMetrics,
   SaveToast,
   ScheduleEditor,
   SectionCard,
@@ -62,15 +63,25 @@ describe("shared UI foundation contract", () => {
     expect(InboxItem).toBeTypeOf("function");
   });
 
-  it("renders page actions below the title content and before the separate status area", () => {
+  it("renders page actions below the title content without decorative header statuses", () => {
     const markup = renderToStaticMarkup(createElement(PageHeader, {
       actions: createElement("button", { "data-slot": "action" }, "Crea"),
       status: createElement("span", { "data-slot": "status" }, "Attivo"),
       subtitle: "Descrizione",
       title: "Clienti",
-    }));
+    } as ComponentProps<typeof PageHeader>));
 
     expect(markup.indexOf("Descrizione")).toBeLessThan(markup.indexOf('data-slot="action"'));
-    expect(markup.indexOf('data-slot="action"')).toBeLessThan(markup.indexOf('data-slot="status"'));
+    expect(markup).not.toContain('data-slot="status"');
+  });
+
+  it("does not render decorative statuses in metric page headers", () => {
+    const markup = renderToStaticMarkup(createElement(PageHeaderMetrics, {
+      metrics: [{ label: "Totale", value: 12 }],
+      status: createElement("span", { "data-slot": "status" }, "12 attivi"),
+      title: "Servizi",
+    } as ComponentProps<typeof PageHeaderMetrics>));
+
+    expect(markup).not.toContain('data-slot="status"');
   });
 });

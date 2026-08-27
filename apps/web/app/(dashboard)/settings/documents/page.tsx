@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import {
@@ -53,8 +53,6 @@ export default function DocumentsSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; variant: "error" | "success" }>();
   const [form, setForm] = useState({ active: true, body: "", name: "", requiredForServices: [] as string[], type: "privacy" });
-
-  const activeCount = useMemo(() => items.filter((item) => item.active).length, [items]);
 
   const load = useCallback(async () => {
     if (!salon?.id) return;
@@ -110,7 +108,7 @@ export default function DocumentsSettingsPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <PageHeader eyebrow="Moduli" meta={<><StatusBadge status="active">{activeCount} attivi</StatusBadge><StatusBadge status="waiting">{items.length} versioni</StatusBadge></>} subtitle="Modelli versionati, richieste di firma ed evidenze verificabili per ogni cliente." title="Documenti e consensi" />
+      <PageHeader eyebrow="Moduli" subtitle="Modelli versionati, richieste di firma ed evidenze verificabili per ogni cliente." title="Documenti e consensi" />
       {error && <InlineError className="mb-5">{error}</InlineError>}
       <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
         <SectionCard subtitle="Crea il testo iniziale. Le versioni firmate non verranno mai modificate in place." title="Nuovo modello">

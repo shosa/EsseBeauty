@@ -543,7 +543,6 @@ export default function PlatformPage() {
         eyebrow="Amministrazione EsseBeauty"
         title="Saloni e accessi"
         subtitle="Apri saloni, controlla il primo avvio, gestisci licenza, credenziali del titolare e moduli abilitati."
-        status={<span className="text-sm font-semibold text-stone-500">{session.admin.full_name}</span>}
       />
       <SaveToast variant="success" visible={Boolean(success)}>{success}</SaveToast>
       {error && <InlineError className="mb-5">{error}</InlineError>}

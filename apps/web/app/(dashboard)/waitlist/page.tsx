@@ -32,7 +32,6 @@ export default function WaitlistPage() {
           eyebrow="Disponibilita"
           title="Lista d'attesa"
           subtitle="Richieste da gestire quando non esiste ancora uno slot adatto."
-          status={<StatusBadge status="waiting">{items.length} richieste</StatusBadge>}
         />
         <SectionCard>
           <div className="overflow-x-auto">

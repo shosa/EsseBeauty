@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Download, RefreshCw, Search } from "lucide-react";
-import { AppPage, Button, Drawer, EmptyState, InlineError, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, Drawer, EmptyState, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -151,7 +151,7 @@ export default function AccountingPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <PageHeader eyebrow="Amministrazione" title="Contabilità" subtitle="Incassi, composizione dei pagamenti e movimenti in un'unica vista gestionale." status={<StatusBadge status="active">Gestionale</StatusBadge>} />
+      <PageHeader eyebrow="Amministrazione" title="Contabilità" subtitle="Incassi, composizione dei pagamenti e movimenti in un'unica vista gestionale." />
       {error && <InlineError className="mb-5">{error}</InlineError>}
       {saleLoading && <div className="mb-5 rounded-xl bg-stone-100 px-4 py-3 text-sm font-bold text-stone-600">Caricamento dettaglio vendita...</div>}
 

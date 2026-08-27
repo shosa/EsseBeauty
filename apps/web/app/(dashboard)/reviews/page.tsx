@@ -85,7 +85,6 @@ export default function ReviewsPage() {
         ]}
         title="Recensioni"
         subtitle="Rispondi ai feedback e scegli cosa rendere pubblico nella pagina del salone."
-        status={<StatusBadge status={items.length > 0 ? "active" : "draft"}>{items.length} recensioni</StatusBadge>}
       />
 
       <SectionCard title="Distribuzione voti" subtitle="Una lettura rapida della soddisfazione recente.">

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { formatPrice } from "@esse-beauty/shared";
-import { AppPage, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, EmptyState, FormField, InlineError, PageHeader, PageTransition } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "./ServiceCategoryIcon";
@@ -77,7 +77,6 @@ export default function ServicesPage() {
           eyebrow="Catalogo operativo"
           title="Servizi"
           subtitle="Scegli una categoria e consulta rapidamente trattamenti, durata e prezzo."
-          status={<StatusBadge status="active">{items.length} servizi attivi</StatusBadge>}
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}

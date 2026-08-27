@@ -48,7 +48,6 @@ export default function MarketingPage() {
         ]}
         title="Campagne"
         subtitle="Prepara comunicazioni mirate per clienti, liste e promozioni senza perdere il controllo dello stato."
-        status={<StatusBadge status={items.length > 0 ? "active" : "draft"}>{items.length} campagne</StatusBadge>}
       />
 
       <SectionCard title="Archivio campagne" subtitle="Ogni card mostra canale, pubblico e prossima data utile.">

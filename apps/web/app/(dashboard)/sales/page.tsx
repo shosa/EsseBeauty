@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
-import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -563,7 +563,7 @@ export default function SalesPage() {
           </Button>
         </div>
       </Dialog>
-      <PageHeader eyebrow="Punto vendita" title="Cassa" subtitle="Vendite da appuntamento, servizi liberi, prodotti e pagamenti in un unico flusso." status={<StatusBadge status="active">Operativa</StatusBadge>} />
+      <PageHeader eyebrow="Punto vendita" title="Cassa" subtitle="Vendite da appuntamento, servizi liberi, prodotti e pagamenti in un unico flusso." />
       {error && <InlineError className="mb-5">{error}</InlineError>}
 
       <div className="grid gap-5">

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Building2, DoorOpen, MapPin, Plus } from "lucide-react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, Button, EmptyState, FormField, InlineError, KpiStrip, PageHeader, SectionCard, StatusBadge, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, FormField, InlineError, KpiStrip, PageHeader, SectionCard, Switch } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -85,7 +85,7 @@ export default function LocationsPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <PageHeader eyebrow="Organizzazione" status={<StatusBadge status="active">{activeLocations} attive</StatusBadge>} subtitle="Anagrafica e contatti delle sedi operative." title="Sedi" />
+      <PageHeader eyebrow="Organizzazione" subtitle="Anagrafica e contatti delle sedi operative." title="Sedi" />
       {error && <InlineError className="mb-4">{error}</InlineError>}
       {message && <p className="mb-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</p>}
       <KpiStrip items={[{ detail: "configurate", label: "Sedi", value: locations.length }, { detail: `${locations.length - activeLocations} non attive`, label: "Sedi attive", value: activeLocations }, { detail: "associate alle sedi", label: "Cabine", value: resources.length }]} />

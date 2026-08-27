@@ -218,7 +218,6 @@ export default function LoyaltySettingsPage() {
         eyebrow="Fedeltà"
         title="Programma fedeltà"
         subtitle="Saldo reale, premi riscattabili, clienti e regole: tutto in un’unica vista operativa."
-        status={<StatusBadge status={rewards.some((reward) => reward.active) ? "active" : "draft"}>{rewards.filter((reward) => reward.active).length} premi attivi</StatusBadge>}
       />
 
       {error && <div className="mb-4"><InlineError>{error}<button className="ml-3 underline" onClick={() => setError("")} type="button">Chiudi</button></InlineError></div>}

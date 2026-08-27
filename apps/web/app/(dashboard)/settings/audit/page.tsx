@@ -10,7 +10,6 @@ import {
   InlineError,
   PageHeaderMetrics,
   SectionCard,
-  StatusBadge,
 } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -251,7 +250,6 @@ export default function AuditSettingsPage() {
           { detail: "Gestiti", label: "Appuntamenti", value: appointmentCount },
           { detail: "Registrate", label: "Vendite", value: saleCount },
         ]}
-        status={<StatusBadge status="active">{todayCount} oggi</StatusBadge>}
         subtitle="Una cronologia chiara di ciò che viene inserito, modificato, eliminato e venduto dal team."
         title="Registro attività"
       />

@@ -126,7 +126,7 @@ export default function PermissionsPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message)}>{message}</SaveToast>
-      <PageHeader eyebrow="Organizzazione" title="Permessi e assenze" subtitle="Gestisci richieste, ferie, permessi e indisponibilità di tutto il team in un unico spazio." status={<StatusBadge status="pending">{pending.length} da revisionare</StatusBadge>} />
+      <PageHeader eyebrow="Organizzazione" title="Permessi e assenze" subtitle="Gestisci richieste, ferie, permessi e indisponibilità di tutto il team in un unico spazio." />
       {error && <InlineError className="mb-4">{error}</InlineError>}
 
       <div className="grid gap-5 xl:grid-cols-12">

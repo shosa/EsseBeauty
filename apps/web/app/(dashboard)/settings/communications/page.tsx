@@ -11,7 +11,6 @@ import {
   PageHeader,
   SaveToast,
   SectionCard,
-  StatusBadge,
 } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -55,17 +54,6 @@ const emptySettings: ProviderSettings = {
   webhook_credential_present: false,
   webhook_subscription_status: "not_subscribed",
 };
-
-function statusLabel(status: ProviderSettings["status"]) {
-  return {
-    degraded: "Attenzione richiesta",
-    disabled: "Disattivato",
-    not_configured: "Da configurare",
-    pending_verification: "Da verificare",
-    ready: "Operativo",
-    revoked: "Accesso revocato",
-  }[status];
-}
 
 export default function CommunicationsSettingsPage() {
   const { salon } = useAuth();
@@ -150,7 +138,6 @@ export default function CommunicationsSettingsPage() {
       <SaveToast visible={saved}>Credenziali protette e configurazione aggiornata.</SaveToast>
       <PageHeader
         eyebrow="Comunicazioni"
-        status={<StatusBadge status={settings.ready ? "active" : settings.status}>{statusLabel(settings.status)}</StatusBadge>}
         subtitle="Collega il numero aziendale attraverso la WhatsApp Business Cloud API ufficiale di Meta."
         title="WhatsApp Business"
       />

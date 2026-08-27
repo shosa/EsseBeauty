@@ -126,7 +126,6 @@ export default function StaffPage() {
           eyebrow="Team operativo"
           title="Staff"
           subtitle="Disponibilità di oggi, carico di lavoro, assenze e gestione collaboratori."
-          status={<StatusBadge status="active">{staff.length} collaboratori attivi</StatusBadge>}
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}

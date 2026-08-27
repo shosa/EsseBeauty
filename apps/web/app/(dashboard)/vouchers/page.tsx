@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AppPage, Button, Drawer, EmptyState, InlineError, PageHeader, StatusBadge } from "@esse-beauty/ui";
 
@@ -78,9 +78,6 @@ export default function VouchersPage() {
     setSelected(await response.json() as VoucherDetail);
   }
 
-  const active = items.filter((item) => item.status === "active");
-  const activeBalance = useMemo(() => active.reduce((total, item) => total + item.balance_cents, 0), [active]);
-
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <Drawer onClose={() => setSelected(undefined)} open={Boolean(selected)} title="Dettaglio buono">
@@ -116,7 +113,6 @@ export default function VouchersPage() {
         eyebrow="Credito clienti"
         title="Buoni acquisto"
         subtitle="Controlla i buoni emessi, il credito residuo e tutti gli utilizzi registrati in cassa."
-        status={<div className="flex gap-8"><div><span className="block text-[10px] font-black uppercase tracking-[.15em] text-stone-400">Attivi</span><strong className="text-2xl">{active.length}</strong></div><div><span className="block text-[10px] font-black uppercase tracking-[.15em] text-stone-400">Credito residuo</span><strong className="text-2xl">{euro(activeBalance)}</strong></div></div>}
       />
 
       {error && <InlineError className="mb-5">{error}</InlineError>}

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Settings2, UserRoundX } from "lucide-react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, SectionCard, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -70,7 +70,6 @@ export default function SettingsStaffPage() {
           eyebrow="Core"
           title="Staff"
           subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
-          status={<StatusBadge status="active">{staff.length} profili</StatusBadge>}
         />
         {error && <InlineError className="mb-5">{error}</InlineError>}
         <section className="grid gap-4 md:grid-cols-2">

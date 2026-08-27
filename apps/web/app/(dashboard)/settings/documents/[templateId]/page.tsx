@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SectionCard, StatusBadge, Switch } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SectionCard, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -120,7 +120,7 @@ export default function DocumentVersionPage() {
       <Breadcrumbs items={[{ href: "/settings/documents", label: "Documenti e consensi" }, { label: template?.name ?? "Versione" }]} />
       {error && <div className="mb-5"><InlineError>{error}</InlineError></div>}
       {!template ? <EmptyState description="Potrebbe essere stato rimosso o non essere accessibile." title="Documento non trovato" /> : <>
-        <PageHeader eyebrow={`${template.type} · versione ${template.version}`} meta={<StatusBadge status={template.active ? "active" : "archived"}>{template.active ? "Attivo" : "Archiviato"}</StatusBadge>} subtitle="Il testo di questa versione resta immutabile per preservare le firme già raccolte." title={template.name} />
+        <PageHeader eyebrow={`${template.type} · versione ${template.version}`} subtitle="Il testo di questa versione resta immutabile per preservare le firme già raccolte." title={template.name} />
         <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
           <SectionCard subtitle="Questa è la versione canonica conservata dal server." title="Testo registrato">
             <article className="max-h-[620px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-stone-50 p-5 text-sm leading-7 text-stone-700">{template.body}</article>

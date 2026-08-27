@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { AppPage, Button, EmptyState, InlineError, PageHeader, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, InlineError, PageHeader } from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -73,7 +73,7 @@ export default function ReportsPage() {
   function exportExcel() { if (salon) window.location.href = `${api}/api/salons/${salon.id}/reports/export?${new URLSearchParams(requestDates(fromDate, toDate))}`; }
 
   return <AppPage maxWidth="max-w-[1600px]">
-    <PageHeader eyebrow="Analisi" title="Report operativi" subtitle="Volumi, qualità e rendimento in un'unica vista." status={<StatusBadge status={error ? "waiting" : "active"}>{canAll ? "Dati salone" : "Dati personali"}</StatusBadge>} />
+    <PageHeader eyebrow="Analisi" title="Report operativi" subtitle="Volumi, qualità e rendimento in un'unica vista." />
 
     <div className="mb-3 flex flex-wrap items-end gap-2 border border-stone-200 bg-white p-2">
       <div className="flex flex-wrap gap-1">{[["today", "Oggi"], ["week", "Settimana"], ["month", "Mese"], ["last", "Mese scorso"]].map(([value, label]) => <Button key={value} onClick={() => selectPreset(value!)} size="sm" variant={preset === value ? "primary" : "ghost"}>{label}</Button>)}</div>
