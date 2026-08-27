@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Power, PowerOff, Settings2, UserRoundPlus } from "lucide-react";
+import { SlidersHorizontal, UserRoundCheck, UserRoundMinus, UserRoundPlus } from "lucide-react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
 import { AppPage, Button, ConfirmDialog, InlineError, PageHeader, PageTransition, SectionCard } from "@esse-beauty/ui";
@@ -74,7 +74,7 @@ export default function SettingsStaffPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<Link href="/settings/staff/new" className="inline-flex items-center gap-2 rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5"><UserRoundPlus className="size-4" />Nuovo collaboratore</Link>}
+          actions={<Link href="/settings/staff/new" className="inline-flex items-center gap-2.5 rounded-xl bg-stone-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5"><UserRoundPlus className="size-5" strokeWidth={2.25} />Nuovo collaboratore</Link>}
           eyebrow="Core"
           title="Staff"
           subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
@@ -95,8 +95,8 @@ export default function SettingsStaffPage() {
               </div>
               <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per accesso e orari."}</p>
               <div className="mt-5 flex justify-end gap-2 border-t border-stone-100 pt-4">
-                <Link aria-label={`Configura ${member.displayName}`} href={`/staff/${member.id}`} className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-[#792f59] hover:bg-[#fff8fb] hover:text-[#792f59]" title="Configura"><Settings2 className="size-5" /></Link>
-                <Button aria-label={`${staffStatusAction(member.active).label} ${member.displayName}`} className={`size-11 p-0 ${member.active ? "" : "!border-emerald-300 !bg-emerald-50 !text-emerald-800 hover:!bg-emerald-100"}`} disabled={pendingId === member.id} onClick={() => requestStatusChange(member)} title={staffStatusAction(member.active).label} variant={member.active ? "destructive" : "outline"}>{member.active ? <PowerOff className="size-5" /> : <Power className="size-5" />}</Button>
+                <Link aria-label={`Configura ${member.displayName}`} href={`/staff/${member.id}`} className="grid size-[52px] place-items-center rounded-2xl border-2 border-[#d7a6c1] bg-white text-[#792f59] shadow-sm transition hover:-translate-y-0.5 hover:border-[#792f59] hover:bg-[#fff8fb] hover:shadow-md" title="Configura"><SlidersHorizontal className="size-6" strokeWidth={2.25} /></Link>
+                <Button aria-label={`${staffStatusAction(member.active).label} ${member.displayName}`} className={`size-[52px] rounded-2xl border-2 p-0 ${member.active ? "!border-red-300 !bg-red-50 !text-red-700 hover:!border-red-700 hover:!bg-red-700 hover:!text-white" : "!border-emerald-300 !bg-emerald-50 !text-emerald-800 hover:!border-emerald-700 hover:!bg-emerald-700 hover:!text-white"}`} disabled={pendingId === member.id} onClick={() => requestStatusChange(member)} title={staffStatusAction(member.active).label} variant="outline">{member.active ? <UserRoundMinus className="size-6" strokeWidth={2.25} /> : <UserRoundCheck className="size-6" strokeWidth={2.25} />}</Button>
               </div>
             </SectionCard>
           ))}
