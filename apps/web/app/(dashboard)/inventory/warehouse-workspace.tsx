@@ -24,12 +24,14 @@ import {
 } from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 import { WarehouseDocuments } from "./_components/WarehouseDocuments";
+import { WarehouseDocumentViewer } from "./_components/WarehouseDocumentViewer";
 import { WarehouseCounts } from "./_components/WarehouseCounts";
 import { WarehouseOperationDialog } from "./_components/WarehouseOperationDialog";
 import { WarehouseOverview } from "./_components/WarehouseOverview";
 import { WarehouseProducts } from "./_components/WarehouseProducts";
 import { WarehouseSuppliers } from "./_components/WarehouseSuppliers";
 import { warehouseApi } from "./warehouse-api";
+import { warehouseDocumentLabel } from "./document-label";
 import type {
   WarehouseCount,
   WarehouseDocument,
@@ -95,7 +97,7 @@ function WarehouseMovements({ documents, onOpen }: { documents: WarehouseDocumen
   return (
     <SectionCard title="Registro movimenti" subtitle="Carichi, scarichi, rettifiche e storni in ordine cronologico.">
       {rows.length === 0 ? <EmptyState title="Nessun movimento registrato" description="I documenti contabilizzati compariranno qui automaticamente." /> : (
-        <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-stone-400"><th className="p-3">Data</th><th className="p-3">Operazione</th><th className="p-3">Riferimento</th><th className="p-3 text-right">Valore</th><th className="p-3"><span className="sr-only">Apri</span></th></tr></thead><tbody>{rows.map((document) => <tr className="border-b border-stone-100 last:border-0" key={document.id}><td className="p-3 font-semibold">{new Date(document.documentDate).toLocaleDateString("it-IT")}</td><td className="p-3"><span className="inline-flex items-center gap-2"><ArrowLeftRight className="size-4 text-teal-700" />{documentKindLabels[document.kind]}</span></td><td className="p-3 text-stone-600">{document.externalReference || document.internalNumber}</td><td className="p-3 text-right font-bold">{money.format(document.totalCents / 100)}</td><td className="p-3 text-right"><Button aria-label={`Apri ${document.internalNumber}`} onClick={() => onOpen(document.id)} size="sm" variant="tableAction">Apri</Button></td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead><tr className="border-b border-stone-200 text-xs uppercase tracking-wider text-stone-400"><th className="p-3">Data</th><th className="p-3">Operazione</th><th className="p-3">Riferimento</th><th className="p-3 text-right">Valore</th><th className="p-3"><span className="sr-only">Apri</span></th></tr></thead><tbody>{rows.map((document) => <tr className="border-b border-stone-100 last:border-0" key={document.id}><td className="p-3 font-semibold">{new Date(document.documentDate).toLocaleDateString("it-IT")}</td><td className="p-3"><span className="inline-flex items-center gap-2"><ArrowLeftRight className="size-4 text-teal-700" />{documentKindLabels[document.kind]}</span></td><td className="p-3 text-stone-600">{warehouseDocumentLabel(document)}</td><td className="p-3 text-right font-bold">{money.format(document.totalCents / 100)}</td><td className="p-3 text-right"><Button aria-label={`Apri ${warehouseDocumentLabel(document)}`} onClick={() => onOpen(document.id)} size="sm" variant="tableAction">Apri</Button></td></tr>)}</tbody></table></div>
       )}
     </SectionCard>
   );
@@ -106,7 +108,7 @@ function WarehouseCosts({ documents, onOpen }: { documents: WarehouseDocument[];
   const expenseTotal = rows.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.totalCents, 0);
   const assetTotal = rows.filter((item) => item.kind === "equipment_purchase").reduce((sum, item) => sum + item.totalCents, 0);
   return (
-    <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-5"><ReceiptText className="size-5 text-orange-700" /><p className="mt-3 text-sm font-bold text-stone-600">Spese operative</p><p className="text-2xl font-black">{money.format(expenseTotal / 100)}</p></div><div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-5"><Archive className="size-5 text-indigo-700" /><p className="mt-3 text-sm font-bold text-stone-600">Attrezzature acquistate</p><p className="text-2xl font-black">{money.format(assetTotal / 100)}</p></div></div><SectionCard title="Registro costi" subtitle="Spese e beni durevoli separati dalla giacenza destinata alla vendita.">{rows.length === 0 ? <EmptyState title="Nessun costo registrato" description="Registra una spesa o un acquisto attrezzatura dalle operazioni rapide." /> : <div className="grid gap-2">{rows.map((document) => <button className="flex w-full items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-left transition hover:border-teal-400 hover:bg-cyan-50/40" key={document.id} onClick={() => onOpen(document.id)} type="button"><span><b className="block">{documentKindLabels[document.kind]}</b><span className="text-xs text-stone-500">{new Date(document.documentDate).toLocaleDateString("it-IT")} · {document.externalReference || document.internalNumber}</span></span><b>{money.format(document.totalCents / 100)}</b></button>)}</div>}</SectionCard></div>
+    <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-5"><ReceiptText className="size-5 text-orange-700" /><p className="mt-3 text-sm font-bold text-stone-600">Spese operative</p><p className="text-2xl font-black">{money.format(expenseTotal / 100)}</p></div><div className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-5"><Archive className="size-5 text-indigo-700" /><p className="mt-3 text-sm font-bold text-stone-600">Attrezzature acquistate</p><p className="text-2xl font-black">{money.format(assetTotal / 100)}</p></div></div><SectionCard title="Registro costi" subtitle="Spese e beni durevoli separati dalla giacenza destinata alla vendita.">{rows.length === 0 ? <EmptyState title="Nessun costo registrato" description="Registra una spesa o un acquisto attrezzatura dalle operazioni rapide." /> : <div className="grid gap-2">{rows.map((document) => <button className="flex w-full items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-left transition hover:border-teal-400 hover:bg-cyan-50/40" key={document.id} onClick={() => onOpen(document.id)} type="button"><span><b className="block">{documentKindLabels[document.kind]}</b><span className="text-xs text-stone-500">{new Date(document.documentDate).toLocaleDateString("it-IT")} · {warehouseDocumentLabel(document)}</span></span><b>{money.format(document.totalCents / 100)}</b></button>)}</div>}</SectionCard></div>
   );
 }
 
@@ -172,6 +174,8 @@ export function WarehouseWorkspace() {
     WarehouseProduct[]
   >([]);
   const [editingDocument, setEditingDocument] =
+    useState<WarehouseDocumentDetails>();
+  const [viewingDocument, setViewingDocument] =
     useState<WarehouseDocumentDetails>();
   const [importMode, setImportMode] = useState(false);
   const [supplierForm, setSupplierForm] = useState<WarehouseSupplier>();
@@ -355,11 +359,7 @@ export function WarehouseWorkspace() {
     if (!salonId) return;
     try {
       const details = await warehouseApi.getDocument(salonId, documentId);
-      if (details.status === "draft") {
-        setEditingDocument(details);
-        setOperation("purchase");
-        setImportMode(false);
-      }
+      setViewingDocument(details);
     } catch {
       setDocumentError("Documento non disponibile.");
     }
@@ -646,6 +646,17 @@ export function WarehouseWorkspace() {
           suppliers={suppliers}
         />
       )}
+      <WarehouseDocumentViewer
+        document={viewingDocument}
+        onClose={() => setViewingDocument(undefined)}
+        onEdit={(document) => {
+          setViewingDocument(undefined);
+          setEditingDocument(document);
+          setOperation("purchase");
+          setImportMode(false);
+        }}
+        suppliers={suppliers}
+      />
       <Dialog
         onClose={() => {
           setSupplierOpen(false);

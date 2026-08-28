@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
@@ -31,6 +30,7 @@ import type {
   WarehouseRepository,
   WarehouseTransaction,
 } from "./warehouse-types.js";
+import { nextInventoryDocumentNumber } from "./document-number.js";
 
 export type WarehouseErrorCode =
   | "ACTOR_FORBIDDEN"
@@ -375,12 +375,14 @@ export async function reverseWarehouseDocument(
       input.salonId,
       sourceMovements.map((movement) => movement.productId),
     );
+    const reversalDate = new Date();
+    const reversalKindValue = reversalKind(source.kind);
     const reversal = await tx.createDocument({
       competenceDate: source.competenceDate,
       createdByUserId: input.actorUserId,
-      documentDate: new Date(),
-      internalNumber: `${source.internalNumber}-REV-${randomUUID().slice(0, 8)}`,
-      kind: reversalKind(source.kind),
+      documentDate: reversalDate,
+      internalNumber: await tx.nextDocumentNumber(input.salonId, reversalKindValue, reversalDate),
+      kind: reversalKindValue,
       netTotalCents: -source.netTotalCents,
       notes: `Reversal of ${source.internalNumber}`,
       reversalOfDocumentId: source.id,
@@ -554,11 +556,12 @@ export async function reconcileInventoryCount(
     }
     let movementIds: string[] = [];
     if (adjustmentLines.length) {
+      const adjustmentDate = new Date();
       const adjustment = await tx.createDocument({
         competenceDate: null,
         createdByUserId: input.actorUserId,
-        documentDate: new Date(),
-        internalNumber: `COUNT-${count.id}`,
+        documentDate: adjustmentDate,
+        internalNumber: await tx.nextDocumentNumber(input.salonId, "count", adjustmentDate),
         kind: "adjustment",
         netTotalCents: 0,
         notes: `Inventory count ${count.id}`,
@@ -609,6 +612,9 @@ function drizzleTransaction(executor: DrizzleDB): WarehouseTransaction {
         eq(users.active, true),
       ));
       return Boolean(rows[0]);
+    },
+    nextDocumentNumber(salonId, kind, date) {
+      return nextInventoryDocumentNumber(executor, { date, kind, salonId });
     },
     async createAsset(input) {
       const rows = await executor.insert(inventoryAssets).values(input).returning();

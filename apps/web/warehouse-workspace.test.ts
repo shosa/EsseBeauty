@@ -177,6 +177,29 @@ describe("warehouse workspace", () => {
     expect(operationDialog).not.toContain("ID, SKU o nome");
   });
 
+  it("opens posted movements as a dedicated warehouse document instead of the operation form", () => {
+    const workspace = readFileSync(
+      join(dashboard, "inventory", "warehouse-workspace.tsx"),
+      "utf8",
+    );
+    const documents = readFileSync(
+      join(dashboard, "inventory", "_components", "WarehouseDocuments.tsx"),
+      "utf8",
+    );
+    expect(workspace).toContain("WarehouseDocumentViewer");
+    expect(workspace).toContain("viewingDocument");
+    expect(workspace).toContain("setViewingDocument(details)");
+    expect(documents).not.toContain('disabled={doc.status !== "draft"}');
+  });
+
+  it("renders existing UUID references through a compact stable document label", () => {
+    const workspace = readFileSync(join(dashboard, "inventory", "warehouse-workspace.tsx"), "utf8");
+    const documents = readFileSync(join(dashboard, "inventory", "_components", "WarehouseDocuments.tsx"), "utf8");
+    expect(`${workspace}${documents}`).toContain("warehouseDocumentLabel");
+    expect(`${workspace}${documents}`).not.toContain("document.externalReference || document.internalNumber");
+    expect(`${workspace}${documents}`).not.toContain("doc.externalReference || doc.internalNumber");
+  });
+
   it("maps pasted product rows and rejects malformed numeric values", () => {
     const products = [
       {

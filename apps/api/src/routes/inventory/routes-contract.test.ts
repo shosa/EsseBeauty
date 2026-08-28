@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, test } from "vitest";
@@ -13,6 +13,8 @@ const countsSource = readFileSync(resolve(routeRoot, "counts.ts"), "utf8");
 const documentsSource = readFileSync(resolve(routeRoot, "documents.ts"), "utf8");
 const reportingSource = readFileSync(resolve(routeRoot, "reporting.ts"), "utf8");
 const indexSource = readFileSync(resolve(routeRoot, "index.ts"), "utf8");
+const numberingPath = resolve(routeRoot, "document-number.ts");
+const numberingSource = existsSync(numberingPath) ? readFileSync(numberingPath, "utf8") : "";
 
 describe("warehouse route contract", () => {
   test("registers the warehouse catalog and document routes with tenant-scoped inventory guards", () => {
@@ -56,6 +58,14 @@ describe("warehouse route contract", () => {
     expect(documentsSource).toContain("INVALID_DATE_FILTER");
     expect(parseDocumentDateFilter("2026-08-26", false)?.toISOString()).toBe("2026-08-26T00:00:00.000Z");
     expect(parseDocumentDateFilter("2026-08-26", true)?.toISOString()).toBe("2026-08-26T23:59:59.999Z");
+  });
+
+  test("generates short progressive references for warehouse documents", () => {
+    expect(numberingSource).toContain("nextInventoryDocumentNumber");
+    expect(numberingSource).toContain("padStart(4");
+    expect(numberingSource).toContain("pg_advisory_xact_lock");
+    expect(documentsSource).not.toContain("`WH-${randomUUID()}`");
+    expect(indexSource).not.toContain("`ADJ-${randomUUID()}`");
   });
 
   test("exposes tenant-scoped count sessions and a write-free import preview", () => {

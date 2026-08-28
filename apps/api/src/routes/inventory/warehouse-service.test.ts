@@ -119,6 +119,9 @@ function memoryRepository(initial: WarehouseState): { productLocks: string[]; re
       async actorBelongsToSalon(salonId: string, actorUserId: string) {
         return salonId === "salon-1" && actorUserId === "owner-1";
       },
+      async nextDocumentNumber(_salonId: string, kind: string, date: Date) {
+        return `${kind.toUpperCase()}-${date.getUTCFullYear()}-${String(draft.documents.length + 1).padStart(4, "0")}`;
+      },
       async createAsset(input: Omit<WarehouseState["assets"][number], "id">) {
         const created = { ...input, id: nextId("asset") };
         draft.assets.push(created);

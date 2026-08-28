@@ -3,6 +3,7 @@
 import { AlertTriangle, FileText, Package, Plus, RefreshCcw, Truck } from "lucide-react";
 import { Button, SectionCard, StatusBadge } from "@esse-beauty/ui";
 import type { WarehouseDocument, WarehouseProduct, WarehouseSummary } from "../warehouse-types";
+import { warehouseDocumentLabel } from "../document-label";
 
 const euro = (cents: number) => (cents / 100).toLocaleString("it-IT", { style: "currency", currency: "EUR" });
 
@@ -23,9 +24,8 @@ export function WarehouseOverview({ summary, products, documents, onNewDocument,
         <div className="divide-y divide-stone-100 border-y border-stone-100">{low.slice(0, 6).map((item) => <div className="flex items-center justify-between gap-3 py-2.5" key={item.id}><div className="flex min-w-0 items-center gap-2"><AlertTriangle className="size-4 shrink-0 text-amber-600" /><span className="truncate text-sm font-semibold">{item.name}</span></div><span className="shrink-0 text-xs font-bold text-red-700">{item.stockQuantity} / {item.lowStockThreshold}</span></div>)}{summary.draft_documents > 0 && <div className="flex items-center gap-2 py-2.5 text-sm font-semibold"><FileText className="size-4 text-[#792f59]" />{summary.draft_documents} documenti in bozza</div>}{low.length === 0 && summary.draft_documents === 0 && <p className="py-5 text-sm text-stone-500">Nessuna eccezione aperta.</p>}</div>
       </SectionCard>
       <SectionCard actions={<Button onClick={onNewDocument} size="sm" variant="primary"><Plus className="size-3.5" />Nuovo</Button>} title="Documenti recenti" subtitle="Ultime registrazioni del magazzino.">
-        <div className="divide-y divide-stone-100">{documents.slice(0, 6).map((doc) => <div className="flex items-center justify-between gap-3 py-2.5" key={doc.id}><div className="flex min-w-0 items-center gap-2"><Truck className="size-4 shrink-0 text-stone-400" /><span className="truncate text-sm font-semibold">{doc.internalNumber}</span></div><div className="flex shrink-0 items-center gap-2"><StatusBadge status={doc.status === "posted" ? "active" : doc.status === "draft" ? "waiting" : "inactive"}>{doc.status}</StatusBadge><span className="text-xs font-bold">{euro(doc.totalCents)}</span></div></div>)}{documents.length === 0 && <p className="py-5 text-sm text-stone-500">Nessun documento ancora.</p>}</div>
+        <div className="divide-y divide-stone-100">{documents.slice(0, 6).map((doc) => <div className="flex items-center justify-between gap-3 py-2.5" key={doc.id}><div className="flex min-w-0 items-center gap-2"><Truck className="size-4 shrink-0 text-stone-400" /><span className="truncate text-sm font-semibold">{warehouseDocumentLabel(doc)}</span></div><div className="flex shrink-0 items-center gap-2"><StatusBadge status={doc.status === "posted" ? "active" : doc.status === "draft" ? "waiting" : "inactive"}>{doc.status}</StatusBadge><span className="text-xs font-bold">{euro(doc.totalCents)}</span></div></div>)}{documents.length === 0 && <p className="py-5 text-sm text-stone-500">Nessun documento ancora.</p>}</div>
       </SectionCard>
     </div>
   </div>;
 }
-

@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 
@@ -18,6 +16,7 @@ import {
   postWarehouseDocument,
   reverseWarehouseDocument,
 } from "./warehouse-service.js";
+import { nextInventoryDocumentNumber } from "./document-number.js";
 
 const guard = [
   authenticate,
@@ -93,7 +92,7 @@ function lineValues(lines: DocumentLineInput[], salonId: string, documentId: str
   }));
 }
 
-function documentValues(input: DocumentInput, salonId: string, actorId: string) {
+function documentValues(input: DocumentInput, salonId: string, actorId: string, fallbackInternalNumber = "") {
   const documentDate = toDate(input.document_date);
   const competenceDate = input.competence_date === null ? null : toDate(input.competence_date);
   if (!documentDate || competenceDate === undefined || !documentKinds.has(input.kind)) return undefined;
@@ -103,7 +102,7 @@ function documentValues(input: DocumentInput, salonId: string, actorId: string) 
     createdByUserId: actorId,
     documentDate,
     externalReference: input.external_reference ?? null,
-    internalNumber: input.internal_number?.trim() || `WH-${randomUUID()}`,
+    internalNumber: input.internal_number?.trim() || fallbackInternalNumber,
     kind: input.kind,
     notes: input.notes ?? null,
     salonId,
@@ -132,7 +131,12 @@ export async function registerInventoryDocumentRoutes(app: FastifyInstance) {
     const document = documentValues(request.body, request.salonId, request.user.id);
     if (!document) return reply.code(422).send({ error: "INVALID_DOCUMENT", line_errors: [] });
     const created = await app.db.transaction(async (tx) => {
-      const rows = await tx.insert(inventoryDocuments).values(document).returning();
+      const internalNumber = document.internalNumber || await nextInventoryDocumentNumber(tx as unknown as typeof app.db, {
+        date: document.documentDate,
+        kind: document.kind as Parameters<typeof nextInventoryDocumentNumber>[1]["kind"],
+        salonId: request.salonId,
+      });
+      const rows = await tx.insert(inventoryDocuments).values({ ...document, internalNumber }).returning();
       const result = rows[0]!;
       if (request.body.lines?.length) await tx.insert(inventoryDocumentLines).values(lineValues(request.body.lines, request.salonId, result.id));
       return result;
@@ -152,18 +156,18 @@ export async function registerInventoryDocumentRoutes(app: FastifyInstance) {
     if (ownsSalon(request, reply) !== true) return;
     const errors = lineErrors(request.body.lines ?? []);
     if (errors.length) return reply.code(422).send({ error: "INVALID_DOCUMENT_LINES", line_errors: errors });
-    const document = documentValues(request.body, request.salonId, request.user.id);
-    if (!document) return reply.code(422).send({ error: "INVALID_DOCUMENT", line_errors: [] });
     const updated = await app.db.transaction(async (tx) => {
       const current = await tx.select().from(inventoryDocuments).where(and(eq(inventoryDocuments.id, request.params.documentId), eq(inventoryDocuments.salonId, request.salonId))).for("update");
       if (!current[0]) return { error: "DOCUMENT_NOT_FOUND" as const };
       if (current[0].status !== "draft") return { error: "DOCUMENT_NOT_DRAFT" as const };
+      const document = documentValues(request.body, request.salonId, request.user.id, current[0].internalNumber);
+      if (!document) return { error: "INVALID_DOCUMENT" as const };
       const rows = await tx.update(inventoryDocuments).set({ ...document, createdByUserId: current[0].createdByUserId, updatedAt: new Date() }).where(and(eq(inventoryDocuments.id, current[0].id), eq(inventoryDocuments.salonId, request.salonId))).returning();
       await tx.delete(inventoryDocumentLines).where(and(eq(inventoryDocumentLines.documentId, current[0].id), eq(inventoryDocumentLines.salonId, request.salonId)));
       if (request.body.lines?.length) await tx.insert(inventoryDocumentLines).values(lineValues(request.body.lines, request.salonId, current[0].id));
       return { document: rows[0]! };
     });
-    if ("error" in updated) return reply.code(updated.error === "DOCUMENT_NOT_FOUND" ? 404 : 409).send({ error: updated.error });
+    if ("error" in updated) return reply.code(updated.error === "DOCUMENT_NOT_FOUND" ? 404 : updated.error === "INVALID_DOCUMENT" ? 422 : 409).send({ error: updated.error });
     return updated.document;
   });
 

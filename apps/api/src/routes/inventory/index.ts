@@ -1,5 +1,4 @@
 import type { FastifyInstance } from "fastify";
-import { randomUUID } from "node:crypto";
 import { and, desc, eq, lt } from "drizzle-orm";
 
 import {
@@ -18,6 +17,7 @@ import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { registerInventoryCatalogRoutes } from "./catalog.js";
 import { registerInventoryCountRoutes } from "./counts.js";
 import { registerInventoryDocumentRoutes } from "./documents.js";
+import { nextInventoryDocumentNumber } from "./document-number.js";
 import {
   createDrizzleWarehouseRepository,
   WarehouseConflictError,
@@ -191,10 +191,15 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
         });
       }
       const document = await app.db.transaction(async (tx) => {
+        const documentDate = new Date();
         const documents = await tx.insert(inventoryDocuments).values({
           createdByUserId: request.user.id,
-          documentDate: new Date(),
-          internalNumber: `ADJ-${randomUUID()}`,
+          documentDate,
+          internalNumber: await nextInventoryDocumentNumber(tx as unknown as typeof app.db, {
+            date: documentDate,
+            kind: "adjustment",
+            salonId: request.salonId,
+          }),
           kind: "adjustment",
           notes: request.body.reason,
           salonId: request.salonId,

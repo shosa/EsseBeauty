@@ -146,6 +146,7 @@ export interface WarehouseState {
 
 export interface WarehouseTransaction {
   actorBelongsToSalon(salonId: string, actorUserId: string): Promise<boolean>;
+  nextDocumentNumber(salonId: string, kind: WarehouseDocumentKind, date: Date): Promise<string>;
   createAsset(input: Omit<WarehouseAssetRecord, "id">): Promise<WarehouseAssetRecord>;
   createDocument(
     input: Omit<WarehouseDocumentRecord, "id" | "postedAt" | "postedByUserId" | "status">,
