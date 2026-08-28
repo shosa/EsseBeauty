@@ -228,7 +228,7 @@ describe("professional UI regression guard", () => {
     expect(services).not.toContain("method: \"PATCH\"");
     expect(settingsStaff).toContain("/settings/staff/new");
     expect(settingsStaff).toContain("/api/salons/${salon.id}/staff");
-    expect(settingsServices).toContain("/settings/services/new");
+    expect(settingsServices).toContain("/services/new");
     expect(settingsServices).toContain("/api/salons/${salon.id}/services");
     expect(appointmentNew).toContain("/operations/services");
     expect(appointmentNew).toContain("/operations/staff");
@@ -242,6 +242,22 @@ describe("professional UI regression guard", () => {
     expect(collaborators).toContain('label={`Configura ${member.displayName}`}');
     expect(collaborators).toContain("staffStatusAction(member.active).label");
     expect(collaborators).not.toContain("size-[52px]");
+  });
+
+  it("uses the consolidated header and icon CTA pattern in service management", () => {
+    const services = readFileSync(join(dashboardRoot, "settings", "services", "page.tsx"), "utf8");
+    const ui = readFileSync(sharedUi, "utf8");
+    expect(services).toContain("PageHeader");
+    expect(services).toContain("ExpandableAction");
+    expect(services).toContain('label="Nuova categoria"');
+    expect(services).toContain('label="Nuovo servizio"');
+    expect(services).toContain('label="Modifica categoria"');
+    expect(services).toContain('label={`Apri servizio ${item.name}`}');
+    expect(services).toContain('label={`Archivia servizio ${item.name}`}');
+    expect(services).not.toMatch(/>\s*Modifica categoria\s*<\/button>/);
+    expect(services).not.toMatch(/>\s*Apri\s*<\/Link>/);
+    expect(ui).toContain("const activeHref = items");
+    expect(ui).toContain("right.href.length - left.href.length");
   });
 
   it("does not expose fake settings panels without persisted behavior", () => {

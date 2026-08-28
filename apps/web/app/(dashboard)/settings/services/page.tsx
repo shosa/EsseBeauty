@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Archive, FolderPlus, Pencil, Plus, SquareArrowOutUpRight } from "lucide-react";
 
 import { formatPrice } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, EmptyState, ExpandableAction, FormField, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { SERVICE_CATEGORY_ICONS, ServiceCategoryIcon } from "../../services/ServiceCategoryIcon";
@@ -141,8 +142,8 @@ export default function SettingsServicesPage() {
         <PageHeader
           actions={
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} variant="secondary">Nuova categoria</Button>
-              <Link href={selectedCategoryId ? `/settings/services/new?category=${selectedCategoryId}` : "/settings/services/new"} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Nuovo servizio</Link>
+              <ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />
+              <ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => window.location.assign(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} tone="fuchsia" />
             </div>
           }
           eyebrow="Core"
@@ -155,7 +156,7 @@ export default function SettingsServicesPage() {
 
         {categories.length === 0 ? (
           <EmptyState
-            action={<Button onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })}>Crea categoria</Button>}
+            action={<ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />}
             description="Prima crea una categoria, poi inserisci i servizi che le appartengono."
             title="Il catalogo parte dalle categorie"
           />
@@ -167,7 +168,7 @@ export default function SettingsServicesPage() {
                   <h2 className="font-bold text-stone-950">Categorie</h2>
                   <p className="text-xs text-stone-500">Seleziona per vedere i servizi.</p>
                 </div>
-                <button className="grid size-9 place-items-center rounded-lg border border-stone-200 text-xl text-[#792f59]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} title="Nuova categoria" type="button">+</button>
+                <ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />
               </div>
               <div className="space-y-1">
                 {categories.map((category) => (
@@ -203,19 +204,19 @@ export default function SettingsServicesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <button className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-bold text-stone-700" onClick={() => setCategoryDraft({ icon: selectedCategory.icon, id: selectedCategory.id, name: selectedCategory.name })} type="button">Modifica categoria</button>
+                      <ExpandableAction icon={Pencil} label="Modifica categoria" onClick={() => setCategoryDraft({ icon: selectedCategory.icon, id: selectedCategory.id, name: selectedCategory.name })} tone="amber" />
                       <Switch checked={selectedCategory.active} onCheckedChange={() => void toggleCategory(selectedCategory)} />
                     </div>
                   </header>
 
                   {visibleServices.length === 0 ? (
                     <EmptyState
-                      action={<Link href={`/settings/services/new?category=${selectedCategory.id}`} className="inline-flex min-h-11 items-center rounded-xl bg-stone-950 px-4 text-sm font-bold text-white">Aggiungi servizio</Link>}
+                      action={<ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => window.location.assign(`/services/new?category=${selectedCategory.id}`)} tone="fuchsia" />}
                       description={`Non ci sono ancora servizi nella categoria ${selectedCategory.name}.`}
                       title="Categoria vuota"
                     />
                   ) : (
-                    <div className="overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
+                    <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
                       {visibleServices.map((item) => (
                         <article className={`grid gap-4 border-b border-stone-100 p-4 last:border-0 md:grid-cols-[minmax(0,1fr)_120px_120px_auto] md:items-center ${item.active ? "" : "opacity-55"}`} key={item.id}>
                           <div className="min-w-0">
@@ -226,8 +227,8 @@ export default function SettingsServicesPage() {
                           <strong className="text-sm">{formatPrice(item.priceCents, "it-IT")}</strong>
                           <div className="flex items-center justify-end gap-3">
                             <Switch checked={item.active} onCheckedChange={() => void toggle(item)} />
-                            <Link href={`/services/${item.id}`} className="rounded-lg border border-stone-200 px-3 py-2 text-xs font-bold">Apri</Link>
-                            <button className="text-xs font-bold text-red-700" onClick={() => setConfirmDelete(item)} type="button">Archivia</button>
+                            <ExpandableAction icon={SquareArrowOutUpRight} label={`Apri servizio ${item.name}`} onClick={() => window.location.assign(`/services/${item.id}`)} tone="sky" />
+                            <ExpandableAction icon={Archive} label={`Archivia servizio ${item.name}`} onClick={() => setConfirmDelete(item)} tone="rose" />
                           </div>
                         </article>
                       ))}
