@@ -8,7 +8,6 @@ import {
   ClipboardList,
   FileUp,
   PackagePlus,
-  Plus,
   RotateCcw,
   ReceiptText,
 } from "lucide-react";
@@ -397,12 +396,6 @@ export function WarehouseWorkspace() {
       <PageHeaderMetrics
         actions={
           <div className="flex flex-wrap gap-2">
-            <ExpandableAction
-              icon={Plus}
-              label="Nuovo documento"
-              onClick={() => openOperation("purchase")}
-              tone="fuchsia"
-            />
             <ExpandableAction
               icon={ArrowDownToLine}
               label="Carico"

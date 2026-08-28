@@ -180,6 +180,18 @@ const expandableActionTones: Record<ExpandableActionTone, string> = {
   violet: "border-violet-300 text-violet-700 hover:border-violet-600 hover:bg-violet-600 focus-visible:border-violet-600 focus-visible:bg-violet-600",
 };
 
+const expandableActionTooltipTones: Record<ExpandableActionTone, string> = {
+  amber: "bg-amber-600",
+  emerald: "bg-emerald-600",
+  fuchsia: "bg-fuchsia-600",
+  indigo: "bg-indigo-600",
+  orange: "bg-orange-600",
+  rose: "bg-rose-600",
+  sky: "bg-sky-600",
+  teal: "bg-teal-600",
+  violet: "bg-violet-600",
+};
+
 export function ExpandableAction({
   className = "",
   icon: Icon,
@@ -195,13 +207,12 @@ export function ExpandableAction({
   return (
     <button
       aria-label={label}
-      className={`group inline-flex min-h-10 items-center justify-center overflow-hidden rounded-xl border bg-white px-3 font-bold shadow-sm transition-all duration-300 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-950/10 ${expandableActionTones[tone]} ${className}`}
-      title={label}
+      className={`group relative inline-grid size-10 shrink-0 place-items-center overflow-visible rounded-xl border bg-white font-bold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-950/10 ${expandableActionTones[tone]} ${className}`}
       type={type}
       {...props}
     >
       <Icon className="size-4 shrink-0" />
-      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:ml-2 group-hover:max-w-48 group-hover:opacity-100 group-focus-visible:ml-2 group-focus-visible:max-w-48 group-focus-visible:opacity-100">
+      <span aria-hidden="true" className={`pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold text-white opacity-0 shadow-lg transition duration-150 after:absolute after:left-1/2 after:top-full after:size-2 after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:bg-inherit group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 ${expandableActionTooltipTones[tone]}`}>
         {label}
       </span>
     </button>

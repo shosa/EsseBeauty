@@ -55,17 +55,22 @@ describe("warehouse workspace", () => {
     expect(workspace).not.toContain(
       'disabled title="Disponibile nei prossimi incrementi"',
     );
+    expect(workspace).not.toContain('label="Nuovo documento"');
   });
 
-  it("renders compact colored warehouse actions that reveal labels on hover and focus", () => {
+  it("renders fixed-size colored warehouse actions with labels in accessible tooltips", () => {
     const workspace = readFileSync(
       join(dashboard, "inventory", "warehouse-workspace.tsx"),
       "utf8",
     );
     const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
     expect(workspace).toContain("ExpandableAction");
-    expect(ui).toContain("group-hover:max-w-");
-    expect(ui).toContain("group-focus-visible:max-w-");
+    expect(ui).not.toContain("group-hover:max-w-");
+    expect(ui).not.toContain("group-focus-visible:max-w-");
+    expect(ui).toContain("bottom-full");
+    expect(ui).toContain("group-hover:opacity-100");
+    expect(ui).toContain("group-focus-visible:opacity-100");
+    expect(ui).toContain("expandableActionTooltipTones");
     for (const color of [
       "fuchsia",
       "emerald",
