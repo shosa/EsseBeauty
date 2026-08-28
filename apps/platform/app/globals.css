@@ -28,6 +28,9 @@ h1, h2, h3 { font-family: var(--font-display), var(--font-sans), sans-serif; let
 textarea.platform-input { min-height: 104px; padding-block: 11px; resize: vertical; }
 .platform-input:focus { border-color: #51a58e; box-shadow: 0 0 0 3px rgb(22 116 92 / .11); }
 
+/* Reserve icon space after base input rules, so utility padding cannot be overwritten. */
+.relative > svg.absolute ~ input { padding-left: 2.75rem !important; }
+
 .platform-card { border: 1px solid var(--platform-line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgb(20 32 31 / .025); }
 .platform-button {
   display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px;

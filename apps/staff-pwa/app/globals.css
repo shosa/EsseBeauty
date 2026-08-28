@@ -85,6 +85,10 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgb(184 88 136 / 0.13);
 }
 
+.relative > svg.absolute ~ input {
+  padding-left: 2.75rem !important;
+}
+
 .staff-display {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   font-variation-settings: normal;

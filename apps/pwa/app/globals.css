@@ -97,6 +97,10 @@ textarea::placeholder {
   color: #a8a29e;
 }
 
+.relative > svg.absolute ~ input {
+  padding-left: 2.75rem !important;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
