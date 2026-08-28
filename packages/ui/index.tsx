@@ -483,10 +483,13 @@ export function ContextTabs({
   items: Array<{ href: string; label: string }> | readonly { href: string; label: string }[];
 }) {
   if (items.length === 0) return null;
+  const activeHref = items
+    .filter((item) => currentPath === item.href || (item.href !== "/" && currentPath.startsWith(`${item.href}/`)))
+    .sort((left, right) => right.href.length - left.href.length)[0]?.href;
   return (
     <nav aria-label="Viste dell'app" className={`flex min-h-11 items-end gap-1 overflow-x-auto border-b border-stone-200 ${className}`}>
       {items.map((item) => {
-        const active = currentPath === item.href || (item.href !== "/" && currentPath.startsWith(`${item.href}/`));
+        const active = item.href === activeHref;
         return <a aria-current={active ? "page" : undefined} className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[#792f59] text-[#792f59]" : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-900"}`} href={item.href} key={item.href}>{item.label}</a>;
       })}
     </nav>
