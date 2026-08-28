@@ -196,8 +196,8 @@ export default function PlatformPage() {
   }
 
   async function resetPassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!selected) return; const form = new FormData(event.currentTarget);
-    try { await platformRequest(`/api/platform/salons/${selected.id}/owner-access/reset-password`, { method: "POST", body: JSON.stringify({ password: form.get("password") }) }); event.currentTarget.reset(); setNotice("Password reimpostata e sessioni revocate"); }
+    event.preventDefault(); if (!selected) return; const formElement = event.currentTarget; const form = new FormData(formElement);
+    try { await platformRequest(`/api/platform/salons/${selected.id}/owner-access/reset-password`, { method: "POST", body: JSON.stringify({ password: form.get("password") }) }); formElement.reset(); setNotice("Password reimpostata e sessioni revocate"); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "Reset non riuscito."); }
   }
 
