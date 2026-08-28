@@ -167,7 +167,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       permissions: [PERMISSION_KEYS.SETTINGS_STAFF],
     }],
     tabs: [
-      { href: "/staff", label: "Operatività" },
+      { href: "/staff", label: "Dashboard" },
       { href: "/staff/manage", label: "Collaboratori", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
       { href: "/staff/permissions", label: "Permessi", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
     ],

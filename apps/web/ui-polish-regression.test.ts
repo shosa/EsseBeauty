@@ -234,6 +234,16 @@ describe("professional UI regression guard", () => {
     expect(appointmentNew).toContain("/operations/staff");
   });
 
+  it("uses the consolidated icon CTA pattern in the collaborators workspace", () => {
+    const collaborators = readFileSync(join(dashboardRoot, "settings", "staff", "page.tsx"), "utf8");
+    expect(collaborators).toContain("PageHeader");
+    expect(collaborators).toContain("ExpandableAction");
+    expect(collaborators).toContain('label="Nuovo collaboratore"');
+    expect(collaborators).toContain('label={`Configura ${member.displayName}`}');
+    expect(collaborators).toContain("staffStatusAction(member.active).label");
+    expect(collaborators).not.toContain("size-[52px]");
+  });
+
   it("does not expose fake settings panels without persisted behavior", () => {
     const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");
     expect(settings).not.toContain("Configurazione persistente disponibile via API centro controllo");

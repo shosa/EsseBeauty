@@ -123,7 +123,7 @@ describe("app-oriented dashboard registry", () => {
     const allPermissions = new Set(Object.values(PERMISSION_KEYS));
 
     expect(contextTabsForPath("/staff/permissions", allPermissions).map((tab) => [tab.label, tab.href])).toEqual([
-      ["Operatività", "/staff"],
+      ["Dashboard", "/staff"],
       ["Collaboratori", "/staff/manage"],
       ["Permessi", "/staff/permissions"],
     ]);
