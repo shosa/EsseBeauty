@@ -1,4 +1,4 @@
-import type { WarehouseCount, WarehouseImportPreview, WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
+import type { WarehouseAnalyticsSummary, WarehouseCount, WarehouseImportPreview, WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseReports, WarehouseReportingFilters, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
 
 export function mapWarehouseLineErrors(body: unknown, lines: Array<{ key: string }>) {
   const result: Record<string, Record<string, string>> = {};
@@ -33,6 +33,8 @@ function base(salonId: string) { return `/api/salons/${encodeURIComponent(salonI
 
 export const warehouseApi = {
   getSummary: (salonId: string) => request<WarehouseSummary>(`${base(salonId)}/summary`),
+  getAnalyticsSummary: (salonId: string, filters: WarehouseReportingFilters = {}) => request<WarehouseAnalyticsSummary>(`${base(salonId)}/analytics/summary${query(filters)}`),
+  getReports: (salonId: string, filters: WarehouseReportingFilters = {}) => request<WarehouseReports>(`${base(salonId)}/reports${query(filters)}`),
   getProducts: (salonId: string, filters: WarehouseListFilters = {}) => request<WarehouseProduct[]>(`${base(salonId)}/products${query(filters)}`),
   getSuppliers: (salonId: string, filters: WarehouseListFilters = {}) => request<WarehouseSupplier[]>(`${base(salonId)}/suppliers${query(filters)}`),
   getDocuments: (salonId: string, filters: WarehouseListFilters = {}) => request<WarehouseDocument[]>(`${base(salonId)}/documents${query(filters)}`),

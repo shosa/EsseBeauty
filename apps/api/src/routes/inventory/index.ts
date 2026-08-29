@@ -17,6 +17,7 @@ import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { registerInventoryCatalogRoutes } from "./catalog.js";
 import { registerInventoryCountRoutes } from "./counts.js";
 import { registerInventoryDocumentRoutes } from "./documents.js";
+import { registerInventoryReportingRoutes } from "./reporting.js";
 import { nextInventoryDocumentNumber } from "./document-number.js";
 import {
   createDrizzleWarehouseRepository,
@@ -35,6 +36,7 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
   await registerInventoryCatalogRoutes(app);
   await registerInventoryCountRoutes(app);
   await registerInventoryDocumentRoutes(app);
+  await registerInventoryReportingRoutes(app);
   app.get<{
     Params: { id: string };
     Querystring: { low_stock?: string };

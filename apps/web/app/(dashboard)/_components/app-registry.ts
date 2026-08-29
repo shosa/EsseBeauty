@@ -294,6 +294,15 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       label: "Nuovo prodotto",
       permissions: [PERMISSION_KEYS.INVENTORY_MANAGE],
     }],
+    tabs: [
+      { href: "/inventory", label: "Magazzino" },
+      { href: "/inventory/suppliers", label: "Fornitori" },
+      { href: "/inventory/documents", label: "Documenti" },
+      { href: "/inventory/counts", label: "Inventario" },
+      { href: "/inventory/analytics", label: "Analisi" },
+      { href: "/inventory/expenses", label: "Spese" },
+      { href: "/inventory/assets", label: "Attrezzature" },
+    ],
   },
   {
     accent: "#0f766e",

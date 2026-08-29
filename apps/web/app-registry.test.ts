@@ -130,6 +130,20 @@ describe("app-oriented dashboard registry", () => {
     expect(contextTabsForPath("/settings", allPermissions).map((tab) => tab.href)).not.toContain("/settings/permissions");
   });
 
+  it("owns every modular warehouse route", () => {
+    const allPermissions = new Set(Object.values(PERMISSION_KEYS));
+
+    expect(contextTabsForPath("/inventory/assets", allPermissions).map((tab) => [tab.label, tab.href])).toEqual([
+      ["Magazzino", "/inventory"],
+      ["Fornitori", "/inventory/suppliers"],
+      ["Documenti", "/inventory/documents"],
+      ["Inventario", "/inventory/counts"],
+      ["Analisi", "/inventory/analytics"],
+      ["Spese", "/inventory/expenses"],
+      ["Attrezzature", "/inventory/assets"],
+    ]);
+  });
+
   it("uses correct Italian labels and provides contextual tabs", () => {
     expect(APP_REGISTRY.find((app) => app.key === "accounting")?.label).toBe("Contabilità");
     expect(APP_REGISTRY.find((app) => app.key === "loyalty")?.label).toBe("Fedeltà");

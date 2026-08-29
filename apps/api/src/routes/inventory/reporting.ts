@@ -80,7 +80,7 @@ function lineMatches(
 function sum(values: number[]) { return values.reduce((total, value) => total + value, 0); }
 
 export async function registerInventoryReportingRoutes(app: FastifyInstance) {
-  app.get<{ Params: { id: string }; Querystring: ReportingQuery }>("/api/salons/:id/inventory/summary", { preHandler: guard }, async (request, reply) => {
+  app.get<{ Params: { id: string }; Querystring: ReportingQuery }>("/api/salons/:id/inventory/analytics/summary", { preHandler: guard }, async (request, reply) => {
     if (ownsSalon(request, reply) !== true) return;
     const bounds = dateBounds(request.query);
     if (!bounds) return reply.code(422).send({ error: "INVALID_DATE_FILTER" });

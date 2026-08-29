@@ -13,6 +13,7 @@ import {
   dataExchangeSettings,
   integrationSettings,
   inventoryReorderRequests,
+  cashMovements,
   loginActivity,
   loyaltyAdjustmentReasons,
   loyaltyRewardRedemptions,
@@ -98,9 +99,10 @@ const warehouseTables = [
   inventoryCountLines,
   inventoryExpenses,
   inventoryAssets,
+  cashMovements,
 ];
 
-if (warehouseTables.length !== 7 || warehouseTables.some((table) => !table)) {
+if (warehouseTables.length !== 8 || warehouseTables.some((table) => !table)) {
   throw new Error("Warehouse schema contract is incomplete.");
 }
 
@@ -110,6 +112,7 @@ const tenantScopedWarehouseRows = [
   inventoryExpenses.salonId,
   inventoryAssets.salonId,
   inventoryMovements.salonId,
+  cashMovements.salonId,
 ];
 
 if (tenantScopedWarehouseRows.some((column) => !column)) {
@@ -136,6 +139,22 @@ const warehouseReversalLinks = [
 if (warehouseReversalLinks.some((column) => !column)) {
   throw new Error("Warehouse monetary rows must expose immutable reversal links.");
 }
+
+const schemaSource = readFileSync(join(process.cwd(), "schema.ts"), "utf8");
+
+for (const requirement of [
+  "export const cashMovements = pgTable",
+  '"cash_movements"',
+  'idempotencyKey: text("idempotency_key")',
+  'cashMovementId: uuid("cash_movement_id")',
+  'location: text("location")',
+  'disposedByUserId: uuid("disposed_by_user_id")',
+]) {
+  if (!schemaSource.includes(requirement)) {
+    throw new Error(`Schema is missing ${requirement}.`);
+  }
+}
+
 
 const migrationSource = readFileSync(
   join(process.cwd(), "migrations", "0034_complete_warehouse.sql"),

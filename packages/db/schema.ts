@@ -2141,6 +2141,40 @@ export const inventoryMovements = pgTable(
   ],
 );
 
+export const cashMovements = pgTable(
+  "cash_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    direction: text("direction").notNull(),
+    paymentMethod: paymentMethodEnum("payment_method").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    reason: text("reason").notNull(),
+    category: text("category").notNull(),
+    sourceType: text("source_type").notNull(),
+    sourceId: uuid("source_id"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reversedByMovementId: uuid("reversed_by_movement_id").references(
+      (): AnyPgColumn => cashMovements.id,
+      { onDelete: "set null" },
+    ),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("cash_movements_id_salon_unique").on(table.id, table.salonId),
+    uniqueIndex("cash_movements_salon_idempotency_unique").on(table.salonId, table.idempotencyKey),
+    check("cash_movements_direction_valid", sql`${table.direction} in ('in', 'out')`),
+    check("cash_movements_amount_positive", sql`${table.amountCents} > 0`),
+  ],
+);
+
 export const inventoryCounts = pgTable(
   "inventory_counts",
   {
@@ -2235,6 +2269,10 @@ export const inventoryExpenses = pgTable(
     netCents: integer("net_cents").default(0).notNull(),
     taxCents: integer("tax_cents").default(0).notNull(),
     totalCents: integer("total_cents").default(0).notNull(),
+    cashMovementId: uuid("cash_movement_id").references(() => cashMovements.id, {
+      onDelete: "set null",
+    }),
+    idempotencyKey: text("idempotency_key"),
     reversesExpenseId: uuid("reverses_expense_id").references(
       (): AnyPgColumn => inventoryExpenses.id,
       { onDelete: "set null" },
@@ -2244,6 +2282,7 @@ export const inventoryExpenses = pgTable(
   },
   (table) => [
     index("inventory_expenses_salon_competence_date_idx").on(table.salonId, table.competenceDate),
+    uniqueIndex("inventory_expenses_salon_idempotency_unique").on(table.salonId, table.idempotencyKey),
     check(
       "inventory_expenses_signed_amounts",
       sql`(${table.reversesExpenseId} is null and ${table.netCents} >= 0 and ${table.taxCents} >= 0 and ${table.totalCents} >= 0) or (${table.reversesExpenseId} is not null and ${table.netCents} <= 0 and ${table.taxCents} <= 0 and ${table.totalCents} <= 0)`,
@@ -2257,6 +2296,11 @@ export const inventoryExpenses = pgTable(
       columns: [table.documentLineId, table.salonId],
       foreignColumns: [inventoryDocumentLines.id, inventoryDocumentLines.salonId],
       name: "inventory_expenses_document_line_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.cashMovementId, table.salonId],
+      foreignColumns: [cashMovements.id, cashMovements.salonId],
+      name: "inventory_expenses_cash_movement_salon_id_fk",
     }),
     foreignKey({
       columns: [table.supplierId, table.salonId],
@@ -2291,19 +2335,28 @@ export const inventoryAssets = pgTable(
     serialNumber: text("serial_number"),
     purchaseDate: timestamp("purchase_date", { withTimezone: true }).notNull(),
     purchaseCostCents: integer("purchase_cost_cents").default(0).notNull(),
+    cashMovementId: uuid("cash_movement_id").references(() => cashMovements.id, {
+      onDelete: "set null",
+    }),
+    idempotencyKey: text("idempotency_key"),
     reversesAssetId: uuid("reverses_asset_id").references(
       (): AnyPgColumn => inventoryAssets.id,
       { onDelete: "set null" },
     ),
     warrantyExpiresAt: timestamp("warranty_expires_at", { withTimezone: true }),
+    location: text("location"),
     status: text("status").default("active").notNull(),
     disposedAt: timestamp("disposed_at", { withTimezone: true }),
+    disposedByUserId: uuid("disposed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     disposalNotes: text("disposal_notes"),
     notes: text("notes"),
     ...timestamps,
   },
   (table) => [
     index("inventory_assets_salon_purchase_date_idx").on(table.salonId, table.purchaseDate),
+    uniqueIndex("inventory_assets_salon_idempotency_unique").on(table.salonId, table.idempotencyKey),
     check("inventory_assets_status_valid", sql`${table.status} in ('active', 'disposed')`),
     check(
       "inventory_assets_signed_purchase_cost",
@@ -2318,6 +2371,11 @@ export const inventoryAssets = pgTable(
       columns: [table.documentLineId, table.salonId],
       foreignColumns: [inventoryDocumentLines.id, inventoryDocumentLines.salonId],
       name: "inventory_assets_document_line_salon_id_fk",
+    }),
+    foreignKey({
+      columns: [table.cashMovementId, table.salonId],
+      foreignColumns: [cashMovements.id, cashMovements.salonId],
+      name: "inventory_assets_cash_movement_salon_id_fk",
     }),
     foreignKey({
       columns: [table.supplierId, table.salonId],

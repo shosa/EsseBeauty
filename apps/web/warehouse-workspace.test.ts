@@ -15,7 +15,7 @@ import * as warehouseOperations from "./app/(dashboard)/inventory/_components/Wa
 const dashboard = join(process.cwd(), "app", "(dashboard)");
 
 describe("warehouse workspace", () => {
-  it("renames Inventory and exposes every operational area", () => {
+  it("renames Inventory and keeps root warehouse focused on stock operations", () => {
     const shell = readFileSync(
       join(dashboard, "_components", "DashboardShell.tsx"),
       "utf8",
@@ -29,17 +29,11 @@ describe("warehouse workspace", () => {
       "utf8",
     );
     expect(`${shell}${registry}`).toContain('label: "Magazzino"');
-    for (const label of [
-      "Panoramica",
-      "Articoli",
-      "Movimenti",
-      "Documenti",
-      "Inventari",
-      "Fornitori",
-      "Spese e attrezzature",
-      "Analisi",
-    ]) {
+    for (const label of ["Panoramica", "Articoli", "Movimenti"]) {
       expect(workspace).toContain(label);
+    }
+    for (const removed of ["WarehouseDocuments", "WarehouseCounts", "WarehouseSuppliers", "WarehouseCosts", "WarehouseReports"]) {
+      expect(workspace).not.toContain(removed);
     }
     for (const action of ["Carico", "Scarico", "Inventario", "Importa"])
       expect(workspace).toContain(action);
@@ -115,9 +109,7 @@ describe("warehouse workspace", () => {
     for (const component of [
       "WarehouseOverview",
       "WarehouseProducts",
-      "WarehouseDocuments",
       "WarehouseOperationDialog",
-      "WarehouseSuppliers",
     ]) {
       expect(workspace).toContain(component);
     }
@@ -193,7 +185,7 @@ describe("warehouse workspace", () => {
     );
     expect(workspace).toContain("WarehouseDocumentViewer");
     expect(workspace).toContain("viewingDocument");
-    expect(workspace).toContain("setViewingDocument(details)");
+    expect(workspace).toContain("setViewingDocument(await warehouseApi.getDocument");
     expect(documents).not.toContain('disabled={doc.status !== "draft"}');
   });
 
@@ -333,9 +325,9 @@ describe("warehouse workspace", () => {
       join(dashboard, "inventory", "_components", "WarehouseCounts.tsx"),
       "utf8",
     );
-    expect(workspace).toContain('setActiveTab("counts")');
+    expect(workspace).toContain('window.location.assign("/inventory/counts")');
     expect(workspace).toContain('openOperation("adjustment")');
-    expect(workspace).toContain("WarehouseCounts");
+    expect(workspace).not.toContain("WarehouseCounts");
     expect(counts).toContain("Quantità teorica");
     expect(counts).toContain("Quantità contata");
     expect(counts).toContain("Differenza");
@@ -433,15 +425,15 @@ describe("warehouse workspace", () => {
 });
 
 describe("warehouse completed operational areas", () => {
-  it("does not expose placeholder tabs", () => {
+  it("keeps completed operational areas in owned routes instead of root tabs", () => {
     const workspaceSource = readFileSync(
       join(dashboard, "inventory", "warehouse-workspace.tsx"),
       "utf8",
     );
     expect(workspaceSource).not.toContain("Area in preparazione");
     expect(workspaceSource).toContain("WarehouseMovements");
-    expect(workspaceSource).toContain("WarehouseCosts");
-    expect(workspaceSource).toContain("WarehouseReports");
+    expect(workspaceSource).not.toContain("WarehouseCosts");
+    expect(workspaceSource).not.toContain("WarehouseReports");
   });
 
   it("does not show a redundant healthy-stock badge in the page header", () => {

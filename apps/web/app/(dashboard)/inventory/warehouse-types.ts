@@ -1,4 +1,4 @@
-export type WarehouseTab = "overview" | "products" | "movements" | "documents" | "counts" | "suppliers" | "costs" | "reports";
+export type WarehouseTab = "overview" | "products" | "movements";
 export type WarehouseItemType = "resale" | "consumable" | "equipment" | "expense";
 export type WarehouseDocumentKind = "adjustment" | "count" | "credit_note" | "equipment_purchase" | "expense" | "internal_use" | "opening" | "purchase" | "supplier_invoice" | "supplier_return" | "waste";
 export type WarehouseDocumentStatus = "cancelled" | "draft" | "posted" | "reversed";
@@ -15,3 +15,13 @@ export interface WarehouseDocumentDetails extends WarehouseDocument { lines: War
 export interface EditableWarehouseLine { key: string; product_id: string | null; description: string; item_type: WarehouseItemType; quantity: number; unit_cost_cents: number; discount_cents: number; tax_rate_basis_points: number; stock_delta: number; destination: string; }
 export interface WarehouseDocumentInput { kind: WarehouseDocumentKind; internal_number?: string; external_reference?: string | null; document_date?: string; competence_date?: string | null; supplier_id?: string | null; notes?: string | null; lines: Array<{ description: string; item_type: WarehouseItemType; product_id: string | null; quantity: number; unit_cost_cents: number; discount_cents: number; tax_rate_basis_points: number; stock_delta: number; destination: string | null; unit?: string; unit_scale?: number; }>; }
 export interface WarehouseListFilters { q?: string; active?: boolean; low_stock?: boolean; item_type?: WarehouseItemType; supplier_id?: string; status?: WarehouseDocumentStatus; kind?: WarehouseDocumentKind; date_from?: string; date_to?: string; }
+export interface WarehouseReportingFilters { category?: string; date_from?: string; date_to?: string; item_type?: WarehouseItemType; supplier_id?: string; }
+export interface WarehouseAnalyticsSummary extends WarehouseSummary {}
+export interface WarehouseReports {
+  consumption: { rows: Array<{ name: string; product_id: string; quantity: number; value_cents: number }>; total_cents: number };
+  purchases: { rows: Array<{ document_id: string; document_number: string; name: string; product_id: string | null; quantity: number; supplier_id: string | null; total_cents: number }>; total_cents: number };
+  reports: string[];
+  suppliers: { rows: Array<{ supplier_id: string | null; supplier_name: string; total_cents: number }>; total_cents: number };
+  valuation: { rows: Array<{ average_cost_cents: number; category: string | null; item_type: WarehouseItemType; name: string; product_id: string; stock_quantity: number; value_cents: number }>; total_cents: number };
+  waste: { rows: Array<{ name: string; product_id: string; quantity: number; value_cents: number }>; total_cents: number };
+}
