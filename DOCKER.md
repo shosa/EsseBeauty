@@ -65,7 +65,7 @@ Valori minimi da controllare prima di una produzione HTTPS:
 ```text
 POSTGRES_DB=esse_beauty
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=<password lunga e unica>
+POSTGRES_PASSWORD=<password lunga e unica, diversa dal template>
 POSTGRES_MAINTENANCE_DB=postgres
 COOKIE_SECURE=true
 API_CORS_ORIGIN=https://dashboard.example.com,https://app.example.com,https://staff.example.com,https://platform.example.com

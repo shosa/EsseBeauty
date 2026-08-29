@@ -9,8 +9,8 @@ function readRootFile(path: string) {
   return readFileSync(resolve(repositoryRoot, path), "utf8");
 }
 
-describe("environment examples contract", () => {
-  it("documents host-run development variables separately from Docker internals", () => {
+describe("contratto degli esempi ambiente", () => {
+  it("documenta le variabili di sviluppo host separatamente dagli interni Docker", () => {
     const envExample = readRootFile(".env.example");
 
     expect(envExample).toContain("DATABASE_URL=postgresql://postgres:postgres@localhost:5432/esse_beauty");
@@ -20,13 +20,13 @@ describe("environment examples contract", () => {
     expect(envExample).toContain("PROVIDER_CREDENTIAL_ENCRYPTION_KEY=");
   });
 
-  it("keeps production Docker settings explicit and fail-fast", () => {
+  it("mantiene esplicite e fail-fast le impostazioni Docker di produzione", () => {
     const dockerEnvExample = readRootFile(".env.docker.example");
     const compose = readRootFile("compose.yaml");
     const dockerGuide = readRootFile("DOCKER.md");
 
     expect(dockerEnvExample).toContain("POSTGRES_MAINTENANCE_DB=postgres");
-    expect(dockerEnvExample).toContain("POSTGRES_PASSWORD=change-me-in-production");
+    expect(dockerEnvExample).toContain("POSTGRES_PASSWORD=cambia-questa-password-in-produzione");
     expect(dockerEnvExample).toContain("REVIEW_TOKEN_SECRET=");
     expect(dockerEnvExample).toContain("REVIEW_SESSION_SECRET=");
     expect(dockerEnvExample).toContain("COOKIE_SECURE=false");
