@@ -31,7 +31,7 @@ export function AppDrawerOverlay({ apps, onClose, open }: { apps: readonly AppDe
       if (event.key !== "Tab" || !drawerRef.current) return;
       const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('input:not(:disabled), button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'));
       if (!focusable.length) return;
-      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      const first = focusable[0]!; const last = focusable[focusable.length - 1]!;
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
