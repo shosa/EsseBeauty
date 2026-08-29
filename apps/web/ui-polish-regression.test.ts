@@ -354,6 +354,11 @@ describe("professional UI regression guard", () => {
     expect(sales).not.toContain('tab === "stats"');
     expect(accounting).toContain("Registro vendite");
     expect(accounting).toContain("Metodi di pagamento");
+    expect(accounting).toContain("Spese per categoria");
+    expect(accounting).toContain("Registro spese");
+    expect(accounting).toContain("gross_margin_cents");
+    expect(accounting).toContain("accounting/report.pdf");
+    expect(accounting).toContain("exportPdf");
     expect(accounting).toContain("exportRegister");
     expect(accounting).toContain("preset");
     expect(accounting).toContain("openSale");

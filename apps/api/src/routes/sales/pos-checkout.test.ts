@@ -33,4 +33,13 @@ describe("POS checkout contract", () => {
     expect(source).toContain("category_icon");
     expect(source).toContain(".leftJoin(serviceCategories");
   });
+
+  it("exposes accounting overview and PDF reports that include expenses", () => {
+    expect(source).toContain('"/api/salons/:id/accounting/overview"');
+    expect(source).toContain('"/api/salons/:id/accounting/report.pdf"');
+    expect(source).toContain("accountingSnapshot");
+    expect(source).toContain("inventoryExpenses");
+    expect(source).toContain("gross_margin_cents");
+    expect(source).toContain('"application/pdf"');
+  });
 });

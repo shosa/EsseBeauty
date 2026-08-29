@@ -6,12 +6,16 @@ import {
   customerPackageItemBalances,
   customerServicePackages,
   customers,
+  inventoryDocuments,
+  inventoryExpenses,
   inventoryMovements,
   inventoryProducts,
+  inventorySuppliers,
   notifications,
   saleItems,
   salePayments,
   sales,
+  salons,
   serviceCategories,
   services,
   servicePackageItems,
@@ -58,6 +62,188 @@ interface IssuedVoucher {
   recipient_customer_id: string;
 }
 interface AssignedPackage { package_id: string; }
+
+interface AccountingQuery { from?: string; to?: string }
+
+function dateRangeConditions(column: any, query: AccountingQuery) {
+  return [
+    ...(query.from ? [gte(column, new Date(query.from))] : []),
+    ...(query.to ? [lte(column, new Date(query.to))] : []),
+  ];
+}
+
+function cents(value: number | null | undefined) {
+  return value ?? 0;
+}
+
+function euro(value: number) {
+  return (value / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
+}
+
+function formatDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  return new Date(value).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+}
+
+async function accountingSnapshot(app: FastifyInstance, salonId: string, query: AccountingQuery) {
+  const saleConditions = [
+    eq(sales.salonId, salonId),
+    eq(sales.status, "paid"),
+    ...dateRangeConditions(sales.closedAt, query),
+  ];
+  const expenseConditions = [
+    eq(inventoryExpenses.salonId, salonId),
+    ...dateRangeConditions(inventoryExpenses.competenceDate, query),
+  ];
+  const [salonRows, saleRows, paymentRows, expenseRows] = await Promise.all([
+    app.db.select({ name: salons.name }).from(salons).where(eq(salons.id, salonId)).limit(1),
+    app.db.select({
+      cashier: users.fullName,
+      closed_at: sales.closedAt,
+      customer: customers.fullName,
+      discount_cents: sales.discountCents,
+      id: sales.id,
+      staff: staff.displayName,
+      subtotal_cents: sales.subtotalCents,
+      total_cents: sales.totalCents,
+    }).from(sales)
+      .leftJoin(customers, eq(customers.id, sales.customerId))
+      .leftJoin(staff, eq(staff.id, sales.staffId))
+      .leftJoin(users, eq(users.id, sales.closedByUserId))
+      .where(and(...saleConditions)).orderBy(desc(sales.closedAt)),
+    app.db.select({
+      amount_cents: sql<number>`sum(${salePayments.amountCents})::int`,
+      method: salePayments.method,
+    }).from(salePayments)
+      .innerJoin(sales, eq(sales.id, salePayments.saleId))
+      .where(and(...saleConditions))
+      .groupBy(salePayments.method),
+    app.db.select({
+      category: inventoryExpenses.category,
+      competence_date: inventoryExpenses.competenceDate,
+      description: inventoryExpenses.description,
+      document_number: inventoryDocuments.internalNumber,
+      id: inventoryExpenses.id,
+      net_cents: inventoryExpenses.netCents,
+      supplier_name: inventorySuppliers.name,
+      tax_cents: inventoryExpenses.taxCents,
+      total_cents: inventoryExpenses.totalCents,
+    }).from(inventoryExpenses)
+      .leftJoin(inventoryDocuments, eq(inventoryDocuments.id, inventoryExpenses.documentId))
+      .leftJoin(inventorySuppliers, eq(inventorySuppliers.id, inventoryExpenses.supplierId))
+      .where(and(...expenseConditions))
+      .orderBy(desc(inventoryExpenses.competenceDate)),
+  ]);
+  const revenueCents = saleRows.reduce((total, row) => total + cents(row.total_cents), 0);
+  const discountCents = saleRows.reduce((total, row) => total + cents(row.discount_cents), 0);
+  const expenseTotalCents = expenseRows.reduce((total, row) => total + cents(row.total_cents), 0);
+  const expenseNetCents = expenseRows.reduce((total, row) => total + cents(row.net_cents), 0);
+  const expenseTaxCents = expenseRows.reduce((total, row) => total + cents(row.tax_cents), 0);
+  const categoryTotals = new Map<string, { count: number; total_cents: number }>();
+  for (const row of expenseRows) {
+    const current = categoryTotals.get(row.category) ?? { count: 0, total_cents: 0 };
+    categoryTotals.set(row.category, { count: current.count + 1, total_cents: current.total_cents + cents(row.total_cents) });
+  }
+  return {
+    expenses: {
+      categories: [...categoryTotals.entries()].map(([category, value]) => ({ category, ...value })).sort((a, b) => b.total_cents - a.total_cents),
+      rows: expenseRows,
+      summary: {
+        count: expenseRows.length,
+        net_cents: expenseNetCents,
+        tax_cents: expenseTaxCents,
+        total_cents: expenseTotalCents,
+      },
+    },
+    payments: paymentRows,
+    period: { from: query.from ?? null, to: query.to ?? null },
+    sales: {
+      rows: saleRows,
+      summary: {
+        average_cents: saleRows.length ? Math.round(revenueCents / saleRows.length) : 0,
+        count: saleRows.length,
+        discount_cents: discountCents,
+        total_cents: revenueCents,
+      },
+    },
+    salon_name: salonRows[0]?.name ?? "EsseBeauty",
+    summary: {
+      expense_total_cents: expenseTotalCents,
+      gross_margin_cents: revenueCents - expenseTotalCents,
+      revenue_cents: revenueCents,
+    },
+  };
+}
+
+function accountingPdf(snapshot: Awaited<ReturnType<typeof accountingSnapshot>>) {
+  const period = `${snapshot.period.from ? formatDate(snapshot.period.from) : "inizio"} - ${snapshot.period.to ? formatDate(snapshot.period.to) : "fine"}`;
+  const lines = [
+    `Report contabile - ${snapshot.salon_name}`,
+    `Periodo: ${period}`,
+    `Generato: ${formatDate(new Date())}`,
+    "",
+    "Riepilogo",
+    `Incassi: ${euro(snapshot.summary.revenue_cents)}`,
+    `Spese: ${euro(snapshot.summary.expense_total_cents)}`,
+    `Margine lordo: ${euro(snapshot.summary.gross_margin_cents)}`,
+    `Vendite: ${snapshot.sales.summary.count}`,
+    `Spese registrate: ${snapshot.expenses.summary.count}`,
+    "",
+    "Spese per categoria",
+    ...snapshot.expenses.categories.map((row) => `${row.category}: ${euro(row.total_cents)} (${row.count})`),
+    "",
+    "Vendite",
+    ...snapshot.sales.rows.slice(0, 35).map((row) => `${formatDate(row.closed_at)} | ${row.customer ?? "Cliente occasionale"} | ${euro(row.total_cents)}`),
+    "",
+    "Spese",
+    ...snapshot.expenses.rows.slice(0, 35).map((row) => `${formatDate(row.competence_date)} | ${row.category} | ${row.description} | ${euro(row.total_cents)}`),
+  ];
+  return simplePdf(lines);
+}
+
+function simplePdf(lines: string[]) {
+  const pages: string[][] = [];
+  for (let index = 0; index < lines.length; index += 42) pages.push(lines.slice(index, index + 42));
+  const objects: string[] = [];
+  const addObject = (value: string) => {
+    objects.push(value);
+    return objects.length;
+  };
+  const fontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  const pageIds: number[] = [];
+  const contentIds: number[] = [];
+  for (const page of pages) {
+    const stream = page.map((line, index) => `BT /F1 ${index === 0 ? 17 : 10} Tf 48 ${790 - index * 17} Td (${pdfText(line)}) Tj ET`).join("\n");
+    const contentId = addObject(`<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`);
+    contentIds.push(contentId);
+    pageIds.push(0);
+  }
+  const pagesId = objects.length + pages.length + 1;
+  for (let index = 0; index < pages.length; index += 1) {
+    pageIds[index] = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentIds[index]} 0 R >>`);
+  }
+  addObject(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
+  const catalogId = addObject(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf, "latin1"));
+    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+  }
+  const xref = Buffer.byteLength(pdf, "latin1");
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(pdf, "latin1");
+}
+
+function pdfText(value: string) {
+  return value
+    .replace(/[^\x20-\x7e\xa0-\xff]/g, " ")
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
+}
 
 async function ownStaffId(request: any) {
   const rows = await request.server.db
@@ -869,6 +1055,28 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         total_cents: rows.reduce((total, row) => total + row.total_cents, 0),
       },
     };
+  });
+
+  app.get<{
+    Params: { id: string };
+    Querystring: AccountingQuery;
+  }>("/api/salons/:id/accounting/overview", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    return accountingSnapshot(app, request.salonId, request.query);
+  });
+
+  app.get<{
+    Params: { id: string };
+    Querystring: AccountingQuery;
+  }>("/api/salons/:id/accounting/report.pdf", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const snapshot = await accountingSnapshot(app, request.salonId, request.query);
+    return reply
+      .header("content-type", "application/pdf")
+      .header("content-disposition", 'attachment; filename="contabilita.pdf"')
+      .send(accountingPdf(snapshot));
   });
 
   app.get<{

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Download, RefreshCw, Search } from "lucide-react";
+import { Download, FileText, RefreshCw, Search } from "lucide-react";
 import { AppPage, Button, Drawer, EmptyState, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -34,6 +34,14 @@ interface SalesResponse {
   payments: Array<{ amount_cents: number; method: string }>;
   rows: SaleRow[];
   summary: { average_cents: number; count: number; discount_cents: number; total_cents: number; };
+}
+interface AccountingOverview {
+  expenses: {
+    categories: Array<{ category: string; count: number; total_cents: number }>;
+    rows: Array<{ category: string; competence_date: string; description: string; document_number?: string | null; id: string; supplier_name?: string | null; total_cents: number }>;
+    summary: { count: number; net_cents: number; tax_cents: number; total_cents: number };
+  };
+  summary: { expense_total_cents: number; gross_margin_cents: number; revenue_cents: number };
 }
 
 const methodLabels: Record<PaymentMethod, string> = {
@@ -74,15 +82,22 @@ export default function AccountingPage() {
   const [sort, setSort] = useState<"date" | "total">("date");
   const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | "all">("all");
   const [data, setData] = useState<SalesResponse>();
+  const [overview, setOverview] = useState<AccountingOverview>();
   const [error, setError] = useState("");
   const [selectedSale, setSelectedSale] = useState<SaleDetail>();
   const [saleLoading, setSaleLoading] = useState(false);
 
   async function loadSales() {
     if (!salon) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/sales?${new URLSearchParams(requestRange(fromDate, toDate))}`, { credentials: "include" });
-    if (!response.ok) return setError(response.status === 403 ? "Non hai accesso alla contabilita gestionale." : "Movimenti non disponibili.");
-    setData(await response.json() as SalesResponse);
+    setError("");
+    const query = new URLSearchParams(requestRange(fromDate, toDate));
+    const [salesResponse, overviewResponse] = await Promise.all([
+      fetch(`${api}/api/salons/${salon.id}/sales?${query}`, { credentials: "include" }),
+      fetch(`${api}/api/salons/${salon.id}/accounting/overview?${query}`, { credentials: "include" }),
+    ]);
+    if (!salesResponse.ok || !overviewResponse.ok) return setError(salesResponse.status === 403 || overviewResponse.status === 403 ? "Non hai accesso alla contabilita gestionale." : "Movimenti non disponibili.");
+    setData(await salesResponse.json() as SalesResponse);
+    setOverview(await overviewResponse.json() as AccountingOverview);
   }
 
   async function openSale(saleId: string) {
@@ -142,6 +157,11 @@ export default function AccountingPage() {
     window.location.href = `${api}/api/salons/${salon.id}/sales/export?${new URLSearchParams(requestRange(fromDate, toDate))}`;
   }
 
+  function exportPdf() {
+    if (!salon) return;
+    window.location.href = `${api}/api/salons/${salon.id}/accounting/report.pdf?${new URLSearchParams(requestRange(fromDate, toDate))}`;
+  }
+
   function selectPreset(value: Preset) {
     const next = presetRange(value);
     setPreset(value);
@@ -163,12 +183,13 @@ export default function AccountingPage() {
           <label className="ml-auto text-[10px] font-bold uppercase text-stone-500">Dal<input className="ml-2 rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-950" max={toDate} onChange={(event) => { if (event.target.value) { setPreset("custom"); setFromDate(event.target.value); } }} type="date" value={fromDate} /></label>
           <label className="text-[10px] font-bold uppercase text-stone-500">Al<input className="ml-2 rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-950" min={fromDate} onChange={(event) => { if (event.target.value) { setPreset("custom"); setToDate(event.target.value); } }} type="date" value={toDate} /></label>
           <button aria-label="Aggiorna contabilità" className="grid h-8 w-8 place-items-center border border-stone-200" onClick={() => void loadSales()} title="Aggiorna"><RefreshCw size={15} /></button>
+          <Button onClick={exportPdf} size="sm" variant="outline"><FileText className="mr-2" size={16} />PDF</Button>
           <Button onClick={exportRegister} size="sm" variant="outline"><Download className="mr-2" size={16} />Excel</Button>
         </div>
       </div>
 
       <section className="mb-3 grid border border-stone-200 bg-white sm:grid-cols-3 xl:grid-cols-6">
-        {[["Incassato", euro(data?.summary.total_cents ?? 0), `${activeDays} giorni attivi`], ["Vendite", data?.summary.count ?? 0, `${Math.round((data?.summary.count ?? 0) / activeDays)} al giorno`], ["Scontrino medio", euro(data?.summary.average_cents ?? 0), "per movimento"], ["Sconti", euro(data?.summary.discount_cents ?? 0), `${discountRate}% sul lordo`], ["Media giornaliera", euro((data?.summary.total_cents ?? 0) / activeDays), "giorni con incassi"], ["Occasionali", casualSales, "senza cliente"]].map(([label, value, detail]) => <div className="min-h-24 border-b border-r border-stone-200 p-3 last:border-r-0 sm:border-b-0" key={String(label)}><span className="text-[10px] font-black uppercase text-stone-500">{label}</span><strong className="mt-1 block text-2xl font-medium text-stone-950">{value}</strong><span className="text-[10px] text-stone-500">{detail}</span></div>)}
+        {[["Incassato", euro(data?.summary.total_cents ?? 0), `${activeDays} giorni attivi`], ["Spese", euro(overview?.summary.expense_total_cents ?? 0), `${overview?.expenses.summary.count ?? 0} movimenti`], ["Margine", euro(overview?.summary.gross_margin_cents ?? 0), "incassi meno spese"], ["Vendite", data?.summary.count ?? 0, `${Math.round((data?.summary.count ?? 0) / activeDays)} al giorno`], ["Scontrino medio", euro(data?.summary.average_cents ?? 0), "per movimento"], ["Sconti", euro(data?.summary.discount_cents ?? 0), `${discountRate}% sul lordo`]].map(([label, value, detail]) => <div className="min-h-24 border-b border-r border-stone-200 p-3 last:border-r-0 sm:border-b-0" key={String(label)}><span className="text-[10px] font-black uppercase text-stone-500">{label}</span><strong className="mt-1 block text-2xl font-medium text-stone-950">{value}</strong><span className="text-[10px] text-stone-500">{detail}</span></div>)}
       </section>
 
       <div className="grid gap-3 xl:grid-cols-[1.45fr_.75fr]">
@@ -183,6 +204,18 @@ export default function AccountingPage() {
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
         <SectionCard title="Migliori operatori" subtitle={`Giornata migliore: ${bestDay?.[0] ?? "—"}${bestDay ? ` · ${euro(bestDay[1])}` : ""}`}><table className="w-full text-left text-xs"><thead className="bg-stone-100 text-[9px] uppercase"><tr><th className="p-2">#</th><th>Operatore</th><th>Vendite</th><th className="text-right">Incassato</th></tr></thead><tbody>{operatorTotals.map((item, index) => <tr className="border-t border-stone-100" key={item.name}><td className="p-2 text-stone-400">{index + 1}</td><td className="font-bold">{item.name}</td><td>{item.count}</td><td className="text-right font-bold">{euro(item.total)}</td></tr>)}</tbody></table></SectionCard>
         <SectionCard title="Clienti per valore" subtitle="Classifica per incasso nel periodo selezionato."><table className="w-full text-left text-xs"><thead className="bg-stone-100 text-[9px] uppercase"><tr><th className="p-2">#</th><th>Cliente</th><th>Acquisti</th><th className="text-right">Valore</th></tr></thead><tbody>{customerTotals.map((item, index) => <tr className="border-t border-stone-100" key={item.name}><td className="p-2 text-stone-400">{index + 1}</td><td className="font-bold">{item.name}</td><td>{item.count}</td><td className="text-right font-bold">{euro(item.total)}</td></tr>)}</tbody></table></SectionCard>
+      </div>
+
+      <div className="mt-3 grid gap-3 xl:grid-cols-[.8fr_1.2fr]">
+        <SectionCard title="Spese per categoria" subtitle="Uscite operative registrate dal magazzino nel periodo.">
+          {!overview?.expenses.categories.length ? <EmptyState title="Nessuna spesa" description="Non ci sono uscite operative nel periodo selezionato." /> : <div className="space-y-3">{overview.expenses.categories.map((item) => {
+            const width = overview.expenses.summary.total_cents ? Math.max(6, item.total_cents / overview.expenses.summary.total_cents * 100) : 0;
+            return <div key={item.category}><div className="flex justify-between gap-3 text-xs"><strong>{item.category}</strong><span>{euro(item.total_cents)} · {item.count}</span></div><div className="mt-1 h-2 bg-stone-100"><div className="h-full bg-[#d76969]" style={{ width: `${width}%` }} /></div></div>;
+          })}</div>}
+        </SectionCard>
+        <SectionCard title="Registro spese" subtitle={`${overview?.expenses.rows.length ?? 0} uscite nel periodo selezionato.`}>
+          {!overview?.expenses.rows.length ? <EmptyState title="Nessuna uscita" description="Le spese registrate compariranno qui insieme al documento sorgente." /> : <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-[#f7eef3]"><tr><th className="p-3">Data</th><th>Descrizione</th><th>Categoria</th><th>Fornitore</th><th>Documento</th><th className="text-right">Totale</th></tr></thead><tbody>{overview.expenses.rows.slice(0, 12).map((expense) => <tr className="border-t border-stone-100" key={expense.id}><td className="p-3">{new Date(expense.competence_date).toLocaleDateString("it-IT")}</td><td className="font-bold">{expense.description}</td><td>{expense.category}</td><td>{expense.supplier_name ?? "—"}</td><td>{expense.document_number ?? "—"}</td><td className="text-right font-black">{euro(expense.total_cents)}</td></tr>)}</tbody></table></div>}
+        </SectionCard>
       </div>
 
       <SectionCard className="mt-3" title="Registro vendite" subtitle={`${filteredRows.length} movimenti visibili nel periodo selezionato.`}>
