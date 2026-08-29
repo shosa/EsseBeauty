@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { AppPage, Button, EmptyState, InlineError, PageHeader } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, EmptyState, InlineError, PageHeader } from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -77,8 +77,8 @@ export default function ReportsPage() {
 
     <div className="mb-3 flex flex-wrap items-end gap-2 border border-stone-200 bg-white p-2">
       <div className="flex flex-wrap gap-1">{[["today", "Oggi"], ["week", "Settimana"], ["month", "Mese"], ["last", "Mese scorso"]].map(([value, label]) => <Button key={value} onClick={() => selectPreset(value!)} size="sm" variant={preset === value ? "primary" : "ghost"}>{label}</Button>)}</div>
-      <label className="ml-auto text-[10px] font-bold uppercase text-stone-500">Dal<input className="ml-2 rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-900" max={toDate} onChange={(event) => { if (event.target.value) { setPreset("custom"); setFromDate(event.target.value); } }} type="date" value={fromDate} /></label>
-      <label className="text-[10px] font-bold uppercase text-stone-500">Al<input className="ml-2 rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-900" min={fromDate} onChange={(event) => { if (event.target.value) { setPreset("custom"); setToDate(event.target.value); } }} type="date" value={toDate} /></label>
+      <div className="ml-auto w-44"><span className="mb-1 block text-[10px] font-bold uppercase text-stone-500">Dal</span><DateField aria-label="Data iniziale" max={toDate} onChange={(value) => { if (value) { setPreset("custom"); setFromDate(value); } }} value={fromDate} /></div>
+      <div className="w-44"><span className="mb-1 block text-[10px] font-bold uppercase text-stone-500">Al</span><DateField aria-label="Data finale" min={fromDate} onChange={(value) => { if (value) { setPreset("custom"); setToDate(value); } }} value={toDate} /></div>
       <button aria-label="Aggiorna report" className="grid h-8 w-8 place-items-center border border-stone-200 text-stone-600 hover:bg-stone-50" onClick={() => void load()} title="Aggiorna"><RefreshCw size={15} /></button>
       {hasPermission(PERMISSION_KEYS.REPORTS_EXPORT) && <Button onClick={exportExcel} size="sm" variant="outline"><Download className="mr-2" size={16} />Excel</Button>}
     </div>

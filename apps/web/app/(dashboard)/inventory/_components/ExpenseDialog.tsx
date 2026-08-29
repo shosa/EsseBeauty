@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Dialog, FormField } from "@esse-beauty/ui";
+import { Button, DateField, Dialog, FormField } from "@esse-beauty/ui";
 import { buildExpensePayload } from "../expense-form";
 import type { WarehousePaymentMethod, WarehouseSupplier } from "../warehouse-types";
 
@@ -33,7 +33,7 @@ export function ExpenseDialog({
       <form className="grid gap-4" id="expense-dialog-form" onSubmit={(event) => { event.preventDefault(); void onSave(buildExpensePayload(draft)); }}>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Importo" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, amount: event.target.value }))} value={draft.amount} /></FormField>
-          <FormField label="Data" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} type="date" value={draft.date} /></FormField>
+          <FormField label="Data" required><DateField aria-label="Data spesa" onChange={(value) => setDraft((current) => ({ ...current, date: value }))} required value={draft.date} /></FormField>
         </div>
         <FormField label="Motivo" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} value={draft.description} /></FormField>
         <div className="grid gap-4 sm:grid-cols-2">

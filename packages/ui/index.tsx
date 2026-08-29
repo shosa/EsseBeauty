@@ -5,9 +5,9 @@ import type {
   MouseEvent,
   ReactNode,
 } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Trash2, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Trash2, X } from "lucide-react";
 
 export const designTokens = {
   layout: {
@@ -127,9 +127,9 @@ const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   destructive: "border border-red-700 bg-red-700 text-white hover:bg-red-800",
   ghost: "bg-transparent text-stone-700 shadow-none hover:bg-white/75 hover:text-[#792f59]",
   icon: "bg-white/70 text-stone-600 shadow-none ring-1 ring-stone-950/5 hover:bg-[#faf3f7] hover:text-[#792f59]",
-  outline: "border border-[#d7a6c1]/70 bg-white/80 text-[#402334] shadow-[inset_0_1px_0_rgb(255_255_255_/_0.72)] hover:border-[#792f59] hover:bg-[#fffafd] hover:text-[#792f59]",
-  primary: "border border-[#792f59] bg-[#792f59] text-white shadow-sm hover:border-[#66264b] hover:bg-[#66264b] hover:shadow-md",
-  secondary: "border border-[#ead1df] bg-[linear-gradient(135deg,#fffafd_0%,#f3e2eb_100%)] text-[#792f59] hover:border-[#d99aba] hover:bg-[#f3e2eb]",
+  outline: "border border-[#d7a6c1]/70 bg-white text-[#402334] shadow-none hover:border-[#792f59] hover:bg-[#fffafd] hover:text-[#792f59]",
+  primary: "border border-[#792f59] bg-[#792f59] text-white shadow-none hover:border-[#66264b] hover:bg-[#66264b]",
+  secondary: "border border-[#ead1df] bg-[#faf3f7] text-[#792f59] shadow-none hover:border-[#d99aba] hover:bg-[#f3e2eb]",
   tableAction: "border border-stone-200 bg-white/90 text-xs font-bold text-stone-700 shadow-none hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]",
 };
 
@@ -150,10 +150,173 @@ export function Button({
   return (
     <button
       aria-pressed={active || undefined}
-      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold tracking-[-.01em] shadow-[0_12px_28px_rgb(45_29_39_/_0.10)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgb(45_29_39_/_0.16)] active:translate-y-0 active:scale-[.985] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:translate-y-0 ${active ? "ring-2 ring-[#792f59]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold tracking-[-.01em] shadow-none transition-colors duration-150 active:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-60 ${active ? "ring-2 ring-[#792f59]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
       type={type}
       {...props}
     />
+  );
+}
+
+function isoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseIsoDate(value?: string) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+export function DateField({
+  "aria-label": ariaLabel = "Data",
+  className = "",
+  disabled = false,
+  max,
+  min,
+  name,
+  onChange,
+  required = false,
+  value,
+}: {
+  "aria-label"?: string;
+  className?: string;
+  disabled?: boolean;
+  max?: string;
+  min?: string;
+  name?: string;
+  onChange(value: string): void;
+  required?: boolean;
+  value: string;
+}) {
+  const selected = parseIsoDate(value);
+  const [open, setOpen] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(() => selected ? new Date(selected.getFullYear(), selected.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const rootRef = useRef<HTMLDivElement>(null);
+  const monthLabel = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(visibleMonth);
+  const formattedValue = selected ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" }).format(selected) : "Seleziona data";
+  const days = useMemo(() => {
+    const firstWeekday = (visibleMonth.getDay() + 6) % 7;
+    const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1 - firstWeekday);
+    return Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + index));
+  }, [visibleMonth]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", escape); };
+  }, [open]);
+
+  return <div className={`relative ${className}`} ref={rootRef}>
+    {name && <input name={name} type="hidden" value={value} />}
+    <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => setOpen((current) => !current)} type="button">
+      <span>{formattedValue}</span><CalendarDays aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
+    </button>
+    {required && !value && <input aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-0" required tabIndex={-1} value="" onChange={() => undefined} />}
+    {open && <div aria-label={`Calendario ${monthLabel}`} className="absolute left-0 top-[calc(100%+8px)] z-[80] w-[304px] rounded-xl border border-stone-200 bg-white p-3 shadow-[0_18px_48px_rgb(45_29_39_/_0.16)]" role="dialog">
+      <div className="mb-3 flex items-center justify-between"><button aria-label="Mese precedente" className="grid size-9 place-items-center rounded-lg hover:bg-stone-100" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button><strong className="capitalize text-sm">{monthLabel}</strong><button aria-label="Mese successivo" className="grid size-9 place-items-center rounded-lg hover:bg-stone-100" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button></div>
+      <div aria-hidden="true" className="grid grid-cols-7 text-center text-[11px] font-bold text-stone-500">{["L", "M", "M", "G", "V", "S", "D"].map((day, index) => <span className="py-1" key={`${day}-${index}`}>{day}</span>)}</div>
+      <div className="grid grid-cols-7 gap-0.5">{days.map((day) => { const iso = isoDate(day); const outside = day.getMonth() !== visibleMonth.getMonth(); const unavailable = Boolean((min && iso < min) || (max && iso > max)); const active = iso === value; return <button aria-pressed={active || undefined} className={`grid size-10 place-items-center rounded-lg text-sm ${active ? "bg-[#792f59] font-bold text-white" : outside ? "text-stone-400 hover:bg-stone-100" : "text-stone-800 hover:bg-[#faf3f7]"}`} disabled={unavailable} key={iso} onClick={() => { onChange(iso); setOpen(false); }} type="button">{day.getDate()}</button>; })}</div>
+      {value && <button className="mt-2 min-h-9 w-full rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-100" onClick={() => { onChange(""); setOpen(false); }} type="button">Cancella data</button>}
+    </div>}
+  </div>;
+}
+
+export function DateTimeField({
+  "aria-label": ariaLabel = "Data e ora",
+  className = "",
+  disabled = false,
+  min,
+  name,
+  onChange,
+  required = false,
+  step = 900,
+  value,
+}: {
+  "aria-label"?: string;
+  className?: string;
+  disabled?: boolean;
+  min?: string;
+  name?: string;
+  onChange(value: string): void;
+  required?: boolean;
+  step?: number;
+  value: string;
+}) {
+  const dateValue = value.slice(0, 10);
+  const timeValue = value.slice(11, 16);
+  const [selectedHour = "09", selectedMinute = "00"] = timeValue.split(":");
+  const [timeOpen, setTimeOpen] = useState(false);
+  const timeRootRef = useRef<HTMLDivElement>(null);
+  const minuteStep = Math.max(1, Math.min(30, Math.round(step / 60)));
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0")), []);
+  const minutes = useMemo(
+    () => Array.from({ length: Math.ceil(60 / minuteStep) }, (_, index) => String(index * minuteStep).padStart(2, "0")),
+    [minuteStep],
+  );
+
+  useEffect(() => {
+    if (!timeOpen) return;
+    const close = (event: PointerEvent) => { if (!timeRootRef.current?.contains(event.target as Node)) setTimeOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setTimeOpen(false); };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", escape); };
+  }, [timeOpen]);
+
+  const updateDate = (date: string) => onChange(date ? `${date}T${timeValue || "09:00"}` : "");
+  const updateTime = (hour: string, minute: string) => onChange(`${dateValue || isoDate(new Date())}T${hour}:${minute}`);
+
+  return (
+    <div className={`grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(150px,.55fr)] ${className}`}>
+      {name && <input name={name} type="hidden" value={value} />}
+      <DateField
+        aria-label={`${ariaLabel}, data`}
+        disabled={disabled}
+        min={min?.slice(0, 10)}
+        onChange={updateDate}
+        required={required}
+        value={dateValue}
+      />
+      <div className="relative" ref={timeRootRef}>
+        <button
+          aria-expanded={timeOpen}
+          aria-haspopup="dialog"
+          aria-label={`${ariaLabel}, ora: ${timeValue || "non selezionata"}`}
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+          disabled={disabled}
+          onClick={() => setTimeOpen((current) => !current)}
+          type="button"
+        >
+          <span>{timeValue || "Seleziona ora"}</span>
+          <Clock3 aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
+        </button>
+        {timeOpen && (
+          <div aria-label="Seleziona ora e minuti" className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[292px] rounded-xl border border-stone-200 bg-white p-3 shadow-[0_18px_48px_rgb(45_29_39_/_0.16)]" role="dialog">
+            <div className="grid grid-cols-[1fr_84px] gap-3">
+              <div>
+                <p className="mb-2 text-xs font-bold text-stone-600">Ora</p>
+                <div className="grid max-h-52 grid-cols-4 gap-1 overflow-y-auto pr-1">
+                  {hours.map((hour) => <button aria-pressed={hour === selectedHour} className={`min-h-10 rounded-lg text-sm font-semibold ${hour === selectedHour ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>)}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold text-stone-600">Minuti</p>
+                <div className="grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pr-1">
+                  {minutes.map((minute) => <button aria-pressed={minute === selectedMinute} className={`min-h-10 rounded-lg text-sm font-semibold ${minute === selectedMinute ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -207,7 +370,7 @@ export function ExpandableAction({
   return (
     <button
       aria-label={label}
-      className={`group relative inline-grid size-10 shrink-0 place-items-center overflow-visible rounded-xl border bg-white font-bold shadow-sm transition duration-200 hover:-translate-y-0.5 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-950/10 ${expandableActionTones[tone]} ${className}`}
+      className={`group relative inline-grid size-10 shrink-0 place-items-center overflow-visible rounded-xl border bg-white font-bold shadow-none transition-colors duration-150 hover:text-white focus-visible:text-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-stone-950/10 ${expandableActionTones[tone]} ${className}`}
       type={type}
       {...props}
     >
@@ -399,12 +562,13 @@ export function SectionCard({
   subtitle?: ReactNode;
   title?: ReactNode;
 }) {
+  const titleId = useId();
   return (
-    <section id={id} className={`esse-panel relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm md:p-5 ${className}`}>
+    <section aria-labelledby={title ? titleId : undefined} id={id} className={`esse-panel relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm md:p-5 ${className}`}>
       {(title || actions || subtitle) && (
         <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            {title && <h2 className="text-xl font-bold text-stone-950">{title}</h2>}
+            {title && <h2 className="text-xl font-bold text-stone-950" id={titleId}>{title}</h2>}
             {subtitle && <p className="mt-1 text-sm leading-6 text-stone-500">{subtitle}</p>}
           </div>
           {actions}
@@ -575,7 +739,7 @@ export function Switch({
     <button
       aria-checked={checked}
       className={`relative inline-flex h-7 w-12 items-center rounded-full border transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${
-        checked ? "border-[#792f59] bg-[linear-gradient(135deg,#402334,#b85888)] shadow-[0_10px_24px_rgb(121_47_89_/_0.22)]" : "border-stone-200 bg-stone-200 shadow-inner"
+        checked ? "border-[#792f59] bg-[#792f59]" : "border-stone-300 bg-stone-200"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""} ${className}`}
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
@@ -584,7 +748,7 @@ export function Switch({
       {...props}
     >
       <span
-        className={`inline-block h-5 w-5 rounded-full bg-white shadow-[0_2px_8px_rgb(45_29_39_/_0.28)] transition duration-200 ${
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition duration-150 ${
           checked ? "translate-x-6" : "translate-x-1"
         }`}
       />
@@ -594,14 +758,14 @@ export function Switch({
 
 export function PageSkeleton({ className = "" }: { className?: string }) {
   return (
-    <div className={`space-y-5 ${className}`} aria-busy="true">
-      <div className="h-10 w-72 animate-pulse rounded-xl bg-stone-100" />
+    <div aria-busy="true" aria-label="Caricamento contenuti" className={`space-y-5 ${className}`} role="status">
+      <div aria-hidden="true" className="h-10 w-72 animate-pulse rounded-xl bg-stone-100" />
       <div className="grid gap-4 md:grid-cols-3">
         {[1, 2, 3].map((item) => (
-          <div key={item} className="h-32 animate-pulse rounded-2xl bg-white" />
+          <div aria-hidden="true" key={item} className="h-32 animate-pulse rounded-xl bg-white" />
         ))}
       </div>
-      <div className="h-80 animate-pulse rounded-2xl bg-white" />
+      <div aria-hidden="true" className="h-80 animate-pulse rounded-xl bg-white" />
     </div>
   );
 }
@@ -632,7 +796,7 @@ export function EmptyState({
   title: string;
 }) {
   return (
-    <section className="rounded-[2rem] border border-dashed border-[#d7a6c1] bg-[#fffafd]/85 p-10 text-center shadow-[inset_0_1px_0_rgb(255_255_255_/_0.85)]">
+    <section className="rounded-xl border border-dashed border-[#d7a6c1] bg-[#fffafd]/85 p-10 text-center shadow-none">
       <h2 className="text-xl font-bold text-stone-950">{title}</h2>
       {description && <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
@@ -648,7 +812,7 @@ export function InlineError({
   className?: string;
 }) {
   return (
-    <p className={`rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-sm ${className}`} role="alert">
+    <p className={`rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700 shadow-none ${className}`} role="alert">
       {children}
     </p>
   );
@@ -705,7 +869,7 @@ export function SaveToast({
       return;
     }
     setDismissed(false);
-    const timeout = window.setTimeout(() => setDismissed(true), 2000);
+    const timeout = window.setTimeout(() => setDismissed(true), 6000);
     return () => window.clearTimeout(timeout);
   }, [visible, children]);
 
@@ -715,7 +879,7 @@ export function SaveToast({
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           aria-live="polite"
-          className={`fixed bottom-5 right-5 z-50 flex max-w-[min(420px,calc(100vw-2rem))] items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
+          className={`fixed bottom-5 right-5 z-50 flex max-w-[min(420px,calc(100vw-2rem))] items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           initial={{ opacity: 0, y: 10, scale: 0.98 }}
           role="status"
@@ -738,23 +902,44 @@ export function SaveToast({
 
 export function Dialog({
   children,
+  contained = false,
   footer,
   onClose,
   open,
   title,
 }: {
   children: ReactNode;
+  contained?: boolean;
   footer?: ReactNode;
   onClose(): void;
   open: boolean;
   title: string;
 }) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const frame = window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>('input, select, textarea, button, a[href], [tabindex]:not([tabindex="-1"])')?.focus());
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { onClose(); return; }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener("keydown", keydown); previousFocus?.focus(); };
+  }, [onClose, open]);
   return (
     <AnimatePresence>
       {open && (
         <motion.div
           animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 grid place-items-center bg-[#2d1d27]/45 p-4 backdrop-blur-sm"
+          className={`${contained ? "absolute" : "fixed"} inset-0 z-50 grid place-items-center bg-[#2d1d27]/45 p-4 backdrop-blur-sm`}
           exit={{ opacity: 0 }}
           initial={{ opacity: 0 }}
           onMouseDown={onClose}
@@ -762,16 +947,18 @@ export function Dialog({
         >
           <motion.section
             animate={{ opacity: 1, scale: 1, y: 0 }}
+            aria-labelledby={titleId}
             aria-modal="true"
-            className="w-full max-w-lg rounded-[2rem] border border-white/80 bg-white/95 p-6 shadow-[0_30px_90px_rgb(45_29_39_/_0.28)] ring-1 ring-[#792f59]/10 backdrop-blur"
+            className="w-full max-w-lg rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]"
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             initial={{ opacity: 0, scale: 0.98, y: 8 }}
             onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
+            ref={dialogRef}
             role="dialog"
             transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.emphasized }}
           >
             <div className="flex items-start justify-between gap-4">
-              <h2 className="text-xl font-bold text-stone-950">{title}</h2>
+              <h2 className="text-xl font-bold text-stone-950" id={titleId}>{title}</h2>
               <button aria-label="Chiudi" className="grid size-9 shrink-0 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-950" onClick={onClose} type="button">
                 <X aria-hidden="true" height="20" width="20" />
               </button>
@@ -800,6 +987,25 @@ export function Drawer({
   size?: "md" | "xl";
   title: string;
 }) {
+  const titleId = useId();
+  const drawerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const frame = window.requestAnimationFrame(() => drawerRef.current?.querySelector<HTMLElement>('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')?.focus());
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { onClose(); return; }
+      if (event.key !== "Tab" || !drawerRef.current) return;
+      const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0]; const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => { window.cancelAnimationFrame(frame); window.removeEventListener("keydown", keydown); previousFocus?.focus(); };
+  }, [onClose, open]);
   const widths = { md: "max-w-md", xl: "max-w-3xl" };
   return (
     <AnimatePresence>
@@ -813,16 +1019,18 @@ export function Drawer({
         >
           <motion.aside
             animate={{ x: 0 }}
+            aria-labelledby={titleId}
             aria-modal="true"
-            className={`absolute inset-y-0 right-0 flex h-full w-full ${widths[size]} flex-col overflow-hidden border-l border-white/70 bg-white/95 shadow-[0_30px_90px_rgb(45_29_39_/_0.28)] backdrop-blur`}
+            className={`absolute inset-y-0 right-0 flex h-full w-full ${widths[size]} flex-col overflow-hidden border-l border-stone-200 bg-white shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]`}
             exit={{ x: "100%" }}
             initial={{ x: "100%" }}
             onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
+            ref={drawerRef}
             role="dialog"
             transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.emphasized }}
           >
             <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-6">
-              <h2 className="text-xl font-bold text-stone-950">{title}</h2>
+              <h2 className="text-xl font-bold text-stone-950" id={titleId}>{title}</h2>
               <button aria-label="Chiudi" className="grid size-9 shrink-0 place-items-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-950" onClick={onClose} type="button">
                 <X aria-hidden="true" className="size-5" />
               </button>

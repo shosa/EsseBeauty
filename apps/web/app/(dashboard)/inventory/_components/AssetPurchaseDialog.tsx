@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Dialog, FormField } from "@esse-beauty/ui";
+import { Button, DateField, Dialog, FormField } from "@esse-beauty/ui";
 import { buildAssetPayload } from "../expense-form";
 import type { WarehousePaymentMethod, WarehouseSupplier } from "../warehouse-types";
 
@@ -28,7 +28,7 @@ export function AssetPurchaseDialog({
         <FormField label="Attrezzatura" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} value={draft.description} /></FormField>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Costo" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, cost: event.target.value }))} value={draft.cost} /></FormField>
-          <FormField label="Data acquisto" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} type="date" value={draft.date} /></FormField>
+          <FormField label="Data acquisto" required><DateField aria-label="Data acquisto" onChange={(value) => setDraft((current) => ({ ...current, date: value }))} required value={draft.date} /></FormField>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Pagamento"><select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, paymentMethod: event.target.value as WarehousePaymentMethod }))} value={draft.paymentMethod}><option value="cash">Contanti</option><option value="card">Carta</option><option value="bank_transfer">Bonifico</option><option value="other">Altro</option></select></FormField>
@@ -36,7 +36,7 @@ export function AssetPurchaseDialog({
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <FormField label="Matricola"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, serialNumber: event.target.value }))} value={draft.serialNumber} /></FormField>
-          <FormField label="Garanzia"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, warrantyExpiresAt: event.target.value }))} type="date" value={draft.warrantyExpiresAt} /></FormField>
+          <FormField label="Garanzia"><DateField aria-label="Scadenza garanzia" min={draft.date} onChange={(value) => setDraft((current) => ({ ...current, warrantyExpiresAt: value }))} value={draft.warrantyExpiresAt} /></FormField>
           <FormField label="Posizione"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, location: event.target.value }))} value={draft.location} /></FormField>
         </div>
         <FormField label="Riferimento documento"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, externalReference: event.target.value }))} value={draft.externalReference} /></FormField>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, CheckCheck, Clock3, EyeOff, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, CheckCheck, ChevronDown, Clock3, EyeOff, Mail, Pencil, Phone, ReceiptText, ShoppingBag, Trash2, UserRound, X } from "lucide-react";
 import {
   Button,
   ConfirmDialog,
+  DateTimeField,
   Dialog,
   EmptyState,
   InlineError,
@@ -65,14 +66,6 @@ interface Appointment {
   status: string;
 }
 
-interface CatalogItem {
-  category?: string;
-  id: string;
-  name: string;
-  price_cents: number;
-  stock_quantity?: number;
-}
-
 interface CheckoutLine {
   customer_package_id?: string;
   description: string;
@@ -115,7 +108,6 @@ interface CustomerPackage { id: string; items: Array<{ itemType: ItemType; packa
 
 interface CheckoutResponse {
   appointment: Appointment;
-  catalog: { products: CatalogItem[]; services: CatalogItem[] };
   sale: null | {
     discountCents: number;
     id: string;
@@ -288,23 +280,6 @@ export default function AppointmentDetailPanel({
     }
   }, [totalCents, checkoutEnabled]);
 
-  function updateLine(index: number, patch: Partial<CheckoutLine>) {
-    setLines((current) => current.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line));
-  }
-
-  function addCatalogItem(item: CatalogItem, itemType: ItemType) {
-    setLines((current) => [...current, {
-      description: item.name,
-      discount_cents: 0,
-      item_type: itemType,
-      product_id: itemType === "product" ? item.id : undefined,
-      quantity: 1,
-      service_id: itemType === "service" ? item.id : undefined,
-      staff_id: data?.appointment.staff_id,
-      unit_price_cents: item.price_cents,
-    }]);
-  }
-
   async function updateStatus(status: AppointmentStatus) {
     if (!salon) return;
     setStatusUpdating(true);
@@ -370,6 +345,17 @@ export default function AppointmentDetailPanel({
     setEditingAppointment(false);
     setSavingAppointment(false);
   }
+
+  const closeAppointmentEditor = useCallback(() => {
+    const current = data?.appointment;
+    if (current) {
+      setAppointmentDate(dateInputValue(current.starts_at));
+      setAppointmentTime(timeInputValue(current.starts_at));
+      setAppointmentDuration(String(minutesBetween(current.starts_at, current.ends_at)));
+      setAppointmentNotes(current.notes ?? "");
+    }
+    setEditingAppointment(false);
+  }, [data?.appointment]);
 
   async function completeCheckout() {
     if (!salon || !checkoutEnabled) return;
@@ -464,11 +450,11 @@ export default function AppointmentDetailPanel({
     onClose();
   }
 
-  if (loading) return <div className="p-8"><PageSkeleton /></div>;
+  if (loading) return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white"><div className="flex shrink-0 items-center justify-between border-b border-stone-200 px-5 py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p><p className="mt-1 text-sm font-bold text-stone-600">Caricamento dettagli…</p></div><button aria-label="Chiudi gestione appuntamento" className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-100" data-appointment-close onClick={onClose} type="button"><X aria-hidden="true" className="size-5" /></button></div><div className="min-h-0 flex-1 overflow-hidden p-6"><PageSkeleton /></div></div>;
   const appointment = data?.appointment;
 
   return (
-    <div className="min-h-full bg-[#f7f6f3]">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#f6f4f2]">
       <Dialog
         footer={
           <>
@@ -485,7 +471,7 @@ export default function AppointmentDetailPanel({
         <p className="text-sm leading-6 text-stone-600">
           Confermando, gli appuntamenti verranno mostrati affiancati in agenda.
         </p>
-        <div className="mt-5 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4">
+        <div className="mt-5 rounded-xl border border-[#ead1df] bg-[#fffafd] p-4">
           <p className="text-xs font-black uppercase tracking-[.16em] text-[#8f3a68]">Anteprima agenda</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-white p-3 shadow-sm">
@@ -503,244 +489,89 @@ export default function AppointmentDetailPanel({
           </div>
         </div>
       </Dialog>
-      <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-white/96 px-5 py-3 shadow-sm backdrop-blur lg:px-8">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Agenda · Scheda appuntamento</p>
-          <p className="mt-1 text-sm font-bold text-stone-700">{appointment?.customer_name ?? "Appuntamento"}</p>
+      <Dialog
+        contained
+        footer={<><Button onClick={closeAppointmentEditor} variant="outline">Annulla</Button><Button disabled={savingAppointment} onClick={() => void saveAppointment()} variant="primary">{savingAppointment ? "Salvataggio…" : "Salva modifiche"}</Button></>}
+        onClose={closeAppointmentEditor}
+        open={editingAppointment && !isClosed}
+        title="Modifica appuntamento"
+      >
+        <p className="text-sm leading-6 text-stone-600">Aggiorna data, orario, durata e note senza modificare il servizio a catalogo.</p>
+        <div className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_130px]">
+          <div className="min-w-0"><p className="text-xs font-bold text-stone-600">Data e ora</p><DateTimeField aria-label="Data e ora dell’appuntamento" className="mt-2" onChange={(value) => { setAppointmentDate(value.slice(0, 10)); setAppointmentTime(value.slice(11, 16)); }} required step={300} value={`${appointmentDate}T${appointmentTime}`} /></div>
+          <label className="text-xs font-bold text-stone-600">Durata<input className="mt-2 w-full" max={720} min={5} onChange={(event) => setAppointmentDuration(event.target.value)} step={5} type="number" value={appointmentDuration} />{editedEndTime && <span className="mt-1.5 block text-[11px] font-semibold text-stone-500">Termina alle {editedEndTime}</span>}</label>
+          <label className="text-xs font-bold text-stone-600 sm:col-span-2">Note<textarea className="mt-2 min-h-24 w-full resize-y" onChange={(event) => setAppointmentNotes(event.target.value)} value={appointmentNotes} /></label>
         </div>
-        {appointment && (
-          <div className="ml-auto flex items-center gap-2">
-          <div aria-label="Cambia stato appuntamento" className="flex flex-wrap items-center justify-end gap-1.5">
-            {statusActions.map((status) => {
+      </Dialog>
+      <header className="z-30 shrink-0 border-b border-stone-200 bg-white px-4 py-4 sm:px-6 lg:px-7">
+        <div className="flex min-w-0 items-start gap-3 sm:items-center">
+          <Link aria-label={appointment ? `Apri anagrafica di ${appointment.customer_name}` : "Appuntamento"} className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-sm font-black text-[#792f59]" href={appointment ? `/clients/${appointment.customer_id}` : "/clients"}>{appointment ? initials(appointment.customer_name) : "—"}</Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p>{appointment && <StatusBadge status={appointment.status} />}{isClosed && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">Conto chiuso</span>}</div>
+            <h1 className="mt-1 truncate text-xl font-black tracking-tight text-stone-950 sm:text-2xl">{appointment?.customer_name ?? "Appuntamento"}</h1>
+            {appointment && <p className="mt-1 truncate text-xs font-semibold text-stone-500 sm:text-sm">{appointment.service_name} · {formatDate(appointment.starts_at)} · {formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)}</p>}
+          </div>
+          {appointment && !isClosed && <Button className="hidden sm:inline-flex" onClick={() => setEditingAppointment(true)} size="sm" variant="secondary"><Pencil aria-hidden="true" className="size-4" />Modifica</Button>}
+          <button aria-label="Chiudi gestione appuntamento" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" data-appointment-close onClick={onClose} title="Chiudi" type="button"><X aria-hidden="true" className="size-5" /></button>
+        </div>
+        {appointment && <div className="mt-4 flex min-w-0 items-center gap-2">
+          <span className="mr-1 shrink-0 text-[10px] font-black uppercase tracking-[.14em] text-stone-400">Stato</span>
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">{statusActions.map((status) => {
               const active = appointment.status === status;
               const palette = statusActionPalette(status, active);
-              return (
-                <button
-                  aria-label={appointmentStatusLabel(status)}
-                  aria-pressed={active}
-                  className={`relative inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-black transition ${active ? "z-10 scale-105 border-[3px] px-4 shadow-[0_10px_24px_rgb(0_0_0_/_0.24)] ring-4 ring-current/15 disabled:opacity-100" : "opacity-70 hover:-translate-y-0.5 hover:opacity-100 disabled:opacity-35"} disabled:cursor-not-allowed`}
-                  disabled={isClosed || statusUpdating || active || !nextAppointmentStatuses(appointment.status).includes(status)}
-                  key={status}
-                  onClick={() => void updateStatus(status)}
-                   style={{
-                     background: palette?.background,
-                     borderColor: palette?.border,
-                     color: palette?.text,
-                   }}
-                  title={isClosed ? "Stato bloccato: vendita registrata" : !active && !nextAppointmentStatuses(appointment.status).includes(status) ? "Transizione non consentita" : appointmentStatusLabel(status)}
-                  type="button"
-                >
-                  <span className="grid size-5 place-items-center [&_svg]:size-5"><StatusActionIcon status={status} /></span>
-                  <span>{appointmentStatusLabel(status)}</span>
-                  {active && <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -bottom-[11px] left-1/2 size-5 -translate-x-1/2 rotate-45 border-b-[3px] border-r-[3px] shadow-[4px_4px_7px_rgb(0_0_0_/_0.12)]"
-                    style={{ background: palette?.background, borderColor: palette?.border }}
-                  />}
-                </button>
-              );
-            })}
-          </div>
-          <span className="mx-1 h-8 w-px bg-stone-200" />
-          <button aria-label="Chiudi scheda appuntamento" className="grid size-11 shrink-0 place-items-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-sm transition hover:scale-105 hover:bg-stone-950 hover:text-white" onClick={onClose} title="Chiudi" type="button"><X aria-hidden="true" size={22} /></button>
-          </div>
-        )}
-      </div>
-      {error && <div className="px-5 pt-4 lg:px-8"><InlineError>{error}</InlineError></div>}
+              return <button aria-pressed={active} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed ${active ? "shadow-sm disabled:opacity-100" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50 disabled:opacity-35"}`} disabled={isClosed || statusUpdating || active || !nextAppointmentStatuses(appointment.status).includes(status)} key={status} onClick={() => void updateStatus(status)} style={active ? { background: palette?.background, borderColor: palette?.border, color: palette?.text } : undefined} title={isClosed ? "Stato bloccato: vendita registrata" : appointmentStatusLabel(status)} type="button"><span className="[&_svg]:size-4"><StatusActionIcon status={status} /></span>{appointmentStatusLabel(status)}</button>;
+            })}</div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">{!isClosed && <Button className="sm:hidden" onClick={() => setEditingAppointment(true)} size="sm" variant="outline"><Pencil aria-hidden="true" className="size-4" />Modifica</Button>}<button aria-label="Elimina appuntamento" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100" onClick={() => setConfirmDelete(true)} type="button"><Trash2 aria-hidden="true" className="size-4" /><span className="hidden sm:inline">Elimina</span></button></div>
+        </div>}
+      </header>
       {!appointment ? (
-        <EmptyState title="Appuntamento non trovato" description="Potrebbe essere stato eliminato o non essere accessibile." />
+        <div className="grid flex-1 place-items-center p-6"><EmptyState title="Appuntamento non trovato" description="Potrebbe essere stato eliminato o non essere accessibile." /></div>
       ) : (
-        <div className="overflow-hidden border-y border-stone-200 bg-[#f7f6f3] shadow-[0_30px_90px_rgb(38_25_32_/_0.12)]">
-          <header
-            className="grid gap-5 border-t-[7px] bg-[#201820] px-6 py-6 text-white transition-colors lg:grid-cols-[1fr_auto] lg:px-8"
-            style={{ borderTopColor: statusActionPalette(appointment.status as AppointmentStatus, true).background }}
-          >
-            <div className="flex min-w-0 items-center gap-4">
-              <Link
-                aria-label={`Apri anagrafica di ${appointment.customer_name}`}
-                className="grid size-16 shrink-0 place-items-center rounded-full border border-white/20 bg-white/12 text-xl font-black text-white shadow-lg transition hover:scale-105 hover:bg-white/20"
-                href={`/clients/${appointment.customer_id}`}
-              >
-                {initials(appointment.customer_name)}
-              </Link>
-              <div className="min-w-0">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-[.2em] text-[#e9a9c9]">Scheda appuntamento</span>
-                <StatusBadge status={appointment.status} />
-                {isClosed && <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-black text-emerald-200">Conto chiuso</span>}
-              </div>
-              <Link className="inline-block truncate text-3xl font-black tracking-tight hover:text-[#f2b8d5] hover:underline sm:text-4xl" href={`/clients/${appointment.customer_id}`}>{appointment.customer_name}</Link>
-              <p className="mt-2 text-sm font-semibold text-stone-300">{formatDate(appointment.starts_at)} · {formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)} · {appointment.staff_name}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {!isClosed && (editingAppointment ? (
-                <button
-                  aria-label="Annulla modifica appuntamento"
-                  className="grid size-10 place-items-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-sm transition hover:scale-105 hover:bg-stone-950 hover:text-white"
-                  onClick={() => setEditingAppointment(false)}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={20} />
-                </button>
-              ) : (
-                <Button onClick={() => setEditingAppointment(true)} variant="secondary">Modifica appuntamento</Button>
-              ))}
-            </div>
-          </header>
-
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_430px]">
-            <main className="space-y-5 p-5 lg:p-7">
-              <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  ["Servizio", appointment.service_name],
-                  ["Durata", `${minutesBetween(appointment.starts_at, appointment.ends_at)} min`],
-                  ["Collaboratore", appointment.staff_name],
-                  ["Stato", appointmentStatusLabel(appointment.status)],
-                ].map(([label, value]) => (
-                  <div className="rounded-xl border border-stone-200 bg-white p-4" key={label}>
-                    <p className="text-[11px] font-black uppercase tracking-[.16em] text-stone-400">{label}</p>
-                    <p className="mt-2 font-black text-stone-950">{value}</p>
-                  </div>
-                ))}
-              </section>
-
-              {editingAppointment && !isClosed && (
-                <section className="rounded-xl border border-[#d9a7c2] bg-[#fff9fc] p-5 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[.18em] text-[#792f59]">Modifica appuntamento</p>
-                      <h2 className="mt-1 text-2xl font-black text-stone-950">Data, orario, durata e note</h2>
-                      <p className="mt-1 text-sm text-stone-500">La durata vale solo per questo appuntamento e non modifica il servizio a catalogo.</p>
-                    </div>
-                    <span className="rounded-full bg-[#f3e2eb] px-3 py-1 text-xs font-black text-[#792f59]">{appointment.staff_name}</span>
-                  </div>
-                  <div className="mt-5 grid gap-4 md:grid-cols-[180px_150px_150px_1fr]">
-                    <label className="text-xs font-bold text-stone-600">Data
-                      <input className="mt-2 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" onChange={(event) => setAppointmentDate(event.target.value)} type="date" value={appointmentDate} />
-                    </label>
-                    <label className="text-xs font-bold text-stone-600">Ora di inizio
-                      <input className="mt-2 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" onChange={(event) => setAppointmentTime(event.target.value)} step={300} type="time" value={appointmentTime} />
-                    </label>
-                    <label className="text-xs font-bold text-stone-600">Durata (minuti)
-                      <input className="mt-2 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" max={720} min={5} onChange={(event) => setAppointmentDuration(event.target.value)} step={5} type="number" value={appointmentDuration} />
-                      {editedEndTime && <span className="mt-1.5 block text-[11px] font-semibold text-stone-500">Termina alle {editedEndTime}</span>}
-                    </label>
-                    <label className="text-xs font-bold text-stone-600">Note appuntamento
-                      <input className="mt-2 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" onChange={(event) => setAppointmentNotes(event.target.value)} value={appointmentNotes} />
-                    </label>
-                  </div>
-                  <div className="mt-5 flex flex-wrap justify-end gap-2">
-                    <Button onClick={() => {
-                      setAppointmentDate(dateInputValue(appointment.starts_at));
-                      setAppointmentTime(timeInputValue(appointment.starts_at));
-                      setAppointmentDuration(String(minutesBetween(appointment.starts_at, appointment.ends_at)));
-                      setAppointmentNotes(appointment.notes ?? "");
-                      setEditingAppointment(false);
-                    }} variant="outline">Annulla modifiche</Button>
-                    <Button disabled={savingAppointment} onClick={() => void saveAppointment()} variant="primary">{savingAppointment ? "Salvataggio…" : "Salva appuntamento"}</Button>
-                  </div>
-                </section>
-              )}
-
-              <section className="rounded-xl border border-stone-200 bg-white p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <Link className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f3e2eb] font-black text-[#792f59]" href={`/clients/${data.appointment.customer_id}`}>{initials(appointment.customer_name)}</Link>
-                    <div>
-                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#792f59]">Cliente</p>
-                    <Link className="mt-1 block text-xl font-black text-stone-950 hover:text-[#792f59] hover:underline" href={`/clients/${data.appointment.customer_id}`}>{appointment.customer_name}</Link>
-                    </div>
-                  </div>
-                  <Link href={`/clients/${data.appointment.customer_id}`} className="text-sm font-black text-[#792f59] hover:underline">Apri anagrafica</Link>
+        <div className="grid min-h-0 min-w-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_410px]">
+            <main className="min-w-0 space-y-4 p-4 sm:p-5 lg:overflow-y-auto lg:p-6">
+              {error && <InlineError>{error}</InlineError>}
+              <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
+                <div className="grid divide-y divide-stone-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                  <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[#792f59]"><CalendarDays aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Quando</p></div><p className="mt-2 font-black text-stone-950">{formatDate(appointment.starts_at)}</p><p className="mt-1 text-sm font-semibold text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)} · {minutesBetween(appointment.starts_at, appointment.ends_at)} min</p></div>
+                  <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[#792f59]"><UserRound aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Assegnazione</p></div><p className="mt-2 font-black text-stone-950">{appointment.staff_name}</p><p className="mt-1 text-sm font-semibold text-stone-600">{appointment.service_name}</p></div>
                 </div>
-                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                  <div><span className="block font-bold text-stone-400">Telefono</span><span className="mt-1 block font-semibold">{appointment.customer_phone || "—"}</span></div>
-                  <div><span className="block font-bold text-stone-400">Email</span><span className="mt-1 block break-all font-semibold">{appointment.customer_email || "—"}</span></div>
-                  <div><span className="block font-bold text-stone-400">Note appuntamento</span><span className="mt-1 block font-semibold">{appointment.notes || "Nessuna nota"}</span></div>
+                <div className="border-t border-stone-100 p-4 sm:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Cliente</p><Link className="mt-1 inline-block text-lg font-black text-stone-950 hover:text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>{appointment.customer_name}</Link></div><Link className="text-sm font-bold text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>Apri anagrafica</Link></div>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><span className="flex min-w-0 items-center gap-2 text-stone-600"><Phone aria-hidden="true" className="size-4 shrink-0 text-stone-400" /><span className="truncate">{appointment.customer_phone || "Telefono non disponibile"}</span></span><span className="flex min-w-0 items-center gap-2 text-stone-600"><Mail aria-hidden="true" className="size-4 shrink-0 text-stone-400" /><span className="truncate">{appointment.customer_email || "Email non disponibile"}</span></span></div>
+                  {appointment.notes && <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-sm leading-6 text-stone-600"><strong className="text-stone-800">Nota:</strong> {appointment.notes}</p>}
                 </div>
               </section>
 
               <DocumentsModuleGate enabled={documentsEnabled}>
-                <ConsentRecordsPanel
-                  appointmentId={appointment.id}
-                  customerId={appointment.customer_id}
-                  title="Richiedi consenso"
-                />
+                <details className="group overflow-hidden rounded-xl border border-stone-200 bg-white">
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 marker:hidden hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[#b85888]/20 sm:px-5 [&::-webkit-details-marker]:hidden">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#f3e2eb] text-[#792f59]"><CheckCheck aria-hidden="true" className="size-4" /></span>
+                    <span className="min-w-0 flex-1"><strong className="block text-sm text-stone-950">Consensi e documenti</strong><span className="mt-0.5 block text-xs text-stone-500">Richieste, firme e stato dei consensi del cliente</span></span>
+                    <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="border-t border-stone-100 p-3 sm:p-4">
+                    <ConsentRecordsPanel appointmentId={appointment.id} customerId={appointment.customer_id} title="Consensi" />
+                  </div>
+                </details>
               </DocumentsModuleGate>
 
-              <section className="rounded-xl border border-stone-200 bg-white p-5">
-                <div className="mb-5 flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#792f59]">Prestazioni e prodotti</p>
-                    <h2 className="mt-1 text-2xl font-black text-stone-950">Composizione del conto</h2>
-                  </div>
-                  <div className="flex gap-2">{checkoutEnabled && customerPackages.some((pack) => pack.items.some((item) => item.remainingQuantity > 0)) && <Button onClick={() => applyPackages()} size="sm" variant="outline">Applica pacchetto</Button>}{checkoutEnabled && <Button onClick={() => setLines((current) => [...current, { description: "", discount_cents: 0, item_type: "custom", quantity: 1, unit_price_cents: 0 }])} size="sm" variant="outline">Riga libera</Button>}</div>
-                </div>
-
-                <div className="space-y-3">
-                  {lines.map((line, index) => (
-                    <div className="rounded-xl border border-stone-200 bg-[#fbfaf8] p-4" key={`${line.item_type}-${index}`}>
-                      <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_90px_125px_125px_auto]"><label className="text-xs font-bold text-stone-500">Descrizione
-                        <input className="mt-1 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold disabled:bg-stone-100" disabled={!checkoutEnabled} onChange={(event) => updateLine(index, { description: event.target.value })} value={line.description} />
-                      </label>
-                      <label className="text-xs font-bold text-stone-500">Quantità
-                        <input className="mt-1 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold disabled:bg-stone-100" disabled={!checkoutEnabled} min={1} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })} type="number" value={line.quantity} />
-                      </label>
-                      <label className="text-xs font-bold text-stone-500">Prezzo
-                        <input className="mt-1 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => updateLine(index, { unit_price_cents: inputCents(event.target.value) })} step=".01" type="number" value={(line.unit_price_cents / 100).toFixed(2)} />
-                      </label>
-                      <label className="text-xs font-bold text-stone-500">Sconto
-                        <input className="mt-1 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => updateLine(index, { discount_cents: inputCents(event.target.value) })} step=".01" type="number" value={(line.discount_cents / 100).toFixed(2)} />
-                      </label>
-                      <div className="flex items-end">
-                        {checkoutEnabled && <button className="min-h-11 px-2 text-sm font-black text-red-700" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))} type="button">Rimuovi</button>}
-                      </div></div>
-                      {(line.package_quantity ?? 0) > 0 && <p className="mt-3 rounded-xl bg-violet-100 px-3 py-2 text-xs font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name} · importo azzerato</p>}
-                    </div>
-                  ))}
-                </div>
-
-                {checkoutEnabled && (
-                  <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                    <div className="rounded-xl bg-[#f7eef3] p-4">
-                      <label className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">Aggiungi servizio</label>
-                      <select className="mt-2 min-h-11 w-full rounded-xl border border-[#e4c4d5] bg-white px-3 text-sm font-semibold" defaultValue="" onChange={(event) => {
-                        const item = data.catalog.services.find((entry) => entry.id === event.target.value);
-                        if (item) addCatalogItem(item, "service");
-                        event.target.value = "";
-                      }}>
-                        <option value="">Seleziona dal listino</option>
-                        {data.catalog.services.map((item) => <option key={item.id} value={item.id}>{item.name} · {euro(item.price_cents)}</option>)}
-                      </select>
-                    </div>
-                    <div className="rounded-xl bg-[#eef7f5] p-4">
-                      <label className="text-xs font-black uppercase tracking-[.14em] text-teal-800">Aggiungi prodotto</label>
-                      <select className="mt-2 min-h-11 w-full rounded-xl border border-teal-200 bg-white px-3 text-sm font-semibold" defaultValue="" onChange={(event) => {
-                        const item = data.catalog.products.find((entry) => entry.id === event.target.value);
-                        if (item) addCatalogItem(item, "product");
-                        event.target.value = "";
-                      }}>
-                        <option value="">Seleziona dal magazzino</option>
-                        {data.catalog.products.map((item) => <option key={item.id} value={item.id}>{item.name} · {euro(item.price_cents)} · disp. {item.stock_quantity}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
+              <section className="rounded-xl border border-[#d9a7c2] bg-[#fffafd] p-4 sm:p-5">
+                <div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f3e2eb] text-[#792f59]"><ShoppingBag aria-hidden="true" className="size-5" /></span><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Vendita completa</p><h2 className="mt-1 text-lg font-black text-stone-950">Aggiungi prodotti o altri servizi</h2><p className="mt-1 text-sm leading-6 text-stone-600">Apri la Cassa con questo appuntamento già caricato nel checkout, poi completa liberamente il carrello.</p></div></div>
+                {isClosed ? <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">La vendita di questo appuntamento è già stata registrata.</div> : checkoutEnabled ? <Link className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href={`/sales?appointment=${encodeURIComponent(appointment.id)}`}>Aggiungi in Cassa<ArrowRight aria-hidden="true" className="size-4" /></Link> : <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Conferma prima l’appuntamento per caricarlo in Cassa.</div>}
               </section>
             </main>
 
-            <aside className="border-t border-stone-200 bg-white p-5 lg:border-l lg:border-t-0 lg:p-7">
-              <div className="sticky top-6">
-                <p className="text-xs font-black uppercase tracking-[.18em] text-[#792f59]">Checkout</p>
-                <h2 className="mt-1 text-3xl font-black text-stone-950">{isClosed ? "Riepilogo vendita" : "Chiudi il conto"}</h2>
+            <aside className="flex min-w-0 flex-col border-t border-stone-200 bg-white lg:h-full lg:min-h-0 lg:border-l lg:border-t-0">
+              <div className="min-h-0 flex-1 p-4 sm:p-5 lg:overflow-y-auto lg:p-6">
+                <div className="flex items-center gap-2 text-[#792f59]"><ReceiptText aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Checkout</p></div>
+                <h2 className="mt-1 text-2xl font-black text-stone-950">{isClosed ? "Riepilogo vendita" : "Chiudi il conto"}</h2>
 
                 <div className="mt-6 space-y-3 border-y border-stone-200 py-5 text-sm">
                   <div className="flex justify-between"><span className="font-semibold text-stone-500">Subtotale</span><b>{euro(subtotalCents)}</b></div>
                   <label className="flex items-center justify-between gap-3 font-semibold text-stone-500">Sconto sul conto
                     <input className="w-28 rounded-xl border border-stone-200 px-3 py-2 text-right font-black text-stone-950 disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setDiscountCents(inputCents(event.target.value))} step=".01" type="number" value={(discountCents / 100).toFixed(2)} />
                   </label>
-                  <div className="flex items-end justify-between pt-2"><span className="font-black text-stone-950">Totale</span><strong className="text-4xl font-black tracking-tight text-[#5f2447]">{euro(totalCents)}</strong></div>
+                  <div className="flex items-end justify-between gap-3 pt-2"><span className="font-black text-stone-950">Totale</span><strong className="break-words text-right text-3xl font-black tracking-tight text-[#5f2447]">{euro(totalCents)}</strong></div>
                 </div>
 
                 <div className="mt-5">
@@ -763,9 +594,9 @@ export default function AppointmentDetailPanel({
                   <div className="mt-3 space-y-3">
                     {payments.map((payment, index) => (
                       <div className="rounded-xl border border-stone-200 p-3" key={index}>
-                        <div className="grid grid-cols-[1fr_130px_auto] gap-2">
+                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_106px_28px] gap-2">
                           <select
-                            className="min-h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold disabled:bg-stone-100"
+                            className="min-h-11 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold disabled:bg-stone-100"
                             disabled={!checkoutEnabled}
                             onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? {
                               amount_cents: entry.amount_cents,
@@ -775,8 +606,8 @@ export default function AppointmentDetailPanel({
                           >
                             {paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
                           </select>
-                          <input className="min-h-11 rounded-xl border border-stone-200 px-3 text-right text-sm font-black disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, amount_cents: inputCents(event.target.value) } : entry))} step=".01" type="number" value={(payment.amount_cents / 100).toFixed(2)} />
-                          {checkoutEnabled && payments.length > 1 && <button className="px-1 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))} type="button">×</button>}
+                          <input className="min-h-11 min-w-0 w-full rounded-xl border border-stone-200 px-3 text-right text-sm font-black disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, amount_cents: inputCents(event.target.value) } : entry))} step=".01" type="number" value={(payment.amount_cents / 100).toFixed(2)} />
+                          {checkoutEnabled && payments.length > 1 ? <button aria-label="Rimuovi pagamento" className="grid size-7 self-center place-items-center rounded-md font-black text-red-700 hover:bg-red-50" onClick={() => setPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))} type="button">×</button> : <span />}
                         </div>
                         {payment.method === "voucher" && <div className="mt-3">
                           {customerVouchers.length === 0 && <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600">Il cliente non ha buoni attivi.</p>}
@@ -807,16 +638,10 @@ export default function AppointmentDetailPanel({
                   <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
                     La cassa è disabilitata. Imposta l’appuntamento come Confermato per registrare la vendita.
                   </div>
-                ) : (
-                  <Button className="mt-5 min-h-14 w-full text-base" disabled={saving || lines.length === 0 || paidCents !== totalCents || payments.some((payment) => payment.method === "voucher" && (!payment.voucher_code || payment.voucher_balance_cents === undefined || payment.amount_cents > payment.voucher_balance_cents))} onClick={() => void completeCheckout()} variant="primary">
-                    {saving ? "Registrazione…" : `Incassa ${euro(totalCents)}`}
-                  </Button>
-                )}
-                {checkoutEnabled && <p className="mt-3 text-center text-xs font-semibold leading-5 text-stone-400">La chiusura registra la vendita, scala gli eventuali prodotti e completa l’appuntamento.</p>}
-                <button className="mt-6 w-full text-sm font-bold text-red-700" onClick={() => setConfirmDelete(true)} type="button">Elimina appuntamento</button>
+                ) : null}
               </div>
+              {checkoutEnabled && <footer className="sticky bottom-0 z-10 shrink-0 border-t border-stone-200 bg-white p-4 shadow-[0_-12px_28px_rgb(45_29_39_/_0.08)] sm:p-5"><Button className="min-h-14 w-full text-base" disabled={saving || lines.length === 0 || paidCents !== totalCents || payments.some((payment) => payment.method === "voucher" && (!payment.voucher_code || payment.voucher_balance_cents === undefined || payment.amount_cents > payment.voucher_balance_cents))} onClick={() => void completeCheckout()} variant="primary">{saving ? "Registrazione…" : `Incassa ${euro(totalCents)}`}</Button></footer>}
             </aside>
-          </div>
         </div>
       )}
       <ConfirmDialog

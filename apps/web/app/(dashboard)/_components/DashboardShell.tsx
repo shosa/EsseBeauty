@@ -168,7 +168,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Crea nuovo"
-        className="grid size-10 place-items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] text-white shadow-[0_10px_24px_rgb(121_47_89_/_0.24)] transition hover:-translate-y-0.5"
+        className="grid size-10 place-items-center rounded-xl border border-[#792f59] bg-[#792f59] text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
         onClick={() => setOpen((value) => !value)}
         title="Crea nuovo"
         type="button"
@@ -176,7 +176,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
         <Plus aria-hidden="true" className="size-5" />
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)] ring-1 ring-stone-950/5 backdrop-blur" role="menu">
+        <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-stone-200 bg-white p-2 shadow-[0_18px_48px_rgb(45_29_39_/_0.14)]" role="menu">
           {actions.map((action) => (
             <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" href={action.href} key={action.href} onClick={() => setOpen(false)} role="menuitem">
               {action.label}
@@ -246,7 +246,7 @@ function NotificationCenter({ error, items, onArchive, onClose, onMarkAllRead, o
       {!error && items.length === 0 && <EmptyState description="Appuntamenti, recensioni, scorte e richieste appariranno qui." title="Nessuna notifica" />}
       <div className="space-y-3">
         {items.map((item) => (
-          <article className={`rounded-2xl border p-4 ${item.read_at ? "border-stone-100 bg-white" : "border-[#d7a6c1] bg-[#fffafd]"}`} key={item.id}>
+          <article className={`rounded-xl border p-4 ${item.read_at ? "border-stone-100 bg-white" : "border-[#d7a6c1] bg-[#fffafd]"}`} key={item.id}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.category ?? notificationTypeLabels[item.type] ?? item.type}</p>
@@ -277,7 +277,7 @@ function NotificationPreviewCard({ item, onDismiss, onOpen }: { item: Pick<Notif
   }, []);
   return (
     <article className="pointer-events-auto relative isolate mb-3 w-[min(360px,calc(100vw-1.5rem))]" role="status">
-      <div className="relative z-10 overflow-hidden rounded-[22px] border border-[#b8dfc9] bg-white shadow-[0_22px_70px_rgb(35_112_73_/_0.18)]">
+      <div className="relative z-10 overflow-hidden rounded-xl border border-[#b8dfc9] bg-white shadow-md">
         <div className="flex min-w-0 items-start gap-3 bg-white p-4">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" /></span>
           <button className="min-w-0 flex-1 text-left" onClick={onOpen} type="button"><b className="block truncate text-sm text-stone-950">{item.title}</b>{item.body && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-stone-500">{item.body}</span>}</button>
@@ -386,14 +386,14 @@ function UnifiedSideNavigation({
           {!collapsed && <span>Notifiche</span>}
           {unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black text-white">{Math.min(unreadCount, 9)}</span>}
         </button>
-        <div className={`rounded-2xl border border-white/10 bg-white/7 p-3 ${collapsed ? "text-center" : ""}`}>
+        <div className={`rounded-xl border border-white/10 bg-white/7 p-3 ${collapsed ? "text-center" : ""}`}>
           <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#d9a5c2] font-bold text-[#402334]">{user?.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
             {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-sm text-white">{user?.full_name}</b><small className="text-white/45">{user?.role}</small></div>}
             {!collapsed && <button className="rounded-lg p-2 text-white/45 hover:bg-white/10 hover:text-white" onClick={logout} title="Esci"><LogoutIcon /></button>}
           </div>
         </div>
-        {collapsed && <button className="grid size-12 place-items-center rounded-2xl text-red-700 hover:bg-white" onClick={logout} title="Esci" type="button"><LogoutIcon /></button>}
+        {collapsed && <button className="grid size-12 place-items-center rounded-xl text-red-700 hover:bg-white" onClick={logout} title="Esci" type="button"><LogoutIcon /></button>}
       </div>
     </aside>
   );
@@ -462,6 +462,7 @@ function ShellContent({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.title = browserTitleForPath(pathname);
+    setLauncherOpen(false);
     return () => {
       document.title = "EsseBeauty";
     };
@@ -637,6 +638,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         apps={apps}
         logout={() => void logout()}
         onAppsOpen={() => setLauncherOpen(true)}
+        onNavigate={() => setLauncherOpen(false)}
         onNotificationsOpen={() => setNotificationsOpen(true)}
         pathname={pathname}
         unreadCount={unreadCount}
@@ -660,7 +662,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         {whatsappPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => { setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id)); communications.selectConversation(item.conversationId); communications.openChat(); }} />)}
         {notificationPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => openNotification(item)} />)}
       </div>
-      <main className={`${topbarTabs.length ? "pt-[109px]" : "pt-16"}`}>{children}</main>
+      <main className={`${topbarTabs.length ? "pt-[109px]" : "pt-16"}`}><div className="esse-page-view" key={pathname}>{children}</div></main>
       <MobileAppNavigation apps={apps} onAppsOpen={() => setLauncherOpen(true)} pathname={pathname} />
     </div>
   );
@@ -683,7 +685,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     !user ||
     (user.role === "owner" && !salon.onboarding_completed)
   ) {
-    return <main className="grid min-h-screen place-items-center bg-[#f6f2f4]"><div className="size-12 animate-pulse rounded-2xl bg-[#792f59]" /></main>;
+    return <main className="grid min-h-screen place-items-center bg-[#f6f2f4]"><div className="size-12 animate-pulse rounded-xl bg-[#792f59]" /></main>;
   }
   return <ModuleProvider apiBaseUrl={api} salonId={salon.id}><CommunicationWorkspaceProvider apiBaseUrl={api} salonId={salon.id}><ShellContent>{children}</ShellContent></CommunicationWorkspaceProvider></ModuleProvider>;
 }

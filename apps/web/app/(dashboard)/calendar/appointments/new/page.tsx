@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { Check } from "lucide-react";
+import { AppPage, Breadcrumbs, Button, DateTimeField, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../../../services/ServiceCategoryIcon";
@@ -200,6 +201,14 @@ export default function NewAppointmentPage() {
   const selectedStaff = staff.find((item) => item.id === staffId);
   const compatibleResources = resources.filter((item) => item.serviceIds.includes(serviceId));
   const selectedResource = compatibleResources.find((item) => item.id === resourceId);
+  const canCreate = Boolean(
+    selectedCustomer
+    && selectedCategory
+    && selectedService
+    && selectedStaff
+    && startsAt
+    && (compatibleResources.length === 0 || selectedResource),
+  );
 
   useEffect(() => {
     if (!serviceId) return;
@@ -337,143 +346,169 @@ export default function NewAppointmentPage() {
         )}
       </Dialog>
       <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Nuovo appuntamento" }]} />
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
-          <header>
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Agenda</p>
-            <h1 className="mt-2 text-3xl font-bold">Nuovo appuntamento</h1>
-            <p className="mt-2 text-sm text-stone-600">Cliente, categoria, servizio e collaboratore si scelgono tramite ricerca e schede visuali.</p>
-          </header>
-          {error && <InlineError className="mt-5">{error}</InlineError>}
+      <header className="mt-4 border-b border-stone-200 pb-4">
+        <h1 className="text-3xl font-bold tracking-[-.025em] text-[#2d1d27]">Nuovo appuntamento</h1>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-stone-600">Cliente, orario, trattamento e risorse in un’unica vista.</p>
+      </header>
 
-          <div className="mt-6 space-y-7">
-            <FormField description={customerHelp} label="Cliente" required>
-              <input
-                autoComplete="off"
-                className="min-h-12 w-full"
-                onChange={(event) => {
-                  setCustomerQuery(event.target.value);
-                  setSelectedCustomer(undefined);
-                }}
-                placeholder="Cerca per nome, email o telefono"
-                value={selectedCustomer?.name ?? customerQuery}
-              />
-              {!selectedCustomer && customerResults.length > 0 && (
-                <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-lg">
-                  {customerResults.map((customer) => (
-                    <button className="block w-full border-b border-stone-100 px-4 py-3 text-left text-sm last:border-0 hover:bg-rose-50" key={customer.id} onClick={() => {
-                      setSelectedCustomer(customer);
-                      setCustomerQuery(customer.name);
-                      setCustomerResults([]);
-                    }} type="button">
-                      <b className="block">{customer.name}</b>
-                      <span className="text-xs text-stone-500">{customer.email ?? "senza email"}{customer.phone ? ` · ${customer.phone}` : ""}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </FormField>
+      {error && <InlineError className="mt-4">{error}</InlineError>}
 
-            <div>
-              <p className="text-sm font-bold text-stone-900">Categoria <span className="text-red-700">*</span></p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {categories.map((category) => (
-                  <button className={`flex min-h-20 items-center gap-3 rounded-xl border p-3 text-left transition ${categoryId === category.id ? "border-[#792f59] bg-[#faf3f7] shadow-sm" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={category.id} onClick={() => {
-                    setCategoryId(category.id);
-                    setServiceId("");
-                    setServiceQuery("");
-                  }} type="button">
-                    <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${categoryId === category.id ? "bg-[#792f59] text-white" : "bg-stone-100 text-[#792f59]"}`}>
-                      <ServiceCategoryIcon className="size-5" name={category.icon} />
-                    </span>
-                    <span><strong className="block">{category.name}</strong><small className="text-stone-500">{category.activeServiceCount} servizi</small></span>
-                  </button>
-                ))}
-              </div>
+      <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-3">
+          <section aria-labelledby="primary-data-title" className="rounded-xl border border-stone-200 bg-white p-4 sm:p-5">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-stone-950" id="primary-data-title">Dati principali</h2>
+              <p className="mt-1 text-sm text-stone-600">Chi prenota e quando.</p>
             </div>
-
-            {selectedCategory && (
-              <div>
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div><p className="text-sm font-bold text-stone-900">Servizio <span className="text-red-700">*</span></p><p className="mt-1 text-xs text-stone-500">{selectedCategory.name}</p></div>
-                  <input className="min-h-10 w-full sm:w-72" onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca servizio" value={serviceQuery} />
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {visibleServices.map((service) => (
-                    <button className={`flex min-h-20 items-start justify-between gap-4 rounded-xl border p-4 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 hover:border-[#d7a6c1]"}`} key={service.id} onClick={() => setServiceId(service.id)} type="button">
-                      <span className="min-w-0"><strong className="block truncate">{service.name}</strong><small className="mt-1 block text-stone-500">{service.durationMinutes} min</small></span>
-                      <b className="shrink-0 text-[#792f59]">{euro(service.priceCents)}</b>
-                    </button>
-                  ))}
-                  {visibleServices.length === 0 && <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-500 sm:col-span-2">Nessun servizio trovato in questa categoria.</p>}
-                </div>
-              </div>
-            )}
-
-            {selectedService && (
-              <div>
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div><p className="text-sm font-bold text-stone-900">Collaboratore <span className="text-red-700">*</span></p><p className="mt-1 text-xs text-stone-500">Assegna l’appuntamento alla persona corretta.</p></div>
-                  <input className="min-h-10 w-full sm:w-72" onChange={(event) => setStaffQuery(event.target.value)} placeholder="Cerca collaboratore" value={staffQuery} />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {visibleStaff.map((member) => (
-                    <button className={`inline-flex min-h-12 items-center gap-3 rounded-xl border px-4 text-sm font-bold transition ${staffId === member.id ? "border-[#792f59] bg-[#faf3f7] text-[#642744]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={member.id} onClick={() => setStaffId(member.id)} type="button">
-                      <span className="grid size-8 place-items-center rounded-full text-xs font-black text-white" style={{ background: member.color || "#792f59" }}>{member.name.slice(0, 1).toUpperCase()}</span>
-                      {member.name}
-                    </button>
-                  ))}
-                  {visibleStaff.length === 0 && (
-                    <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-                      Nessun collaboratore assegnato a questo servizio. Configura le assegnazioni nella scheda Staff.
-                    </p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <FormField description={customerHelp} label="Cliente" required>
+                <div className="relative">
+                  <input
+                    aria-autocomplete="list"
+                    aria-controls="customer-results"
+                    aria-expanded={!selectedCustomer && customerResults.length > 0}
+                    autoComplete="off"
+                    className="min-h-11 w-full"
+                    onChange={(event) => {
+                      setCustomerQuery(event.target.value);
+                      setSelectedCustomer(undefined);
+                    }}
+                    placeholder="Nome, email o telefono"
+                    value={selectedCustomer?.name ?? customerQuery}
+                  />
+                  {!selectedCustomer && customerResults.length > 0 && (
+                    <div className="absolute inset-x-0 top-[calc(100%+8px)] z-40 max-h-72 overflow-y-auto rounded-xl border border-stone-200 bg-white p-1 shadow-[0_16px_40px_rgb(45_29_39_/_0.14)]" id="customer-results" role="listbox">
+                      {customerResults.map((customer) => (
+                        <button className="block min-h-14 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-[#faf3f7] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" key={customer.id} onClick={() => {
+                          setSelectedCustomer(customer);
+                          setCustomerQuery(customer.name);
+                          setCustomerResults([]);
+                        }} role="option" type="button">
+                          <b className="block">{customer.name}</b>
+                          <span className="text-xs text-stone-600">{customer.email ?? "Senza email"}{customer.phone ? ` · ${customer.phone}` : ""}</span>
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-              </div>
-            )}
-
-            {selectedService && compatibleResources.length > 0 && (
-              <div>
-                <p className="text-sm font-bold text-stone-900">Cabina <span className="text-red-700">*</span></p>
-                <p className="mt-1 text-xs text-stone-500">Mostriamo solo le cabine collegate al servizio scelto.</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {compatibleResources.map((resource) => (
-                    <button
-                      className={`min-h-11 rounded-xl border px-4 text-sm font-black uppercase transition ${resourceId === resource.id ? "border-[#792f59] bg-[#faf3f7] text-[#642744]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}
-                      key={resource.id}
-                      onClick={() => setResourceId(resource.id)}
-                      type="button"
-                    >
-                      {resource.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField label="Data e ora" required>
-                <input className="w-full" onChange={(event) => setStartsAt(event.target.value)} type="datetime-local" value={startsAt} />
               </FormField>
-              <FormField label="Note interne">
-                <textarea className="min-h-24 w-full resize-y" onChange={(event) => setNotes(event.target.value)} value={notes} />
+              <FormField label="Data e ora" required>
+                <DateTimeField aria-label="Data e ora dell’appuntamento" onChange={setStartsAt} required step={300} value={startsAt} />
               </FormField>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <aside className="self-start rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] xl:sticky xl:top-24">
-          <p className="text-xs font-black uppercase tracking-[.18em] text-[#8f3a68]">Riepilogo</p>
-          <h2 className="mt-1 text-xl font-bold">Appuntamento</h2>
-          <dl className="mt-5 divide-y divide-stone-100 text-sm">
-            <div className="py-3"><dt className="text-stone-500">Cliente</dt><dd className="mt-1 font-bold">{selectedCustomer?.name ?? "Da selezionare"}</dd></div>
-            <div className="py-3"><dt className="text-stone-500">Categoria</dt><dd className="mt-1 font-bold">{selectedCategory?.name ?? "Da selezionare"}</dd></div>
-            <div className="py-3"><dt className="text-stone-500">Servizio</dt><dd className="mt-1 font-bold">{selectedService ? `${selectedService.name} · ${selectedService.durationMinutes} min` : "Da selezionare"}</dd></div>
-            <div className="py-3"><dt className="text-stone-500">Collaboratore</dt><dd className="mt-1 font-bold">{selectedStaff?.name ?? "Da selezionare"}</dd></div>
-            <div className="py-3"><dt className="text-stone-500">Cabina</dt><dd className="mt-1 font-bold">{selectedResource?.name ?? (compatibleResources.length ? "Da selezionare" : "Non richiesta")}</dd></div>
-            <div className="py-3"><dt className="text-stone-500">Inizio</dt><dd className="mt-1 font-bold">{startsAt ? new Date(startsAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }) : "Da inserire"}</dd></div>
+          <section aria-labelledby="treatment-section-title" className="rounded-xl border border-stone-200 bg-white p-4 sm:p-5">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-stone-950" id="treatment-section-title">Trattamento</h2>
+              <p className="mt-1 text-sm text-stone-600">Categoria e servizio.</p>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(260px,.72fr)_minmax(0,1.28fr)]">
+              <fieldset>
+                <legend className="text-sm font-bold text-stone-900">Categoria <span aria-hidden="true" className="text-red-700">*</span></legend>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {categories.map((category) => {
+                    const active = categoryId === category.id;
+                    return (
+                      <button aria-pressed={active} className={`flex min-h-14 items-center gap-2 rounded-xl border p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={category.id} onClick={() => {
+                        setCategoryId(category.id);
+                        setServiceId("");
+                        setServiceQuery("");
+                      }} type="button">
+                        <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-[#792f59] text-white" : "bg-stone-100 text-[#792f59]"}`}>
+                          <ServiceCategoryIcon className="size-4" name={category.icon} />
+                        </span>
+                        <span className="min-w-0 flex-1"><strong className="block truncate text-xs sm:text-sm">{category.name}</strong><small className="hidden text-stone-600 sm:block">{category.activeServiceCount} servizi</small></span>
+                        {active && <Check aria-hidden="true" className="size-4 shrink-0 text-[#792f59]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              <div className="lg:border-l lg:border-stone-100 lg:pl-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-stone-900">Servizio <span aria-hidden="true" className="text-red-700">*</span></h3>
+                  {selectedCategory && <input aria-label="Cerca servizio" className="min-h-10 w-full sm:w-56" onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca servizio" value={serviceQuery} />}
+                </div>
+                {selectedCategory ? (
+                  <div className="mt-2 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                    {visibleServices.map((service) => {
+                      const active = serviceId === service.id;
+                      return (
+                        <button aria-pressed={active} className={`flex min-h-16 items-start justify-between gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={service.id} onClick={() => setServiceId(service.id)} type="button">
+                          <span className="min-w-0"><strong className="block truncate text-sm">{service.name}</strong><small className="mt-0.5 block text-stone-600">{service.durationMinutes} min</small></span>
+                          <span className="flex shrink-0 items-center gap-1.5"><b className="text-sm text-[#792f59]">{euro(service.priceCents)}</b>{active && <Check aria-hidden="true" className="size-4 text-[#792f59]" />}</span>
+                        </button>
+                      );
+                    })}
+                    {visibleServices.length === 0 && <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600 sm:col-span-2">Nessun servizio trovato.</p>}
+                  </div>
+                ) : <p className="mt-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Seleziona una categoria.</p>}
+              </div>
+            </div>
+          </section>
+
+          <section aria-labelledby="scheduling-section-title" className="rounded-xl border border-stone-200 bg-white p-4 sm:p-5">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-stone-950" id="scheduling-section-title">Risorse e dettagli</h2>
+              <p className="mt-1 text-sm text-stone-600">Collaboratore, cabina e indicazioni interne.</p>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(240px,.65fr)]">
+              <div>
+                {selectedService ? (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-bold text-stone-900">Collaboratore <span aria-hidden="true" className="text-red-700">*</span></h3>
+                      <input aria-label="Cerca collaboratore" className="min-h-10 w-full sm:w-56" onChange={(event) => setStaffQuery(event.target.value)} placeholder="Cerca collaboratore" value={staffQuery} />
+                    </div>
+                    <div className="mt-2 flex max-h-32 flex-wrap gap-2 overflow-y-auto pr-1">
+                      {visibleStaff.map((member) => {
+                        const active = staffId === member.id;
+                        return (
+                          <button aria-pressed={active} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7] text-[#642744]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={member.id} onClick={() => setStaffId(member.id)} type="button">
+                            <span className="grid size-7 place-items-center rounded-full text-xs font-black text-white" style={{ background: member.color || "#792f59" }}>{member.name.slice(0, 1).toUpperCase()}</span>
+                            {member.name}
+                            {active && <Check aria-hidden="true" className="size-4" />}
+                          </button>
+                        );
+                      })}
+                      {visibleStaff.length === 0 && <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Nessun collaboratore assegnato a questo servizio.</p>}
+                    </div>
+
+                    {compatibleResources.length > 0 && (
+                      <div className="mt-4 border-t border-stone-100 pt-4">
+                        <h3 className="text-sm font-bold text-stone-900">Cabina <span aria-hidden="true" className="text-red-700">*</span></h3>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {compatibleResources.map((resource) => {
+                            const active = resourceId === resource.id;
+                            return <button aria-pressed={active} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7] text-[#642744]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={resource.id} onClick={() => setResourceId(resource.id)} type="button">{resource.name}{active && <Check aria-hidden="true" className="size-4" />}</button>;
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Seleziona un servizio per scegliere collaboratore e cabina.</p>}
+              </div>
+              <div className="lg:border-l lg:border-stone-100 lg:pl-5">
+                <label className="text-sm font-bold text-stone-900" htmlFor="appointment-notes">Note interne <span className="font-normal text-stone-600">(facoltative)</span></label>
+                <textarea className="mt-2 min-h-24 w-full resize-y" id="appointment-notes" onChange={(event) => setNotes(event.target.value)} placeholder="Preferenze o promemoria" value={notes} />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside aria-labelledby="summary-title" className="self-start rounded-xl border border-stone-200 bg-white p-4 xl:sticky xl:top-20">
+          <h2 className="text-lg font-bold text-stone-950" id="summary-title">Riepilogo</h2>
+          <p aria-live="polite" className="mt-1 text-sm text-stone-600">{canCreate ? "Tutto pronto per la creazione." : "Completa i campi obbligatori."}</p>
+          <dl className="mt-3 divide-y divide-stone-100 text-sm">
+            <div className="py-2.5"><dt className="text-stone-600">Cliente</dt><dd className="font-bold text-stone-950">{selectedCustomer?.name ?? "Da selezionare"}</dd></div>
+            <div className="py-2.5"><dt className="text-stone-600">Servizio</dt><dd className="font-bold text-stone-950">{selectedService ? `${selectedService.name} · ${selectedService.durationMinutes} min · ${euro(selectedService.priceCents)}` : "Da selezionare"}</dd></div>
+            <div className="py-2.5"><dt className="text-stone-600">Data e ora</dt><dd className="font-bold text-stone-950">{startsAt ? new Date(startsAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }) : "Da inserire"}</dd></div>
+            <div className="py-2.5"><dt className="text-stone-600">Collaboratore</dt><dd className="font-bold text-stone-950">{selectedStaff?.name ?? "Da selezionare"}</dd></div>
+            {compatibleResources.length > 0 && <div className="py-2.5"><dt className="text-stone-600">Cabina</dt><dd className="font-bold text-stone-950">{selectedResource?.name ?? "Da selezionare"}</dd></div>}
           </dl>
-          <Button className="mt-5 w-full" disabled={saving} onClick={() => void createAppointment()} variant="primary">{saving ? "Creazione..." : "Crea appuntamento"}</Button>
+          <Button className="mt-4 w-full" disabled={saving || !canCreate} onClick={() => void createAppointment()} variant="primary">{saving ? "Creazione in corso…" : "Crea appuntamento"}</Button>
           <Button className="mt-2 w-full" onClick={() => router.push("/calendar")} variant="ghost">Annulla</Button>
         </aside>
       </div>

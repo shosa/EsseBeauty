@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, RefreshCw, Search } from "lucide-react";
-import { AppPage, Button, Drawer, EmptyState, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, Drawer, EmptyState, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -180,8 +180,8 @@ export default function AccountingPage() {
           <div className="flex flex-wrap gap-2">
           {presetLabels.map(([value, label]) => <Button key={value} onClick={() => selectPreset(value)} size="sm" variant={preset === value ? "primary" : "outline"}>{label}</Button>)}
           </div>
-          <label className="ml-auto text-[10px] font-bold uppercase text-stone-500">Dal<input className="ml-2 rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-950" max={toDate} onChange={(event) => { if (event.target.value) { setPreset("custom"); setFromDate(event.target.value); } }} type="date" value={fromDate} /></label>
-          <label className="text-[10px] font-bold uppercase text-stone-500">Al<input className="ml-2 rounded border border-stone-200 px-2 py-1.5 text-xs text-stone-950" min={fromDate} onChange={(event) => { if (event.target.value) { setPreset("custom"); setToDate(event.target.value); } }} type="date" value={toDate} /></label>
+          <div className="ml-auto w-44"><span className="mb-1 block text-[10px] font-bold uppercase text-stone-500">Dal</span><DateField aria-label="Data iniziale" max={toDate} onChange={(value) => { if (value) { setPreset("custom"); setFromDate(value); } }} value={fromDate} /></div>
+          <div className="w-44"><span className="mb-1 block text-[10px] font-bold uppercase text-stone-500">Al</span><DateField aria-label="Data finale" min={fromDate} onChange={(value) => { if (value) { setPreset("custom"); setToDate(value); } }} value={toDate} /></div>
           <button aria-label="Aggiorna contabilità" className="grid h-8 w-8 place-items-center border border-stone-200" onClick={() => void loadSales()} title="Aggiorna"><RefreshCw size={15} /></button>
           <Button onClick={exportPdf} size="sm" variant="outline"><FileText className="mr-2" size={16} />PDF</Button>
           <Button onClick={exportRegister} size="sm" variant="outline"><Download className="mr-2" size={16} />Excel</Button>

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { createPortal } from "react-dom";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, isAppointmentDragDisabled, nextAppointmentStatuses, PERMISSION_KEYS, WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
 import { AppPage, Badge, Button, Dialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge, WorkspaceToolbar } from "@esse-beauty/ui";
@@ -323,6 +325,7 @@ function collisionLayout<T extends { id: string }>(
 export default function CalendarPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const reduceMotion = useReducedMotion();
   const selectedAppointmentId = searchParams.get("appointment");
   const [items, setItems] = useState<Appointment[]>([]);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
@@ -347,6 +350,8 @@ export default function CalendarPage() {
   });
   const [error, setError] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
+  const appointmentDialogRef = useRef<HTMLElement>(null);
   const [curtainShake, setCurtainShake] = useState(false);
   const [pendingMove, setPendingMove] = useState<PendingAppointmentMove>();
   const [moveDraft, setMoveDraft] = useState<AppointmentMoveDraft>();
@@ -359,6 +364,8 @@ export default function CalendarPage() {
     hasPermission(PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS) ||
     hasPermission(PERMISSION_KEYS.CALENDAR_MANAGE_OWN);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  useEffect(() => setPortalNode(document.body), []);
 
   useEffect(() => {
     if (!salon) return;
@@ -427,14 +434,29 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (!selectedAppointmentId) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeAppointment();
+      if (event.key === "Escape") {
+        if (appointmentDialogRef.current?.querySelector('[role="dialog"]')) return;
+        closeAppointment();
+      }
+      if (event.key !== "Tab" || !appointmentDialogRef.current) return;
+      const focusable = Array.from(appointmentDialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
+    const focusFrame = window.requestAnimationFrame(() => appointmentDialogRef.current?.querySelector<HTMLElement>("[data-appointment-close]")?.focus());
     return () => {
-      document.body.style.overflow = "";
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
+      previousFocus?.focus();
     };
   }, [selectedAppointmentId]);
 
@@ -1279,15 +1301,25 @@ export default function CalendarPage() {
           </div>
         </>
       )}
-      {selectedAppointmentId && (
-        <div aria-label="Dettaglio appuntamento" aria-modal="true" className="fixed inset-x-0 bottom-0 top-16 z-40 flex items-stretch justify-end bg-[#201820]/24 pl-3 backdrop-blur-[2px] md:left-[76px] md:pl-8" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) rejectBackdropClose();
-        }} role="dialog">
-          <div className={`appointment-curtain h-full w-full max-w-[1280px] overflow-y-auto overscroll-contain rounded-tl-2xl border-l border-t border-white/80 bg-[#f7f6f3] shadow-[-24px_0_72px_rgb(32_24_32_/_0.28)] md:rounded-l-2xl md:rounded-r-none ${curtainShake ? "appointment-curtain-shake" : ""}`} onAnimationEnd={() => setCurtainShake(false)}>
+      {portalNode && createPortal(<AnimatePresence>
+        {selectedAppointmentId && <motion.div animate={{ opacity: 1 }} className="fixed inset-0 z-[45] bg-stone-950/35 backdrop-blur-[2px]" exit={{ opacity: 0 }} initial={{ opacity: 0 }} onMouseDown={(event) => { if (event.currentTarget === event.target) rejectBackdropClose(); }} transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: "easeOut" }}>
+          <motion.aside
+            animate={{ opacity: 1, x: 0 }}
+            aria-label="Gestione appuntamento"
+            aria-modal="true"
+            className={`appointment-curtain absolute inset-y-0 right-0 flex w-full max-w-[900px] overflow-hidden border-l border-stone-200 bg-[#f6f4f2] shadow-[-20px_0_64px_rgb(32_24_32_/_0.24)] outline-none ${curtainShake ? "appointment-curtain-shake" : ""}`}
+            exit={reduceMotion ? { opacity: 0, x: 0 } : { opacity: 1, x: "100%" }}
+            initial={reduceMotion ? { opacity: 0, x: 0 } : { opacity: 1, x: "100%" }}
+            onAnimationEnd={() => setCurtainShake(false)}
+            ref={appointmentDialogRef}
+            role="dialog"
+            tabIndex={-1}
+            transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.22, 0.9, 0.28, 1] }}
+          >
             <AppointmentDetailPanel appointmentId={selectedAppointmentId} onChanged={() => setRefreshToken((value) => value + 1)} onClose={closeAppointment} />
-          </div>
-        </div>
-      )}
+          </motion.aside>
+        </motion.div>}
+      </AnimatePresence>, portalNode)}
     </AppPage>
   );
 }

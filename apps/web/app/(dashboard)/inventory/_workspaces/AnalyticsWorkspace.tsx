@@ -2,7 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { AppPage, Button, FormField, InlineError, PageHeader } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, FormField, InlineError, PageHeader } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
 import { WarehouseAnalytics } from "../_components/WarehouseAnalytics";
 import { warehouseApi } from "../warehouse-api";
@@ -62,10 +62,10 @@ export function AnalyticsWorkspace() {
       />
       <div className="mb-4 grid gap-3 rounded-xl border border-stone-200 bg-white p-3 shadow-sm sm:grid-cols-2 lg:max-w-2xl">
         <FormField label="Da">
-          <input className="min-h-10 w-full rounded-lg border border-stone-200 px-3 text-sm" onChange={(event) => setDateFrom(event.target.value)} type="date" value={dateFrom} />
+          <DateField aria-label="Data iniziale analisi" onChange={setDateFrom} value={dateFrom} />
         </FormField>
         <FormField label="A">
-          <input className="min-h-10 w-full rounded-lg border border-stone-200 px-3 text-sm" onChange={(event) => setDateTo(event.target.value)} type="date" value={dateTo} />
+          <DateField aria-label="Data finale analisi" min={dateFrom} onChange={setDateTo} value={dateTo} />
         </FormField>
       </div>
       {error && <InlineError className="mb-4">{error}</InlineError>}

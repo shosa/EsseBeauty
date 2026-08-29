@@ -88,11 +88,10 @@ button:disabled,
   input,
   select,
   textarea {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 253, 0.94));
+    background: #fff;
     border: 1px solid var(--esse-line);
-    border-radius: 16px;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8), 0 6px 18px rgb(45 29 39 / 0.04);
+    border-radius: 10px;
+    box-shadow: none;
     color: #1c1917;
     min-height: 44px;
     padding-inline: 14px;
@@ -100,7 +99,7 @@ button:disabled,
       background-color 160ms ease,
       border-color 160ms ease,
       box-shadow 160ms ease,
-      transform 160ms ease;
+      color 160ms ease;
   }
 
   textarea {
@@ -121,9 +120,7 @@ button:disabled,
   select:focus,
   textarea:focus {
     border-color: rgba(121, 47, 89, 0.55);
-    box-shadow:
-      0 0 0 4px rgb(184 88 136 / 0.16),
-      0 12px 30px rgb(45 29 39 / 0.08);
+    box-shadow: 0 0 0 4px rgb(184 88 136 / 0.16);
     outline: none;
   }
 
@@ -193,9 +190,7 @@ table tbody tr {
 .esse-workspace {
   --app-rail-width: 76px;
   --app-topbar-height: 64px;
-  background:
-    radial-gradient(circle at 88% -10%, rgb(243 226 235 / 0.55), transparent 28rem),
-    #f7f6f4;
+  background: #f7f6f4;
 }
 
 .esse-panel {
@@ -216,26 +211,58 @@ table tbody tr {
   scroll-margin-top: 5.5rem;
 }
 
-.esse-page-header {
-  position: relative;
-}
-
-.esse-page-header::after {
-  background: linear-gradient(90deg, #792f59, #d99aba 55%, transparent);
-  bottom: -1px;
-  content: "";
-  height: 2px;
-  left: 0;
-  position: absolute;
-  width: 72px;
-}
+.esse-page-header { position: relative; }
 
 .esse-panel {
   isolation: isolate;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.esse-toolbar {
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9);
+@media (hover: hover) and (pointer: fine) {
+  .esse-panel:hover {
+    border-color: rgb(121 47 89 / 0.58);
+    box-shadow:
+      0 0 0 1px rgb(121 47 89 / 0.12),
+      0 12px 32px rgb(121 47 89 / 0.2),
+      0 4px 14px rgb(184 88 136 / 0.14);
+  }
+}
+
+.esse-panel:focus-within {
+  border-color: rgb(121 47 89 / 0.58);
+  box-shadow:
+    0 0 0 1px rgb(121 47 89 / 0.12),
+    0 12px 32px rgb(121 47 89 / 0.2),
+    0 4px 14px rgb(184 88 136 / 0.14);
+}
+
+.esse-toolbar { box-shadow: none; }
+
+.whatsapp-drawer {
+  --wa-primary: #176b45;
+  --wa-primary-hover: #105a39;
+  --wa-tint: #edf8f1;
+  --wa-border: #b8dfc9;
+  --wa-ring: rgb(23 107 69 / 0.18);
+}
+
+.whatsapp-drawer button:focus-visible,
+.whatsapp-drawer a:focus-visible {
+  box-shadow: 0 0 0 4px var(--wa-ring);
+  outline: none;
+}
+
+.whatsapp-drawer input:focus,
+.whatsapp-drawer textarea:focus {
+  border-color: var(--wa-primary);
+  box-shadow: 0 0 0 4px var(--wa-ring);
+}
+
+.whatsapp-drawer input:hover:not(:disabled),
+.whatsapp-drawer textarea:hover:not(:disabled) {
+  border-color: rgb(23 107 69 / 0.42);
 }
 
 .sidebar-scroll {
@@ -280,20 +307,19 @@ table tbody tr {
   accent-color: #0f766e;
 }
 
-@keyframes appointment-drawer-enter {
+@keyframes esse-page-view-enter {
   from {
-    opacity: 0.72;
-    transform: translateX(100%);
+    opacity: 0;
+    transform: translateY(5px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
-.appointment-curtain {
-  animation: appointment-drawer-enter 320ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
-  transform-origin: right center;
+.esse-page-view {
+  animation: esse-page-view-enter 180ms ease-out both;
 }
 
 @keyframes appointment-curtain-shake {
@@ -357,10 +383,6 @@ table tbody tr {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-  }
-
-  .appointment-curtain {
-    animation-duration: 1ms;
   }
 
   .appointment-curtain.appointment-curtain-shake {

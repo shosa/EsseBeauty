@@ -12,7 +12,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { Button } from "@esse-beauty/ui";
+import { Button, DateField } from "@esse-beauty/ui";
 import { useEffect, useMemo, useState } from "react";
 import { mapWarehouseLineErrors, WarehouseApiError } from "../warehouse-api";
 import type {
@@ -673,25 +673,14 @@ export function WarehouseOperationDialog({
                     value={reference}
                   />
                 </label>
-                <label className="text-xs font-bold text-stone-600">
-                  Data documento
-                  <input
-                    className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 px-2 text-sm"
-                    onChange={(event) => setDocumentDate(event.target.value)}
-                    required
-                    type="date"
-                    value={documentDate}
-                  />
-                </label>
-                <label className="text-xs font-bold text-stone-600">
-                  Data competenza
-                  <input
-                    className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 px-2 text-sm"
-                    onChange={(event) => setCompetenceDate(event.target.value)}
-                    type="date"
-                    value={competenceDate}
-                  />
-                </label>
+                <div className="text-xs font-bold text-stone-600">
+                  <span className="mb-1 block">Data documento</span>
+                  <DateField aria-label="Data documento" onChange={setDocumentDate} required value={documentDate} />
+                </div>
+                <div className="text-xs font-bold text-stone-600">
+                  <span className="mb-1 block">Data competenza</span>
+                  <DateField aria-label="Data competenza" onChange={setCompetenceDate} value={competenceDate} />
+                </div>
                 <label className="text-xs font-bold text-stone-600">
                   Fornitore
                   <select

@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
 
@@ -69,6 +70,9 @@ function readableTextColor(hex?: string | null) {
 
 export default function SalesPage() {
   const { salon } = useAuth();
+  const searchParams = useSearchParams();
+  const appointmentFromUrl = searchParams.get("appointment");
+  const loadedAppointmentFromUrlRef = useRef("");
   const [catalog, setCatalog] = useState<PosCatalog>();
   const [cart, setCart] = useState<CartLine[]>([]);
   const [catalogType, setCatalogType] = useState<CatalogType>("service");
@@ -168,6 +172,11 @@ export default function SalesPage() {
   }
   useEffect(() => { void loadCatalog(); }, [salon?.id]);
   useEffect(() => { void loadTodayAppointments(); }, [salon?.id]);
+  useEffect(() => {
+    if (!salon?.id || !appointmentFromUrl || loadedAppointmentFromUrlRef.current === appointmentFromUrl) return;
+    loadedAppointmentFromUrlRef.current = appointmentFromUrl;
+    void loadAppointmentCheckout(appointmentFromUrl);
+  }, [appointmentFromUrl, salon?.id]);
   useEffect(() => {
     if (!salon || !customerDialogOpen) return;
     const search = customerQuery.trim();
