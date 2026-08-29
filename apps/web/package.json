@@ -19,6 +19,7 @@
     "@esse-beauty/ui": "workspace:*",
     "@hookform/resolvers": "^5.4.0",
     "lucide-react": "^1.21.0",
+    "motion": "^12.40.0",
     "next": "^15.3.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
