@@ -8,7 +8,7 @@ RUN pnpm --filter @esse-beauty/api deploy --prod --legacy /deploy
 
 FROM builder AS migrator
 ENV NODE_ENV=production
-CMD ["pnpm", "--filter", "@esse-beauty/db", "db:migrate"]
+CMD ["sh", "-lc", "node packages/db/scripts/ensure-database.mjs && pnpm --filter @esse-beauty/db db:migrate"]
 
 FROM node:22-alpine AS runner
 ENV NODE_ENV=production
