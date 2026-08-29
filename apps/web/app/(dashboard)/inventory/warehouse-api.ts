@@ -1,4 +1,4 @@
-import type { WarehouseAnalyticsSummary, WarehouseCount, WarehouseImportPreview, WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseReports, WarehouseReportingFilters, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
+import type { WarehouseAnalyticsSummary, WarehouseAssetList, WarehouseCount, WarehouseExpenseList, WarehouseImportPreview, WarehouseDocument, WarehouseDocumentDetails, WarehouseDocumentInput, WarehouseListFilters, WarehouseProduct, WarehouseReports, WarehouseReportingFilters, WarehouseSummary, WarehouseSupplier } from "./warehouse-types";
 
 export function mapWarehouseLineErrors(body: unknown, lines: Array<{ key: string }>) {
   const result: Record<string, Record<string, string>> = {};
@@ -35,6 +35,8 @@ export const warehouseApi = {
   getSummary: (salonId: string) => request<WarehouseSummary>(`${base(salonId)}/summary`),
   getAnalyticsSummary: (salonId: string, filters: WarehouseReportingFilters = {}) => request<WarehouseAnalyticsSummary>(`${base(salonId)}/analytics/summary${query(filters)}`),
   getReports: (salonId: string, filters: WarehouseReportingFilters = {}) => request<WarehouseReports>(`${base(salonId)}/reports${query(filters)}`),
+  getExpenses: (salonId: string, filters: WarehouseReportingFilters = {}) => request<WarehouseExpenseList>(`${base(salonId)}/expenses${query(filters)}`),
+  getAssets: (salonId: string, filters: WarehouseReportingFilters = {}) => request<WarehouseAssetList>(`${base(salonId)}/assets${query(filters)}`),
   getProducts: (salonId: string, filters: WarehouseListFilters = {}) => request<WarehouseProduct[]>(`${base(salonId)}/products${query(filters)}`),
   getSuppliers: (salonId: string, filters: WarehouseListFilters = {}) => request<WarehouseSupplier[]>(`${base(salonId)}/suppliers${query(filters)}`),
   getDocuments: (salonId: string, filters: WarehouseListFilters = {}) => request<WarehouseDocument[]>(`${base(salonId)}/documents${query(filters)}`),
@@ -50,6 +52,10 @@ export const warehouseApi = {
   previewImport: (salonId: string, input: { mapping: Record<string, string>; rows?: Array<Record<string, unknown>>; text?: string }) => request<WarehouseImportPreview>(`${base(salonId)}/imports/preview`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
   createSupplier: (salonId: string, input: Partial<WarehouseSupplier> & { name: string }) => request<WarehouseSupplier>(`${base(salonId)}/suppliers`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(toSupplierInput(input)) }),
   updateSupplier: (salonId: string, supplierId: string, input: Partial<WarehouseSupplier> & { name?: string }) => request<WarehouseSupplier>(`${base(salonId)}/suppliers/${encodeURIComponent(supplierId)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(toSupplierInput(input)) }),
+  registerExpense: (salonId: string, input: unknown) => request(`${base(salonId)}/expenses`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
+  reverseExpense: (salonId: string, expenseId: string) => request(`${base(salonId)}/expenses/${encodeURIComponent(expenseId)}/reverse`, { method: "POST" }),
+  registerAsset: (salonId: string, input: unknown) => request(`${base(salonId)}/assets`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
+  disposeAsset: (salonId: string, assetId: string, input: { disposed_at?: string; reason: string }) => request(`${base(salonId)}/assets/${encodeURIComponent(assetId)}/dispose`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) }),
 };
 
 function toSupplierInput(input: Partial<WarehouseSupplier> & { name?: string }) {

@@ -15,8 +15,10 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { registerInventoryCatalogRoutes } from "./catalog.js";
+import { registerInventoryAssetRoutes } from "./assets.js";
 import { registerInventoryCountRoutes } from "./counts.js";
 import { registerInventoryDocumentRoutes } from "./documents.js";
+import { registerInventoryExpenseRoutes } from "./expenses.js";
 import { registerInventoryReportingRoutes } from "./reporting.js";
 import { nextInventoryDocumentNumber } from "./document-number.js";
 import {
@@ -37,6 +39,8 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
   await registerInventoryCountRoutes(app);
   await registerInventoryDocumentRoutes(app);
   await registerInventoryReportingRoutes(app);
+  await registerInventoryExpenseRoutes(app);
+  await registerInventoryAssetRoutes(app);
   app.get<{
     Params: { id: string };
     Querystring: { low_stock?: string };

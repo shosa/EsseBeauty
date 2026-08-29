@@ -25,3 +25,48 @@ export interface WarehouseReports {
   valuation: { rows: Array<{ average_cost_cents: number; category: string | null; item_type: WarehouseItemType; name: string; product_id: string; stock_quantity: number; value_cents: number }>; total_cents: number };
   waste: { rows: Array<{ name: string; product_id: string; quantity: number; value_cents: number }>; total_cents: number };
 }
+export type WarehousePaymentMethod = "cash" | "card" | "bank_transfer" | "other";
+export interface WarehouseExpense {
+  cashMovementId?: string | null;
+  cash_movement_id?: string | null;
+  category: string;
+  competenceDate?: string;
+  description: string;
+  documentId?: string;
+  id: string;
+  netCents: number;
+  notes: string | null;
+  source_document_id?: string;
+  source_document_number?: string;
+  supplierId: string | null;
+  supplier_name?: string | null;
+  taxCents: number;
+  totalCents: number;
+}
+export interface WarehouseExpenseList {
+  items: WarehouseExpense[];
+  net_total_cents: number;
+  tax_total_cents: number;
+  total_cents: number;
+}
+export interface WarehouseAsset {
+  cashMovementId?: string | null;
+  description: string;
+  documentId?: string;
+  id: string;
+  location?: string | null;
+  notes: string | null;
+  purchaseCostCents: number;
+  purchaseDate: string;
+  serialNumber?: string | null;
+  source_document_id?: string;
+  source_document_number?: string;
+  status: "active" | "disposed";
+  supplierId: string | null;
+  supplier_name?: string | null;
+  warrantyExpiresAt?: string | null;
+}
+export interface WarehouseAssetList {
+  items: WarehouseAsset[];
+  total_cents: number;
+}
