@@ -244,19 +244,30 @@ Lo script `scripts/dev.ps1` avvia:
 API:
 
 - `DATABASE_URL`
+- `REDIS_URL`
 - `API_CORS_ORIGIN`
 - `API_HOST` opzionale, default `0.0.0.0`
 - `PORT` opzionale, default `3001`
+- `COOKIE_SECURE`, `true` in produzione HTTPS
 
 Frontend:
 
 - `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_PWA_URL`
+
+Segreti:
+
+- `REVIEW_TOKEN_SECRET` e `REVIEW_SESSION_SECRET`, obbligatori e distinti.
+- `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`, obbligatorio prima di salvare credenziali provider.
+- `RESEND_API_KEY`, `META_APP_SECRET` e `META_WEBHOOK_VERIFY_TOKEN` quando si abilitano email o WhatsApp.
 
 Docker:
 
 - host interno PostgreSQL: `db`
 - host interno Redis: `redis`
 - stringa tipica container: `postgresql://postgres:postgres@db:5432/esse_beauty`
+- `POSTGRES_DB` crea il database solo al primo bootstrap del volume; il servizio `migrate` esegue `packages/db/scripts/ensure-database.mjs` prima di Drizzle per creare il database mancante su volumi gia esistenti.
+- `POSTGRES_MAINTENANCE_DB` opzionale, default `postgres`, indica il database amministrativo usato dal preflight.
 
 ## 6. Autenticazione
 

@@ -53,6 +53,7 @@ services:
       target: migrator
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+      POSTGRES_MAINTENANCE_DB: ${POSTGRES_MAINTENANCE_DB:-postgres}
     depends_on:
       db:
         condition: service_healthy
@@ -113,7 +114,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
-        NEXT_PUBLIC_PWA_URL: ${PWA_URL:-http://localhost:3002}
+        NEXT_PUBLIC_PWA_URL: ${NEXT_PUBLIC_PWA_URL:-http://localhost:3002}
     restart: unless-stopped
     init: true
     ports:
