@@ -1,6 +1,6 @@
 import {
   Bell, BellRing, Blocks, Boxes, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined, ClipboardClock,
-  DoorOpen, FileSignature, Gift, Grid2X2, HandCoins, HeartHandshake, History, Landmark,
+  DoorOpen, FileSignature, Gift, Grid2X2, Ellipsis, HandCoins, HeartHandshake, History, Landmark,
   LayoutDashboard, LogOut, Megaphone, MessageCircleMore, MoreHorizontal, Package,
   PackageOpen, PanelLeft, Scissors, Settings, ShoppingBag, Star, Users, UserRound,
 } from "lucide-react";
@@ -15,7 +15,7 @@ export const ServicesIcon = Scissors;
 export const StaffIcon = UserRound;
 export const SettingsIcon = Settings;
 export const MoreIcon = MoreHorizontal;
-export const ModuleIcon = Grid2X2;
+export const ModuleIcon = Ellipsis;
 export const RemindersIcon = BellRing;
 export const ReviewsIcon = Star;
 export const WaitlistIcon = ClipboardClock;
