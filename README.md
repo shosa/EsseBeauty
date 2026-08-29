@@ -1,4 +1,4 @@
-# ESSEBEAUTY.md
+# EsseBeauty
 
 Compendio tecnico e funzionale di EsseBeauty per agenti software.
 
