@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 
-import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, DateTimeField, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -49,6 +49,8 @@ export default function PermissionsPage() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [startsAt, setStartsAt] = useState("");
+  const [endsAt, setEndsAt] = useState("");
 
   async function load() {
     if (!salon) return;
@@ -105,6 +107,8 @@ export default function PermissionsPage() {
         : "Permesso non inserito.");
     }
     setMessage("Permesso inserito in agenda sugli orari lavorativi.");
+    setStartsAt("");
+    setEndsAt("");
     await load();
   }
 
@@ -160,11 +164,11 @@ export default function PermissionsPage() {
         <form action={addBlock} className="grid gap-4">
           <FormField label="Collaboratore" required><select className="w-full" name="staff_id" required><option value="">Seleziona</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</select></FormField>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Inizio" required><input className="w-full" name="starts" required type="datetime-local" /></FormField>
-            <FormField label="Fine" required><input className="w-full" name="ends" required type="datetime-local" /></FormField>
+            <FormField label="Inizio" required><DateTimeField aria-label="Inizio permesso" name="starts" onChange={setStartsAt} required value={startsAt} /></FormField>
+            <FormField label="Fine" required><DateTimeField aria-label="Fine permesso" min={startsAt || undefined} name="ends" onChange={setEndsAt} required value={endsAt} /></FormField>
           </div>
           <FormField label="Motivo"><input className="w-full" name="reason" /></FormField>
-          <div className="flex justify-end"><Button type="submit" variant="primary">Inserisci permesso</Button></div>
+          <div className="flex justify-end"><Button disabled={!startsAt || !endsAt || endsAt <= startsAt} type="submit" variant="primary">Inserisci permesso</Button></div>
         </form>
       </SectionCard>
 

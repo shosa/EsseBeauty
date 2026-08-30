@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
-import { BellRing, FileSignature, History, MapPinned, MessageCircle, SlidersHorizontal, Smartphone, Users } from "lucide-react";
+import { BellRing, Building2, CalendarRange, FileSignature, History, MapPinned, MessageCircle, Smartphone, Users } from "lucide-react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
@@ -30,7 +30,8 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     {
       label: "Salone",
       links: [
-        { href: "/settings", icon: SlidersHorizontal, label: "Centro controllo" },
+        { href: "/settings", icon: Building2, label: "Salone" },
+        { href: "/settings/agenda", icon: CalendarRange, label: "Agenda e chiusure" },
         { href: "/settings/users", icon: Users, label: "Utenti" },
         { href: "/settings/pwa", icon: Smartphone, label: "App Clienti" },
         { href: "/settings/locations", icon: MapPinned, label: "Sedi" },
@@ -50,16 +51,36 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   if (legacyDestination) return null;
 
   return (
-    <div className="w-full px-3 py-4 sm:px-4 lg:px-5">
-      <div className="grid w-full gap-3 lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="self-start rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_8px_24px_rgb(45_29_39_/_0.045)] lg:sticky lg:top-[124px]">
-          <div className="border-b border-[#eee6ea] px-2 pb-3">
-            <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#8f3a68]">Sistema</p>
-            <h2 className="text-base font-bold text-[#2d1d27]">Impostazioni salone</h2>
-          </div>
-          <nav aria-label="Navigazione impostazioni" className="mt-4 space-y-5">
+    <div className="settings-shell w-full lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="border-b border-[#ded6da] bg-[#f7f4f5] px-4 py-3 lg:hidden">
+        <p className="mb-2 text-xs font-semibold text-stone-500">Impostazioni salone</p>
+        <nav aria-label="Navigazione impostazioni" className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1">
+          {groups.flatMap((group) => group.links).map((item) => {
+            const active = item.href === "/settings" ? pathname === item.href : pathname.startsWith(item.href);
+            const Icon = item.icon;
+            return (
+              <Link
+                aria-current={active ? "page" : undefined}
+                className={`flex min-h-11 shrink-0 snap-start items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "bg-[#eadfe5] font-semibold text-[#4b263b] shadow-[inset_0_0_0_1px_rgb(121_47_89_/_0.08)]" : "text-stone-600 hover:bg-black/[.035] hover:text-stone-900"}`}
+                href={item.href}
+                key={item.href}
+              >
+                <Icon aria-hidden="true" className="size-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      <aside className="sticky top-[var(--app-topbar-height)] hidden h-[calc(100dvh-var(--app-topbar-height))] overflow-y-auto border-r border-[#ded6da] bg-[#f5f1f3] px-3 py-4 lg:block">
+        <div className="border-b border-[#ded6da] px-2 pb-4 pt-1">
+          <h2 className="text-base font-semibold text-[#2d1d27]">Impostazioni</h2>
+          <p className="mt-1 text-xs leading-5 text-stone-500">Salone e sistema</p>
+        </div>
+        <nav aria-label="Navigazione impostazioni" className="mt-4 space-y-5">
             {groups.map((group) => <section key={group.label}>
-              <h3 className="mb-1.5 px-2 text-[9px] font-black uppercase tracking-[.16em] text-stone-400">{group.label}</h3>
+              <h3 className="mb-1.5 px-2 text-xs font-semibold text-stone-500">{group.label}</h3>
               <div className="space-y-1">
                 {group.links.map((item) => {
                   const active = item.href === "/settings" ? pathname === item.href : pathname.startsWith(item.href);
@@ -67,21 +88,22 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
                   return (
                     <Link
                       aria-current={active ? "page" : undefined}
-                      className={`flex min-h-10 items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${active ? "border-[#d7a6c1] bg-[#faf3f7] text-[#792f59] shadow-sm" : "border-transparent text-stone-600 hover:bg-[#faf7f9] hover:text-[#792f59]"}`}
+                      className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "bg-[#e7dce2] font-semibold text-[#452536] shadow-[inset_0_0_0_1px_rgb(121_47_89_/_0.08)]" : "text-stone-600 hover:bg-black/[.035] hover:text-stone-900"}`}
                       href={item.href}
                       key={item.href}
                     >
-                      <span className="flex min-w-0 items-center gap-2.5"><Icon className={`size-4 shrink-0 ${active ? "text-[#792f59]" : "text-stone-400"}`} /><span className="truncate">{item.label}</span></span>
+                      <Icon aria-hidden="true" className={`size-4 shrink-0 ${active ? "text-[#6f3556]" : "text-stone-400"}`} />
+                      <span className="truncate">{item.label}</span>
                     </Link>
                   );
                 })}
               </div>
             </section>)}
-          </nav>
-        </aside>
-        <div className="min-w-0 [&>.esse-workspace-page]:min-h-0 [&>.esse-workspace-page]:px-0 [&>.esse-workspace-page]:py-0 [&>.esse-workspace-page>div]:max-w-none">
-          {children}
-        </div>
+        </nav>
+      </aside>
+
+      <div className="min-w-0 px-3 py-4 sm:px-4 lg:px-5 [&>.esse-workspace-page]:min-h-0 [&>.esse-workspace-page]:px-0 [&>.esse-workspace-page]:py-0 [&>.esse-workspace-page>div]:max-w-none">
+        {children}
       </div>
     </div>
   );

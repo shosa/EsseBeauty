@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { WorkingHours } from "@esse-beauty/shared";
 import { Button, FormField, ScheduleEditor } from "@esse-beauty/ui";
 
+import { BrandLogo } from "../_components/BrandLogo";
 import { AuthProvider, useAuth } from "../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -189,7 +190,9 @@ function OnboardingWizard() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#fff_0,#faf3f7_36%,#f1e8ed_100%)] p-4 md:p-8">
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-[2rem] bg-[#35212e] p-6 text-white shadow-2xl lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
-          <div className="grid size-12 place-items-center rounded-2xl bg-white text-xl font-black text-[#792f59]">E</div>
+          <div className="grid size-12 place-items-center rounded-2xl border border-white/10 bg-white/8">
+            <BrandLogo className="size-9" tone="white" />
+          </div>
           <p className="mt-7 text-xs font-black uppercase tracking-[.2em] text-[#d9a5c2]">Primo accesso</p>
           <h1 className="mt-2 text-3xl font-bold">Prepariamo il salone.</h1>
           <p className="mt-3 text-sm leading-6 text-white/60">Pochi dati essenziali, poi il gestionale è pronto per lavorare.</p>

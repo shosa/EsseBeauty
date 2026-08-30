@@ -2,12 +2,14 @@ import type {
   ButtonHTMLAttributes,
   ComponentType,
   HTMLAttributes,
+  KeyboardEvent as ReactKeyboardEvent,
   MouseEvent,
   ReactNode,
 } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Trash2, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Trash2, X } from "lucide-react";
 
 export const designTokens = {
   layout: {
@@ -194,37 +196,142 @@ export function DateField({
 }) {
   const selected = parseIsoDate(value);
   const [open, setOpen] = useState(false);
+  const [popupPosition, setPopupPosition] = useState<{ left: number; top: number } | null>(null);
   const [visibleMonth, setVisibleMonth] = useState(() => selected ? new Date(selected.getFullYear(), selected.getMonth(), 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const rootRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogTitleId = useId();
   const monthLabel = new Intl.DateTimeFormat("it-IT", { month: "long", year: "numeric" }).format(visibleMonth);
   const formattedValue = selected ? new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", year: "numeric" }).format(selected) : "Seleziona data";
+  const today = isoDate(new Date());
   const days = useMemo(() => {
     const firstWeekday = (visibleMonth.getDay() + 6) % 7;
     const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1 - firstWeekday);
     return Array.from({ length: 42 }, (_, index) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + index));
   }, [visibleMonth]);
 
+  function placePopup() {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 8;
+    const popupWidth = Math.min(344, window.innerWidth - viewportPadding * 2);
+    const popupHeight = popupRef.current?.offsetHeight ?? 404;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const left = Math.max(viewportPadding, Math.min(rect.left, window.innerWidth - popupWidth - viewportPadding));
+    const top = spaceBelow >= Math.min(popupHeight, 360) || spaceBelow >= spaceAbove
+      ? Math.min(rect.bottom + 8, window.innerHeight - Math.min(popupHeight, window.innerHeight - viewportPadding * 2) - viewportPadding)
+      : Math.max(viewportPadding, rect.top - popupHeight - 8);
+    setPopupPosition({ left, top: Math.max(viewportPadding, top) });
+  }
+
+  function focusDate(iso: string) {
+    window.requestAnimationFrame(() => {
+      popupRef.current?.querySelector<HTMLButtonElement>(`[data-date="${iso}"]`)?.focus();
+    });
+  }
+
+  function closeCalendar(restoreFocus = false) {
+    setOpen(false);
+    if (restoreFocus) window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  function moveDayFocus(event: ReactKeyboardEvent<HTMLButtonElement>, day: Date) {
+    const offsets: Partial<Record<string, number>> = {
+      ArrowDown: 7,
+      ArrowLeft: -1,
+      ArrowRight: 1,
+      ArrowUp: -7,
+    };
+    let next: Date | undefined;
+    const offset = offsets[event.key];
+    if (offset !== undefined) next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + offset);
+    if (event.key === "Home") next = new Date(day.getFullYear(), day.getMonth(), day.getDate() - ((day.getDay() + 6) % 7));
+    if (event.key === "End") next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + (6 - ((day.getDay() + 6) % 7)));
+    if (event.key === "PageUp") next = new Date(day.getFullYear(), day.getMonth() - 1, day.getDate());
+    if (event.key === "PageDown") next = new Date(day.getFullYear(), day.getMonth() + 1, day.getDate());
+    if (!next) return;
+    const nextIso = isoDate(next);
+    if ((min && nextIso < min) || (max && nextIso > max)) return;
+    event.preventDefault();
+    setVisibleMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+    focusDate(nextIso);
+  }
+
   useEffect(() => {
     if (!open) return;
-    const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    placePopup();
+    focusDate(value || today);
+    const close = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !popupRef.current?.contains(target)) closeCalendar();
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") closeCalendar(true); };
+    const reposition = () => placePopup();
     window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", escape);
-    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", escape); };
-  }, [open]);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [open, value]);
+
+  const calendar = open && popupPosition && typeof document !== "undefined" ? createPortal(
+    <div className="pointer-events-none fixed inset-0 isolate z-[9999]" data-esse-overlay-root="date-picker">
+      <div
+        aria-labelledby={dialogTitleId}
+        aria-modal="false"
+        className="pointer-events-auto fixed max-h-[calc(100dvh-16px)] w-[344px] max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white p-3 shadow-[0_22px_64px_rgb(45_29_39_/_0.22)]"
+        ref={popupRef}
+        role="dialog"
+        style={{ left: popupPosition.left, top: popupPosition.top }}
+      >
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button aria-label="Mese precedente" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
+        <strong className="capitalize text-sm" id={dialogTitleId}>{monthLabel}</strong>
+        <button aria-label="Mese successivo" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
+      </div>
+      <div aria-hidden="true" className="grid grid-cols-7 text-center text-[11px] font-bold text-stone-500">{["L", "M", "M", "G", "V", "S", "D"].map((day, index) => <span className="py-1" key={`${day}-${index}`}>{day}</span>)}</div>
+      <div className="grid grid-cols-7 gap-0.5">{days.map((day) => {
+        const iso = isoDate(day);
+        const outside = day.getMonth() !== visibleMonth.getMonth();
+        const unavailable = Boolean((min && iso < min) || (max && iso > max));
+        const active = iso === value;
+        const dateLabel = new Intl.DateTimeFormat("it-IT", { dateStyle: "full" }).format(day);
+        return <button
+          aria-current={iso === today ? "date" : undefined}
+          aria-label={dateLabel}
+          aria-pressed={active || undefined}
+          className={`grid min-h-11 w-full place-items-center rounded-lg text-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/25 disabled:cursor-not-allowed disabled:opacity-35 ${active ? "bg-[#792f59] font-bold text-white" : outside ? "text-stone-400 hover:bg-stone-100" : iso === today ? "bg-stone-100 font-bold text-[#792f59] hover:bg-[#faf3f7]" : "text-stone-800 hover:bg-[#faf3f7]"}`}
+          data-date={iso}
+          disabled={unavailable}
+          key={iso}
+          onClick={() => { onChange(iso); closeCalendar(true); }}
+          onKeyDown={(event) => moveDayFocus(event, day)}
+          type="button"
+        >{day.getDate()}</button>;
+      })}</div>
+      <div className={`mt-2 grid gap-2 ${value ? "grid-cols-2" : "grid-cols-1"}`}>
+        <button className="min-h-11 rounded-lg text-sm font-semibold text-[#792f59] hover:bg-[#faf3f7] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" disabled={Boolean((min && today < min) || (max && today > max))} onClick={() => { onChange(today); closeCalendar(true); }} type="button">Oggi</button>
+        {value && <button className="min-h-11 rounded-lg text-sm font-semibold text-stone-600 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" onClick={() => { onChange(""); closeCalendar(true); }} type="button">Cancella</button>}
+      </div>
+      </div>
+    </div>,
+    document.body,
+  ) : null;
 
   return <div className={`relative ${className}`} ref={rootRef}>
     {name && <input name={name} type="hidden" value={value} />}
-    <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => setOpen((current) => !current)} type="button">
+    <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
       <span>{formattedValue}</span><CalendarDays aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
     </button>
-    {required && !value && <input aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-0" required tabIndex={-1} value="" onChange={() => undefined} />}
-    {open && <div aria-label={`Calendario ${monthLabel}`} className="absolute left-0 top-[calc(100%+8px)] z-[80] w-[304px] rounded-xl border border-stone-200 bg-white p-3 shadow-[0_18px_48px_rgb(45_29_39_/_0.16)]" role="dialog">
-      <div className="mb-3 flex items-center justify-between"><button aria-label="Mese precedente" className="grid size-9 place-items-center rounded-lg hover:bg-stone-100" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button><strong className="capitalize text-sm">{monthLabel}</strong><button aria-label="Mese successivo" className="grid size-9 place-items-center rounded-lg hover:bg-stone-100" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button></div>
-      <div aria-hidden="true" className="grid grid-cols-7 text-center text-[11px] font-bold text-stone-500">{["L", "M", "M", "G", "V", "S", "D"].map((day, index) => <span className="py-1" key={`${day}-${index}`}>{day}</span>)}</div>
-      <div className="grid grid-cols-7 gap-0.5">{days.map((day) => { const iso = isoDate(day); const outside = day.getMonth() !== visibleMonth.getMonth(); const unavailable = Boolean((min && iso < min) || (max && iso > max)); const active = iso === value; return <button aria-pressed={active || undefined} className={`grid size-10 place-items-center rounded-lg text-sm ${active ? "bg-[#792f59] font-bold text-white" : outside ? "text-stone-400 hover:bg-stone-100" : "text-stone-800 hover:bg-[#faf3f7]"}`} disabled={unavailable} key={iso} onClick={() => { onChange(iso); setOpen(false); }} type="button">{day.getDate()}</button>; })}</div>
-      {value && <button className="mt-2 min-h-9 w-full rounded-lg text-xs font-semibold text-stone-600 hover:bg-stone-100" onClick={() => { onChange(""); setOpen(false); }} type="button">Cancella data</button>}
-    </div>}
+    {calendar}
   </div>;
 }
 
@@ -253,7 +360,10 @@ export function DateTimeField({
   const timeValue = value.slice(11, 16);
   const [selectedHour = "09", selectedMinute = "00"] = timeValue.split(":");
   const [timeOpen, setTimeOpen] = useState(false);
+  const [timePopupPosition, setTimePopupPosition] = useState<{ left: number; top: number } | null>(null);
   const timeRootRef = useRef<HTMLDivElement>(null);
+  const timePopupRef = useRef<HTMLDivElement>(null);
+  const timeTriggerRef = useRef<HTMLButtonElement>(null);
   const minuteStep = Math.max(1, Math.min(30, Math.round(step / 60)));
   const hours = useMemo(() => Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0")), []);
   const minutes = useMemo(
@@ -261,17 +371,72 @@ export function DateTimeField({
     [minuteStep],
   );
 
+  function placeTimePopup() {
+    const trigger = timeTriggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const padding = 8;
+    const width = Math.min(292, window.innerWidth - padding * 2);
+    const height = timePopupRef.current?.offsetHeight ?? 312;
+    const below = window.innerHeight - rect.bottom - padding;
+    const above = rect.top - padding;
+    const left = Math.max(padding, Math.min(rect.right - width, window.innerWidth - width - padding));
+    const top = below >= Math.min(height, 280) || below >= above
+      ? Math.min(rect.bottom + 8, window.innerHeight - Math.min(height, window.innerHeight - padding * 2) - padding)
+      : Math.max(padding, rect.top - height - 8);
+    setTimePopupPosition({ left, top: Math.max(padding, top) });
+  }
+
   useEffect(() => {
     if (!timeOpen) return;
-    const close = (event: PointerEvent) => { if (!timeRootRef.current?.contains(event.target as Node)) setTimeOpen(false); };
+    placeTimePopup();
+    const close = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!timeRootRef.current?.contains(target) && !timePopupRef.current?.contains(target)) setTimeOpen(false);
+    };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setTimeOpen(false); };
+    const reposition = () => placeTimePopup();
     window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", escape);
-    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", escape); };
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
   }, [timeOpen]);
 
   const updateDate = (date: string) => onChange(date ? `${date}T${timeValue || "09:00"}` : "");
   const updateTime = (hour: string, minute: string) => onChange(`${dateValue || isoDate(new Date())}T${hour}:${minute}`);
+  const timePicker = timeOpen && timePopupPosition && typeof document !== "undefined" ? createPortal(
+    <div className="pointer-events-none fixed inset-0 isolate z-[9999]" data-esse-overlay-root="time-picker">
+      <div
+        aria-label="Seleziona ora e minuti"
+        className="pointer-events-auto fixed max-h-[calc(100dvh-16px)] w-[292px] max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white p-3 shadow-[0_18px_48px_rgb(45_29_39_/_0.16)]"
+        ref={timePopupRef}
+        role="dialog"
+        style={{ left: timePopupPosition.left, top: timePopupPosition.top }}
+      >
+        <div className="grid grid-cols-[1fr_84px] gap-3">
+          <div>
+            <p className="mb-2 text-xs font-bold text-stone-600">Ora</p>
+            <div className="grid max-h-52 grid-cols-4 gap-1 overflow-y-auto pr-1">
+              {hours.map((hour) => <button aria-pressed={hour === selectedHour} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${hour === selectedHour ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>)}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-bold text-stone-600">Minuti</p>
+            <div className="grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pr-1">
+              {minutes.map((minute) => <button aria-pressed={minute === selectedMinute} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${minute === selectedMinute ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  ) : null;
 
   return (
     <div className={`grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(150px,.55fr)] ${className}`}>
@@ -291,30 +456,14 @@ export function DateTimeField({
           aria-label={`${ariaLabel}, ora: ${timeValue || "non selezionata"}`}
           className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
           disabled={disabled}
-          onClick={() => setTimeOpen((current) => !current)}
+          onClick={() => { if (!timeOpen) placeTimePopup(); setTimeOpen((current) => !current); }}
+          ref={timeTriggerRef}
           type="button"
         >
           <span>{timeValue || "Seleziona ora"}</span>
           <Clock3 aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
         </button>
-        {timeOpen && (
-          <div aria-label="Seleziona ora e minuti" className="absolute right-0 top-[calc(100%+8px)] z-[80] w-[292px] rounded-xl border border-stone-200 bg-white p-3 shadow-[0_18px_48px_rgb(45_29_39_/_0.16)]" role="dialog">
-            <div className="grid grid-cols-[1fr_84px] gap-3">
-              <div>
-                <p className="mb-2 text-xs font-bold text-stone-600">Ora</p>
-                <div className="grid max-h-52 grid-cols-4 gap-1 overflow-y-auto pr-1">
-                  {hours.map((hour) => <button aria-pressed={hour === selectedHour} className={`min-h-10 rounded-lg text-sm font-semibold ${hour === selectedHour ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>)}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 text-xs font-bold text-stone-600">Minuti</p>
-                <div className="grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pr-1">
-                  {minutes.map((minute) => <button aria-pressed={minute === selectedMinute} className={`min-h-10 rounded-lg text-sm font-semibold ${minute === selectedMinute ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>)}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {timePicker}
       </div>
     </div>
   );
@@ -878,11 +1027,11 @@ export function SaveToast({
       {visible && !dismissed && (
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          aria-live="polite"
+          aria-live={variant === "error" ? "assertive" : "polite"}
           className={`fixed bottom-5 right-5 z-50 flex max-w-[min(420px,calc(100vw-2rem))] items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           initial={{ opacity: 0, y: 10, scale: 0.98 }}
-          role="status"
+          role={variant === "error" ? "alert" : "status"}
           transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
         >
           <span className="min-w-0 flex-1">{children}</span>
@@ -1150,13 +1299,13 @@ const emptySchedule: ScheduleValue = {
 };
 
 const scheduleDays: Array<{ key: ScheduleDay; label: string }> = [
-  { key: "mon", label: "LUN" },
-  { key: "tue", label: "MAR" },
-  { key: "wed", label: "MER" },
-  { key: "thu", label: "GIO" },
-  { key: "fri", label: "VEN" },
-  { key: "sat", label: "SAB" },
-  { key: "sun", label: "DOM" },
+  { key: "mon", label: "Lunedì" },
+  { key: "tue", label: "Martedì" },
+  { key: "wed", label: "Mercoledì" },
+  { key: "thu", label: "Giovedì" },
+  { key: "fri", label: "Venerdì" },
+  { key: "sat", label: "Sabato" },
+  { key: "sun", label: "Domenica" },
 ];
 
 export function ScheduleEditor({
@@ -1167,9 +1316,11 @@ export function ScheduleEditor({
   value?: ScheduleValue | null;
 }) {
   const schedule = value ?? emptySchedule;
+  const [expandedDays, setExpandedDays] = useState<Partial<Record<ScheduleDay, boolean>>>({});
 
   function setDay(day: ScheduleDay, open: boolean) {
     onChange({ ...schedule, [day]: open ? [{ from: "09:00", to: "18:00" }] : [] });
+    setExpandedDays((current) => ({ ...current, [day]: open }));
   }
 
   function setInterval(
@@ -1211,51 +1362,85 @@ export function ScheduleEditor({
       {scheduleDays.map((day) => {
         const intervals = schedule[day.key] ?? [];
         const open = intervals.length > 0;
+        const expanded = open && Boolean(expandedDays[day.key]);
+        const panelId = `schedule-${day.key}-panel`;
+        const summary = open
+          ? intervals.map((interval) => `${interval.from}–${interval.to}`).join(", ")
+          : "Chiuso";
         return (
-          <div key={day.key} className="rounded-2xl border border-stone-100 bg-[#fffafd] p-3">
-            <div className="flex min-h-10 items-center gap-3">
-              <b className="w-16 shrink-0 text-sm">{day.label}</b>
-              <Switch checked={open} onCheckedChange={(nextOpen) => setDay(day.key, nextOpen)} />
-              <span className="text-xs font-semibold text-stone-500">
-                {open ? `${intervals.length} ${intervals.length === 1 ? "fascia" : "fasce"}` : "Chiuso"}
-              </span>
+          <div
+            className={`overflow-hidden rounded-xl border transition-colors ${open ? "border-stone-200 bg-white" : "border-stone-300 bg-stone-200"}`}
+            key={day.key}
+          >
+            <div className="flex min-h-14 items-center gap-2 px-2">
+              <button
+                aria-controls={panelId}
+                aria-expanded={expanded}
+                className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-lg px-2 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-default"
+                disabled={!open}
+                onClick={() => setExpandedDays((current) => ({ ...current, [day.key]: !expanded }))}
+                type="button"
+              >
+                <span className={`w-24 shrink-0 text-sm font-semibold ${open ? "text-stone-900" : "text-stone-500"}`}>{day.label}</span>
+                <span className={`min-w-0 flex-1 truncate text-xs font-medium ${open ? "text-stone-600" : "text-stone-500"}`}>{summary}</span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className={`size-4 shrink-0 transition-transform ${expanded ? "rotate-180 text-[#792f59]" : open ? "text-stone-500" : "text-stone-400 opacity-50"}`}
+                />
+              </button>
+              <Switch
+                aria-label={`${open ? "Disattiva" : "Attiva"} ${day.label}`}
+                checked={open}
+                onCheckedChange={(nextOpen) => setDay(day.key, nextOpen)}
+              />
             </div>
-            {open && (
-              <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
-                {intervals.map((interval, index) => (
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center" key={`${day.key}-${index}`}>
-                    <input
-                      aria-label={`${day.label} fascia ${index + 1} apertura`}
-                      className="min-h-10 rounded-lg border border-stone-200 px-2"
-                      onChange={(event) => setInterval(day.key, index, "from", event.target.value)}
-                      type="time"
-                      value={interval.from}
-                    />
-                    <span className="text-center text-xs font-bold text-stone-400">—</span>
-                    <input
-                      aria-label={`${day.label} fascia ${index + 1} chiusura`}
-                      className="min-h-10 rounded-lg border border-stone-200 px-2"
-                      onChange={(event) => setInterval(day.key, index, "to", event.target.value)}
-                      type="time"
-                      value={interval.to}
-                    />
-                    <Button
-                      aria-label={`Rimuovi fascia ${index + 1} di ${day.label}`}
-                      className="size-10 p-0 text-red-700 hover:bg-red-50 hover:text-red-800"
-                      onClick={() => removeInterval(day.key, index)}
-                      size="sm"
-                      title="Rimuovi fascia"
-                      variant="ghost"
-                    >
-                      <Trash2 className="size-4" />
+            <AnimatePresence initial={false}>
+              {expanded && (
+                <motion.div
+                  animate={{ height: "auto", opacity: 1 }}
+                  className="overflow-hidden"
+                  exit={{ height: 0, opacity: 0 }}
+                  id={panelId}
+                  initial={{ height: 0, opacity: 0 }}
+                  transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
+                >
+                  <div className="space-y-2 border-t border-stone-200 bg-[#fffafd] p-3">
+                    {intervals.map((interval, index) => (
+                      <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center" key={`${day.key}-${index}`}>
+                        <input
+                          aria-label={`${day.label} fascia ${index + 1} apertura`}
+                          className="min-h-10 rounded-lg border border-stone-200 px-2"
+                          onChange={(event) => setInterval(day.key, index, "from", event.target.value)}
+                          type="time"
+                          value={interval.from}
+                        />
+                        <span className="text-center text-xs font-bold text-stone-400">—</span>
+                        <input
+                          aria-label={`${day.label} fascia ${index + 1} chiusura`}
+                          className="min-h-10 rounded-lg border border-stone-200 px-2"
+                          onChange={(event) => setInterval(day.key, index, "to", event.target.value)}
+                          type="time"
+                          value={interval.to}
+                        />
+                        <Button
+                          aria-label={`Rimuovi fascia ${index + 1} di ${day.label}`}
+                          className="size-10 p-0 text-red-700 hover:bg-red-50 hover:text-red-800"
+                          onClick={() => removeInterval(day.key, index)}
+                          size="sm"
+                          title="Rimuovi fascia"
+                          variant="ghost"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button onClick={() => addInterval(day.key)} size="sm" variant="outline">
+                      Aggiungi fascia
                     </Button>
                   </div>
-                ))}
-                <Button onClick={() => addInterval(day.key)} size="sm" variant="outline">
-                  Aggiungi fascia
-                </Button>
-              </div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         );
       })}

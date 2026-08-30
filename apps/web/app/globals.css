@@ -162,6 +162,44 @@ label {
   letter-spacing: -0.01em;
 }
 
+.auth-text-input:focus {
+  border-color: #792f59;
+  box-shadow:
+    0 0 0 3px #fbfaf9,
+    0 0 0 6px rgb(184 88 136 / 0.24),
+    0 12px 28px rgb(121 47 89 / 0.18);
+  outline: none;
+}
+
+/* Settings is a dense desktop workspace: keep focus, state and targets consistent across every subview. */
+.settings-shell :is(a[href], button, summary, input, select, textarea):focus-visible {
+  outline: 2px solid #792f59;
+  outline-offset: 2px;
+}
+
+.settings-shell :is(input, select, textarea):focus-visible {
+  border-color: #792f59;
+  box-shadow: 0 0 0 4px rgb(184 88 136 / 0.18);
+  outline: none;
+}
+
+.settings-shell :is(button, [role="button"], summary) {
+  touch-action: manipulation;
+}
+
+.settings-shell :is(input, select, textarea, button):disabled,
+.settings-shell [aria-disabled="true"] {
+  filter: grayscale(0.35);
+}
+
+.settings-shell :is(section, article, form, [role="region"]) {
+  scroll-margin-top: calc(var(--app-topbar-height, 56px) + 16px);
+}
+
+.settings-shell [aria-current="page"] {
+  text-decoration: none;
+}
+
 /* Search and lookup fields with an overlaid leading icon. */
 .relative > svg.absolute ~ input {
   padding-left: 2.75rem !important;
@@ -320,6 +358,19 @@ table tbody tr {
 
 .esse-page-view {
   animation: esse-page-view-enter 180ms ease-out both;
+}
+
+@keyframes save-action-confirmed {
+  0% { transform: scale(0.97); }
+  55% { transform: scale(1.035); }
+  100% { transform: scale(1); }
+}
+
+.save-action-confirmed {
+  border-color: #047857 !important;
+  background-color: #047857 !important;
+  color: white !important;
+  animation: save-action-confirmed 360ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
 }
 
 @keyframes appointment-curtain-shake {

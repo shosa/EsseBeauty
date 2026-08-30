@@ -8,6 +8,7 @@ import { MessageSquareText, Plus, X } from "lucide-react";
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled, useModules } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
 
+import { BrandLogo } from "../../_components/BrandLogo";
 import { useAuth } from "../../../lib/auth-context";
 import {
   BellIcon,
@@ -341,7 +342,7 @@ function UnifiedSideNavigation({
   return (
     <aside className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-white/10 bg-[#35212e] text-white shadow-[12px_0_36px_rgb(30_15_24_/_0.16)] transition-[width] duration-200 md:flex md:flex-col ${collapsed ? "w-20 p-3" : "w-72 p-5"}`}>
       <div className={`flex shrink-0 items-center ${collapsed ? "justify-center" : "justify-start"} gap-3 border-b border-white/10 pb-5`}>
-        <Link className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-lg font-black text-[#792f59] shadow-lg" href="/">E</Link>
+        <Link className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-[#2d1d27] shadow-lg transition hover:bg-white/90" href="/"><BrandLogo className="size-8" tone="rail" /></Link>
         {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-lg text-white">EsseBeauty</b><small className="text-white/50">Gestione salone</small></div>}
       </div>
 
