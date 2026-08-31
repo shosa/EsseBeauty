@@ -5,11 +5,11 @@ import Link from "next/link";
 
 import {
   AppPage,
-  Button,
   EmptyState,
   FormField,
   InlineError,
   PageHeader,
+  SaveActionButton,
   SaveToast,
   SectionCard,
   StatusBadge,
@@ -51,6 +51,7 @@ export default function DocumentsSettingsPage() {
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [toast, setToast] = useState<{ message: string; variant: "error" | "success" }>();
   const [form, setForm] = useState({ active: true, body: "", name: "", requiredForServices: [] as string[], type: "privacy" });
 
@@ -75,6 +76,7 @@ export default function DocumentsSettingsPage() {
   async function save() {
     if (!salon?.id) return;
     setSaving(true);
+    setSaved(false);
     setFormError("");
     try {
       const response = await fetch(`${api}/api/salons/${salon.id}/consent-templates`, {
@@ -93,6 +95,7 @@ export default function DocumentsSettingsPage() {
       }
       setForm({ active: true, body: "", name: "", requiredForServices: [], type: "privacy" });
       setToast({ message: "Documento salvato.", variant: "success" });
+      setSaved(true);
       await load();
     } catch {
       setFormError("Documento non salvato. Controlla la connessione e riprova.");
@@ -117,13 +120,13 @@ export default function DocumentsSettingsPage() {
             <FormField label="Tipo"><select onChange={(event) => setForm((value) => ({ ...value, type: event.target.value }))} value={form.type}>{documentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></FormField>
             <FormField label="Testo"><textarea onChange={(event) => setForm((value) => ({ ...value, body: event.target.value }))} placeholder="Scrivi il testo che il cliente dovrà accettare o firmare." rows={10} value={form.body} /></FormField>
             {services.length > 0 && <fieldset><legend className="text-sm font-bold text-stone-700">Obbligatorio per i servizi</legend><p className="mt-1 text-xs text-stone-500">Lascia vuoto per un modello non associato automaticamente a servizi.</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{services.map((service) => <label className="flex items-center gap-2 rounded-xl bg-stone-50 px-3 py-2 text-sm font-semibold" key={service.id}><input checked={form.requiredForServices.includes(service.id)} onChange={() => toggleService(service.id)} type="checkbox" />{service.name}</label>)}</div></fieldset>}
-            <label className="flex items-center justify-between rounded-2xl bg-stone-50 p-4 text-sm font-bold text-stone-800"><span>Attivo subito</span><Switch checked={form.active} onCheckedChange={(active: boolean) => setForm((value) => ({ ...value, active }))} /></label>
+            <label className="flex min-h-12 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold text-stone-800"><span>Attivo subito</span><Switch aria-label="Attiva subito il modello" checked={form.active} onCheckedChange={(active: boolean) => setForm((value) => ({ ...value, active }))} /></label>
             {formError && <InlineError>{formError}</InlineError>}
-            <Button disabled={saving || !form.name.trim() || !form.body.trim()} onClick={() => void save()} variant="primary">{saving ? "Salvataggio…" : "Salva modello"}</Button>
+            <SaveActionButton busy={saving} disabled={!form.name.trim() || !form.body.trim()} idleLabel="Salva modello" onClick={() => void save()} saved={saved} />
           </div>
         </SectionCard>
         <SectionCard subtitle="Apri una versione per consultarne il testo, crearne una nuova o archiviarla." title="Archivio documenti">
-          {items.length === 0 ? <EmptyState description="Crea il primo modello di consenso per attivare il flusso." title="Nessun documento" /> : <div className="space-y-3">{items.map((item) => <article className="rounded-2xl border border-white/80 bg-white/80 p-4 shadow-sm" key={item.id}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.16em] text-[#792f59]">{item.type} · v{item.version}</p><h3 className="mt-1 font-bold text-stone-950">{item.name}</h3></div><StatusBadge status={item.active ? "active" : "archived"}>{item.active ? "Attivo" : "Archiviato"}</StatusBadge></div><p className="mt-3 line-clamp-3 text-sm leading-6 text-stone-500">{item.body}</p><div className="mt-4 flex flex-wrap gap-3 text-sm font-bold"><Link className="text-[#792f59] hover:underline" href={`/settings/documents/${item.id}`}>Apri versione</Link>{item.active && <Link className="text-stone-700 hover:underline" href={`/settings/documents/${item.id}`}>Crea nuova versione</Link>}</div></article>)}</div>}
+          {items.length === 0 ? <EmptyState description="Crea il primo modello di consenso per attivare il flusso." title="Nessun documento" /> : <div aria-label="Archivio documenti" className="space-y-3" role="list">{items.map((item) => <article className="rounded-xl border border-stone-200 bg-white p-4" key={item.id} role="listitem"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold text-[#792f59]">{item.type} · v{item.version}</p><h3 className="mt-1 font-semibold text-stone-950">{item.name}</h3></div><StatusBadge status={item.active ? "active" : "archived"}>{item.active ? "Attivo" : "Archiviato"}</StatusBadge></div><p className="mt-3 line-clamp-3 text-sm leading-6 text-stone-600">{item.body}</p><div className="mt-4 flex flex-wrap gap-2 border-t border-stone-100 pt-3 text-sm font-semibold"><Link className="min-h-10 rounded-lg px-3 py-2 text-[#6f3556] hover:bg-[#faf3f7]" href={`/settings/documents/${item.id}`}>Apri versione</Link>{item.active && <Link className="min-h-10 rounded-lg px-3 py-2 text-stone-700 hover:bg-stone-100" href={`/settings/documents/${item.id}`}>Crea nuova versione</Link>}</div></article>)}</div>}
         </SectionCard>
       </div>
       <SaveToast variant={toast?.variant} visible={Boolean(toast)}>{toast?.message ?? ""}</SaveToast>

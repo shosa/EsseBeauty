@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 
 import {
   AppPage,
-  Button,
   FormField,
   InlineError,
   PageHeader,
+  SaveActionButton,
   SaveToast,
   SectionCard,
 } from "@esse-beauty/ui";
@@ -142,7 +142,7 @@ export default function CommunicationsSettingsPage() {
         title="WhatsApp Business"
       />
 
-      {error && <InlineError className="mb-5">{error}</InlineError>}
+      <div aria-live="polite">{error && <InlineError className="mb-5">{error}</InlineError>}</div>
       {loading ? <div className="h-56 animate-pulse rounded-2xl bg-stone-100" /> : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,.75fr)]">
           <SectionCard title="Account Meta" subtitle="Gli identificativi restano separati dai segreti cifrati.">
@@ -164,7 +164,7 @@ export default function CommunicationsSettingsPage() {
               </FormField>
               <label className="flex min-h-11 items-center justify-between rounded-xl border border-stone-200 px-4 text-sm font-bold">
                 <span>Abilita il provider</span>
-                <input checked={form.enabled} className="size-5 accent-[#792f59]" onChange={(event) => setForm((value) => ({ ...value, enabled: event.target.checked }))} type="checkbox" />
+                <input aria-label="Abilita il provider WhatsApp" checked={form.enabled} className="size-5 accent-[#792f59]" onChange={(event) => setForm((value) => ({ ...value, enabled: event.target.checked }))} type="checkbox" />
               </label>
             </div>
 
@@ -181,9 +181,7 @@ export default function CommunicationsSettingsPage() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button disabled={saving || !form.wabaId.trim() || !form.phoneNumberId.trim() || (!settings.credential_present && !form.accessToken.trim())} onClick={() => void save()}>
-                {saving ? "Protezione credenziali…" : "Salva configurazione"}
-              </Button>
+              <SaveActionButton busy={saving} disabled={!form.wabaId.trim() || !form.phoneNumberId.trim() || (!settings.credential_present && !form.accessToken.trim())} idleLabel="Salva configurazione" onClick={() => void save()} saved={saved} />
             </div>
           </SectionCard>
 
@@ -198,7 +196,7 @@ export default function CommunicationsSettingsPage() {
                 ].map(([label, complete]) => (
                   <div className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-3" key={String(label)}>
                     <span>{label as string}</span>
-                    <CheckCircle2 className={`size-5 ${complete ? "text-emerald-600" : "text-stone-300"}`} />
+                    <span className={`flex items-center gap-2 font-semibold ${complete ? "text-emerald-700" : "text-stone-500"}`}><CheckCircle2 aria-hidden="true" className={`size-5 ${complete ? "text-emerald-600" : "text-stone-300"}`} />{complete ? "Completato" : "Da completare"}</span>
                   </div>
                 ))}
               </div>

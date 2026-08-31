@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Building2, DoorOpen, MapPin, Plus } from "lucide-react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, Button, EmptyState, FormField, InlineError, KpiStrip, PageHeader, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, FormField, InlineError, KpiStrip, PageHeader, SaveActionButton, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -30,6 +30,8 @@ export default function LocationsPage() {
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   async function load(preferredId?: string) {
     if (!salon) return;
@@ -81,30 +83,40 @@ export default function LocationsPage() {
 
   async function saveLocation() {
     if (!salon || !selected) return;
-    const response = await fetch(`${api}/api/salons/${salon.id}/settings/locations/${selected.id}`, {
-      body: JSON.stringify({ active: selected.active, address: selected.address, email: selected.email, name: selected.name, phone: selected.phone, timezone: selected.timezone }),
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      method: "PATCH",
-    });
-    if (!response.ok) return setError("Sede non aggiornata.");
-    notify("Sede aggiornata.");
+    setSaving(true);
+    setSaved(false);
+    setError("");
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/settings/locations/${selected.id}`, {
+        body: JSON.stringify({ active: selected.active, address: selected.address, email: selected.email, name: selected.name, phone: selected.phone, timezone: selected.timezone }),
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        method: "PATCH",
+      });
+      if (!response.ok) throw new Error("UPDATE_FAILED");
+      setSaved(true);
+      notify("Sede aggiornata.");
+    } catch {
+      setError("Sede non aggiornata. Controlla i dati e riprova.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <PageHeader eyebrow="Organizzazione" subtitle="Anagrafica e contatti delle sedi operative." title="Sedi" />
+      <SaveToast visible={Boolean(message)}>{message}</SaveToast>
       {error && <InlineError className="mb-4">{error}</InlineError>}
-      {message && <p className="mb-4 border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</p>}
       <KpiStrip items={[{ detail: "configurate", label: "Sedi", value: locations.length }, { detail: `${locations.length - activeLocations} non attive`, label: "Sedi attive", value: activeLocations }, { detail: "associate alle sedi", label: "Cabine", value: resources.length }]} />
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
         <SectionCard title="Sedi operative" subtitle="Seleziona la sede da configurare.">
-          <div className="space-y-2">{locations.map((location) => <button className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left ${locationId === location.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200"}`} key={location.id} onClick={() => setLocationId(location.id)} type="button"><Building2 className="size-5 shrink-0 text-[#792f59]" /><span className="min-w-0 flex-1"><strong className="block truncate">{location.name}</strong><small className="block truncate text-stone-500">{location.address || "Indirizzo da completare"}</small></span><span className="flex items-center gap-1 text-xs font-bold text-stone-500"><DoorOpen size={14} />{cabinCount(location.id)}</span></button>)}</div>
-          {(multiLocation || locations.length === 0) && <div className="mt-4 space-y-3 border-t border-stone-100 pt-4"><FormField label="Nome sede"><input className="w-full" onChange={(event) => setName(event.target.value)} value={name} /></FormField><FormField label="Indirizzo"><input className="w-full" onChange={(event) => setAddress(event.target.value)} value={address} /></FormField><Button disabled={!name.trim()} onClick={() => void createLocation()} variant="outline"><Plus className="mr-2 size-4" />Aggiungi sede</Button></div>}
+          <div className="space-y-2">{locations.map((location) => <button aria-pressed={locationId === location.id} className={`flex min-h-12 w-full items-center gap-3 rounded-lg border p-3 text-left ${locationId === location.id ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 hover:bg-stone-50"}`} key={location.id} onClick={() => setLocationId(location.id)} type="button"><Building2 aria-hidden="true" className="size-5 shrink-0 text-[#792f59]" /><span className="min-w-0 flex-1"><strong className="block truncate">{location.name}</strong><small className="block truncate text-stone-500">{location.address || "Indirizzo da completare"}</small></span><span aria-label={`${cabinCount(location.id)} cabine`} className="flex items-center gap-1 text-xs font-bold text-stone-500"><DoorOpen aria-hidden="true" size={14} />{cabinCount(location.id)}</span></button>)}</div>
+          {(multiLocation || locations.length === 0) && <div className="mt-4 space-y-3 border-t border-stone-100 pt-4"><FormField label="Nome sede"><input autoComplete="organization" className="w-full" onChange={(event) => setName(event.target.value)} value={name} /></FormField><FormField label="Indirizzo"><input autoComplete="street-address" className="w-full" onChange={(event) => setAddress(event.target.value)} value={address} /></FormField><Button aria-label="Aggiungi sede" disabled={!name.trim()} onClick={() => void createLocation()} variant="outline"><Plus aria-hidden="true" className="mr-2 size-4" />Aggiungi sede</Button></div>}
         </SectionCard>
 
-        {!selected ? <EmptyState description="Aggiungi la sede principale per iniziare." title="Nessuna sede configurata" /> : <SectionCard title={selected.name} subtitle="Informazioni usate nell’operatività e nelle comunicazioni."><div className="grid gap-4 md:grid-cols-2"><FormField label="Nome"><input className="w-full" onChange={(event) => updateSelected({ name: event.target.value })} value={selected.name} /></FormField><FormField label="Indirizzo"><div className="relative"><MapPin aria-hidden="true" className="absolute left-3 top-3 size-4 text-stone-400" /><input autoComplete="street-address" className="w-full pl-9" onChange={(event) => updateSelected({ address: event.target.value })} value={selected.address ?? ""} /></div></FormField><FormField label="Telefono"><input autoComplete="tel" className="w-full" onChange={(event) => updateSelected({ phone: event.target.value })} type="tel" value={selected.phone ?? ""} /></FormField><FormField label="Email"><input autoComplete="email" className="w-full" onChange={(event) => updateSelected({ email: event.target.value })} type="email" value={selected.email ?? ""} /></FormField><FormField description="Gli orari vengono adeguati automaticamente all’ora legale." label="Fuso orario"><select className="w-full" onChange={(event) => updateSelected({ timezone: event.target.value })} value={selected.timezone || "Europe/Rome"}>{selected.timezone && !timezones.some(([value]) => value === selected.timezone) && <option value={selected.timezone}>{selected.timezone} — valore attuale</option>}{timezones.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FormField><label className="flex min-h-11 items-center justify-between rounded-lg border border-stone-200 px-4 text-sm font-bold">Sede attiva<Switch aria-label="Sede attiva" checked={selected.active} onCheckedChange={(active) => updateSelected({ active })} /></label></div><div className="mt-5 flex justify-end border-t border-stone-100 pt-4"><Button onClick={() => void saveLocation()} variant="primary">Salva sede</Button></div></SectionCard>}
+        {!selected ? <EmptyState description="Aggiungi la sede principale per iniziare." title="Nessuna sede configurata" /> : <SectionCard title={selected.name} subtitle="Informazioni usate nell’operatività e nelle comunicazioni."><div className="grid gap-4 md:grid-cols-2"><FormField label="Nome"><input className="w-full" onChange={(event) => updateSelected({ name: event.target.value })} value={selected.name} /></FormField><FormField label="Indirizzo"><div className="relative"><MapPin aria-hidden="true" className="absolute left-3 top-3 size-4 text-stone-400" /><input autoComplete="street-address" className="w-full pl-9" onChange={(event) => updateSelected({ address: event.target.value })} value={selected.address ?? ""} /></div></FormField><FormField label="Telefono"><input autoComplete="tel" className="w-full" onChange={(event) => updateSelected({ phone: event.target.value })} type="tel" value={selected.phone ?? ""} /></FormField><FormField label="Email"><input autoComplete="email" className="w-full" onChange={(event) => updateSelected({ email: event.target.value })} type="email" value={selected.email ?? ""} /></FormField><FormField description="Gli orari vengono adeguati automaticamente all’ora legale." label="Fuso orario"><select className="w-full" onChange={(event) => updateSelected({ timezone: event.target.value })} value={selected.timezone || "Europe/Rome"}>{selected.timezone && !timezones.some(([value]) => value === selected.timezone) && <option value={selected.timezone}>{selected.timezone} — valore attuale</option>}{timezones.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FormField><label className="flex min-h-11 items-center justify-between rounded-lg border border-stone-200 px-4 text-sm font-bold">Sede attiva<Switch aria-label="Sede attiva" checked={selected.active} onCheckedChange={(active) => updateSelected({ active })} /></label></div><div className="mt-5 flex justify-end border-t border-stone-100 pt-4"><SaveActionButton busy={saving} disabled={!selected.name.trim()} idleLabel="Salva sede" onClick={() => void saveLocation()} saved={saved} /></div></SectionCard>}
       </div>
     </AppPage>
   );

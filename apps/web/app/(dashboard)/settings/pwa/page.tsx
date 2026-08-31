@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppPage, Button, FormField, PageHeader, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
+import { ExternalLink, LoaderCircle } from "lucide-react";
+import { AppPage, FormField, PageHeader, SaveActionButton, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+const pwaBaseUrl = (process.env.NEXT_PUBLIC_PWA_URL ?? "").replace(/\/+$/, "");
 
 interface AppClientiSettings {
   accentColor: string;
@@ -27,6 +29,8 @@ interface AppClientiSettings {
   requirePhone: boolean;
   welcomeText: string;
 }
+
+type SavingSection = "appearance" | "autonomy" | "booking";
 
 const defaults: AppClientiSettings = {
   accentColor: "#f4d8a8",
@@ -92,7 +96,11 @@ export default function AppClientiSettingsPage() {
   const [settings, setSettings] = useState<AppClientiSettings>(defaults);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<SavingSection>();
+  const [saved, setSaved] = useState<SavingSection>();
+  const [previewRevision, setPreviewRevision] = useState(0);
+  const [previewLoading, setPreviewLoading] = useState(true);
+  const previewUrl = salon && pwaBaseUrl ? `${pwaBaseUrl}/${encodeURIComponent(salon.slug)}` : "";
 
   useEffect(() => {
     if (!salon) return;
@@ -136,9 +144,10 @@ export default function AppClientiSettingsPage() {
     return () => window.clearTimeout(timeout);
   }, [message]);
 
-  async function save() {
+  async function save(section: SavingSection) {
     if (!salon || saving) return;
-    setSaving(true);
+    setSaving(section);
+    setSaved(undefined);
     try {
       const response = await fetch(`${api}/api/salons/${salon.id}/settings/pwa`, {
         body: JSON.stringify({
@@ -175,10 +184,13 @@ export default function AppClientiSettingsPage() {
         primaryColor: validColor(current.primaryColor, defaults.primaryColor),
       }));
       setMessage("Impostazioni App Clienti salvate.");
+      setSaved(section);
+      setPreviewLoading(true);
+      setPreviewRevision((revision) => revision + 1);
     } catch {
       setMessage("Salvataggio non riuscito. Verifica che il server API sia raggiungibile.");
     } finally {
-      setSaving(false);
+      setSaving(undefined);
     }
   }
 
@@ -191,7 +203,7 @@ export default function AppClientiSettingsPage() {
       <div className="grid gap-5 xl:grid-cols-2">
         <SectionCard title="Prenotazioni online" subtitle="Decidi come entra in agenda una prenotazione inviata dal cliente.">
           <div className="grid gap-4">
-            <label className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-bold">Prenotazioni online attive<Switch checked={settings.onlineBookingEnabled} onCheckedChange={(onlineBookingEnabled) => setSettings({ ...settings, onlineBookingEnabled })} /></label>
+            <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold">Prenotazioni online attive<Switch aria-label="Prenotazioni online attive" checked={settings.onlineBookingEnabled} onCheckedChange={(onlineBookingEnabled) => setSettings({ ...settings, onlineBookingEnabled })} /></label>
             <FormField label="Stato iniziale della prenotazione">
               <select value={settings.bookingDefaultStatus} onChange={(event) => setSettings({ ...settings, bookingDefaultStatus: event.target.value as AppClientiSettings["bookingDefaultStatus"] })}>
                 <option value="pending">In attesa di conferma</option>
@@ -202,19 +214,21 @@ export default function AppClientiSettingsPage() {
               <FormField label="Anticipo minimo (ore)"><input min={0} onChange={(event) => setSettings({ ...settings, minBookingNoticeHours: Number(event.target.value) })} type="number" value={settings.minBookingNoticeHours} /></FormField>
               <FormField label="Prenotabile fino a (giorni)"><input min={1} onChange={(event) => setSettings({ ...settings, maxAdvanceDays: Number(event.target.value) })} type="number" value={settings.maxAdvanceDays} /></FormField>
             </div>
-            <label className="flex items-center justify-between rounded-xl border border-stone-200 p-4 text-sm font-bold">Permetti preferenza collaboratore<Switch checked={settings.allowStaffPreference} onCheckedChange={(allowStaffPreference) => setSettings({ ...settings, allowStaffPreference })} /></label>
+            <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold">Permetti preferenza collaboratore<Switch aria-label="Preferenza collaboratore" checked={settings.allowStaffPreference} onCheckedChange={(allowStaffPreference) => setSettings({ ...settings, allowStaffPreference })} /></label>
+            <div className="flex justify-end border-t border-stone-100 pt-4"><SaveActionButton busy={saving === "booking"} disabled={Boolean(saving && saving !== "booking")} idleLabel="Salva prenotazioni" onClick={() => void save("booking")} saved={saved === "booking"} /></div>
           </div>
         </SectionCard>
 
         <SectionCard title="Autonomia cliente" subtitle="Regole applicate nella sezione I miei appuntamenti.">
           <div className="grid gap-4">
-            <label className="flex items-center justify-between rounded-xl border border-stone-200 p-4 text-sm font-bold">Cancellazione autonoma<Switch checked={settings.allowCancellation} onCheckedChange={(allowCancellation) => setSettings({ ...settings, allowCancellation })} /></label>
+            <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold">Cancellazione autonoma<Switch aria-label="Cancellazione autonoma" checked={settings.allowCancellation} onCheckedChange={(allowCancellation) => setSettings({ ...settings, allowCancellation })} /></label>
             <FormField label="Cancellazione consentita fino a ore prima"><input disabled={!settings.allowCancellation} min={0} onChange={(event) => setSettings({ ...settings, cancellationPolicyHours: Number(event.target.value) })} type="number" value={settings.cancellationPolicyHours} /></FormField>
-            <label className="flex items-center justify-between rounded-xl border border-stone-200 p-4 text-sm font-bold">Richiesta cambio orario<Switch checked={settings.allowReschedule} onCheckedChange={(allowReschedule) => setSettings({ ...settings, allowReschedule })} /></label>
+            <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold">Richiesta cambio orario<Switch aria-label="Richiesta cambio orario" checked={settings.allowReschedule} onCheckedChange={(allowReschedule) => setSettings({ ...settings, allowReschedule })} /></label>
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex items-center justify-between rounded-xl bg-stone-50 p-4 text-sm font-bold">Email obbligatoria<Switch checked={settings.requireEmail} onCheckedChange={(requireEmail) => setSettings({ ...settings, requireEmail })} /></label>
-              <label className="flex items-center justify-between rounded-xl bg-stone-50 p-4 text-sm font-bold">Telefono obbligatorio<Switch checked={settings.requirePhone} onCheckedChange={(requirePhone) => setSettings({ ...settings, requirePhone })} /></label>
+              <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl bg-stone-50 p-4 text-sm font-semibold">Email obbligatoria<Switch aria-label="Email obbligatoria" checked={settings.requireEmail} onCheckedChange={(requireEmail) => setSettings({ ...settings, requireEmail })} /></label>
+              <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl bg-stone-50 p-4 text-sm font-semibold">Telefono obbligatorio<Switch aria-label="Telefono obbligatorio" checked={settings.requirePhone} onCheckedChange={(requirePhone) => setSettings({ ...settings, requirePhone })} /></label>
             </div>
+            <div className="flex justify-end border-t border-stone-100 pt-4"><SaveActionButton busy={saving === "autonomy"} disabled={Boolean(saving && saving !== "autonomy")} idleLabel="Salva autonomia" onClick={() => void save("autonomy")} saved={saved === "autonomy"} /></div>
           </div>
         </SectionCard>
 
@@ -227,19 +241,39 @@ export default function AppClientiSettingsPage() {
             <FormField className="md:col-span-2" label="Sottotitolo"><input className="w-full" onChange={(event) => setSettings({ ...settings, heroSubtitle: event.target.value })} value={settings.heroSubtitle} /></FormField>
             <FormField className="md:col-span-2" label="Messaggio di benvenuto"><textarea className="min-h-28 w-full resize-y" onChange={(event) => setSettings({ ...settings, welcomeText: event.target.value })} value={settings.welcomeText} /></FormField>
             <FormField className="md:col-span-2" label="Messaggio dopo la prenotazione"><textarea className="min-h-28 w-full resize-y" onChange={(event) => setSettings({ ...settings, bookingSuccessText: event.target.value })} value={settings.bookingSuccessText} /></FormField>
-            <label className="flex items-center justify-between rounded-xl border border-stone-200 p-4 text-sm font-bold md:col-span-2">Invito a installare l’app<Switch checked={settings.installPromptEnabled} onCheckedChange={(installPromptEnabled) => setSettings({ ...settings, installPromptEnabled })} /></label>
+            <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold md:col-span-2">Invito a installare l’app<Switch aria-label="Invito a installare l’app" checked={settings.installPromptEnabled} onCheckedChange={(installPromptEnabled) => setSettings({ ...settings, installPromptEnabled })} /></label>
+            <div className="flex justify-end border-t border-stone-100 pt-4 md:col-span-2"><SaveActionButton busy={saving === "appearance"} disabled={Boolean(saving && saving !== "appearance")} idleLabel="Salva aspetto" onClick={() => void save("appearance")} saved={saved === "appearance"} /></div>
           </div>
         </SectionCard>
 
-        <SectionCard title="Comportamento scelto" subtitle="Riepilogo operativo delle regole applicate al cliente.">
-          <div className="space-y-3 text-sm">
-            <p className="rounded-xl bg-sky-50 p-4 font-semibold text-sky-950">Le nuove prenotazioni entrano come <strong>{settings.bookingDefaultStatus === "confirmed" ? "Confermate" : "In attesa"}</strong>.</p>
-            <p className="rounded-xl bg-stone-50 p-4 text-stone-700">Finestra prenotabile: da {settings.minBookingNoticeHours} ore a {settings.maxAdvanceDays} giorni in anticipo.</p>
-            <p className="rounded-xl bg-stone-50 p-4 text-stone-700">Il cliente {settings.allowCancellation ? `può annullare fino a ${settings.cancellationPolicyHours} ore prima` : "non può annullare autonomamente"} e {settings.allowReschedule ? "può richiedere un cambio orario" : "non può richiedere cambi orario"}.</p>
+        <SectionCard title="Comportamento scelto" subtitle="Riepilogo operativo e anteprima aggiornata dell’esperienza cliente.">
+          <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,360px)_360px] xl:justify-between">
+            <div className="space-y-3 text-sm">
+              <p className="rounded-xl bg-sky-50 p-4 font-semibold text-sky-950">Le nuove prenotazioni entrano come <strong>{settings.bookingDefaultStatus === "confirmed" ? "Confermate" : "In attesa"}</strong>.</p>
+              <p className="rounded-xl bg-stone-50 p-4 text-stone-700">Finestra prenotabile: da {settings.minBookingNoticeHours} ore a {settings.maxAdvanceDays} giorni in anticipo.</p>
+              <p className="rounded-xl bg-stone-50 p-4 text-stone-700">Il cliente {settings.allowCancellation ? `può annullare fino a ${settings.cancellationPolicyHours} ore prima` : "non può annullare autonomamente"} e {settings.allowReschedule ? "può richiedere un cambio orario" : "non può richiedere cambi orario"}.</p>
+              <p className="text-xs leading-5 text-stone-500">L’anteprima si aggiorna automaticamente dopo ogni salvataggio riuscito.</p>
+            </div>
+            <div className="mx-auto w-full max-w-[360px] xl:justify-self-end">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div><h3 className="text-sm font-semibold text-stone-900">Anteprima App Clienti</h3><p className="mt-0.5 truncate text-xs text-stone-500">/{salon?.slug ?? ""}</p></div>
+                {previewUrl && <a aria-label="Apri anteprima App Clienti in una nuova scheda" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]" href={previewUrl} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" className="size-4" /></a>}
+              </div>
+              {previewUrl ? <div className="relative overflow-hidden rounded-[28px] border-[6px] border-[#2d1d27] bg-stone-100 shadow-[0_18px_44px_rgb(45_29_39_/_0.16)]">
+                {previewLoading && <div aria-live="polite" className="absolute inset-0 z-10 grid place-items-center bg-white/90 text-sm font-semibold text-stone-600"><span className="flex items-center gap-2"><LoaderCircle aria-hidden="true" className="size-4 animate-spin" />Aggiornamento anteprima…</span></div>}
+                <iframe
+                  className="block aspect-[390/780] w-full bg-white"
+                  key={`${previewUrl}-${previewRevision}`}
+                  onLoad={() => setPreviewLoading(false)}
+                  sandbox="allow-forms allow-same-origin allow-scripts"
+                  src={previewUrl}
+                  title={`Anteprima App Clienti di ${salon?.name ?? "salone"}`}
+                />
+              </div> : <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">Configura <code className="font-semibold">NEXT_PUBLIC_PWA_URL</code> per mostrare l’anteprima dell’app.</div>}
+            </div>
           </div>
         </SectionCard>
       </div>
-      <div className="mt-5 flex justify-end"><Button disabled={saving} onClick={() => void save()} variant="primary">{saving ? "Salvataggio..." : "Salva App Clienti"}</Button></div>
     </AppPage>
   );
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, LoaderCircle } from "lucide-react";
+import { ChevronDown, LoaderCircle } from "lucide-react";
 
 import type { WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, DateField, FormField, InlineError, PageHeader, PageSkeleton, ScheduleEditor, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, ScheduleEditor, SectionCard, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -71,38 +71,6 @@ interface SalonClosure {
 }
 
 type SavingSection = "calendar" | "closure" | "location" | "salon";
-
-function SaveActionButton({
-  busy,
-  disabled = false,
-  idleLabel,
-  saved,
-  type = "button",
-  onClick,
-}: {
-  busy: boolean;
-  disabled?: boolean;
-  idleLabel: string;
-  onClick?: () => void;
-  saved: boolean;
-  type?: "button" | "submit";
-}) {
-  return (
-    <span aria-live="polite" className="inline-flex">
-      <Button
-        aria-busy={busy}
-        className={saved ? "save-action-confirmed" : "transition-[background-color,border-color,transform] duration-200"}
-        disabled={disabled || busy}
-        onClick={onClick}
-        type={type}
-        variant="primary"
-      >
-        {busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : saved ? <Check aria-hidden="true" className="size-4" /> : null}
-        {busy ? "Salvataggio…" : saved ? "Salvato" : idleLabel}
-      </Button>
-    </span>
-  );
-}
 
 export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
   const { salon } = useAuth();

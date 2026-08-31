@@ -9,7 +9,7 @@ import type {
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, Trash2, X } from "lucide-react";
 
 export const designTokens = {
   layout: {
@@ -156,6 +156,40 @@ export function Button({
       type={type}
       {...props}
     />
+  );
+}
+
+export function SaveActionButton({
+  busy,
+  className = "",
+  disabled = false,
+  idleLabel,
+  onClick,
+  saved,
+  type = "button",
+}: {
+  busy: boolean;
+  className?: string;
+  disabled?: boolean;
+  idleLabel: string;
+  onClick?: () => void;
+  saved: boolean;
+  type?: "button" | "submit";
+}) {
+  return (
+    <span aria-live="polite" className={`inline-flex ${className}`}>
+      <Button
+        aria-busy={busy}
+        className={saved ? "save-action-confirmed" : "transition-[background-color,border-color,transform] duration-200"}
+        disabled={disabled || busy}
+        onClick={onClick}
+        type={type}
+        variant="primary"
+      >
+        {busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : saved ? <Check aria-hidden="true" className="size-4" /> : null}
+        {busy ? "Salvataggio…" : saved ? "Salvato" : idleLabel}
+      </Button>
+    </span>
   );
 }
 

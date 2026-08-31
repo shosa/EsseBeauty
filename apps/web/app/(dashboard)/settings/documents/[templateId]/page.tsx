@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, SectionCard, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -31,6 +31,7 @@ export default function DocumentVersionPage() {
   const [error, setError] = useState("");
   const [versionError, setVersionError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveError, setArchiveError] = useState("");
   const [archiving, setArchiving] = useState(false);
@@ -67,6 +68,7 @@ export default function DocumentVersionPage() {
   async function createVersion() {
     if (!salon?.id || !template) return;
     setSaving(true);
+    setSaved(false);
     setVersionError("");
     try {
       const response = await fetch(`${api}/api/salons/${salon.id}/consent-templates/${template.id}/versions`, {
@@ -81,7 +83,8 @@ export default function DocumentVersionPage() {
         return;
       }
       const created = await response.json() as ConsentTemplate;
-      router.push(`/settings/documents/${created.id}`);
+      setSaved(true);
+      window.setTimeout(() => router.push(`/settings/documents/${created.id}`), 550);
     } catch {
       setVersionError("Nuova versione non salvata. Controlla la connessione e riprova.");
     } finally {
@@ -132,9 +135,9 @@ export default function DocumentVersionPage() {
               <FormField label="Tipo"><select onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))} value={draft.type}><option value="privacy">Privacy</option><option value="treatment">Trattamento</option><option value="anamnesis">Anamnesi</option><option value="photo_release">Uso immagini</option></select></FormField>
               <FormField label="Nuovo testo"><textarea onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} rows={14} value={draft.body} /></FormField>
               {services.length > 0 && <fieldset><legend className="text-sm font-bold text-stone-700">Obbligatorio per i servizi</legend><div className="mt-3 grid gap-2 sm:grid-cols-2">{services.map((service) => <label className="flex items-center gap-2 rounded-xl bg-stone-50 px-3 py-2 text-sm font-semibold" key={service.id}><input checked={draft.requiredForServices.includes(service.id)} onChange={() => toggleService(service.id)} type="checkbox" />{service.name}</label>)}</div></fieldset>}
-              <label className="flex items-center justify-between rounded-2xl bg-stone-50 p-4 text-sm font-bold"><span>Nuova versione attiva</span><Switch checked={draft.active} onCheckedChange={(active: boolean) => setDraft((current) => ({ ...current, active }))} /></label>
+              <label className="flex min-h-12 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold"><span>Nuova versione attiva</span><Switch aria-label="Attiva la nuova versione" checked={draft.active} onCheckedChange={(active: boolean) => setDraft((current) => ({ ...current, active }))} /></label>
               {versionError && <InlineError>{versionError}</InlineError>}
-              <Button disabled={saving || !draft.name.trim() || !draft.body.trim()} onClick={() => void createVersion()} variant="primary">{saving ? "Creazione…" : "Crea nuova versione"}</Button>
+              <SaveActionButton busy={saving} disabled={!draft.name.trim() || !draft.body.trim()} idleLabel="Crea nuova versione" onClick={() => void createVersion()} saved={saved} />
             </div>
           </SectionCard>
         </div>

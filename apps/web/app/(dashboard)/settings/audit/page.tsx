@@ -253,9 +253,9 @@ export default function AuditSettingsPage() {
         subtitle="Una cronologia chiara di ciò che viene inserito, modificato, eliminato e venduto dal team."
         title="Registro attività"
       />
-      {error && <InlineError className="mb-5">{error}</InlineError>}
+      <div aria-live="polite">{error && <InlineError className="mb-5">{error}</InlineError>}</div>
       <SectionCard title="Cosa è successo" subtitle="Le attività più recenti del salone, ordinate per data e ora.">
-        <div className="mb-5 flex flex-wrap gap-2 border-b border-stone-100 pb-5">
+        <div aria-label="Filtri registro attività" className="mb-5 flex flex-wrap gap-2 border-b border-stone-100 pb-5" role="group">
           {([
             ["all", "Tutto"],
             ["appointments", "Appuntamenti"],
@@ -264,12 +264,12 @@ export default function AuditSettingsPage() {
             ["team", "Team"],
             ["settings", "Impostazioni"],
           ] as Array<[ActivityKind, string]>).map(([value, label]) => (
-            <button className={`min-h-10 rounded-xl border px-4 text-sm font-bold transition ${kind === value ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-[#c98cac]"}`} key={value} onClick={() => setKind(value)}>{label}</button>
+            <button aria-pressed={kind === value} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold transition ${kind === value ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-[#c98cac]"}`} key={value} onClick={() => setKind(value)} type="button">{label}</button>
           ))}
           <input aria-label="Cerca nel registro" className="min-h-10 min-w-64 flex-1 rounded-xl border border-stone-200 px-4 text-sm" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca per persona o attività" value={query} />
         </div>
         {visibleItems.length === 0 ? <EmptyState title="Nessuna attività" description="Non ci sono attività corrispondenti ai filtri selezionati." /> : (
-          <div className="divide-y divide-stone-100">
+          <div aria-live="polite" className="divide-y divide-stone-100">
             {visibleItems.map((item) => {
               const itemKind = activityKind(item);
               const details = activityDetails(item);
