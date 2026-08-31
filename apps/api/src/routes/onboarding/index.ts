@@ -3,6 +3,7 @@ import { asc, eq, sql } from "drizzle-orm";
 
 import {
   salons,
+  serviceCategories,
   services,
   staff,
   type WorkingHours,
@@ -20,8 +21,9 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
   const ownerOnly = { preHandler: [authenticate, requireRole("owner")] };
 
   app.get("/api/onboarding", ownerOnly, async (request, reply) => {
-    const [salonRows, serviceRows, staffRows] = await Promise.all([
+    const [salonRows, categoryRows, serviceRows, staffRows] = await Promise.all([
       app.db.select().from(salons).where(eq(salons.id, request.salonId)),
+      app.db.select().from(serviceCategories).where(eq(serviceCategories.salonId, request.salonId)).orderBy(asc(serviceCategories.displayOrder), asc(serviceCategories.name)),
       app.db.select().from(services).where(eq(services.salonId, request.salonId)).orderBy(asc(services.displayOrder)),
       app.db.select().from(staff).where(eq(staff.salonId, request.salonId)).orderBy(asc(staff.createdAt)),
     ]);
@@ -37,8 +39,14 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
         opening_hours: salon.openingHours,
         phone: salon.phone ?? "",
       },
+      service_categories: categoryRows.map((item) => ({
+        icon: item.icon,
+        id: item.id,
+        name: item.name,
+      })),
       services: serviceRows.map((item) => ({
         category: item.category,
+        category_id: item.categoryId,
         duration_minutes: item.durationMinutes,
         id: item.id,
         name: item.name,
@@ -96,8 +104,14 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
 
   app.patch<{
     Body: {
+      categories?: Array<{
+        icon?: string;
+        id?: string;
+        name: string;
+      }>;
       services: Array<{
         category: string;
+        category_id?: string;
         duration_minutes: number;
         name: string;
         price_cents: number;
@@ -111,11 +125,41 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
     ) {
       return reply.code(400).send({ error: "INVALID_SERVICES" });
     }
+    const categoryDrafts: Array<{ icon?: string; id?: string; name: string }> = request.body.categories?.length
+      ? request.body.categories
+      : Array.from(new Set(rows.map((item) => item.category.trim()))).map((name) => ({ name }));
+    const normalizedCategories = categoryDrafts
+      .map((item) => ({
+        icon: item.icon?.trim() || "sparkles",
+        id: item.id,
+        name: item.name.trim(),
+      }))
+      .filter((item, index, list) => item.name && list.findIndex((candidate) => candidate.name === item.name) === index);
+    if (normalizedCategories.length === 0) {
+      return reply.code(400).send({ error: "INVALID_SERVICES" });
+    }
     await app.db.transaction(async (tx) => {
       await tx.delete(services).where(eq(services.salonId, request.salonId));
+      await tx.delete(serviceCategories).where(eq(serviceCategories.salonId, request.salonId));
+      const insertedCategories = await tx.insert(serviceCategories).values(
+        normalizedCategories.map((item, index) => ({
+          displayOrder: index,
+          icon: item.icon,
+          name: item.name,
+          salonId: request.salonId,
+        })),
+      ).returning();
+      const categoryByKey = new Map<string, { id: string; name: string }>();
+      insertedCategories.forEach((item, index) => {
+        const draft = normalizedCategories[index];
+        if (draft?.id) categoryByKey.set(draft.id, item);
+        categoryByKey.set(item.name, item);
+      });
+
       await tx.insert(services).values(
         rows.map((item, index) => ({
-          category: item.category.trim(),
+          category: (categoryByKey.get(item.category_id ?? "") ?? categoryByKey.get(item.category.trim()))?.name ?? item.category.trim(),
+          categoryId: (categoryByKey.get(item.category_id ?? "") ?? categoryByKey.get(item.category.trim()))?.id,
           displayOrder: index,
           durationMinutes: item.duration_minutes,
           name: item.name.trim(),

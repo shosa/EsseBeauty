@@ -14,6 +14,6 @@ describe("local Redis development configuration", () => {
     const compose = readFileSync(resolve(repositoryRoot, "compose.yaml"), "utf8");
 
     expect(environmentExample).toContain("REDIS_URL=redis://localhost:6380");
-    expect(compose).toContain('${REDIS_PORT:-6380}:6379');
+    expect(compose).toContain('127.0.0.1:${REDIS_PORT:-6380}:6379');
   });
 });

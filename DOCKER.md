@@ -17,10 +17,10 @@ il salone e l'account owner.
 
 ## Avvio
 
-Creare prima il file ambiente Docker:
+Creare prima il file ambiente unico:
 
 ```powershell
-Copy-Item .env.docker.example .env.docker
+Copy-Item .env.example .env
 ```
 
 Generare due segreti distinti con il generatore crittografico di Node.js:
@@ -29,12 +29,13 @@ Generare due segreti distinti con il generatore crittografico di Node.js:
 node -e "const {randomBytes}=require('node:crypto'); console.log('REVIEW_TOKEN_SECRET='+randomBytes(32).toString('hex')); console.log('REVIEW_SESSION_SECRET='+randomBytes(32).toString('hex'))"
 ```
 
-Copiare le due righe prodotte nei campi omonimi di `.env.docker`. Non
-riutilizzare lo stesso valore e non aggiungere `.env.docker` al versionamento.
-I campi sono volutamente vuoti nel template: l'interpolazione `:?` in
-`compose.yaml` interrompe l'avvio se uno dei segreti manca.
+Copiare le due righe prodotte nei campi omonimi di `.env`. Non riutilizzare lo
+stesso valore e non aggiungere `.env` al versionamento. I campi sono
+volutamente vuoti nel template: l'interpolazione `:?` in `compose.yaml`
+interrompe l'avvio se uno dei segreti manca.
 
-Avviare quindi lo stack con il percorso documentato, che legge `.env.docker`:
+Avviare quindi lo stack. Docker Compose legge automaticamente `.env` dalla
+directory del progetto:
 
 ```powershell
 corepack pnpm docker:up
@@ -43,7 +44,7 @@ corepack pnpm docker:up
 In alternativa, usando Docker Compose direttamente:
 
 ```powershell
-docker compose --env-file .env.docker up -d --build
+docker compose up -d --build
 ```
 
 Le variabili `NEXT_PUBLIC_*` vengono incorporate durante la build. Dopo averle
@@ -55,10 +56,10 @@ l'origine pubblica della PWA staff e di Platform, per esempio
 
 ## Variabili ambiente
 
-Usare `.env.example` per lo sviluppo locale avviato sul computer host e
-`.env.docker.example` per Docker Compose. Non riutilizzare un file per l'altro:
-dal computer host PostgreSQL è `localhost:5432`, mentre dai container è
-`db:5432`.
+Usare `.env.example` come unico template per sviluppo locale e Docker Compose.
+Dal computer host PostgreSQL è `localhost:5432`, mentre dai container è
+`db:5432`. Lo stack pubblica PostgreSQL e Redis solo su `127.0.0.1`, quindi non
+sono raggiungibili direttamente da Internet.
 
 Valori minimi da controllare prima di una produzione HTTPS:
 
@@ -103,10 +104,10 @@ database applicativo non esiste, lo crea prima di applicare le migrazioni.
 Diagnosi rapida in produzione:
 
 ```bash
-docker compose --env-file .env.docker ps
-docker compose --env-file .env.docker logs migrate
-docker compose --env-file .env.docker exec db sh -lc 'psql -U "$POSTGRES_USER" -d postgres -c "\l"'
-docker compose --env-file .env.docker exec db sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select count(*) from drizzle.__drizzle_migrations;"'
+docker compose ps
+docker compose logs migrate
+docker compose exec db sh -lc 'psql -U "$POSTGRES_USER" -d postgres -c "\l"'
+docker compose exec db sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select count(*) from drizzle.__drizzle_migrations;"'
 ```
 
 Se `migrate` termina con codice diverso da `0`, non forzare l'avvio dell'API:
@@ -149,11 +150,11 @@ postgresql://<POSTGRES_USER>:<POSTGRES_PASSWORD>@db:5432/<POSTGRES_DB>
 ## Stato
 
 ```powershell
-docker compose --env-file .env.docker ps
-docker compose --env-file .env.docker logs migrate
-docker compose --env-file .env.docker logs api
-docker compose --env-file .env.docker logs staff-pwa
-docker compose --env-file .env.docker logs platform
+docker compose ps
+docker compose logs migrate
+docker compose logs api
+docker compose logs staff-pwa
+docker compose logs platform
 ```
 
 L'API viene avviata solo dopo il completamento delle migrazioni e dopo che

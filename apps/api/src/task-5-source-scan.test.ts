@@ -26,7 +26,6 @@ describe("Task 5 production SMS/Twilio guard", () => {
       readFileSync(resolve(repositoryRoot, "apps", "api", "package.json"), "utf8"),
       readFileSync(resolve(repositoryRoot, "pnpm-lock.yaml"), "utf8"),
       readFileSync(resolve(repositoryRoot, ".env.example"), "utf8"),
-      readFileSync(resolve(repositoryRoot, ".env.docker.example"), "utf8"),
       readFileSync(resolve(repositoryRoot, "compose.yaml"), "utf8"),
     ].join("\n");
 

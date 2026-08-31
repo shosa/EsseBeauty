@@ -190,7 +190,6 @@ Commit: `feat: replace SMS workflows with WhatsApp`
 
 **Files:**
 - Modify: `.env.example`
-- Modify: `.env.docker.example`
 - Modify: `compose.yaml`
 - Modify: `DOCKER.md`
 - Modify: `apps/api/package.json`

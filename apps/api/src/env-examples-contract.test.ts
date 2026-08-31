@@ -21,15 +21,17 @@ describe("contratto degli esempi ambiente", () => {
   });
 
   it("mantiene esplicite e fail-fast le impostazioni Docker di produzione", () => {
-    const dockerEnvExample = readRootFile(".env.docker.example");
+    const envExample = readRootFile(".env.example");
     const compose = readRootFile("compose.yaml");
     const dockerGuide = readRootFile("DOCKER.md");
 
-    expect(dockerEnvExample).toContain("POSTGRES_MAINTENANCE_DB=postgres");
-    expect(dockerEnvExample).toContain("POSTGRES_PASSWORD=cambia-questa-password-in-produzione");
-    expect(dockerEnvExample).toContain("REVIEW_TOKEN_SECRET=");
-    expect(dockerEnvExample).toContain("REVIEW_SESSION_SECRET=");
-    expect(dockerEnvExample).toContain("COOKIE_SECURE=false");
+    expect(envExample).toContain("POSTGRES_MAINTENANCE_DB=postgres");
+    expect(envExample).toContain("POSTGRES_PASSWORD=cambia-questa-password-in-produzione");
+    expect(envExample).toContain("REVIEW_TOKEN_SECRET=");
+    expect(envExample).toContain("REVIEW_SESSION_SECRET=");
+    expect(envExample).toContain("COOKIE_SECURE=false");
+    expect(compose).toContain("127.0.0.1:${POSTGRES_PORT:-5432}:5432");
+    expect(compose).toContain("127.0.0.1:${REDIS_PORT:-6380}:6379");
     expect(compose).toContain("POSTGRES_MAINTENANCE_DB: ${POSTGRES_MAINTENANCE_DB:-postgres}");
     expect(compose).toContain("NEXT_PUBLIC_PWA_URL: ${NEXT_PUBLIC_PWA_URL:-http://localhost:3002}");
     expect(compose).toContain("REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}");
