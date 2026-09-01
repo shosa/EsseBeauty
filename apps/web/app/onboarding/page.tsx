@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, LogOut, Plus, Trash2 } from "lucide-react";
 
 import type { WorkingHours } from "@esse-beauty/shared";
 import { Button, FormField, ScheduleEditor } from "@esse-beauty/ui";
@@ -144,7 +144,6 @@ function OnboardingWizard() {
 
   const openDays = useMemo(() => Object.values(hours).filter((slots) => slots.length > 0).length, [hours]);
   const activeCategory = categories.find((category) => category.id === activeCategoryId);
-  const activeServices = services.filter((service) => service.category_id === activeCategoryId);
   const serviceCountByCategory = useMemo(() => {
     const counts = new Map<string, number>();
     services.forEach((service) => counts.set(service.category_id, (counts.get(service.category_id) ?? 0) + 1));
@@ -222,6 +221,13 @@ function OnboardingWizard() {
     return true;
   }
 
+  async function logout() {
+    setBusy(true);
+    await fetch(`${api}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => null);
+    router.replace("/login");
+    router.refresh();
+  }
+
   async function next() {
     if (step === 1) {
       if (!identity.name.trim()) return setError("Inserisci il nome del salone.");
@@ -255,9 +261,9 @@ function OnboardingWizard() {
   return (
     <main className="min-h-screen bg-[#f5f5f7] px-4 py-5 text-stone-950 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/80 shadow-[0_26px_80px_rgb(28_25_23_/_0.12)] backdrop-blur-xl lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="border-b border-stone-200/70 bg-white/65 p-5 lg:border-b-0 lg:border-r lg:p-7">
+        <aside className="flex flex-col border-b border-stone-200/70 bg-white/65 p-5 lg:border-b-0 lg:border-r lg:p-7">
           <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-[14px] bg-stone-950">
+            <div className="grid size-11 place-items-center rounded-[14px] bg-[#792f59]">
               <BrandLogo className="size-8" tone="white" />
             </div>
             <div>
@@ -279,6 +285,10 @@ function OnboardingWizard() {
               );
             })}
           </ol>
+          <button aria-label="Esci dall'account" className="mt-6 flex min-h-11 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold text-stone-600 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 lg:mt-auto lg:justify-start" disabled={busy} onClick={() => void logout()} type="button">
+            <LogOut aria-hidden="true" className="size-4" />
+            <span>Esci</span>
+          </button>
         </aside>
 
         <section className="flex min-h-0 flex-col p-5 sm:p-8 lg:p-10">
@@ -340,7 +350,7 @@ function OnboardingWizard() {
                       <p className="text-xs font-semibold uppercase tracking-[.1em] text-stone-400">Categoria attiva</p>
                       <h3 className="mt-1 text-xl font-semibold text-stone-950">{activeCategory?.name ?? "Da creare"}</h3>
                     </div>
-                    <span className="rounded-full bg-stone-100 px-3 py-1.5 text-sm font-semibold text-stone-600">{activeServices.length} servizi</span>
+                    <span className="rounded-full bg-stone-100 px-3 py-1.5 text-sm font-semibold text-stone-600">{serviceCountByCategory.get(activeCategoryId) ?? 0} servizi</span>
                   </div>
 
                   <div className="mt-6 grid min-w-0 gap-4 md:grid-cols-2">
@@ -358,26 +368,48 @@ function OnboardingWizard() {
                     </div>
                   </div>
 
-                  <div className="mt-6 divide-y divide-stone-100 overflow-hidden rounded-[20px] border border-stone-200">
-                    {activeServices.length === 0 ? (
-                      <p className="p-5 text-sm text-stone-500">Nessun servizio in questa categoria.</p>
-                    ) : activeServices.map((service, index) => {
-                      const serviceIndex = services.indexOf(service);
-                      return (
-                        <article className="grid gap-2 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_110px_110px_auto] sm:items-center" key={`${service.name}-${index}`}>
-                          <div className="min-w-0">
-                            <h4 className="truncate font-semibold text-stone-950">{service.name}</h4>
-                            <p className="text-sm text-stone-500">{service.category}</p>
-                          </div>
-                          <p className="text-sm font-medium text-stone-600">{service.duration_minutes} min</p>
-                          <p className="text-sm font-medium text-stone-600">€ {Number(service.price).toFixed(2)}</p>
-                          <Button aria-label={`Rimuovi ${service.name}`} className="justify-self-start sm:justify-self-end" onClick={() => setServices((current) => current.filter((_, itemIndex) => itemIndex !== serviceIndex))} size="sm" variant="ghost"><Trash2 className="size-4" />Rimuovi</Button>
-                        </article>
-                      );
-                    })}
-                  </div>
                 </section>
               </div>
+
+              <section className="mt-6 overflow-hidden rounded-[24px] border border-stone-200 bg-white shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 px-4 py-4 sm:px-5">
+                  <div>
+                    <h3 className="text-lg font-semibold text-stone-950">Catalogo servizi</h3>
+                    <p className="mt-1 text-sm text-stone-500">Tutti i servizi aggiunti, organizzati per categoria.</p>
+                  </div>
+                  <span className="rounded-full bg-stone-100 px-3 py-1.5 text-sm font-semibold text-stone-600">{services.length} totali</span>
+                </div>
+                {services.length === 0 ? (
+                  <p className="p-5 text-sm text-stone-500">Nessun servizio aggiunto.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[680px] border-collapse text-left">
+                      <thead className="bg-stone-50 text-xs font-semibold uppercase tracking-[.08em] text-stone-500">
+                        <tr>
+                          <th className="px-5 py-3" scope="col">Servizio</th>
+                          <th className="px-4 py-3" scope="col">Categoria</th>
+                          <th className="px-4 py-3" scope="col">Durata</th>
+                          <th className="px-4 py-3" scope="col">Prezzo</th>
+                          <th className="px-5 py-3 text-right" scope="col"><span className="sr-only">Azioni</span></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {services.map((service, index) => (
+                          <tr className="text-sm text-stone-600" key={`${service.category_id}-${service.name}-${index}`}>
+                            <th className="max-w-[280px] px-5 py-3.5 font-semibold text-stone-950" scope="row"><span className="block truncate">{service.name}</span></th>
+                            <td className="px-4 py-3.5">{service.category}</td>
+                            <td className="whitespace-nowrap px-4 py-3.5">{service.duration_minutes} min</td>
+                            <td className="whitespace-nowrap px-4 py-3.5">€ {Number(service.price).toFixed(2)}</td>
+                            <td className="px-5 py-2 text-right">
+                              <Button aria-label={`Rimuovi ${service.name}`} onClick={() => setServices((current) => current.filter((_, itemIndex) => itemIndex !== index))} size="sm" variant="ghost"><Trash2 className="size-4" />Rimuovi</Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
             </>}
 
             {step === 4 && <>
