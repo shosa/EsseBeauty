@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
-import { appointments, customers, salonModules, salons, services, staff, waitlistEntries } from "@esse-beauty/db/schema";
+import { appointments, customers, reviewRequestSettings, salonModules, salons, services, staff, waitlistEntries } from "@esse-beauty/db/schema";
 
 import { testDatabaseUrl } from "../test/postgres.js";
 
@@ -43,6 +43,7 @@ postgresSuite("appointment completion review hook with PostgreSQL", () => {
       await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Pulizia viso", priceCents: 5000, salonId });
       await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "confirmed" });
       await db.insert(salonModules).values({ enabled: true, moduleKey: "reviews", salonId });
+      await db.insert(reviewRequestSettings).values({ automaticEnabled: true, channels: ["email"], delayPreset: "immediate", salonId });
       const queueAdd = vi.fn(async (
         _name: string,
         _data: { invitationId: string },
@@ -146,7 +147,7 @@ postgresSuite("appointment completion review hook with PostgreSQL", () => {
               "Waitlist Customer",
               "Pulizia viso",
               "26/08/2026",
-              `http://localhost:3002/${salonSlug}/book`,
+              `http://localhost:3002/${salonSlug}/book?date=2026-08-26&serviceId=${serviceId}&staffId=${staffId}`,
             ],
           },
           to: "+393331234567",

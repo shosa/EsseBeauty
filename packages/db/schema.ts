@@ -67,10 +67,12 @@ export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
   "whatsapp",
 ]);
 export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
+  "scheduled",
   "pending",
   "queued",
   "processing",
   "sent",
+  "delivered",
   "failed",
   "skipped",
   "exhausted",
@@ -1348,6 +1350,49 @@ export const reviewInvitations = pgTable(
   ],
 );
 
+export const reviewRequestSettings = pgTable(
+  "review_request_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id").notNull().references(() => salons.id, { onDelete: "cascade" }),
+    automaticEnabled: boolean("automatic_enabled").default(false).notNull(),
+    delayPreset: text("delay_preset").$type<"immediate" | "one_hour" | "three_hours" | "next_day" | "two_days">().default("one_hour").notNull(),
+    channels: jsonb("channels").$type<Array<"email" | "whatsapp">>().default(["email"]).notNull(),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("review_request_settings_salon_unique").on(table.salonId),
+    check("review_request_settings_delay_check", sql`${table.delayPreset} in ('immediate','one_hour','three_hours','next_day','two_days')`),
+    check("review_request_settings_channels_check", sql`jsonb_array_length(${table.channels}) > 0 and ${table.channels} <@ '["email","whatsapp"]'::jsonb`),
+  ],
+);
+
+export const reviewInvitationDeliveries = pgTable(
+  "review_invitation_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    invitationId: uuid("invitation_id").notNull().references(() => reviewInvitations.id, { onDelete: "cascade" }),
+    salonId: uuid("salon_id").notNull().references(() => salons.id, { onDelete: "cascade" }),
+    channel: reviewDeliveryChannelEnum("channel").notNull(),
+    generation: integer("generation").default(0).notNull(),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+    status: reviewDeliveryStatusEnum("status").default("scheduled").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    failureReason: text("failure_reason"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("review_invitation_deliveries_identity_unique").on(table.invitationId, table.channel, table.generation),
+    index("review_invitation_deliveries_schedule_idx").on(table.status, table.scheduledAt),
+    check("review_invitation_deliveries_generation_check", sql`${table.generation} >= 0`),
+    check("review_invitation_deliveries_attempts_check", sql`${table.attempts} >= 0`),
+    check("review_invitation_deliveries_channel_check", sql`${table.channel} in ('email','whatsapp')`),
+  ],
+);
+
 export const reviews = pgTable(
   "reviews",
   {
@@ -1386,6 +1431,10 @@ export const waitlistEntries = pgTable("waitlist_entries", {
     .notNull()
     .references(() => customers.id),
   requestedDate: timestamp("requested_date", { withTimezone: true }).notNull(),
+  timePreference: text("time_preference")
+    .$type<"any" | "morning" | "afternoon" | "evening">()
+    .default("any")
+    .notNull(),
   status: waitlistStatusEnum("status").default("waiting").notNull(),
   ...timestamps,
 });

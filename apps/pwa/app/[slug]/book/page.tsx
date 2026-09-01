@@ -39,6 +39,7 @@ interface Slot {
 }
 interface Profile {
   branding?: Branding | null;
+  capabilities?: { waitlist?: boolean };
   categories: Category[];
   pwa?: {
     allowStaffPreference?: boolean;
@@ -98,15 +99,19 @@ export default function BookingPage() {
   const [profile, setProfile] = useState<Profile>();
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState(searchParams.get("category") ?? "");
-  const [serviceId, setServiceId] = useState("");
-  const [staffId, setStaffId] = useState("");
-  const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
+  const [serviceId, setServiceId] = useState(searchParams.get("serviceId") ?? "");
+  const [staffId, setStaffId] = useState(searchParams.get("staffId") ?? "");
+  const [date, setDate] = useState(() => searchParams.get("date") ?? new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [slots, setSlots] = useState<Slot[]>([]);
   const [startsAt, setStartsAt] = useState("");
   const [booking, setBooking] = useState<Booking>();
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [waitlistMode, setWaitlistMode] = useState(false);
+  const [waitlistSent, setWaitlistSent] = useState(false);
+  const [timePreference, setTimePreference] = useState("any");
+  const [submittingWaitlist, setSubmittingWaitlist] = useState(false);
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -190,6 +195,26 @@ export default function BookingPage() {
     else setError("Prenotazione non riuscita. Verifica i dati e riprova.");
   }
 
+  async function submitWaitlist(data: FormData) {
+    setSubmittingWaitlist(true);
+    setError("");
+    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/waitlist`, {
+      body: JSON.stringify({
+        customer: { email: data.get("email"), full_name: data.get("name"), phone: data.get("phone") },
+        requested_date: date,
+        service_id: serviceId,
+        staff_id: staffId || undefined,
+        time_preference: timePreference,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    setSubmittingWaitlist(false);
+    if (response.ok) return setWaitlistSent(true);
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    setError(result.error === "WAITLIST_DUPLICATE" ? "Hai già una richiesta attiva per questo giorno." : "Non è stato possibile inviare la richiesta. Verifica i dati e riprova.");
+  }
+
   if (unavailable) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5">
@@ -212,6 +237,19 @@ export default function BookingPage() {
           <p className="mt-1 text-sm font-bold text-[#792f59]">{new Date(booking.startsAt).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
           <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}>Aggiungi al calendario</button>
           <Link className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-stone-100 font-black text-stone-700" href={`/${slug}`}>Torna alla home</Link>
+        </section>
+      </main>
+    );
+  }
+
+  if (waitlistSent) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5">
+        <section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl">
+          <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
+          <h1 className="mt-5 text-3xl font-bold">Richiesta in lista d’attesa</h1>
+          <p className="mt-3 text-stone-600">Ti contatteremo se si libera un orario compatibile. La richiesta non garantisce né riserva un appuntamento.</p>
+          <Link className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-stone-100 font-black text-stone-700" href={`/${slug}`}>Torna alla home</Link>
         </section>
       </main>
     );
@@ -310,8 +348,25 @@ export default function BookingPage() {
                 </button>
               ))}
             </div>
-            {slots.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun orario disponibile per questa data.</p>}
-            <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>
+            {!slots.some((slot) => slot.available) && (
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                <p className="font-black text-stone-900">Questa giornata è al completo</p>
+                <p className="mt-1 text-sm text-stone-600">Puoi lasciare una richiesta e il salone ti contatterà se si libera un posto.</p>
+                {profile.capabilities?.waitlist && <button className="mt-4 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setWaitlistMode(true)} style={{ background: primary }}>Entra in lista d’attesa</button>}
+              </div>
+            )}
+            {waitlistMode ? (
+              <form action={submitWaitlist} className="mt-5 space-y-4 border-t border-stone-100 pt-5">
+                <fieldset>
+                  <legend className="text-sm font-black text-stone-800">Quando sei disponibile?</legend>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
+                  </div>
+                </fieldset>
+                {[["name", "Nome e cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
+                <button disabled={submittingWaitlist} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" style={{ background: primary }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</button>
+              </form>
+            ) : <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>}
           </section>
         )}
 

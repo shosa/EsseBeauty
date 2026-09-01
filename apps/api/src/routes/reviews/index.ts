@@ -4,7 +4,9 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import {
   appointments,
   customers,
+  reviewInvitationDeliveries,
   reviewInvitations,
+  reviewRequestSettings,
   reviews,
   salonModules,
   salons,
@@ -18,7 +20,7 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { inspectPublicToken } from "../../lib/public-tokens.js";
-import { retryReviewInvitation, type ReviewQueue } from "../../jobs/reviews.js";
+import { retryReviewInvitation, scheduleReviewRequest, type ReviewQueue } from "../../jobs/reviews.js";
 
 type ReviewTokenError = "TOKEN_CONSUMED" | "TOKEN_EXPIRED" | "TOKEN_INVALID" | "TOKEN_REVOKED";
 
@@ -51,6 +53,7 @@ export async function registerReviewRoutes(
   app: FastifyInstance,
   options: RegisterReviewRouteOptions = {},
 ) {
+  const managementGuard = [authenticate, requireModule(MODULE_KEYS.REVIEWS), requirePermission(PERMISSION_KEYS.REVIEWS_REPLY)];
   app.post<{ Body: { token?: unknown } }>(
     "/api/public/reviews/resolve",
     async (request, reply) => {
@@ -185,6 +188,43 @@ export async function registerReviewRoutes(
       return reply.code(202).send({ queued: true });
     },
   );
+
+  app.get<{ Params: { id: string } }>("/api/salons/:id/reviews/request-settings", { preHandler: managementGuard }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    return (await app.db.select().from(reviewRequestSettings).where(eq(reviewRequestSettings.salonId, request.salonId)))[0] ?? { automaticEnabled: false, channels: ["email"], delayPreset: "one_hour" };
+  });
+
+  app.patch<{ Params: { id: string }; Body: { automaticEnabled: boolean; channels: Array<"email" | "whatsapp">; delayPreset: "immediate" | "one_hour" | "three_hours" | "next_day" | "two_days" } }>("/api/salons/:id/reviews/request-settings", { preHandler: managementGuard }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const presets = ["immediate", "one_hour", "three_hours", "next_day", "two_days"];
+    const channels = [...new Set(request.body.channels ?? [])];
+    if (!presets.includes(request.body.delayPreset) || channels.length === 0 || channels.some((channel) => !["email", "whatsapp"].includes(channel))) return reply.code(400).send({ error: "INVALID_REVIEW_SETTINGS" });
+    return (await app.db.insert(reviewRequestSettings).values({ automaticEnabled: request.body.automaticEnabled, channels, delayPreset: request.body.delayPreset, salonId: request.salonId, updatedByUserId: request.user.id }).onConflictDoUpdate({ target: reviewRequestSettings.salonId, set: { automaticEnabled: request.body.automaticEnabled, channels, delayPreset: request.body.delayPreset, updatedAt: new Date(), updatedByUserId: request.user.id } }).returning())[0];
+  });
+
+  app.get<{ Params: { id: string } }>("/api/salons/:id/reviews/collection", { preHandler: managementGuard }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await app.db.select({ appointment_id: appointments.id, appointment_date: appointments.startsAt, customer_email: customers.email, customer_name: customers.fullName, customer_phone: customers.phone, invitation_consumed_at: reviewInvitations.consumedAt, invitation_id: reviewInvitations.id, review_id: reviews.id, service_name: services.name }).from(appointments).innerJoin(customers, eq(customers.id, appointments.customerId)).innerJoin(services, eq(services.id, appointments.serviceId)).leftJoin(reviewInvitations, eq(reviewInvitations.appointmentId, appointments.id)).leftJoin(reviews, eq(reviews.appointmentId, appointments.id)).where(and(eq(appointments.salonId, request.salonId), eq(appointments.status, "completed"))).orderBy(desc(appointments.startsAt)).limit(100);
+    const deliveries = await app.db.select().from(reviewInvitationDeliveries).where(eq(reviewInvitationDeliveries.salonId, request.salonId));
+    return rows.map((row) => ({ ...row, deliveries: deliveries.filter((delivery) => delivery.invitationId === row.invitation_id).map((delivery) => ({ channel: delivery.channel, delivered_at: delivery.deliveredAt, failure_reason: delivery.failureReason, generation: delivery.generation, scheduled_at: delivery.scheduledAt, status: delivery.status })) }));
+  });
+
+  async function sendCollectionRequest(request: any, reply: FastifyReply, resend: boolean) {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (resend && request.body?.confirm !== true) return reply.code(400).send({ error: "RESEND_CONFIRMATION_REQUIRED" });
+    const channels = [...new Set(request.body?.channels ?? [])] as Array<"email" | "whatsapp">;
+    if (channels.length === 0 || channels.some((channel) => !["email", "whatsapp"].includes(channel))) return reply.code(400).send({ error: "INVALID_CHANNELS" });
+    const appointment = (await app.db.select({ email: customers.email, phone: customers.phone, status: appointments.status }).from(appointments).innerJoin(customers, eq(customers.id, appointments.customerId)).where(and(eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId))))[0];
+    if (!appointment || appointment.status !== "completed") return reply.code(409).send({ error: "REVIEW_APPOINTMENT_NOT_COMPLETED" });
+    if (channels.includes("email") && !appointment.email || channels.includes("whatsapp") && !appointment.phone) return reply.code(400).send({ error: "REVIEW_CONTACT_UNAVAILABLE" });
+    try {
+      const result = await scheduleReviewRequest(app.db, request.params.appointmentId, { channels, resend, scheduledAt: new Date() }, options.reviewQueue);
+      return reply.code(202).send({ deliveries: result.deliveries.map((item) => ({ channel: item.channel, scheduled_at: item.scheduledAt, status: item.status })), invitation_id: result.invitation.id });
+    } catch { return reply.code(409).send({ error: "REVIEW_INVITATION_NOT_SENDABLE" }); }
+  }
+
+  app.post<{ Params: { id: string; appointmentId: string }; Body: { channels: Array<"email" | "whatsapp"> } }>("/api/salons/:id/reviews/collection/:appointmentId/send", { preHandler: managementGuard }, async (request, reply) => sendCollectionRequest(request, reply, false));
+  app.post<{ Params: { id: string; appointmentId: string }; Body: { channels: Array<"email" | "whatsapp">; confirm: boolean } }>("/api/salons/:id/reviews/collection/:appointmentId/resend", { preHandler: managementGuard }, async (request, reply) => sendCollectionRequest(request, reply, true));
 
   app.get<{
     Params: { id: string };

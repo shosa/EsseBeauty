@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
-import { platformAdmins, platformAuditLog, salons } from "@esse-beauty/db/schema";
+import { inventoryDocuments, platformAdmins, platformAuditLog, salons } from "@esse-beauty/db/schema";
 
 import { createApp } from "../../app.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
@@ -45,10 +45,21 @@ postgresSuite("platform salon deletion with PostgreSQL", () => {
       slug,
       timezone: "Europe/Rome",
     });
+    await db.insert(inventoryDocuments).values({
+      internalNumber: `OPENING-${salonId}`,
+      kind: "opening",
+      postedAt: new Date(),
+      salonId,
+      status: "posted",
+    });
 
     const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3004" } });
 
     try {
+      await expect(
+        db.delete(inventoryDocuments).where(eq(inventoryDocuments.salonId, salonId)),
+      ).rejects.toThrow('delete from "inventory_documents"');
+
       const login = await app.inject({
         method: "POST",
         payload: { email: `${adminId}@example.invalid`, password },
@@ -69,7 +80,11 @@ postgresSuite("platform salon deletion with PostgreSQL", () => {
     } finally {
       await app.close();
       await db.delete(platformAuditLog).where(eq(platformAuditLog.targetId, salonId));
-      await db.delete(salons).where(eq(salons.id, salonId));
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`set local session_replication_role = replica`);
+        await tx.delete(inventoryDocuments).where(eq(inventoryDocuments.salonId, salonId));
+        await tx.delete(salons).where(eq(salons.id, salonId));
+      });
       await db.delete(platformAdmins).where(eq(platformAdmins.id, adminId));
     }
   });

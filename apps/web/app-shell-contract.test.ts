@@ -28,4 +28,14 @@ describe("hybrid app workspace shell", () => {
     expect(mobile).toContain('label: "Cassa"');
     expect(mobile).toContain("<span>Altro</span>");
   });
+
+  it("keeps the mobile topbar actions right-aligned and uses the Lucide search icon", () => {
+    const topbar = readFileSync(join(components, "WorkspaceTopbar.tsx"), "utf8");
+
+    expect(topbar).toContain('import { Search } from "lucide-react"');
+    expect(topbar).toContain('aria-label="Azioni rapide"');
+    expect(topbar).toContain('className="ml-auto flex shrink-0 items-center gap-2"');
+    expect(topbar).toContain('<Search aria-hidden="true" className="size-5" />');
+    expect(topbar).not.toContain(">⌕</button>");
+  });
 });

@@ -253,6 +253,27 @@
       "when": 1787949600000,
       "tag": "0035_modular_warehouse_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788249600000,
+      "tag": "0036_tenant_warehouse_cascade",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788253200000,
+      "tag": "0037_waitlist_time_preference",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1788256800000,
+      "tag": "0038_review_request_automation",
+      "breakpoints": true
     }
   ]
 }

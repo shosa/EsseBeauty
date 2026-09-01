@@ -36,6 +36,18 @@ describe("global WhatsApp workspace", () => {
     expect(drawer).toContain('aria-modal="true"');
   });
 
+  it("guides salons without a configured WhatsApp provider to communications settings", () => {
+    const provider = readFileSync(resolve("app/(dashboard)/_components/CommunicationWorkspaceProvider.tsx"), "utf8");
+    const drawer = readFileSync(resolve("app/(dashboard)/_components/WhatsAppChatDrawer.tsx"), "utf8");
+    expect(provider).toContain("providerStatus");
+    expect(provider).toContain('fetch(`${basePath}/provider`');
+    expect(provider).toContain("void loadProviderStatus()");
+    expect(drawer).toContain('workspace.providerStatus === "not_configured"');
+    expect(drawer).toContain("Configura WhatsApp Business");
+    expect(drawer).toContain("Vai alle impostazioni");
+    expect(drawer).toContain('router.push("/settings/communications")');
+  });
+
   it("labels WhatsApp Web as external and non-authoritative", () => {
     const drawer = readFileSync(resolve("app/(dashboard)/_components/WhatsAppChatDrawer.tsx"), "utf8");
     expect(drawer).toContain("esterno, non sincronizzato con EsseBeauty");

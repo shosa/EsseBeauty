@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { and, asc, eq, gte, isNull, lt, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm";
 
 import {
   appointments,
   customers,
   notifications,
+  reviewRequestSettings,
   salons,
   services,
   waitlistEntries,
@@ -14,7 +15,8 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
 import { sendEmail } from "./notifications.js";
 import { enqueueCommunication } from "./communications.js";
-import { scheduleReviewInvitation } from "./reviews.js";
+import { scheduleReviewInvitation, scheduleReviewRequest } from "./reviews.js";
+import { scheduledReviewTime } from "./review-policy.js";
 
 interface Transition {
   appointmentId: string;
@@ -101,10 +103,12 @@ async function enqueueReview(
       app.db,
     )
   ) {
-    await (dependencies.scheduleReviewInvitation ?? scheduleReviewInvitation)(
-      app.db,
-      appointment.id,
-    );
+    const policy = (await app.db.select().from(reviewRequestSettings).where(eq(reviewRequestSettings.salonId, appointment.salonId)))[0];
+    if (!policy?.automaticEnabled) return;
+    const salon = (await app.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, appointment.salonId)))[0];
+    if (!salon) return;
+    if (dependencies.scheduleReviewInvitation) await dependencies.scheduleReviewInvitation(app.db, appointment.id);
+    else await scheduleReviewRequest(app.db, appointment.id, { channels: policy.channels, scheduledAt: scheduledReviewTime(new Date(), policy.delayPreset, salon.timezone) });
   }
 }
 
@@ -127,6 +131,7 @@ async function notifyWaitlist(
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
+  const timePreference = start.getHours() < 12 ? "morning" : start.getHours() < 18 ? "afternoon" : "evening";
   const entries = await app.db
     .select({
       id: waitlistEntries.id,
@@ -136,6 +141,8 @@ async function notifyWaitlist(
       customerName: customers.fullName,
       salonSlug: salons.slug,
       serviceName: services.name,
+      serviceId: waitlistEntries.serviceId,
+      staffId: waitlistEntries.staffId,
     })
     .from(waitlistEntries)
     .innerJoin(customers, eq(customers.id, waitlistEntries.customerId))
@@ -148,6 +155,7 @@ async function notifyWaitlist(
         eq(waitlistEntries.status, "waiting"),
         gte(waitlistEntries.requestedDate, dayStart),
         lt(waitlistEntries.requestedDate, dayEnd),
+        inArray(waitlistEntries.timePreference, ["any", timePreference]),
         or(
           isNull(waitlistEntries.staffId),
           eq(waitlistEntries.staffId, appointment.staffId),
@@ -162,7 +170,9 @@ async function notifyWaitlist(
     .update(waitlistEntries)
     .set({ status: "notified" })
     .where(eq(waitlistEntries.id, entry.id));
-  const bookingUrl = `${process.env.PWA_URL ?? "http://localhost:3002"}/${entry.salonSlug}/book`;
+  const bookingQuery = new URLSearchParams({ date: start.toISOString().slice(0, 10), serviceId: entry.serviceId });
+  if (entry.staffId) bookingQuery.set("staffId", entry.staffId);
+  const bookingUrl = `${process.env.PWA_URL ?? "http://localhost:3002"}/${entry.salonSlug}/book?${bookingQuery}`;
   const message = `A slot has opened on ${start.toLocaleDateString("it-IT")} for ${entry.serviceName}. Book now: ${bookingUrl}`;
   try {
     if (entry.email) {

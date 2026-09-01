@@ -24,10 +24,13 @@ const messages: Record<string, string> = {
 };
 
 export async function platformRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = init?.body == null
+    ? init?.headers
+    : { "content-type": "application/json", ...init.headers };
   const response = await fetch(`${apiBaseUrl()}${path}`, {
     credentials: "include",
-    headers: { "content-type": "application/json", ...init?.headers },
     ...init,
+    ...(headers ? { headers } : {}),
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));

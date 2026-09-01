@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, DateTimeField, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
@@ -70,6 +70,7 @@ export default function NewAppointmentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { salon } = useAuth();
+  const fromWaitlist = Boolean(searchParams.get("waitlistId"));
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption>();
@@ -133,6 +134,26 @@ export default function NewAppointmentPage() {
       setStartsAt(local);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const customerId = searchParams.get("customerId");
+    const requestedServiceId = searchParams.get("serviceId");
+    if (!salon || services.length === 0 || (!customerId && !requestedServiceId)) return;
+    const service = services.find((candidate) => candidate.id === requestedServiceId);
+    if (service) {
+      setCategoryId(service.categoryId ?? "");
+      setServiceId(service.id);
+    }
+    if (!customerId || selectedCustomer?.id === customerId) return;
+    void fetch(`${api}/api/salons/${salon.id}/customers/${customerId}`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error();
+        const customer = await response.json() as { email: string | null; fullName: string; id: string; phone: string | null };
+        setSelectedCustomer({ email: customer.email, id: customer.id, name: customer.fullName, phone: customer.phone });
+        setCustomerQuery(customer.fullName);
+      })
+      .catch(() => setError("Impossibile caricare il cliente della lista d’attesa."));
+  }, [salon, searchParams, selectedCustomer?.id, services]);
 
   useEffect(() => {
     const duplicateId = searchParams.get("duplicate");
@@ -281,6 +302,16 @@ export default function NewAppointmentPage() {
         throw new Error("Appuntamento non creato.");
       }
       const appointment = await response.json() as { id: string };
+      const waitlistId = searchParams.get("waitlistId");
+      if (waitlistId) {
+        const waitlistResponse = await fetch(`${api}/api/salons/${salon.id}/waitlist/${waitlistId}`, {
+          body: JSON.stringify({ status: "booked" }),
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          method: "PATCH",
+        });
+        if (!waitlistResponse.ok) setError("Appuntamento creato, ma la richiesta non è stata chiusa automaticamente.");
+      }
       setOverlaps([]);
       setSchedulingWarnings([]);
       router.push(`/calendar?appointment=${encodeURIComponent(appointment.id)}`);
@@ -350,6 +381,17 @@ export default function NewAppointmentPage() {
         <h1 className="text-3xl font-bold tracking-[-.025em] text-[#2d1d27]">Nuovo appuntamento</h1>
         <p className="mt-1 max-w-2xl text-sm leading-6 text-stone-600">Cliente, orario, trattamento e risorse in un’unica vista.</p>
       </header>
+
+      {fromWaitlist && (
+        <div className="sticky top-16 z-20 mt-3 flex items-center gap-3 rounded-xl border border-[#e5bfd3] bg-[#fff7fb] px-4 py-3 shadow-sm">
+          <span className="rounded-full bg-[#792f59] px-3 py-1 text-xs font-black text-white">Da lista d’attesa</span>
+          <p className="min-w-0 flex-1 text-sm font-semibold text-[#542138]">Stai trasformando una richiesta cliente in appuntamento.</p>
+          <span className="group relative shrink-0">
+            <button aria-describedby="waitlist-context-tooltip" aria-label="Informazioni sulla richiesta cliente" className="grid min-h-11 min-w-11 place-items-center rounded-full text-[#792f59] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/25" type="button"><Info aria-hidden="true" className="size-5" /></button>
+            <span className="pointer-events-none absolute right-0 top-full z-30 mt-2 w-64 rounded-xl bg-stone-950 p-3 text-xs font-semibold leading-5 text-white opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-within:opacity-100" id="waitlist-context-tooltip" role="tooltip">Cliente, servizio, collaboratore e fascia provengono dalla richiesta. Verifica l’orario prima di creare l’appuntamento.</span>
+          </span>
+        </div>
+      )}
 
       {error && <InlineError className="mt-4">{error}</InlineError>}
 
@@ -498,7 +540,8 @@ export default function NewAppointmentPage() {
           </section>
         </div>
 
-        <aside aria-labelledby="summary-title" className="self-start rounded-xl border border-stone-200 bg-white p-4 xl:sticky xl:top-20">
+        <aside aria-labelledby="summary-title" className={`self-start rounded-xl border border-stone-200 bg-white p-4 xl:sticky ${fromWaitlist ? "xl:top-36" : "xl:top-20"}`}>
+          {fromWaitlist && <p className="mb-2 text-xs font-black uppercase tracking-[.14em] text-[#792f59]">Richiesta cliente</p>}
           <h2 className="text-lg font-bold text-stone-950" id="summary-title">Riepilogo</h2>
           <p aria-live="polite" className="mt-1 text-sm text-stone-600">{canCreate ? "Tutto pronto per la creazione." : "Completa i campi obbligatori."}</p>
           <dl className="mt-3 divide-y divide-stone-100 text-sm">
@@ -512,6 +555,17 @@ export default function NewAppointmentPage() {
           <Button className="mt-2 w-full" onClick={() => router.push("/calendar")} variant="ghost">Annulla</Button>
         </aside>
       </div>
+      {fromWaitlist && (
+        <aside aria-label="Riepilogo richiesta cliente" className="sticky bottom-3 z-20 mt-3 rounded-2xl border border-[#dcb3ca] bg-white/95 p-3 shadow-[0_12px_36px_rgb(45_29_39_/_0.2)] backdrop-blur xl:hidden">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black text-stone-950">Riepilogo richiesta cliente</h2><span className="text-xs font-bold text-[#792f59]">Da lista d’attesa</span></div>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <div className="min-w-0"><dt className="text-stone-500">Cliente</dt><dd className="truncate font-bold">{selectedCustomer?.name ?? "Caricamento…"}</dd></div>
+            <div className="min-w-0"><dt className="text-stone-500">Servizio</dt><dd className="truncate font-bold">{selectedService?.name ?? "Da selezionare"}</dd></div>
+            <div className="min-w-0"><dt className="text-stone-500">Data e ora</dt><dd className="truncate font-bold">{startsAt ? new Date(startsAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" }) : "Da inserire"}</dd></div>
+            <div className="min-w-0"><dt className="text-stone-500">Collaboratore</dt><dd className="truncate font-bold">{selectedStaff?.name ?? "Da selezionare"}</dd></div>
+          </dl>
+        </aside>
+      )}
     </AppPage>
   );
 }

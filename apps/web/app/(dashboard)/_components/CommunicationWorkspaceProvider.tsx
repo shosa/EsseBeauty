@@ -50,6 +50,8 @@ interface ThreadResponse {
   items: CommunicationMessage[];
 }
 
+type CommunicationProviderStatus = "not_configured" | "pending_verification" | "ready" | "degraded" | "revoked" | "disabled";
+
 interface CommunicationWorkspaceValue extends WorkspaceState {
   canReply: boolean;
   canView: boolean;
@@ -63,6 +65,7 @@ interface CommunicationWorkspaceValue extends WorkspaceState {
   open: boolean;
   openChat(): void;
   openConversationForCustomer(customerId: string): Promise<boolean>;
+  providerStatus: CommunicationProviderStatus | null;
   loadContacts(query: string): Promise<void>;
   deleteConversation(id: string): Promise<boolean>;
   markRead(id: string): Promise<boolean>;
@@ -136,6 +139,7 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
   const [serviceWindowOpen, setServiceWindowOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<CommunicationProviderStatus | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -145,7 +149,19 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
   const pendingReadVersionsRef = useRef(new Map<string, number>());
   const basePath = `${apiBaseUrl}/api/salons/${salonId}/communications`;
   const close = useCallback(() => setOpen(false), []);
-  const openChat = useCallback(() => setOpen(true), []);
+  const loadProviderStatus = useCallback(async () => {
+    const response = await fetch(`${basePath}/provider`, { credentials: "include" });
+    if (!response.ok) throw new Error("Configurazione WhatsApp non disponibile.");
+    const provider = await response.json() as { status: CommunicationProviderStatus };
+    setProviderStatus(provider.status);
+    return provider.status;
+  }, [basePath]);
+  const openChat = useCallback(() => {
+    setOpen(true);
+    void loadProviderStatus().catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : "Configurazione WhatsApp non disponibile.");
+    });
+  }, [loadProviderStatus]);
   const commitConversations = useCallback((update: CommunicationConversation[] | ((current: CommunicationConversation[]) => CommunicationConversation[])) => {
     const next = typeof update === "function" ? update(conversationSnapshotRef.current) : update;
     conversationSnapshotRef.current = next;
@@ -232,29 +248,32 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     if (!canView) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([
-      fetch(`${basePath}/workspace-state`, { credentials: "include" }).then(async (response) => response.ok ? response.json() as Promise<ServerWorkspaceState> : {}),
-      refresh(),
-    ]).then(([state]) => {
+    loadProviderStatus().then(async (status) => {
+      if (cancelled) return;
+      if (status === "not_configured") return;
+      const [state] = await Promise.all([
+        fetch(`${basePath}/workspace-state`, { credentials: "include" }).then(async (response) => response.ok ? response.json() as Promise<ServerWorkspaceState> : {}),
+        refresh(),
+      ]);
       if (!cancelled) setWorkspace((current) => mergeWorkspaceState(current, state));
     }).catch((reason: unknown) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : "Chat WhatsApp non disponibile.");
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [basePath, canView, refresh]);
+  }, [basePath, canView, loadProviderStatus, refresh]);
 
   useEffect(() => {
-    if (!canView || !open || !workspace.selectedConversationId) {
+    if (!canView || providerStatus === null || providerStatus === "not_configured" || !open || !workspace.selectedConversationId) {
       setMessages([]);
       return;
     }
     void loadThread(workspace.selectedConversationId).then(() => refresh()).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : "Conversazione non disponibile.");
     });
-  }, [canView, loadThread, open, refresh, workspace.selectedConversationId]);
+  }, [canView, loadThread, open, providerStatus, refresh, workspace.selectedConversationId]);
 
   useEffect(() => {
-    if (!canView) return;
+    if (!canView || providerStatus === null || providerStatus === "not_configured") return;
     const stream = new EventSource(`${basePath}/events`, { withCredentials: true });
     let poll: number | undefined;
     const update = () => {
@@ -283,7 +302,7 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
       stream.close();
       if (poll) window.clearInterval(poll);
     };
-  }, [basePath, canView, loadThread, open, refresh, workspace.selectedConversationId]);
+  }, [basePath, canView, loadThread, open, providerStatus, refresh, workspace.selectedConversationId]);
 
   useEffect(() => {
     if (!canView || !search.trim()) return;
@@ -449,6 +468,7 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     open,
     openChat,
     openConversationForCustomer,
+    providerStatus,
     loadContacts,
     markRead,
     markUnread,
@@ -461,7 +481,7 @@ export function CommunicationWorkspaceProvider({ apiBaseUrl, children, salonId }
     setDraft,
     setSearch,
     unreadCount: conversations.reduce((total, conversation) => total + conversation.unread_count, 0),
-  }), [workspace, canReply, canView, close, contacts, contactsLoading, conversations, deleteConversation, error, loadContacts, loading, markRead, markUnread, messages, open, openChat, openConversationForCustomer, refresh, search, selectConversation, selectedConversation, sendMessage, serviceWindowOpen, setDraft]);
+  }), [workspace, canReply, canView, close, contacts, contactsLoading, conversations, deleteConversation, error, loadContacts, loading, markRead, markUnread, messages, open, openChat, openConversationForCustomer, providerStatus, refresh, search, selectConversation, selectedConversation, sendMessage, serviceWindowOpen, setDraft]);
 
   return <CommunicationWorkspaceContext.Provider value={value}>{children}</CommunicationWorkspaceContext.Provider>;
 }

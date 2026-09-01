@@ -3,6 +3,7 @@ import { and, asc, eq, gt, ilike, lt, ne, or } from "drizzle-orm";
 
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, salonClosures, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureOnlineBookingNotifications } from "../../jobs/staff-request-notifications.js";
 import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
@@ -166,8 +167,10 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       app.db.select().from(pwaBrandingSettings).where(eq(pwaBrandingSettings.salonId, salon.id)),
       getPwaOptions(app, salon.id),
     ]);
+    const waitlistEnabled = await isModuleEnabled(salon.id, MODULE_KEYS.WAITLIST, app.db);
     return {
       branding: brandingRows[0] ?? null,
+      capabilities: { waitlist: waitlistEnabled },
       categories: categoryRows,
       pwa,
       salon,

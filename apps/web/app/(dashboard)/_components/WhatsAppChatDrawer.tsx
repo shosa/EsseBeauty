@@ -123,6 +123,11 @@ export function WhatsAppChatDrawer() {
     workspace.close();
   }
 
+  function openCommunicationSettings() {
+    workspace.close();
+    router.push("/settings/communications");
+  }
+
   if (!workspace.canView) return null;
   const selected = workspace.selectedConversation;
 
@@ -149,6 +154,22 @@ export function WhatsAppChatDrawer() {
         transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.22, 0.9, 0.28, 1] }}
       >
         <h2 className="sr-only" id="whatsapp-drawer-title">WhatsApp Business</h2>
+        {workspace.providerStatus === "not_configured" ? (
+          <section aria-labelledby="whatsapp-setup-title" className="flex min-w-0 flex-1 flex-col bg-white">
+            <header className="flex min-h-16 items-center justify-between border-b border-[var(--wa-border)] px-4 sm:px-6">
+              <div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[var(--wa-primary)]">Business Cloud</p><p className="text-lg font-black text-stone-950">WhatsApp</p></div>
+              <button aria-label="Chiudi chat WhatsApp" className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-[var(--wa-tint)]" onClick={requestClose} type="button"><X aria-hidden="true" className="size-5" /></button>
+            </header>
+            <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6 sm:p-10">
+              <div className="w-full max-w-md text-center">
+                <span className="mx-auto grid size-16 place-items-center rounded-2xl bg-[var(--wa-tint)] text-[var(--wa-primary)]"><MessageCircle aria-hidden="true" className="size-8" /></span>
+                <h3 className="mt-6 text-2xl font-black tracking-[-.02em] text-stone-950" id="whatsapp-setup-title">Configura WhatsApp Business</h3>
+                <p className="mt-3 text-sm leading-6 text-stone-600">Per usare chat e messaggi devi collegare il numero aziendale alla WhatsApp Business Cloud API di Meta.</p>
+                <button className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--wa-primary)] px-5 text-sm font-bold text-white transition-colors hover:bg-[var(--wa-primary-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--wa-ring)]" onClick={openCommunicationSettings} type="button">Vai alle impostazioni</button>
+              </div>
+            </div>
+          </section>
+        ) : <>
         <section aria-label="Conversazioni WhatsApp" className={`${selected && !mobileListOpen ? "hidden sm:flex" : "flex"} w-full flex-col border-r border-[var(--wa-border)] bg-white sm:w-[320px] sm:shrink-0`}>
           <div className="border-b border-[var(--wa-border)] p-4">
             <div className="flex items-center justify-between gap-3">
@@ -227,6 +248,7 @@ export function WhatsAppChatDrawer() {
             </form>
           </>}
         </section>
+        </>}
       </motion.aside>
       <ConfirmDialog
         confirmLabel="Elimina dalla lista"
