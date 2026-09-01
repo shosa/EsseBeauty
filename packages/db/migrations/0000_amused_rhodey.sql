@@ -1,6 +1,7 @@
 CREATE TYPE "public"."appointment_source" AS ENUM('online', 'manual', 'walk_in');--> statement-breakpoint
 CREATE TYPE "public"."appointment_status" AS ENUM('pending', 'confirmed', 'cancelled', 'no_show', 'completed');--> statement-breakpoint
-CREATE TYPE "public"."campaign_channel" AS ENUM('email', 'sms');--> statement-breakpoint
+CREATE TYPE "public"."reminder_channel"
+AS ENUM('sms', 'email', 'whatsapp');--> statement-breakpoint
 CREATE TYPE "public"."campaign_status" AS ENUM('draft', 'scheduled', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."reminder_channel" AS ENUM('sms', 'email');--> statement-breakpoint
 CREATE TYPE "public"."reminder_status" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint

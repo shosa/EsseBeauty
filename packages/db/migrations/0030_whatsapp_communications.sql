@@ -1,8 +1,4 @@
-ALTER TYPE "reminder_channel" ADD VALUE IF NOT EXISTS 'whatsapp';--> statement-breakpoint
-ALTER TYPE "review_delivery_channel" ADD VALUE IF NOT EXISTS 'whatsapp';--> statement-breakpoint
-ALTER TYPE "campaign_channel" ADD VALUE IF NOT EXISTS 'whatsapp';--> statement-breakpoint
-ALTER TYPE "notification_channel" ADD VALUE IF NOT EXISTS 'whatsapp';--> statement-breakpoint
-ALTER TYPE "consent_delivery_channel" ADD VALUE IF NOT EXISTS 'whatsapp';--> statement-breakpoint
+
 CREATE TYPE "communication_provider" AS ENUM ('meta_cloud_api');--> statement-breakpoint
 CREATE TYPE "communication_provider_status" AS ENUM ('not_configured', 'pending_verification', 'ready', 'degraded', 'revoked', 'disabled');--> statement-breakpoint
 CREATE TYPE "communication_secret_kind" AS ENUM ('access_token', 'webhook_verify_token');--> statement-breakpoint

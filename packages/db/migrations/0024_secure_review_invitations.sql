@@ -1,5 +1,9 @@
 CREATE TYPE "public"."review_delivery_channel"
-AS ENUM('email', 'sms');
+AS ENUM(
+  'email',
+  'sms',
+  'whatsapp'
+);
 --> statement-breakpoint
 
 CREATE TYPE "public"."review_delivery_status"
@@ -42,7 +46,6 @@ CREATE TABLE "review_invitations" (
   CONSTRAINT "review_invitations_delivery_attempts_non_negative"
     CHECK ("review_invitations"."delivery_attempts" >= 0)
 );
-
 --> statement-breakpoint
 
 ALTER TABLE "review_invitations"
@@ -51,7 +54,6 @@ FOREIGN KEY ("salon_id")
 REFERENCES "public"."salons"("id")
 ON DELETE cascade
 ON UPDATE no action;
-
 --> statement-breakpoint
 
 ALTER TABLE "review_invitations"
@@ -60,12 +62,10 @@ FOREIGN KEY ("appointment_id")
 REFERENCES "public"."appointments"("id")
 ON DELETE cascade
 ON UPDATE no action;
-
 --> statement-breakpoint
 
 CREATE UNIQUE INDEX "review_invitations_appointment_unique"
 ON "review_invitations" USING btree ("appointment_id");
-
 --> statement-breakpoint
 
 CREATE UNIQUE INDEX "review_invitations_token_hash_unique"

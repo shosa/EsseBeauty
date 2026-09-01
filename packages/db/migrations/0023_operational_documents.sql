@@ -1,4 +1,5 @@
-CREATE TYPE "public"."consent_delivery_channel" AS ENUM('email', 'sms', 'in_person');--> statement-breakpoint
+CREATE TYPE "public"."consent_delivery_channel"
+AS ENUM('email', 'sms', 'in_person', 'whatsapp');--> statement-breakpoint
 ALTER TABLE "customer_consents" ADD COLUMN "token_hash" text;--> statement-breakpoint
 ALTER TABLE "customer_consents" ADD COLUMN "expires_at" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "customer_consents" ADD COLUMN "delivery_channel" "consent_delivery_channel";--> statement-breakpoint

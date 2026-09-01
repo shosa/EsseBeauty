@@ -1,5 +1,6 @@
 CREATE TYPE "public"."consent_signature_status" AS ENUM('pending', 'signed', 'revoked', 'expired');--> statement-breakpoint
-CREATE TYPE "public"."notification_channel" AS ENUM('in_app', 'email', 'sms', 'push');--> statement-breakpoint
+CREATE TYPE "public"."notification_channel"
+AS ENUM('in_app', 'email', 'sms', 'push', 'whatsapp');--> statement-breakpoint
 CREATE TYPE "public"."notification_priority" AS ENUM('low', 'normal', 'high', 'critical');--> statement-breakpoint
 CREATE TYPE "public"."platform_salon_status" AS ENUM('active', 'suspended', 'trial', 'churn_risk');--> statement-breakpoint
 CREATE TYPE "public"."staff_request_status" AS ENUM('pending', 'approved', 'rejected', 'cancelled');--> statement-breakpoint
