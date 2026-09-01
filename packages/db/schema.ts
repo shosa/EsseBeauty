@@ -1377,7 +1377,7 @@ export const reviewInvitationDeliveries = pgTable(
     channel: reviewDeliveryChannelEnum("channel").notNull(),
     generation: integer("generation").default(0).notNull(),
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
-    status: reviewDeliveryStatusEnum("status").default("scheduled").notNull(),
+    status: text("status").default("scheduled").notNull(),
     attempts: integer("attempts").default(0).notNull(),
     deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),

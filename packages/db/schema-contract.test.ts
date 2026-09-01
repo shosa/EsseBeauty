@@ -142,6 +142,25 @@ if (warehouseReversalLinks.some((column) => !column)) {
 
 const schemaSource = readFileSync(join(process.cwd(), "schema.ts"), "utf8");
 
+const migrationJournal = JSON.parse(
+  readFileSync(join(process.cwd(), "migrations", "meta", "_journal.json"), "utf8"),
+) as { entries: Array<{ tag: string; when: number }> };
+
+for (let index = 1; index < migrationJournal.entries.length; index += 1) {
+  const currentMigration = migrationJournal.entries[index];
+  const previousMigration = migrationJournal.entries[index - 1];
+
+  if (!currentMigration || !previousMigration) {
+    throw new Error("Migration journal contains an invalid entry.");
+  }
+
+  if (currentMigration.when <= previousMigration.when) {
+    throw new Error(
+      `Migration ${currentMigration.tag} must have a timestamp newer than the previous migration.`,
+    );
+  }
+}
+
 for (const requirement of [
   "export const cashMovements = pgTable",
   '"cash_movements"',
