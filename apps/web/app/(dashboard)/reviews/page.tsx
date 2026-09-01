@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useReducer, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -32,7 +33,8 @@ function stars(rating: number) {
 
 export default function ReviewsPage() {
   const { hasPermission, salon } = useAuth();
-  const [activeTab, setActiveTab] = useState<"overview" | "requests">("overview");
+  const pathname = usePathname();
+  const activeTab = pathname.startsWith("/reviews/requests") ? "requests" : "overview";
   const [list, dispatchList] = useReducer(reviewListReducer, initialReviewListState);
   const [management, dispatchManagement] = useReducer(reviewMutationReducer, initialReviewMutationState);
   const items = list.items;
@@ -138,34 +140,7 @@ export default function ReviewsPage() {
         subtitle="Rispondi ai feedback e scegli cosa rendere pubblico nella pagina del salone."
       />
 
-      <nav aria-label="Sezioni recensioni" className="mb-6 rounded-2xl border border-stone-200 bg-white p-1.5 shadow-sm" role="tablist">
-        <div className="grid grid-cols-2 gap-1.5 sm:inline-grid sm:min-w-[420px]">
-          <button
-            aria-controls="reviews-overview-panel"
-            aria-selected={activeTab === "overview"}
-            className={`min-h-11 rounded-xl px-4 text-sm font-black transition ${activeTab === "overview" ? "bg-[#792f59] text-white shadow-sm" : "text-stone-600 hover:bg-stone-50 hover:text-stone-950"}`}
-            id="reviews-overview-tab"
-            onClick={() => setActiveTab("overview")}
-            role="tab"
-            type="button"
-          >
-            Panoramica
-          </button>
-          <button
-            aria-controls="reviews-requests-panel"
-            aria-selected={activeTab === "requests"}
-            className={`min-h-11 rounded-xl px-4 text-sm font-black transition ${activeTab === "requests" ? "bg-[#792f59] text-white shadow-sm" : "text-stone-600 hover:bg-stone-50 hover:text-stone-950"}`}
-            id="reviews-requests-tab"
-            onClick={() => setActiveTab("requests")}
-            role="tab"
-            type="button"
-          >
-            Richieste recensione
-          </button>
-        </div>
-      </nav>
-
-      {activeTab === "requests" && <div aria-labelledby="reviews-requests-tab" id="reviews-requests-panel" role="tabpanel">
+      {activeTab === "requests" && <div>
       <SectionCard title="Raccolta recensioni" subtitle="Configura gli inviti automatici e gestisci quelli manuali dopo gli appuntamenti completati.">
         <div className="space-y-5">
           <section aria-labelledby="review-automation-title" className="rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:p-5">
@@ -204,7 +179,7 @@ export default function ReviewsPage() {
       </SectionCard>
       </div>}
 
-      {activeTab === "overview" && <div aria-labelledby="reviews-overview-tab" id="reviews-overview-panel" role="tabpanel">
+      {activeTab === "overview" && <div>
       <SectionCard title="Distribuzione voti" subtitle="Una lettura rapida della soddisfazione recente.">
         <div className="grid gap-3 md:grid-cols-5">
           {[5, 4, 3, 2, 1].map((star) => {

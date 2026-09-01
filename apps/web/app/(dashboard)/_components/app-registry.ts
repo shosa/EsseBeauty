@@ -265,6 +265,10 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     moduleKey: MODULE_KEYS.REVIEWS,
     paths: ["/reviews"],
     permissions: [PERMISSION_KEYS.REVIEWS_REPLY, PERMISSION_KEYS.SETTINGS_SALON],
+    tabs: [
+      { href: "/reviews", label: "Panoramica" },
+      { href: "/reviews/requests", label: "Richieste recensione" },
+    ],
   },
   {
     accent: "#ea580c",

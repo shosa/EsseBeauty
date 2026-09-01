@@ -1,4 +1,4 @@
-CREATE TABLE "review_request_settings" (
+CREATE TABLE IF NOT EXISTS "review_request_settings" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
   "salon_id" uuid NOT NULL REFERENCES "salons"("id") ON DELETE CASCADE,
   "automatic_enabled" boolean DEFAULT false NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE "review_request_settings" (
 
 --> statement-breakpoint
 
-CREATE TABLE "review_invitation_deliveries" (
+CREATE TABLE IF NOT EXISTS "review_invitation_deliveries" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 
   "invitation_id" uuid NOT NULL
@@ -60,24 +60,56 @@ CREATE TABLE "review_invitation_deliveries" (
   CONSTRAINT "review_invitation_deliveries_attempts_check"
     CHECK ("attempts" >= 0),
 
-  CONSTRAINT "review_invitation_deliveries_status_check"
-    CHECK (
-      "status" IN (
-        'scheduled',
-        'processing',
-        'delivered',
-        'queued',
-        'failed',
-        'skipped',
-        'exhausted'
-      )
-    ),
-
   CONSTRAINT "review_invitation_deliveries_channel_check"
     CHECK ("channel" IN ('email', 'whatsapp'))
 );
 
 --> statement-breakpoint
 
-CREATE INDEX "review_invitation_deliveries_schedule_idx"
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'review_invitation_deliveries'
+      AND column_name = 'status'
+      AND udt_name = 'review_delivery_status'
+  ) THEN
+    ALTER TABLE "review_invitation_deliveries"
+      ALTER COLUMN "status" DROP DEFAULT,
+      ALTER COLUMN "status" TYPE text USING "status"::text,
+      ALTER COLUMN "status" SET DEFAULT 'scheduled';
+  END IF;
+END $$;
+
+--> statement-breakpoint
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'review_invitation_deliveries_status_check'
+      AND conrelid = 'public.review_invitation_deliveries'::regclass
+  ) THEN
+    ALTER TABLE "review_invitation_deliveries"
+      ADD CONSTRAINT "review_invitation_deliveries_status_check"
+      CHECK (
+        "status" IN (
+          'scheduled',
+          'processing',
+          'delivered',
+          'queued',
+          'failed',
+          'skipped',
+          'exhausted'
+        )
+      );
+  END IF;
+END $$;
+
+--> statement-breakpoint
+
+CREATE INDEX IF NOT EXISTS "review_invitation_deliveries_schedule_idx"
 ON "review_invitation_deliveries" ("status", "scheduled_at");
