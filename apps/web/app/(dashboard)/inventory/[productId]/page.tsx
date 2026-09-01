@@ -8,15 +8,36 @@ import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, P
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+const cents = (value: FormDataEntryValue | null) => Math.round(Number(value || 0) * 100);
+const basisPoints = (value: FormDataEntryValue | null) => Math.round(Number(value || 0) * 100);
+const textOrNull = (value: FormDataEntryValue | null) => {
+  const stringValue = String(value ?? "").trim();
+  return stringValue ? stringValue : null;
+};
 
 interface Product {
+  barcode?: string | null;
+  brand?: string | null;
+  category?: string | null;
+  costCents?: number | null;
+  description?: string | null;
   id: string;
+  internallyConsumable?: boolean;
+  itemType?: string;
   lowStockThreshold: number;
+  manufacturerCode?: string | null;
   name: string;
+  notes?: string | null;
+  reorderQuantity?: number;
   sku?: string | null;
+  sellable?: boolean;
   stockQuantity: number;
+  storageLocation?: string | null;
   supplier?: string | null;
+  trackStock?: boolean;
+  unit?: string;
   unitPriceCents: number;
+  vatRateBasisPoints?: number;
 }
 
 interface Movement {
@@ -67,10 +88,26 @@ export default function InventoryProductPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: data.get("name"),
+        barcode: textOrNull(data.get("barcode")),
+        brand: textOrNull(data.get("brand")),
+        category: textOrNull(data.get("category")),
+        cost_cents: cents(data.get("purchaseCost")),
+        description: textOrNull(data.get("description")),
+        internally_consumable: data.get("internallyConsumable") === "on",
+        item_type: data.get("itemType"),
+        manufacturer_code: textOrNull(data.get("manufacturerCode")),
+        notes: textOrNull(data.get("notes")),
+        reorder_quantity: Number(data.get("reorderQuantity") || 0),
         sku: data.get("sku") || null,
+        stock_quantity: Number(data.get("stock")),
         low_stock_threshold: Number(data.get("threshold")),
-        unit_price_cents: Math.round(Number(data.get("price")) * 100),
+        unit_price_cents: cents(data.get("salePrice")),
+        unit: textOrNull(data.get("unit")) ?? "pz",
+        vat_rate_basis_points: basisPoints(data.get("vatRate")),
+        storage_location: textOrNull(data.get("storageLocation")),
         supplier: data.get("supplier") || null,
+        track_stock: data.get("trackStock") === "on",
+        sellable: data.get("sellable") === "on",
       }),
     });
     if (!response.ok) {
@@ -104,16 +141,38 @@ export default function InventoryProductPage() {
           <EmptyState title="Prodotto non trovato" description="Potrebbe essere archiviato o non accessibile." />
         ) : (
           <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
-            <form action={save} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:grid-cols-2">
+            <form action={save} className="grid gap-5 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:grid-cols-2">
               <div className="md:col-span-2">
                 <p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Prodotto</p>
                 <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
               </div>
-              <label className="text-sm font-semibold">Nome<input name="name" defaultValue={product.name} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
-              <label className="text-sm font-semibold">SKU<input name="sku" defaultValue={product.sku ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
-              <label className="text-sm font-semibold">Soglia minima<input name="threshold" type="number" defaultValue={product.lowStockThreshold} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
-              <label className="text-sm font-semibold">Prezzo unitario informativo<input name="price" type="number" defaultValue={(product.unitPriceCents / 100).toFixed(2)} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
-              <label className="text-sm font-semibold md:col-span-2">Fornitore<input name="supplier" defaultValue={product.supplier ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+              <section className="grid gap-4 md:col-span-2 md:grid-cols-3">
+                <label className="text-sm font-semibold">Nome articolo<input name="name" defaultValue={product.name} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Marca / linea<input name="brand" defaultValue={product.brand ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Categoria<input name="category" defaultValue={product.category ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">SKU interno<input name="sku" defaultValue={product.sku ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Codice produttore<input name="manufacturerCode" defaultValue={product.manufacturerCode ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Barcode / EAN<input name="barcode" defaultValue={product.barcode ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+              </section>
+              <label className="text-sm font-semibold md:col-span-2">Descrizione<textarea name="description" rows={3} defaultValue={product.description ?? ""} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2" /></label>
+              <section className="grid gap-4 md:col-span-2 md:grid-cols-4">
+                <label className="text-sm font-semibold">Tipo articolo<select name="itemType" defaultValue={product.itemType ?? "resale"} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3"><option value="resale">Rivendita</option><option value="consumable">Consumo interno</option><option value="equipment">Attrezzatura</option><option value="expense">Spesa</option></select></label>
+                <label className="text-sm font-semibold">Scorta<input name="stock" type="number" defaultValue={product.stockQuantity} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Soglia minima<input name="threshold" type="number" defaultValue={product.lowStockThreshold} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Riordino consigliato<input name="reorderQuantity" type="number" defaultValue={product.reorderQuantity ?? 0} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Unità<input name="unit" defaultValue={product.unit ?? "pz"} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Costo acquisto<input name="purchaseCost" type="number" step="0.01" defaultValue={((product.costCents ?? 0) / 100).toFixed(2)} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Prezzo vendita<input name="salePrice" type="number" step="0.01" defaultValue={(product.unitPriceCents / 100).toFixed(2)} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">IVA %<input name="vatRate" type="number" step="0.01" defaultValue={((product.vatRateBasisPoints ?? 2200) / 100).toFixed(2)} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold">Ubicazione<input name="storageLocation" defaultValue={product.storageLocation ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+                <label className="text-sm font-semibold md:col-span-3">Fornitore<input name="supplier" defaultValue={product.supplier ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
+              </section>
+              <section className="grid gap-3 md:col-span-2 md:grid-cols-3">
+                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="trackStock" type="checkbox" defaultChecked={product.trackStock ?? true} />Gestisci scorta</label>
+                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="sellable" type="checkbox" defaultChecked={product.sellable ?? true} />Vendibile al cliente</label>
+                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="internallyConsumable" type="checkbox" defaultChecked={product.internallyConsumable ?? false} />Usabile nei trattamenti</label>
+              </section>
+              <label className="text-sm font-semibold md:col-span-2">Note interne<textarea name="notes" rows={3} defaultValue={product.notes ?? ""} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2" /></label>
               <div className="flex justify-end gap-3 md:col-span-2">
                 <Button type="button" variant="destructive" onClick={() => setConfirmDelete(true)}>Archivia</Button>
                 <Button type="submit">Salva modifiche</Button>

@@ -44,6 +44,34 @@ describe("warehouse route contract", () => {
     expect(changes).toEqual({ name: "Crema" });
   });
 
+  test("maps rich product master data without collapsing purchase cost and sale price", () => {
+    expect(productValues({
+      barcode: "800123",
+      brand: "Esse",
+      category: "Creme",
+      cost_cents: 800,
+      description: "Crema viso retail",
+      manufacturer_code: "CRM-VISO-50",
+      name: "Crema viso",
+      notes: "Esporre vicino alla cassa",
+      storage_location: "Scaffale A2",
+      unit_price_cents: 1500,
+      vat_rate_basis_points: 2200,
+    }, "salon-1")).toMatchObject({
+      barcode: "800123",
+      brand: "Esse",
+      category: "Creme",
+      costCents: 800,
+      description: "Crema viso retail",
+      manufacturerCode: "CRM-VISO-50",
+      name: "Crema viso",
+      notes: "Esporre vicino alla cassa",
+      storageLocation: "Scaffale A2",
+      unitPriceCents: 1500,
+      vatRateBasisPoints: 2200,
+    });
+  });
+
   test("defaults equipment and expense products to non-stock non-sellable", () => {
     expect(productValues({ item_type: "equipment", name: "Lampada" }, "salon-1")).toMatchObject({ itemType: "equipment", trackStock: false, sellable: false });
     expect(productValues({ item_type: "expense", name: "Servizio" }, "salon-1")).toMatchObject({ itemType: "expense", trackStock: false, sellable: false });

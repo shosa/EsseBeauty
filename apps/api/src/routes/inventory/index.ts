@@ -71,11 +71,26 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
     Params: { id: string };
     Body: {
       name: string;
+      barcode?: string | null;
+      brand?: string | null;
+      category?: string | null;
+      cost_cents?: number | null;
+      description?: string | null;
+      internally_consumable?: boolean;
+      item_type?: string;
+      manufacturer_code?: string | null;
+      notes?: string | null;
+      reorder_quantity?: number;
       sku?: string;
       stock_quantity: number;
       low_stock_threshold: number;
       unit_price_cents: number;
+      unit?: string;
+      vat_rate_basis_points?: number;
+      storage_location?: string | null;
       supplier?: string;
+      track_stock?: boolean;
+      sellable?: boolean;
       active: boolean;
     };
   }>("/api/salons/:id/inventory", { preHandler: guard }, async (request, reply) => {
@@ -87,15 +102,29 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
       .values({
         salonId: request.salonId,
         name: request.body.name,
+        barcode: request.body.barcode,
+        brand: request.body.brand,
+        category: request.body.category,
+        costCents: request.body.cost_cents,
+        description: request.body.description,
+        internallyConsumable: request.body.internally_consumable ?? false,
+        itemType: request.body.item_type ?? "resale",
+        lastCostCents: request.body.cost_cents ?? 0,
+        averageCostCents: request.body.cost_cents ?? 0,
+        manufacturerCode: request.body.manufacturer_code,
+        notes: request.body.notes,
+        reorderQuantity: request.body.reorder_quantity ?? 0,
         sku: request.body.sku,
         stockQuantity: request.body.stock_quantity,
         lowStockThreshold: request.body.low_stock_threshold,
         unitPriceCents: request.body.unit_price_cents,
+        unit: request.body.unit ?? "pz",
+        vatRateBasisPoints: request.body.vat_rate_basis_points ?? 2200,
+        storageLocation: request.body.storage_location,
         supplier: request.body.supplier,
         active: request.body.active,
-        itemType: "resale",
-        trackStock: true,
-        sellable: true,
+        trackStock: request.body.track_stock ?? true,
+        sellable: request.body.sellable ?? true,
       })
       .returning();
     return reply.code(201).send(rows[0]);
@@ -105,11 +134,26 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
     Params: { id: string; productId: string };
     Body: Partial<{
       name: string;
+      barcode: string | null;
+      brand: string | null;
+      category: string | null;
+      cost_cents: number | null;
+      description: string | null;
+      internally_consumable: boolean;
+      item_type: string;
+      manufacturer_code: string | null;
+      notes: string | null;
+      reorder_quantity: number;
       sku: string | null;
       stock_quantity: number;
       low_stock_threshold: number;
       unit_price_cents: number;
+      unit: string;
+      vat_rate_basis_points: number;
+      storage_location: string | null;
       supplier: string | null;
+      track_stock: boolean;
+      sellable: boolean;
       active: boolean;
     }>;
   }>("/api/salons/:id/inventory/:productId", { preHandler: guard }, async (request, reply) => {
@@ -120,6 +164,16 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
       .update(inventoryProducts)
       .set({
         ...(request.body.name !== undefined && { name: request.body.name }),
+        ...(request.body.barcode !== undefined && { barcode: request.body.barcode }),
+        ...(request.body.brand !== undefined && { brand: request.body.brand }),
+        ...(request.body.category !== undefined && { category: request.body.category }),
+        ...(request.body.cost_cents !== undefined && { costCents: request.body.cost_cents }),
+        ...(request.body.description !== undefined && { description: request.body.description }),
+        ...(request.body.internally_consumable !== undefined && { internallyConsumable: request.body.internally_consumable }),
+        ...(request.body.item_type !== undefined && { itemType: request.body.item_type }),
+        ...(request.body.manufacturer_code !== undefined && { manufacturerCode: request.body.manufacturer_code }),
+        ...(request.body.notes !== undefined && { notes: request.body.notes }),
+        ...(request.body.reorder_quantity !== undefined && { reorderQuantity: request.body.reorder_quantity }),
         ...(request.body.sku !== undefined && { sku: request.body.sku }),
         ...(request.body.stock_quantity !== undefined && {
           stockQuantity: request.body.stock_quantity,
@@ -130,10 +184,20 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
         ...(request.body.unit_price_cents !== undefined && {
           unitPriceCents: request.body.unit_price_cents,
         }),
+        ...(request.body.unit !== undefined && { unit: request.body.unit }),
+        ...(request.body.vat_rate_basis_points !== undefined && {
+          vatRateBasisPoints: request.body.vat_rate_basis_points,
+        }),
+        ...(request.body.storage_location !== undefined && {
+          storageLocation: request.body.storage_location,
+        }),
         ...(request.body.supplier !== undefined && {
           supplier: request.body.supplier,
         }),
+        ...(request.body.track_stock !== undefined && { trackStock: request.body.track_stock }),
+        ...(request.body.sellable !== undefined && { sellable: request.body.sellable }),
         ...(request.body.active !== undefined && { active: request.body.active }),
+        updatedAt: new Date(),
       })
       .where(
         and(

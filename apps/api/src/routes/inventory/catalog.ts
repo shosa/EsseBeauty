@@ -118,33 +118,39 @@ interface ProductInput {
   allow_negative_stock?: boolean;
   average_cost_cents?: number;
   barcode?: string | null;
+  brand?: string | null;
   category?: string | null;
   cost_cents?: number | null;
+  description?: string | null;
   internally_consumable?: boolean;
   item_type?: string;
   last_cost_cents?: number;
   low_stock_threshold?: number;
+  manufacturer_code?: string | null;
   name: string;
+  notes?: string | null;
   preferred_supplier?: string | null;
   preferred_supplier_id?: string | null;
   reorder_quantity?: number;
   sellable?: boolean;
   sku?: string | null;
+  storage_location?: string | null;
   stock_quantity?: number;
   supplier?: string | null;
   track_stock?: boolean;
   unit?: string;
   unit_price_cents?: number;
   unit_scale?: number;
+  vat_rate_basis_points?: number;
 }
 
 export function productValues(input: Partial<ProductInput>, salonId: string, partial = false) {
   const itemType = input.item_type ?? "resale";
   const trackedByDefault = itemType !== "equipment" && itemType !== "expense";
   const values = {
-    ...(input.active !== undefined && { active: input.active }), ...(input.allow_negative_stock !== undefined && { allowNegativeStock: input.allow_negative_stock }), ...(input.barcode !== undefined && { barcode: input.barcode }), ...(input.category !== undefined && { category: input.category }), ...(input.cost_cents !== undefined && { costCents: input.cost_cents }), ...(input.internally_consumable !== undefined && { internallyConsumable: input.internally_consumable }), ...(input.item_type !== undefined && { itemType: input.item_type }), ...(input.low_stock_threshold !== undefined && { lowStockThreshold: input.low_stock_threshold }), ...(input.name !== undefined && { name: input.name.trim() }), ...(input.preferred_supplier !== undefined && { preferredSupplier: input.preferred_supplier }), ...(input.preferred_supplier_id !== undefined && { preferredSupplierId: input.preferred_supplier_id }), ...(input.reorder_quantity !== undefined && { reorderQuantity: input.reorder_quantity }), ...(input.sellable !== undefined && { sellable: input.sellable }), ...(input.sku !== undefined && { sku: input.sku }), ...(input.supplier !== undefined && { supplier: input.supplier }), ...(input.track_stock !== undefined && { trackStock: input.track_stock }), ...(input.unit !== undefined && { unit: input.unit }), ...(input.unit_price_cents !== undefined && { unitPriceCents: input.unit_price_cents }), ...(input.unit_scale !== undefined && { unitScale: input.unit_scale }),
+    ...(input.active !== undefined && { active: input.active }), ...(input.allow_negative_stock !== undefined && { allowNegativeStock: input.allow_negative_stock }), ...(input.barcode !== undefined && { barcode: input.barcode }), ...(input.brand !== undefined && { brand: input.brand }), ...(input.category !== undefined && { category: input.category }), ...(input.cost_cents !== undefined && { costCents: input.cost_cents }), ...(input.description !== undefined && { description: input.description }), ...(input.internally_consumable !== undefined && { internallyConsumable: input.internally_consumable }), ...(input.item_type !== undefined && { itemType: input.item_type }), ...(input.low_stock_threshold !== undefined && { lowStockThreshold: input.low_stock_threshold }), ...(input.manufacturer_code !== undefined && { manufacturerCode: input.manufacturer_code }), ...(input.name !== undefined && { name: input.name.trim() }), ...(input.notes !== undefined && { notes: input.notes }), ...(input.preferred_supplier !== undefined && { preferredSupplier: input.preferred_supplier }), ...(input.preferred_supplier_id !== undefined && { preferredSupplierId: input.preferred_supplier_id }), ...(input.reorder_quantity !== undefined && { reorderQuantity: input.reorder_quantity }), ...(input.sellable !== undefined && { sellable: input.sellable }), ...(input.sku !== undefined && { sku: input.sku }), ...(input.storage_location !== undefined && { storageLocation: input.storage_location }), ...(input.supplier !== undefined && { supplier: input.supplier }), ...(input.track_stock !== undefined && { trackStock: input.track_stock }), ...(input.unit !== undefined && { unit: input.unit }), ...(input.unit_price_cents !== undefined && { unitPriceCents: input.unit_price_cents }), ...(input.unit_scale !== undefined && { unitScale: input.unit_scale }), ...(input.vat_rate_basis_points !== undefined && { vatRateBasisPoints: input.vat_rate_basis_points }),
   };
-  return partial ? values : { salonId, active: true, allowNegativeStock: false, averageCostCents: 0, itemType, lastCostCents: 0, lowStockThreshold: 0, reorderQuantity: 0, sellable: input.sellable ?? trackedByDefault, stockQuantity: 0, trackStock: input.track_stock ?? trackedByDefault, unit: "pz", unitPriceCents: 0, unitScale: 1, ...values };
+  return partial ? values : { salonId, active: true, allowNegativeStock: false, averageCostCents: input.cost_cents ?? 0, itemType, lastCostCents: input.cost_cents ?? 0, lowStockThreshold: 0, reorderQuantity: 0, sellable: input.sellable ?? trackedByDefault, stockQuantity: 0, trackStock: input.track_stock ?? trackedByDefault, unit: "pz", unitPriceCents: 0, unitScale: 1, vatRateBasisPoints: 2200, ...values };
 }
 
 interface SupplierInput { active?: boolean; address?: string | null; city?: string | null; contact_name?: string | null; country?: string | null; email?: string | null; name: string; notes?: string | null; payment_terms?: string | null; phone?: string | null; postal_code?: string | null; tax_code?: string | null; vat_number?: string | null; }

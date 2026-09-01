@@ -166,7 +166,7 @@ describe("warehouse workspace", () => {
       join(dashboard, "inventory", "_components", "WarehouseOperationDialog.tsx"),
       "utf8",
     );
-    expect(operationDialog).toContain('type="date"');
+    expect(operationDialog).toContain("DateField");
     expect(operationDialog).toContain("document_date: documentDate");
     expect(operationDialog).toContain("competence_date: competenceDate || null");
     expect(operationDialog).toContain("productReferenceLabel(product)");
@@ -187,6 +187,25 @@ describe("warehouse workspace", () => {
     expect(workspace).toContain("viewingDocument");
     expect(workspace).toContain("setViewingDocument(await warehouseApi.getDocument");
     expect(documents).not.toContain('disabled={doc.status !== "draft"}');
+  });
+
+  it("exposes rich product master data with separate purchase cost and sale price", () => {
+    const list = readFileSync(
+      join(dashboard, "inventory", "_components", "WarehouseProducts.tsx"),
+      "utf8",
+    );
+    const create = readFileSync(join(dashboard, "inventory", "new", "page.tsx"), "utf8");
+    const detail = readFileSync(
+      join(dashboard, "inventory", "[productId]", "page.tsx"),
+      "utf8",
+    );
+    for (const label of ["Costo acquisto", "Prezzo vendita", "Barcode / EAN", "Codice produttore", "Ubicazione", "Note interne"]) {
+      expect(`${create}${detail}`).toContain(label);
+    }
+    expect(list).toContain("Costo acquisto");
+    expect(list).toContain("Prezzo vendita");
+    expect(`${create}${detail}`).toContain("cost_cents");
+    expect(`${create}${detail}`).toContain("unit_price_cents");
   });
 
   it("renders existing UUID references through a compact stable document label", () => {
