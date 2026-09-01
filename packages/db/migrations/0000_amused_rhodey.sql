@@ -3,7 +3,6 @@ CREATE TYPE "public"."appointment_status" AS ENUM('pending', 'confirmed', 'cance
 CREATE TYPE "public"."reminder_channel"
 AS ENUM('sms', 'email', 'whatsapp');--> statement-breakpoint
 CREATE TYPE "public"."campaign_status" AS ENUM('draft', 'scheduled', 'sent', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."reminder_channel" AS ENUM('sms', 'email');--> statement-breakpoint
 CREATE TYPE "public"."reminder_status" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('owner', 'manager', 'receptionist', 'employee');--> statement-breakpoint
 CREATE TYPE "public"."waitlist_status" AS ENUM('waiting', 'notified', 'booked', 'expired');--> statement-breakpoint
