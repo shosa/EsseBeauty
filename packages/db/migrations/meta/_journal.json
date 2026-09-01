@@ -272,7 +272,14 @@
       "idx": 38,
       "version": "7",
       "when": 1788256800000,
-      "tag": "0038_review_request_automation",
+      "tag": "0038_review_delivery_status_values",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1788256800000,
+      "tag": "0039_review_delivery_automation",
       "breakpoints": true
     }
   ]
