@@ -32,6 +32,7 @@ function stars(rating: number) {
 
 export default function ReviewsPage() {
   const { hasPermission, salon } = useAuth();
+  const [activeTab, setActiveTab] = useState<"overview" | "requests">("overview");
   const [list, dispatchList] = useReducer(reviewListReducer, initialReviewListState);
   const [management, dispatchManagement] = useReducer(reviewMutationReducer, initialReviewMutationState);
   const items = list.items;
@@ -137,21 +138,73 @@ export default function ReviewsPage() {
         subtitle="Rispondi ai feedback e scegli cosa rendere pubblico nella pagina del salone."
       />
 
+      <nav aria-label="Sezioni recensioni" className="mb-6 rounded-2xl border border-stone-200 bg-white p-1.5 shadow-sm" role="tablist">
+        <div className="grid grid-cols-2 gap-1.5 sm:inline-grid sm:min-w-[420px]">
+          <button
+            aria-controls="reviews-overview-panel"
+            aria-selected={activeTab === "overview"}
+            className={`min-h-11 rounded-xl px-4 text-sm font-black transition ${activeTab === "overview" ? "bg-[#792f59] text-white shadow-sm" : "text-stone-600 hover:bg-stone-50 hover:text-stone-950"}`}
+            id="reviews-overview-tab"
+            onClick={() => setActiveTab("overview")}
+            role="tab"
+            type="button"
+          >
+            Panoramica
+          </button>
+          <button
+            aria-controls="reviews-requests-panel"
+            aria-selected={activeTab === "requests"}
+            className={`min-h-11 rounded-xl px-4 text-sm font-black transition ${activeTab === "requests" ? "bg-[#792f59] text-white shadow-sm" : "text-stone-600 hover:bg-stone-50 hover:text-stone-950"}`}
+            id="reviews-requests-tab"
+            onClick={() => setActiveTab("requests")}
+            role="tab"
+            type="button"
+          >
+            Richieste recensione
+          </button>
+        </div>
+      </nav>
+
+      {activeTab === "requests" && <div aria-labelledby="reviews-requests-tab" id="reviews-requests-panel" role="tabpanel">
       <SectionCard title="Raccolta recensioni" subtitle="Configura gli inviti automatici e gestisci quelli manuali dopo gli appuntamenti completati.">
-        <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <section className="rounded-2xl border border-stone-200 bg-stone-50 p-4" aria-labelledby="review-automation-title">
-            <div className="flex items-center justify-between gap-4"><div><h2 className="font-black" id="review-automation-title">Richiesta automatica</h2><p className="mt-1 text-sm text-stone-600">Parte quando l’appuntamento viene completato.</p></div><button aria-pressed={settings.automaticEnabled} className={`min-h-11 rounded-full px-4 text-sm font-bold ${settings.automaticEnabled ? "bg-[#792f59] text-white" : "border border-stone-300 bg-white"}`} onClick={() => setSettings((current) => ({ ...current, automaticEnabled: !current.automaticEnabled }))}>{settings.automaticEnabled ? "Attiva" : "Disattiva"}</button></div>
-            <fieldset className="mt-5"><legend className="text-sm font-black">Quando inviare</legend><div className="mt-2 grid gap-2">{presetOptions.map(([value, label]) => <button aria-pressed={settings.delayPreset === value} className={`min-h-11 rounded-xl border px-3 text-left text-sm font-bold ${settings.delayPreset === value ? "border-[#792f59] bg-[#fff5fa] text-[#792f59]" : "border-stone-200 bg-white"}`} key={value} onClick={() => setSettings((current) => ({ ...current, delayPreset: value }))}>{label}</button>)}</div></fieldset>
-            <fieldset className="mt-5"><legend className="text-sm font-black">Canali</legend><div className="mt-2 grid grid-cols-2 gap-2">{(["email", "whatsapp"] as Channel[]).map((channel) => <button aria-pressed={settings.channels.includes(channel)} className={`min-h-11 rounded-xl border text-sm font-bold ${settings.channels.includes(channel) ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white"}`} key={channel} onClick={() => toggleChannel(channel, settings.channels, (channels) => setSettings((current) => ({ ...current, channels })))}>{channel === "email" ? "Email" : "WhatsApp"}</button>)}</div><p className="mt-2 text-xs text-stone-600">WhatsApp richiede un provider pronto; ogni canale necessita del relativo contatto cliente.</p></fieldset>
-            <Button className="mt-5 w-full" onClick={() => void saveSettings()} variant="primary">Salva configurazione</Button>{settingsMessage && <p className="mt-2 text-sm font-semibold" role="status">{settingsMessage}</p>}
+        <div className="space-y-5">
+          <section aria-labelledby="review-automation-title" className="rounded-2xl border border-stone-200 bg-stone-50 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="font-black" id="review-automation-title">Richiesta automatica</h2>
+                <p className="mt-1 text-sm text-stone-600">
+                  {settings.automaticEnabled ? `${presetOptions.find(([value]) => value === settings.delayPreset)?.[1]} · ${settings.channels.map((channel) => channel === "email" ? "Email" : "WhatsApp").join(" + ")}` : "Invio automatico disattivato"}
+                </p>
+              </div>
+              <StatusBadge status={settings.automaticEnabled ? "active" : "inactive"}>{settings.automaticEnabled ? "Attiva" : "Disattivata"}</StatusBadge>
+            </div>
+            <details className="group mt-4 rounded-xl border border-stone-200 bg-white">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-[#792f59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]">
+                Modifica configurazione
+                <span aria-hidden="true" className="text-lg transition group-open:rotate-45">+</span>
+              </summary>
+              <div className="border-t border-stone-200 p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-black">Invio dopo il completamento</p>
+                  <button aria-pressed={settings.automaticEnabled} className={`min-h-11 rounded-full px-4 text-sm font-bold ${settings.automaticEnabled ? "bg-[#792f59] text-white" : "border border-stone-300 bg-white"}`} onClick={() => setSettings((current) => ({ ...current, automaticEnabled: !current.automaticEnabled }))} type="button">{settings.automaticEnabled ? "Attivo" : "Disattivo"}</button>
+                </div>
+                <fieldset className="mt-5"><legend className="text-sm font-black">Quando inviare</legend><div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">{presetOptions.map(([value, label]) => <button aria-pressed={settings.delayPreset === value} className={`min-h-11 rounded-xl border px-3 text-left text-sm font-bold ${settings.delayPreset === value ? "border-[#792f59] bg-[#fff5fa] text-[#792f59]" : "border-stone-200 bg-white"}`} key={value} onClick={() => setSettings((current) => ({ ...current, delayPreset: value }))} type="button">{label}</button>)}</div></fieldset>
+                <fieldset className="mt-5"><legend className="text-sm font-black">Canali</legend><div className="mt-2 grid max-w-md grid-cols-2 gap-2">{(["email", "whatsapp"] as Channel[]).map((channel) => <button aria-pressed={settings.channels.includes(channel)} className={`min-h-11 rounded-xl border text-sm font-bold ${settings.channels.includes(channel) ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white"}`} key={channel} onClick={() => toggleChannel(channel, settings.channels, (channels) => setSettings((current) => ({ ...current, channels })))} type="button">{channel === "email" ? "Email" : "WhatsApp"}</button>)}</div><p className="mt-2 text-xs text-stone-600">Ogni canale necessita del relativo contatto cliente; WhatsApp richiede un provider configurato.</p></fieldset>
+                <div className="mt-5 flex flex-wrap items-center gap-3"><Button onClick={() => void saveSettings()} variant="primary">Salva configurazione</Button>{settingsMessage && <p className="text-sm font-semibold" role="status">{settingsMessage}</p>}</div>
+              </div>
+            </details>
           </section>
-          <section aria-labelledby="review-queue-title"><h2 className="font-black" id="review-queue-title">Appuntamenti completati</h2><p className="mt-1 text-sm text-stone-600">Invia ora o reinvia una richiesta già consegnata.</p>
+
+          <section aria-labelledby="review-queue-title">
+            <div><h2 className="font-black" id="review-queue-title">Appuntamenti completati</h2><p className="mt-1 text-sm text-stone-600">Invia ora o reinvia una richiesta già consegnata.</p></div>
             {collectionError && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">{collectionError}</p>}
-            {collectionLoading ? <p className="mt-4 text-sm text-stone-500">Caricamento richieste…</p> : collection.length === 0 ? <EmptyState title="Nessun appuntamento completato" description="Gli appuntamenti conclusi compariranno qui." /> : <div className="mt-4 space-y-3">{collection.map((item) => <article className="rounded-2xl border border-stone-200 bg-white p-4" key={item.appointment_id}><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-black">{item.customer_name}</h3><p className="text-sm text-stone-600">{item.service_name} · {new Date(item.appointment_date).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })}</p></div>{item.review_id ? <StatusBadge status="completed">Recensione ricevuta</StatusBadge> : <Button disabled={Boolean(item.invitation_consumed_at)} onClick={() => openManual(item)} variant={item.deliveries.length ? "outline" : "primary"}>{item.deliveries.length ? "Reinvia" : "Invia ora"}</Button>}</div><div className="mt-3 flex flex-wrap gap-2">{item.deliveries.map((delivery) => <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold" key={`${delivery.channel}-${delivery.generation}`}>{delivery.channel === "email" ? "Email" : "WhatsApp"}: {delivery.status}{delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}</span>)}</div></article>)}</div>}
+            {collectionLoading ? <p className="mt-4 text-sm text-stone-500">Caricamento richieste…</p> : collection.length === 0 ? <EmptyState title="Nessun appuntamento completato" description="Gli appuntamenti conclusi compariranno qui." /> : <div className="mt-4 divide-y divide-stone-200 overflow-hidden rounded-2xl border border-stone-200 bg-white">{collection.map((item) => <article className="p-4" key={item.appointment_id}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">{item.customer_name}</h3><p className="text-sm text-stone-600">{item.service_name} · {new Date(item.appointment_date).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })}</p></div><div className="flex items-center gap-2">{item.review_id ? <StatusBadge status="completed">Recensione ricevuta</StatusBadge> : <Button disabled={Boolean(item.invitation_consumed_at)} onClick={() => openManual(item)} variant={item.deliveries.length ? "outline" : "primary"}>{item.deliveries.length ? "Reinvia" : "Invia ora"}</Button>}</div></div>{item.deliveries.length > 0 && <details className="group mt-2"><summary className="min-h-10 cursor-pointer list-none py-2 text-sm font-bold text-[#792f59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]">Dettagli invii <span aria-hidden="true" className="ml-1 inline-block transition group-open:rotate-90">›</span></summary><div className="flex flex-wrap gap-2 pb-1">{item.deliveries.map((delivery) => <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold" key={`${delivery.channel}-${delivery.generation}`}>{delivery.channel === "email" ? "Email" : "WhatsApp"}: {delivery.status}{delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}</span>)}</div></details>}</article>)}</div>}
           </section>
         </div>
       </SectionCard>
+      </div>}
 
+      {activeTab === "overview" && <div aria-labelledby="reviews-overview-tab" id="reviews-overview-panel" role="tabpanel">
       <SectionCard title="Distribuzione voti" subtitle="Una lettura rapida della soddisfazione recente.">
         <div className="grid gap-3 md:grid-cols-5">
           {[5, 4, 3, 2, 1].map((star) => {
@@ -194,7 +247,7 @@ export default function ReviewsPage() {
                   <StatusBadge status={item.published ? "active" : "inactive"}>{item.published ? "Pubblicata" : "Privata"}</StatusBadge>
                 </div>
                 <p className="mt-4 text-sm leading-6 text-stone-600">{item.comment || "Nessun commento."}</p>
-                {item.reply && <p className="mt-4 rounded-2xl border border-[#ead1df] bg-[#fffafd] p-4 text-sm leading-6 text-stone-600"><b className="text-[#792f59]">Risposta:</b> {item.reply}</p>}
+                {item.reply && <details className="group mt-3 rounded-xl border border-[#ead1df] bg-[#fffafd]"><summary className="min-h-10 cursor-pointer list-none px-4 py-2.5 text-sm font-bold text-[#792f59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]">Risposta del salone <span aria-hidden="true" className="ml-1 inline-block transition group-open:rotate-90">›</span></summary><p className="border-t border-[#ead1df] px-4 py-3 text-sm leading-6 text-stone-600">{item.reply}</p></details>}
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button onClick={() => dispatchManagement({ review: item, type: "open" })} variant="outline">Rispondi</Button>
                   {hasPermission(PERMISSION_KEYS.SETTINGS_SALON) && (
@@ -208,6 +261,7 @@ export default function ReviewsPage() {
           </div>
         )}
       </SectionCard>
+      </div>}
 
       <Dialog
         footer={<><Button onClick={() => dispatchManagement({ type: "close" })} variant="outline">Annulla</Button><Button disabled={management.pending} onClick={() => void saveReply()} variant="primary">{management.pending ? "Salvataggio…" : "Salva risposta"}</Button></>}
