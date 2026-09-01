@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Info } from "lucide-react";
+import { Check, Info, UserPlus } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, DateTimeField, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
@@ -36,7 +36,9 @@ interface StaffOption {
 
 interface CustomerOption {
   email: string | null;
+  firstName?: string;
   id: string;
+  lastName?: string;
   name: string;
   phone: string | null;
 }
@@ -89,6 +91,8 @@ export default function NewAppointmentPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [customerLoading, setCustomerLoading] = useState(false);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomerSaving, setNewCustomerSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
   const [schedulingWarnings, setSchedulingWarnings] = useState<SchedulingConflict[]>([]);
@@ -148,9 +152,10 @@ export default function NewAppointmentPage() {
     void fetch(`${api}/api/salons/${salon.id}/customers/${customerId}`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) throw new Error();
-        const customer = await response.json() as { email: string | null; fullName: string; id: string; phone: string | null };
-        setSelectedCustomer({ email: customer.email, id: customer.id, name: customer.fullName, phone: customer.phone });
-        setCustomerQuery(customer.fullName);
+        const customer = await response.json() as { email: string | null; firstName?: string; fullName: string; id: string; lastName?: string; phone: string | null };
+        const name = [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.fullName;
+        setSelectedCustomer({ email: customer.email, firstName: customer.firstName, id: customer.id, lastName: customer.lastName, name, phone: customer.phone });
+        setCustomerQuery(name);
       })
       .catch(() => setError("Impossibile caricare il cliente della lista d’attesa."));
   }, [salon, searchParams, selectedCustomer?.id, services]);
@@ -208,8 +213,8 @@ export default function NewAppointmentPage() {
       void fetch(`${api}/api/salons/${salon.id}/customers?${params}`, { credentials: "include" })
         .then(async (response) => {
           if (!response.ok) throw new Error();
-          const data = await response.json() as { items?: Array<{ email: string | null; full_name: string; id: string; phone: string | null }> };
-          setCustomerResults((data.items ?? []).map((item) => ({ email: item.email, id: item.id, name: item.full_name, phone: item.phone })));
+          const data = await response.json() as { items?: Array<{ email: string | null; first_name: string; full_name: string; id: string; last_name: string; phone: string | null }> };
+          setCustomerResults((data.items ?? []).map((item) => ({ email: item.email, firstName: item.first_name, id: item.id, lastName: item.last_name, name: [item.first_name, item.last_name].filter(Boolean).join(" ") || item.full_name, phone: item.phone })));
         })
         .catch(() => setCustomerResults([]))
         .finally(() => setCustomerLoading(false));
@@ -253,9 +258,48 @@ export default function NewAppointmentPage() {
     if (selectedCustomer) return `${selectedCustomer.email ?? "senza email"}${selectedCustomer.phone ? ` · ${selectedCustomer.phone}` : ""}`;
     if (customerQuery.trim().length < 2) return "Scrivi almeno 2 caratteri: nome, email o telefono.";
     if (customerLoading) return "Ricerca in corso...";
-    if (customerResults.length === 0) return "Nessun cliente trovato. Crea prima il profilo cliente se è nuovo.";
+    if (customerResults.length === 0) return "Nessun cliente trovato. Puoi crearlo da +.";
     return "Seleziona il cliente corretto dai risultati.";
   }, [customerLoading, customerQuery, customerResults.length, selectedCustomer]);
+
+  const closeNewCustomerDialog = useCallback(() => {
+    if (!newCustomerSaving) setNewCustomerOpen(false);
+  }, [newCustomerSaving]);
+
+  async function createCustomerFromDialog(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!salon || newCustomerSaving) return;
+    const formData = new FormData(event.currentTarget);
+    setNewCustomerSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/customers`, {
+        body: JSON.stringify({
+          email: formData.get("email") || undefined,
+          first_name: formData.get("first_name"),
+          last_name: formData.get("last_name"),
+          phone: formData.get("phone") || undefined,
+        }),
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      if (!response.ok) throw new Error("Cliente non creato.");
+      const customer = await response.json() as { email: string | null; firstName?: string; first_name?: string; fullName?: string; full_name?: string; id: string; lastName?: string; last_name?: string; phone: string | null };
+      const firstName = customer.firstName ?? customer.first_name ?? String(formData.get("first_name") ?? "");
+      const lastName = customer.lastName ?? customer.last_name ?? String(formData.get("last_name") ?? "");
+      const name = [firstName, lastName].filter(Boolean).join(" ") || customer.fullName || customer.full_name || "";
+      const selected = { email: customer.email, firstName, id: customer.id, lastName, name, phone: customer.phone };
+      setSelectedCustomer(selected);
+      setCustomerQuery(name);
+      setCustomerResults([]);
+      setNewCustomerOpen(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Cliente non creato.");
+    } finally {
+      setNewCustomerSaving(false);
+    }
+  }
 
   async function createAppointment(confirmOverlap = false, forceConflicts = false) {
     if (!salon || saving) return;
@@ -376,6 +420,25 @@ export default function NewAppointmentPage() {
         </>
         )}
       </Dialog>
+      <Dialog
+        footer={null}
+        onClose={closeNewCustomerDialog}
+        open={newCustomerOpen}
+        title="Nuovo cliente"
+      >
+        <form className="grid gap-4" onSubmit={(event) => void createCustomerFromDialog(event)}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField label="Nome" required><input autoComplete="given-name" className="w-full" name="first_name" required /></FormField>
+            <FormField label="Cognome" required><input autoComplete="family-name" className="w-full" name="last_name" required /></FormField>
+            <FormField label="Email"><input autoComplete="email" className="w-full" name="email" type="email" /></FormField>
+            <FormField label="Telefono"><input autoComplete="tel" className="w-full" name="phone" /></FormField>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button disabled={newCustomerSaving} onClick={closeNewCustomerDialog} type="button" variant="outline">Annulla</Button>
+            <Button disabled={newCustomerSaving} type="submit" variant="primary">{newCustomerSaving ? "Creazione..." : "Crea e seleziona"}</Button>
+          </div>
+        </form>
+      </Dialog>
       <Breadcrumbs items={[{ href: "/calendar", label: "Calendario" }, { label: "Nuovo appuntamento" }]} />
       <header className="mt-4 border-b border-stone-200 pb-4">
         <h1 className="text-3xl font-bold tracking-[-.025em] text-[#2d1d27]">Nuovo appuntamento</h1>
@@ -404,7 +467,8 @@ export default function NewAppointmentPage() {
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <FormField description={customerHelp} label="Cliente" required>
-                <div className="relative">
+                <div className="flex gap-2">
+                <div className="relative min-w-0 flex-1">
                   <input
                     aria-autocomplete="list"
                     aria-controls="customer-results"
@@ -432,6 +496,8 @@ export default function NewAppointmentPage() {
                       ))}
                     </div>
                   )}
+                </div>
+                <Button aria-label="Crea cliente" className="min-h-11 px-3" onClick={() => setNewCustomerOpen(true)} title="Crea cliente" type="button" variant="outline"><UserPlus className="size-4" /></Button>
                 </div>
               </FormField>
               <FormField label="Data e ora" required>

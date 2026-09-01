@@ -70,6 +70,13 @@ function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || value;
 }
 
+function fullName(data: FormData) {
+  return [data.get("first_name"), data.get("last_name")]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 function saveCalendar(item: Booking) {
   const body = [
     "BEGIN:VCALENDAR",
@@ -175,7 +182,9 @@ export default function BookingPage() {
       body: JSON.stringify({
         customer: {
           email: data.get("email"),
-          full_name: data.get("name"),
+          first_name: data.get("first_name"),
+          full_name: fullName(data),
+          last_name: data.get("last_name"),
           phone: data.get("phone"),
         },
         service_id: serviceId,
@@ -200,7 +209,7 @@ export default function BookingPage() {
     setError("");
     const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/waitlist`, {
       body: JSON.stringify({
-        customer: { email: data.get("email"), full_name: data.get("name"), phone: data.get("phone") },
+        customer: { email: data.get("email"), first_name: data.get("first_name"), full_name: fullName(data), last_name: data.get("last_name"), phone: data.get("phone") },
         requested_date: date,
         service_id: serviceId,
         staff_id: staffId || undefined,
@@ -363,7 +372,7 @@ export default function BookingPage() {
                     {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
                   </div>
                 </fieldset>
-                {[["name", "Nome e cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
+                {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
                 <button disabled={submittingWaitlist} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" style={{ background: primary }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</button>
               </form>
             ) : <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>}
@@ -374,13 +383,14 @@ export default function BookingPage() {
           <form action={submit} className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
             <button type="button" className="text-sm font-black text-[#792f59]" onClick={() => setStep(2)}>← Cambia orario</button>
             {[
-              ["name", "Nome e cognome", "text"],
+              ["first_name", "Nome", "text"],
+              ["last_name", "Cognome", "text"],
               ["email", "Email", "email"],
               ["phone", "Telefono", "tel"],
             ].map(([name, label, type]) => (
               <label key={name} className="block text-sm font-black text-stone-800">
                 {label}
-                <input name={name} type={type} required={name === "name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} className="mt-2 w-full" />
+                <input name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} className="mt-2 w-full" />
               </label>
             ))}
             <button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>

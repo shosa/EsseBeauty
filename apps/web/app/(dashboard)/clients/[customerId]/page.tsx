@@ -36,13 +36,20 @@ interface Customer {
   appointments: Appointment[];
   blocked: boolean;
   email: string | null;
+  firstName: string;
   fullName: string;
   id: string;
+  lastName: string;
   loyalty: { balance: number; history: LoyaltyItem[] } | null;
   notes: string | null;
   phone: string | null;
   tags: string[];
 }
+
+function customerName(customer: Pick<Customer, "firstName" | "lastName" | "fullName">) {
+  return [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.fullName;
+}
+
 export default function CustomerPage({ params }: { params: Promise<{ customerId: string }> }) {
   const { customerId } = use(params);
   const router = useRouter();
@@ -132,7 +139,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7b3159]">Profilo cliente</p>
-        <h1 className="mt-2 text-3xl font-bold">{customer.fullName}</h1>
+        <h1 className="mt-2 text-3xl font-bold">{customerName(customer)}</h1>
         <p className="mt-1 text-sm text-stone-500">{customer.email ?? "Nessuna email"} - {customer.phone ?? "Nessun telefono"}</p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -145,7 +152,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     {error && <p className="mt-5 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     <div className="mt-7 grid gap-5 lg:grid-cols-[.8fr_1.2fr]">
       <section className="space-y-5">
-        <article className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="font-bold">Dati e note</h2><div className="mt-4 grid gap-3"><input defaultValue={customer.fullName} onBlur={(event) => void patch({ full_name: event.target.value })} className="rounded-xl border p-3" /><input defaultValue={customer.email ?? ""} onBlur={(event) => void patch({ email: event.target.value || null })} placeholder="Email" className="rounded-xl border p-3" /><input defaultValue={customer.phone ?? ""} onBlur={(event) => void patch({ phone: event.target.value || null })} placeholder="Telefono" className="rounded-xl border p-3" /><textarea defaultValue={customer.notes ?? ""} onBlur={(event) => void patch({ notes: event.target.value || null })} rows={6} placeholder="Note interne, salvate quando esci dal campo" className="rounded-xl border p-3" /></div></article>
+        <article className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="font-bold">Dati e note</h2><div className="mt-4 grid gap-3 sm:grid-cols-2"><input aria-label="Nome" defaultValue={customer.firstName} onBlur={(event) => void patch({ first_name: event.target.value, last_name: customer.lastName })} placeholder="Nome" className="rounded-xl border p-3" /><input aria-label="Cognome" defaultValue={customer.lastName} onBlur={(event) => void patch({ first_name: customer.firstName, last_name: event.target.value })} placeholder="Cognome" className="rounded-xl border p-3" /><input defaultValue={customer.email ?? ""} onBlur={(event) => void patch({ email: event.target.value || null })} placeholder="Email" className="rounded-xl border p-3" /><input defaultValue={customer.phone ?? ""} onBlur={(event) => void patch({ phone: event.target.value || null })} placeholder="Telefono" className="rounded-xl border p-3" /><textarea defaultValue={customer.notes ?? ""} onBlur={(event) => void patch({ notes: event.target.value || null })} rows={6} placeholder="Note interne, salvate quando esci dal campo" className="rounded-xl border p-3 sm:col-span-2" /></div></article>
         <article className="rounded-2xl bg-white p-5 shadow-sm"><h2 className="font-bold">Tag</h2><div className="mt-4 flex flex-wrap gap-2">{Array.from(new Set([...tags, ...customer.tags])).map((tag) => { const selected = customer.tags.includes(tag); const next = selected ? customer.tags.filter((item) => item !== tag) : [...customer.tags, tag]; return <button key={tag} onClick={() => void patch({ tags: next }).then(() => setTags((current) => Array.from(new Set([...current, ...next])))).catch((reason: Error) => setError(reason.message))} className={`rounded-full px-3 py-2 text-xs font-bold ${selected ? "bg-[#7b3159] text-white" : "bg-stone-100"}`}>{tag}</button>; })}</div><input placeholder="Nuovo tag + Invio" onKeyDown={(event) => { if (event.key === "Enter" && event.currentTarget.value.trim()) { event.preventDefault(); const tag = event.currentTarget.value.trim(); const next = Array.from(new Set([...customer.tags, tag])); event.currentTarget.value = ""; void patch({ tags: next }).then(() => setTags((current) => Array.from(new Set([...current, tag])))).catch((reason: Error) => setError(reason.message)); } }} className="mt-3 w-full rounded-xl border p-3 text-sm" /></article>
         <article className="rounded-2xl bg-white p-5 shadow-sm">
           <div className="flex items-end justify-between gap-3">
@@ -208,7 +215,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     onCancel={() => setConfirmDelete(false)}
     onConfirm={() => void removeCustomer()}
     open={confirmDelete}
-    title={`Eliminare ${customer.fullName}?`}
+    title={`Eliminare ${customerName(customer)}?`}
   />
   </AppPage>;
 }

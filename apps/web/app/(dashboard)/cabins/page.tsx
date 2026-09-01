@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, DoorOpen, MapPin, Plus, Save, Search, Settings2, UsersRound, X } from "lucide-react";
 
 import { AppPage, Button, Dialog, Drawer, EmptyState, FormField, InlineError, PageHeaderMetrics, SaveToast, Switch } from "@esse-beauty/ui";
@@ -104,6 +104,8 @@ export default function CabinsPage() {
     setMessage(value);
     window.setTimeout(() => setMessage(""), 2400);
   }
+
+  const closeCreateDialog = useCallback(() => setCreateOpen(false), []);
 
   function openCabin(cabinIdToOpen: string) {
     const cabin = cabins.find((item) => item.id === cabinIdToOpen);
@@ -221,8 +223,8 @@ export default function CabinsPage() {
       )}
 
       <Dialog
-        footer={<><Button onClick={() => setCreateOpen(false)} variant="secondary"><X className="mr-2 size-4" />Annulla</Button><Button disabled={!cabinName.trim() || saving} onClick={() => void createCabin()} variant="primary"><Plus className="mr-2 size-4" />{saving ? "Creazione..." : "Crea cabina"}</Button></>}
-        onClose={() => setCreateOpen(false)}
+        footer={<><Button onClick={closeCreateDialog} variant="secondary"><X className="mr-2 size-4" />Annulla</Button><Button disabled={!cabinName.trim() || saving} onClick={() => void createCabin()} variant="primary"><Plus className="mr-2 size-4" />{saving ? "Creazione..." : "Crea cabina"}</Button></>}
+        onClose={closeCreateDialog}
         open={createOpen}
         title="Nuova cabina"
       >

@@ -24,6 +24,10 @@ const editGuard = [
   requirePermission(PERMISSION_KEYS.CLIENTS_EDIT),
 ];
 
+function customerFullName(firstName: string, lastName: string) {
+  return [firstName, lastName].map((part) => part.trim()).filter(Boolean).join(" ");
+}
+
 export async function registerCustomerRoutes(app: FastifyInstance) {
   app.get<{
     Params: { id: string };
@@ -45,6 +49,8 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
         ? [
             or(
               ilike(customers.fullName, `%${search}%`),
+              ilike(customers.firstName, `%${search}%`),
+              ilike(customers.lastName, `%${search}%`),
               ilike(customers.email, `%${search}%`),
               ilike(customers.phone, `%${search}%`),
             )!,
@@ -61,6 +67,8 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
       app.db
         .select({
           id: customers.id,
+          first_name: customers.firstName,
+          last_name: customers.lastName,
           full_name: customers.fullName,
           email: customers.email,
           phone: customers.phone,
@@ -312,6 +320,8 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
     Params: { id: string };
     Body: {
       full_name: string;
+      first_name?: string;
+      last_name?: string;
       email?: string;
       phone?: string;
       notes?: string;
@@ -324,6 +334,13 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
     const email = request.body.email?.trim().toLowerCase() || undefined;
     const phone = request.body.phone?.trim() || undefined;
     const phoneNormalized = normalizePhoneE164(phone);
+    const fullNameInput = request.body.full_name?.trim() ?? "";
+    const firstName = request.body.first_name?.trim() || fullNameInput.split(/\s+/)[0] || "";
+    const lastName = request.body.last_name?.trim() || fullNameInput.split(/\s+/).slice(1).join(" ");
+    const fullName = customerFullName(firstName, lastName);
+    if (!firstName || !lastName) {
+      return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
+    }
     if (email || phoneNormalized) {
       const existing = await app.db
         .select()
@@ -346,7 +363,9 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
       .insert(customers)
       .values({
         salonId: request.salonId,
-        fullName: request.body.full_name,
+        firstName,
+        lastName,
+        fullName,
         email,
         phone,
         phoneNormalized,
@@ -361,18 +380,37 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
     Params: { id: string; customerId: string };
     Body: Partial<{
       full_name: string;
+      first_name: string;
+      last_name: string;
       email: string | null;
       phone: string | null;
       notes: string | null;
       tags: string[];
     }>;
   }>("/api/salons/:id/customers/:customerId", { preHandler: editGuard }, async (request, reply) => {
+    const firstName = request.body.first_name?.trim();
+    const lastName = request.body.last_name?.trim();
+    const fullNameInput = request.body.full_name?.trim();
+    const nextName = firstName !== undefined || lastName !== undefined
+      ? {
+          firstName,
+          lastName,
+          fullName: customerFullName(firstName ?? "", lastName ?? ""),
+        }
+      : fullNameInput !== undefined
+        ? {
+            firstName: fullNameInput.split(/\s+/)[0] || "",
+            lastName: fullNameInput.split(/\s+/).slice(1).join(" "),
+            fullName: fullNameInput,
+          }
+        : undefined;
+    if (nextName && (!nextName.firstName || !nextName.lastName)) {
+      return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
+    }
     const rows = await app.db
       .update(customers)
       .set({
-        ...(request.body.full_name !== undefined && {
-          fullName: request.body.full_name,
-        }),
+        ...(nextName && nextName),
         ...(request.body.email !== undefined && { email: request.body.email }),
         ...(request.body.phone !== undefined && {
           phone: request.body.phone,

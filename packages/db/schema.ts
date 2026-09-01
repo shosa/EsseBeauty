@@ -719,6 +719,8 @@ export const customers = pgTable("customers", {
   email: text("email"),
   phone: text("phone"),
   phoneNormalized: text("phone_normalized"),
+  firstName: text("first_name").default("").notNull(),
+  lastName: text("last_name").default("").notNull(),
   fullName: text("full_name").notNull(),
   notes: text("notes"),
   tags: text("tags").array().default([]).notNull(),

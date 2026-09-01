@@ -263,7 +263,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "reviews",
     label: "Recensioni",
     moduleKey: MODULE_KEYS.REVIEWS,
-    paths: ["/reviews"],
+    paths: ["/reviews", "/reviews/requests"],
     permissions: [PERMISSION_KEYS.REVIEWS_REPLY, PERMISSION_KEYS.SETTINGS_SALON],
     tabs: [
       { href: "/reviews", label: "Panoramica" },

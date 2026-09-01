@@ -9,6 +9,7 @@ describe("review collection workspace", () => {
   it("keeps review sections in the workspace topbar tabs", () => {
     expect(page).not.toContain('role="tablist"');
     expect(page).toContain('pathname.startsWith("/reviews/requests")');
+    expect(appRegistry).toContain('paths: ["/reviews", "/reviews/requests"]');
     expect(appRegistry).toContain('{ href: "/reviews", label: "Panoramica" }');
     expect(appRegistry).toContain('{ href: "/reviews/requests", label: "Richieste recensione" }');
   });

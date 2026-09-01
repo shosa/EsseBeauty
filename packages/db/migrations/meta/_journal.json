@@ -288,6 +288,13 @@
       "when": 1788256802000,
       "tag": "0040_review_delivery_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1788264000000,
+      "tag": "0041_customer_name_parts",
+      "breakpoints": true
     }
   ]
 }

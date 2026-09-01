@@ -46,7 +46,8 @@ export default function NewClientPage() {
         credentials: "include",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          full_name: formData.get("full_name"),
+          first_name: formData.get("first_name"),
+          last_name: formData.get("last_name"),
           email: formData.get("email") || undefined,
           phone: phone || undefined,
           notes: formData.get("notes") || undefined,
@@ -81,7 +82,8 @@ export default function NewClientPage() {
   return <AppPage maxWidth="max-w-[1600px]"><form onSubmit={(event) => void submit(event)} className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
     <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7b3159]">CRM</p><h1 className="mt-2 text-3xl font-bold">Nuovo cliente</h1>
     <div className="mt-7 grid gap-4 md:grid-cols-2">
-      <label className="text-sm font-semibold md:col-span-2">Nome completo<input required name="full_name" className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
+      <label className="text-sm font-semibold">Nome<input autoComplete="given-name" required name="first_name" className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
+      <label className="text-sm font-semibold">Cognome<input autoComplete="family-name" required name="last_name" className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
       <label className="text-sm font-semibold">Email<input type="email" name="email" className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
       <label className="text-sm font-semibold">Telefono<input name="phone" className="mt-2 w-full rounded-xl border border-stone-200 px-4 py-3 font-normal" /></label>
       <div className="text-sm font-semibold md:col-span-2">

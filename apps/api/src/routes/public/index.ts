@@ -74,6 +74,14 @@ function distanceKm(latitude: number, longitude: number, targetLatitude: number,
   return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function customerNameParts(input: { first_name?: string; full_name?: string; last_name?: string }) {
+  const fullNameInput = input.full_name?.trim() ?? "";
+  const firstName = input.first_name?.trim() || fullNameInput.split(/\s+/)[0] || "";
+  const lastName = input.last_name?.trim() || fullNameInput.split(/\s+/).slice(1).join(" ");
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  return { firstName, fullName, lastName };
+}
+
 export async function registerPublicRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { lat?: string; lng?: string; q?: string } }>(
     "/api/public/salons/search",
@@ -226,7 +234,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       return { staff_id: null, slots: [] };
     });
 
-  app.post<{ Params: { slug: string }; Body: { service_id: string; staff_id?: string; starts_at: string; customer: { full_name: string; email?: string; phone?: string }; notes?: string } }>(
+  app.post<{ Params: { slug: string }; Body: { service_id: string; staff_id?: string; starts_at: string; customer: { first_name?: string; full_name?: string; last_name?: string; email?: string; phone?: string }; notes?: string } }>(
     "/api/public/:slug/book", async (request, reply) => {
       const salon = await getSalon(app, request.params.slug);
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
@@ -235,7 +243,9 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       }
       const pwa = await getPwaOptions(app, salon.id);
       const customerInput = request.body.customer;
+      const name = customerNameParts(customerInput);
       const phoneNormalized = normalizePhoneE164(customerInput.phone);
+      if (!name.firstName || !name.lastName) return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
       if (pwa.requireEmail && !customerInput.email?.trim()) return reply.code(400).send({ error: "EMAIL_REQUIRED" });
       if (pwa.requirePhone && !customerInput.phone?.trim()) return reply.code(400).send({ error: "PHONE_REQUIRED" });
       if (!pwa.allowStaffPreference && request.body.staff_id) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
@@ -276,7 +286,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       }
       if (!selected) return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
       if (!customerRows[0]) customerRows = await app.db.insert(customers).values({
-        salonId: salon.id, fullName: customerInput.full_name, email: customerInput.email, phone: customerInput.phone, phoneNormalized,
+        salonId: salon.id, firstName: name.firstName, lastName: name.lastName, fullName: name.fullName, email: customerInput.email, phone: customerInput.phone, phoneNormalized,
       }).returning();
       const customer = customerRows[0]!;
       const startsAt = new Date(request.body.starts_at);

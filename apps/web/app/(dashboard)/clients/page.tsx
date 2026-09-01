@@ -13,8 +13,10 @@ type CustomerStatus = "all" | "active" | "blocked";
 interface Customer {
   blocked: boolean;
   email: string | null;
+  first_name: string;
   full_name: string;
   id: string;
+  last_name: string;
   last_visit: string | null;
   loyalty_points: number;
   phone: string | null;
@@ -31,6 +33,10 @@ interface CustomerList {
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function customerName(customer: Pick<Customer, "first_name" | "last_name" | "full_name">) {
+  return [customer.first_name, customer.last_name].filter(Boolean).join(" ") || customer.full_name;
 }
 
 function paginationPages(current: number, total: number) {
@@ -188,8 +194,8 @@ export default function ClientsPage() {
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-xs font-black text-[#792f59]">{initials(customer.full_name)}</span>
-                          <span className="min-w-0"><strong className="block truncate text-stone-950 group-hover:text-[#792f59]">{customer.full_name}</strong>{customer.blocked && <span className="mt-1 inline-block"><StatusBadge status="cancelled">Bloccato</StatusBadge></span>}</span>
+                          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-xs font-black text-[#792f59]">{initials(customerName(customer))}</span>
+                          <span className="min-w-0"><strong className="block truncate text-stone-950 group-hover:text-[#792f59]">{customerName(customer)}</strong>{customer.blocked && <span className="mt-1 inline-block"><StatusBadge status="cancelled">Bloccato</StatusBadge></span>}</span>
                         </div>
                       </td>
                       <td className="max-w-64 text-stone-600"><span className="block truncate">{customer.email ?? "Nessuna email"}</span><span className="mt-0.5 block text-xs text-stone-400">{customer.phone ?? "Nessun telefono"}</span></td>

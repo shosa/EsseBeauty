@@ -18,8 +18,16 @@ function parseDay(value: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function customerNameParts(input: { first_name?: string; full_name?: string; last_name?: string }) {
+  const fullNameInput = input.full_name?.trim() ?? "";
+  const firstName = input.first_name?.trim() || fullNameInput.split(/\s+/)[0] || "";
+  const lastName = input.last_name?.trim() || fullNameInput.split(/\s+/).slice(1).join(" ");
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+  return { firstName, fullName, lastName };
+}
+
 export async function registerWaitlistRoutes(app: FastifyInstance) {
-  app.post<{ Params: { slug: string }; Body: { service_id: string; staff_id?: string; requested_date: string; time_preference?: TimePreference; customer: { full_name: string; email?: string; phone?: string } } }>("/api/public/:slug/waitlist", async (request, reply) => {
+  app.post<{ Params: { slug: string }; Body: { service_id: string; staff_id?: string; requested_date: string; time_preference?: TimePreference; customer: { first_name?: string; full_name?: string; last_name?: string; email?: string; phone?: string } } }>("/api/public/:slug/waitlist", async (request, reply) => {
     const salon = (await app.db.select().from(salons).where(and(eq(salons.slug, request.params.slug), eq(salons.active, true))))[0];
     if (!salon || !salon.onlineBookingEnabled || !(await isModuleEnabled(salon.id, MODULE_KEYS.WAITLIST, app.db))) return reply.code(404).send({ error: "NOT_FOUND" });
     const day = parseDay(request.body.requested_date);
@@ -33,16 +41,16 @@ export async function registerWaitlistRoutes(app: FastifyInstance) {
       const member = (await app.db.select().from(staff).where(and(eq(staff.id, request.body.staff_id), eq(staff.salonId, salon.id), eq(staff.active, true))))[0];
       if (!member) return reply.code(400).send({ error: "INVALID_STAFF" });
     }
-    const name = request.body.customer.full_name?.trim();
+    const name = customerNameParts(request.body.customer);
     const email = request.body.customer.email?.trim().toLowerCase();
     const phone = request.body.customer.phone?.trim();
     const phoneNormalized = normalizePhoneE164(phone);
     const pwa = (await app.db.select().from(salonSettings).where(and(eq(salonSettings.salonId, salon.id), eq(salonSettings.category, "pwa"))))[0]?.settings ?? {};
-    if (!name || (!email && !phone) || (pwa.requireEmail !== false && !email) || (pwa.requirePhone === true && !phone)) return reply.code(400).send({ error: "CONTACT_REQUIRED" });
+    if (!name.firstName || !name.lastName || (!email && !phone) || (pwa.requireEmail !== false && !email) || (pwa.requirePhone === true && !phone)) return reply.code(400).send({ error: "CONTACT_REQUIRED" });
     const contactMatch = phoneNormalized && email ? or(eq(customers.phoneNormalized, phoneNormalized), eq(customers.email, email)) : phoneNormalized ? eq(customers.phoneNormalized, phoneNormalized) : eq(customers.email, email!);
     let customer = (await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), contactMatch)))[0];
-    if (!customer) customer = (await app.db.insert(customers).values({ salonId: salon.id, fullName: name, email, phone, phoneNormalized }).returning())[0]!;
-    else customer = (await app.db.update(customers).set({ fullName: name, email: email ?? customer.email, phone: phone ?? customer.phone, phoneNormalized: phoneNormalized ?? customer.phoneNormalized }).where(eq(customers.id, customer.id)).returning())[0]!;
+    if (!customer) customer = (await app.db.insert(customers).values({ salonId: salon.id, firstName: name.firstName, lastName: name.lastName, fullName: name.fullName, email, phone, phoneNormalized }).returning())[0]!;
+    else customer = (await app.db.update(customers).set({ firstName: name.firstName, lastName: name.lastName, fullName: name.fullName, email: email ?? customer.email, phone: phone ?? customer.phone, phoneNormalized: phoneNormalized ?? customer.phoneNormalized }).where(eq(customers.id, customer.id)).returning())[0]!;
     const duplicate = (await app.db.select({ id: waitlistEntries.id }).from(waitlistEntries).where(and(eq(waitlistEntries.salonId, salon.id), eq(waitlistEntries.customerId, customer.id), eq(waitlistEntries.serviceId, service.id), eq(waitlistEntries.requestedDate, day), eq(waitlistEntries.timePreference, preference), inArray(waitlistEntries.status, ["waiting", "notified"]), request.body.staff_id ? eq(waitlistEntries.staffId, request.body.staff_id) : isNull(waitlistEntries.staffId))))[0];
     if (duplicate) return reply.code(409).send({ error: "WAITLIST_DUPLICATE" });
     const row = (await app.db.insert(waitlistEntries).values({ salonId: salon.id, serviceId: service.id, staffId: request.body.staff_id, customerId: customer.id, requestedDate: day, timePreference: preference }).returning())[0]!;
