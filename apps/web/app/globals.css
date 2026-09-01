@@ -352,7 +352,11 @@ table tbody tr {
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    /* Must be "none", not "translateY(0)": any non-none transform value — even a
+       zero-offset one — makes this element a containing block for descendant
+       position:fixed elements (Dialog/Drawer/ConfirmDialog), breaking their
+       viewport centering once the animation's fill-mode leaves this state applied. */
+    transform: none;
   }
 }
 

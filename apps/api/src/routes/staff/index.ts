@@ -166,8 +166,23 @@ export async function registerStaffRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string }; Querystring: { active?: string } }>("/api/salons/:id/staff", { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_STAFF)] }, async (request, reply) => {
     if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
-    return request.server.db.select().from(staff)
+    return request.server.db
+      .select({
+        active: staff.active,
+        bio: staff.bio,
+        color: staff.color,
+        displayName: staff.displayName,
+        id: staff.id,
+        locationName: salonLocations.name,
+        serviceCount: sql<number>`count(${serviceStaff.id})::int`,
+        specializations: staff.specializations,
+        workingHours: staff.workingHours,
+      })
+      .from(staff)
+      .leftJoin(salonLocations, eq(salonLocations.id, staff.locationId))
+      .leftJoin(serviceStaff, eq(serviceStaff.staffId, staff.id))
       .where(and(eq(staff.salonId, request.salonId), ...(request.query.active === "true" ? [eq(staff.active, true)] : [])))
+      .groupBy(staff.id, salonLocations.id)
       .orderBy(asc(staff.displayName));
   });
 

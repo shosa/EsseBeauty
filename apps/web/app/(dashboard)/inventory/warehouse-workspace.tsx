@@ -10,6 +10,7 @@ import {
   PackagePlus,
   RotateCcw,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   AppPage,
@@ -132,6 +133,7 @@ function WarehouseMovements({
 }
 
 export function WarehouseWorkspace() {
+  const router = useRouter();
   const { salon } = useAuth();
   const salonId = salon?.id;
   const [activeTab, setActiveTab] = useState<WarehouseTab>("overview");
@@ -233,12 +235,12 @@ export function WarehouseWorkspace() {
           <div className="flex flex-wrap gap-2">
             <ExpandableAction icon={ArrowDownToLine} label="Carico" onClick={() => void openOperation("purchase")} tone="emerald" />
             <ExpandableAction icon={ArrowUpFromLine} label="Scarico" onClick={() => void openOperation("issue")} tone="sky" />
-            <ExpandableAction icon={ClipboardList} label="Inventario" onClick={() => window.location.assign("/inventory/counts")} tone="amber" />
+            <ExpandableAction icon={ClipboardList} label="Inventario" onClick={() => router.push("/inventory/counts")} tone="amber" />
             <ExpandableAction icon={FileUp} label="Importa" onClick={() => { void openOperation("purchase"); setImportMode(true); }} tone="indigo" />
             <ExpandableAction icon={ArrowDownToLine} label="Rettifica scorte" onClick={() => void openOperation("adjustment")} tone="violet" />
             <ExpandableAction icon={PackagePlus} label="Registra scarto" onClick={() => void openOperation("waste")} tone="rose" />
             <ExpandableAction icon={RotateCcw} label="Rivaluta costi" onClick={() => void openOperation("revaluation")} tone="orange" />
-            <ExpandableAction icon={Archive} label="Articolo" onClick={() => window.location.assign("/inventory/new")} tone="teal" />
+            <ExpandableAction icon={Archive} label="Articolo" onClick={() => router.push("/inventory/new")} tone="teal" />
           </div>
         }
         eyebrow="Magazzino"
@@ -296,7 +298,7 @@ export function WarehouseWorkspace() {
             lowOnly={lowOnly}
             onItemType={setItemType}
             onLowOnly={setLowOnly}
-            onOpenOperation={(mode, product) => mode === "count" ? window.location.assign("/inventory/counts") : void openOperation(mode, product)}
+            onOpenOperation={(mode, product) => mode === "count" ? router.push("/inventory/counts") : void openOperation(mode, product)}
             onQuery={setQuery}
             onSelect={(id) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])}
             onSelectAll={() => setSelected((current) => current.length === visibleProducts.length ? [] : visibleProducts.map((item) => item.id))}

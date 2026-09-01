@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Search, UserPlus } from "lucide-react";
-import { AppPage, Button, EmptyState, ExpandableAction, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { ChevronRight, Mail, MessageCircle, Phone, Plus, Search, Tag, X } from "lucide-react";
+import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -31,6 +31,14 @@ interface CustomerList {
   total: number;
 }
 
+const avatarPalette = ["#b8578a", "#8f3a68", "#57534e", "#c98a3f", "#3f7d6f", "#7a4fa0"];
+
+function avatarColor(id: string) {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
+  return avatarPalette[hash % avatarPalette.length];
+}
+
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
@@ -47,6 +55,7 @@ function paginationPages(current: number, total: number) {
 export default function ClientsPage() {
   const { salon } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState("");
@@ -56,6 +65,85 @@ export default function ClientsPage() {
   const [data, setData] = useState<CustomerList>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [newOpen, setNewOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [newTags, setNewTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState("");
+  const [whatsAppConsent, setWhatsAppConsent] = useState(false);
+  const [consentSource, setConsentSource] = useState("in_person");
+  const [consentNote, setConsentNote] = useState("");
+
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setNewOpen(true);
+      router.replace("/clients");
+    }
+  }, [router, searchParams]);
+
+  function closeNewClient() {
+    setNewOpen(false);
+    setCreateError("");
+    setNewTags([]);
+    setNewTagInput("");
+    setWhatsAppConsent(false);
+    setConsentSource("in_person");
+    setConsentNote("");
+  }
+
+  function addNewTag() {
+    const value = newTagInput.trim();
+    if (!value) return;
+    setNewTags((current) => current.some((item) => item.toLocaleLowerCase("it-IT") === value.toLocaleLowerCase("it-IT")) ? current : [...current, value]);
+    setNewTagInput("");
+  }
+
+  async function createCustomer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!salon || creating) return;
+    const formData = new FormData(event.currentTarget);
+    const phone = String(formData.get("phone") ?? "").trim();
+    if (whatsAppConsent && !phone) {
+      setCreateError("Inserisci il numero di telefono per concedere il consenso WhatsApp.");
+      return;
+    }
+    setCreating(true);
+    setCreateError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/customers`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        first_name: formData.get("first_name"),
+        last_name: formData.get("last_name"),
+        email: formData.get("email") || undefined,
+        phone: phone || undefined,
+        notes: formData.get("notes") || undefined,
+        tags: newTags,
+      }),
+    });
+    if (!response.ok) {
+      setCreateError("Impossibile creare il cliente.");
+      setCreating(false);
+      return;
+    }
+    const customer = (await response.json()) as { id: string };
+    if (whatsAppConsent) {
+      const consentResponse = await fetch(`${api}/api/salons/${salon.id}/customers/${customer.id}/communication-consents/whatsapp-marketing`, {
+        body: JSON.stringify({ evidence_note: consentNote, source: consentSource, status: "granted" }),
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      });
+      if (!consentResponse.ok) {
+        setCreateError("Cliente creato, ma il consenso WhatsApp non è stato registrato. Apri la scheda per riprovare.");
+        setCreating(false);
+        router.push(`/clients/${customer.id}`);
+        return;
+      }
+    }
+    router.push(`/clients/${customer.id}`);
+  }
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setQuery(search.trim()), 300);
@@ -117,45 +205,35 @@ export default function ClientsPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<ExpandableAction icon={UserPlus} label="Nuovo cliente" onClick={() => router.push("/clients/new")} tone="fuchsia" />}
-          eyebrow="CRM"
-          subtitle="Ricerca, segmenta e consulta rapidamente l’intera anagrafica del salone."
-          title="Clienti"
+          actions={<Button onClick={() => setNewOpen(true)} variant="primary"><Plus aria-hidden="true" className="size-4" />Nuovo cliente</Button>}
+          eyebrow="Clienti"
+          subtitle="Cerca, segmenta e apri rapidamente la scheda di ogni cliente del salone."
+          title="Rubrica"
         />
 
-        <SectionCard
-          actions={<span className="text-sm font-bold text-stone-500">{data?.total ?? 0} risultati</span>}
-          subtitle="Cerca per nome, telefono o email e restringi la rubrica con stato e tag."
-          title="Rubrica clienti"
-        >
-          <div className="grid gap-3 xl:grid-cols-[minmax(320px,1fr)_220px_220px_auto]">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-bold text-stone-600">Cerca cliente</span>
-              <div className="relative">
-                <Search aria-hidden="true" className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
-                <input className="w-full" onChange={(event) => setSearch(event.target.value)} placeholder="Nome, telefono o email" style={{ paddingLeft: "2.75rem" }} value={search} />
-              </div>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-bold text-stone-600">Stato anagrafica</span>
-              <select className="w-full" onChange={(event) => setStatus(event.target.value as CustomerStatus)} value={status}>
-                <option value="all">Tutti i clienti</option>
-                <option value="active">Solo attivi</option>
-                <option value="blocked">Solo bloccati</option>
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-bold text-stone-600">Segmento</span>
-              <select className="w-full" onChange={(event) => setTag(event.target.value)} value={tag}>
-                <option value="">Tutti i tag</option>
-                {tags.map((item) => <option key={item} value={item}>{item}</option>)}
-              </select>
-            </label>
-            <div className="flex items-end">
-              <Button className="w-full" disabled={!filtersActive} onClick={resetFilters} variant="outline">Azzera filtri</Button>
-            </div>
-          </div>
-        </SectionCard>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+          <label className="relative min-w-[240px] flex-1">
+            <span className="sr-only">Cerca cliente</span>
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+            <input className="w-full pl-10" onChange={(event) => setSearch(event.target.value)} placeholder="Nome, telefono o email…" value={search} />
+          </label>
+          <label className="w-[180px]">
+            <span className="sr-only">Stato anagrafica</span>
+            <select className="w-full" onChange={(event) => setStatus(event.target.value as CustomerStatus)} value={status}>
+              <option value="all">Tutti i clienti</option>
+              <option value="active">Solo attivi</option>
+              <option value="blocked">Solo bloccati</option>
+            </select>
+          </label>
+          <label className="w-[180px]">
+            <span className="sr-only">Segmento</span>
+            <select className="w-full" onChange={(event) => setTag(event.target.value)} value={tag}>
+              <option value="">Tutti i segmenti</option>
+              {tags.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <Button disabled={!filtersActive} onClick={resetFilters} variant="outline">Azzera filtri</Button>
+        </div>
 
         {error && <InlineError className="mt-5">{error}</InlineError>}
 
@@ -174,9 +252,9 @@ export default function ClientsPage() {
             <div className="p-6"><EmptyState action={filtersActive ? <Button onClick={resetFilters} variant="outline">Rimuovi filtri</Button> : undefined} description="Modifica la ricerca oppure crea una nuova anagrafica." title="Nessun cliente trovato" /></div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px] text-left text-sm">
+              <table className="w-full min-w-[900px] text-left text-sm">
                 <thead className="sticky top-0 z-10 bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.14em] text-stone-500">
-                  <tr><th className="px-5 py-3">Cliente</th><th>Contatti</th><th>Segmenti</th><th>Ultima visita</th><th className="text-center">Appuntamenti</th><th className="pr-5 text-center">Punti</th></tr>
+                  <tr><th className="px-5 py-3">Cliente</th><th>Contatti</th><th>Segmenti</th><th>Ultima visita</th><th className="w-12 pr-5" /></tr>
                 </thead>
                 <tbody>
                   {data?.items.map((customer) => (
@@ -194,15 +272,17 @@ export default function ClientsPage() {
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-xs font-black text-[#792f59]">{initials(customerName(customer))}</span>
+                          <span className="grid size-10 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ background: avatarColor(customer.id) }}>{initials(customerName(customer))}</span>
                           <span className="min-w-0"><strong className="block truncate text-stone-950 group-hover:text-[#792f59]">{customerName(customer)}</strong>{customer.blocked && <span className="mt-1 inline-block"><StatusBadge status="cancelled">Bloccato</StatusBadge></span>}</span>
                         </div>
                       </td>
-                      <td className="max-w-64 text-stone-600"><span className="block truncate">{customer.email ?? "Nessuna email"}</span><span className="mt-0.5 block text-xs text-stone-400">{customer.phone ?? "Nessun telefono"}</span></td>
+                      <td className="max-w-64 text-stone-600">
+                        <span className={`flex items-center gap-1.5 font-semibold ${customer.phone ? "text-stone-700" : "text-stone-400"}`}><Phone aria-hidden="true" className="size-3.5 shrink-0 text-stone-400" />{customer.phone ?? "Nessun numero"}</span>
+                        <span className={`mt-0.5 flex items-center gap-1.5 truncate text-xs ${customer.email ? "text-stone-500" : "text-stone-400"}`}><Mail aria-hidden="true" className="size-3.5 shrink-0 text-stone-400" /><span className="truncate">{customer.email ?? "Nessuna email"}</span></span>
+                      </td>
                       <td><div className="flex max-w-56 flex-wrap gap-1">{customer.tags.slice(0, 3).map((item) => <span className="rounded-full bg-[#f8edf3] px-2 py-1 text-[11px] font-semibold text-[#792f59]" key={item}>{item}</span>)}{customer.tags.length > 3 && <span className="rounded-full bg-stone-100 px-2 py-1 text-[11px] font-bold text-stone-500">+{customer.tags.length - 3}</span>}</div></td>
                       <td><span className="font-semibold text-stone-700">{customer.last_visit ? new Date(customer.last_visit).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "Mai"}</span></td>
-                      <td className="text-center"><span className="inline-flex min-w-10 justify-center rounded-lg bg-blue-50 px-2 py-1 font-black text-blue-800">{customer.total_appointments}</span></td>
-                      <td className="pr-5 text-center"><span className="inline-flex min-w-12 justify-center rounded-lg bg-amber-50 px-2 py-1 font-black text-amber-800">{customer.loyalty_points}</span></td>
+                      <td className="pr-5 text-right"><ChevronRight aria-hidden="true" className="inline-block size-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-[#792f59]" /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -225,6 +305,66 @@ export default function ClientsPage() {
           )}
         </section>
       </PageTransition>
+
+      <Dialog onClose={closeNewClient} open={newOpen} title="Nuovo cliente">
+        <form className="grid gap-4" onSubmit={(event) => void createCustomer(event)}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField label="Nome" required><input autoComplete="given-name" name="first_name" required className="w-full" /></FormField>
+            <FormField label="Cognome" required><input autoComplete="family-name" name="last_name" required className="w-full" /></FormField>
+            <FormField label="Email"><input name="email" type="email" className="w-full" /></FormField>
+            <FormField label="Telefono"><input name="phone" className="w-full" /></FormField>
+          </div>
+          <FormField label="Segmenti" description="Digita un nome e premi Invio per crearne uno nuovo.">
+            <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-stone-200 px-3 py-2 focus-within:border-[#792f59]">
+              {newTags.map((item) => (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-[#f4e4ec] px-2.5 py-1.5 text-xs font-bold text-[#682849]" key={item}>
+                  <Tag aria-hidden="true" size={13} />{item}
+                  <button aria-label={`Rimuovi segmento ${item}`} className="ml-1 text-[#7b3159] hover:text-red-700" onClick={() => setNewTags((current) => current.filter((tagItem) => tagItem !== item))} type="button"><X aria-hidden="true" size={13} /></button>
+                </span>
+              ))}
+              <input
+                className="min-w-40 flex-1 border-0 px-1 py-1.5 text-sm outline-none"
+                onChange={(event) => setNewTagInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addNewTag(); } }}
+                placeholder={newTags.length ? "Aggiungi un altro segmento" : "Scrivi un segmento e premi Invio"}
+                value={newTagInput}
+              />
+            </div>
+          </FormField>
+          <FormField label="Note interne"><textarea name="notes" rows={3} className="w-full" /></FormField>
+
+          <div className="overflow-hidden rounded-xl border border-emerald-100">
+            <div className="flex items-center justify-between gap-4 bg-emerald-50 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-600 text-white"><MessageCircle aria-hidden="true" size={18} /></span>
+                <div><h3 className="text-sm font-bold">Consenso marketing WhatsApp</h3><p className="text-xs text-stone-600">Richiede un numero di telefono valido.</p></div>
+              </div>
+              <Switch aria-label="Consenso marketing WhatsApp" checked={whatsAppConsent} onCheckedChange={setWhatsAppConsent} />
+            </div>
+            {whatsAppConsent && (
+              <div className="grid gap-4 border-t border-emerald-100 p-4 sm:grid-cols-2">
+                <FormField label="Fonte di acquisizione">
+                  <select onChange={(event) => setConsentSource(event.target.value)} value={consentSource} className="w-full">
+                    <option value="in_person">Acquisito in salone</option>
+                    <option value="customer_request">Richiesta del cliente</option>
+                    <option value="web_form">Modulo online</option>
+                    <option value="import_verified">Importazione verificata</option>
+                    <option value="manual_admin">Inserimento amministrativo</option>
+                  </select>
+                </FormField>
+                <FormField label="Nota o evidenza"><textarea onChange={(event) => setConsentNote(event.target.value)} placeholder="Es. consenso espresso in reception" rows={2} value={consentNote} className="w-full" /></FormField>
+              </div>
+            )}
+          </div>
+
+          {createError && <InlineError>{createError}</InlineError>}
+
+          <div className="flex justify-end gap-3 border-t border-stone-100 pt-4">
+            <Button disabled={creating} onClick={closeNewClient} type="button" variant="ghost">Annulla</Button>
+            <Button disabled={creating} type="submit" variant="primary">{creating ? "Creazione…" : "Crea cliente"}</Button>
+          </div>
+        </form>
+      </Dialog>
     </AppPage>
   );
 }

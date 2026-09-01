@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Info, UserPlus } from "lucide-react";
+import { Check, Info, UserPlus, X } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, DateTimeField, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
@@ -68,6 +68,13 @@ function euro(cents: number) {
   return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
 }
 
+function duration(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours}h ${rest}min` : `${hours}h`;
+}
+
 export default function NewAppointmentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -81,7 +88,7 @@ export default function NewAppointmentPage() {
   const [staff, setStaff] = useState<StaffOption[]>([]);
   const [resources, setResources] = useState<ResourceOption[]>([]);
   const [categoryId, setCategoryId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [staffId, setStaffId] = useState("");
   const [resourceId, setResourceId] = useState("");
   const [serviceQuery, setServiceQuery] = useState("");
@@ -96,6 +103,8 @@ export default function NewAppointmentPage() {
   const [saving, setSaving] = useState(false);
   const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
   const [schedulingWarnings, setSchedulingWarnings] = useState<SchedulingConflict[]>([]);
+  const [sequenceIndex, setSequenceIndex] = useState(0);
+  const [createdCount, setCreatedCount] = useState(0);
 
   useEffect(() => {
     if (!salon) return;
@@ -146,7 +155,7 @@ export default function NewAppointmentPage() {
     const service = services.find((candidate) => candidate.id === requestedServiceId);
     if (service) {
       setCategoryId(service.categoryId ?? "");
-      setServiceId(service.id);
+      setSelectedServiceIds((current) => current.includes(service.id) ? current : [...current, service.id]);
     }
     if (!customerId || selectedCustomer?.id === customerId) return;
     void fetch(`${api}/api/salons/${salon.id}/customers/${customerId}`, { credentials: "include" })
@@ -179,26 +188,31 @@ export default function NewAppointmentPage() {
         setSelectedCustomer({ email: item.customer_email, id: item.customer_id, name: item.customer_name, phone: item.customer_phone });
         setCustomerQuery(item.customer_name);
         setCategoryId(service.categoryId ?? "");
-        setServiceId(service.id);
+        setSelectedServiceIds([service.id]);
         setNotes(item.notes ?? "");
       })
       .catch(() => setError("Impossibile duplicare l’appuntamento selezionato."));
   }, [salon, searchParams, services]);
 
   useEffect(() => {
-    if (!salon || !serviceId) return;
-    const requestedStaffId = searchParams.get("staffId") ?? "";
+    if (!salon) return;
     setStaffId("");
     setResourceId("");
-    void fetch(`${api}/api/salons/${salon.id}/operations/staff?serviceId=${serviceId}&strictAssignments=true`, { credentials: "include" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error();
-        const rows = await response.json() as Array<{ color?: string | null; display_name: string; id: string }>;
-        setStaff(rows.map((item) => ({ color: item.color, id: item.id, name: item.display_name })));
-        if (rows.some((item) => item.id === requestedStaffId)) setStaffId(requestedStaffId);
+    if (selectedServiceIds.length === 0) return;
+    const requestedStaffId = searchParams.get("staffId") ?? "";
+    void Promise.all(selectedServiceIds.map((id) =>
+      fetch(`${api}/api/salons/${salon.id}/operations/staff?serviceId=${id}&strictAssignments=true`, { credentials: "include" })
+        .then((response) => response.ok ? response.json() as Promise<Array<{ color?: string | null; display_name: string; id: string }>> : []),
+    ))
+      .then((lists) => {
+        const [first, ...rest] = lists;
+        if (!first) return;
+        const intersected = first.filter((member) => rest.every((list) => list.some((candidate) => candidate.id === member.id)));
+        setStaff(intersected.map((item) => ({ color: item.color, id: item.id, name: item.display_name })));
+        if (intersected.some((item) => item.id === requestedStaffId)) setStaffId(requestedStaffId);
       })
-      .catch(() => setError("Impossibile caricare i collaboratori abilitati per questo servizio."));
-  }, [salon?.id, searchParams, serviceId]);
+      .catch(() => setError("Impossibile caricare i collaboratori abilitati per questi servizi."));
+  }, [salon?.id, searchParams, selectedServiceIds]);
 
   useEffect(() => {
     if (!salon || selectedCustomer) return;
@@ -223,25 +237,43 @@ export default function NewAppointmentPage() {
   }, [customerQuery, salon, selectedCustomer]);
 
   const selectedCategory = categories.find((item) => item.id === categoryId);
-  const selectedService = services.find((item) => item.id === serviceId);
+  const selectedServices = useMemo(
+    () => selectedServiceIds.map((id) => services.find((item) => item.id === id)).filter((item): item is Service => Boolean(item)),
+    [selectedServiceIds, services],
+  );
   const selectedStaff = staff.find((item) => item.id === staffId);
-  const compatibleResources = resources.filter((item) => item.serviceIds.includes(serviceId));
+  const compatibleResources = selectedServiceIds.length > 0
+    ? resources.filter((item) => selectedServiceIds.every((id) => item.serviceIds.includes(id)))
+    : [];
   const selectedResource = compatibleResources.find((item) => item.id === resourceId);
+  const totalDurationMinutes = selectedServices.reduce((sum, item) => sum + item.durationMinutes, 0);
+  const totalPriceCents = selectedServices.reduce((sum, item) => sum + item.priceCents, 0);
+  const sequenceStarts = useMemo(() => {
+    if (!startsAt) return [];
+    const base = new Date(startsAt).getTime();
+    let offset = 0;
+    return selectedServices.map((service) => {
+      const start = new Date(base + offset * 60_000);
+      offset += service.durationMinutes;
+      return { end: new Date(base + offset * 60_000), service, start };
+    });
+  }, [selectedServices, startsAt]);
   const canCreate = Boolean(
     selectedCustomer
-    && selectedCategory
-    && selectedService
+    && selectedServices.length > 0
     && selectedStaff
     && startsAt
     && (compatibleResources.length === 0 || selectedResource),
   );
 
   useEffect(() => {
-    if (!serviceId) return;
+    if (selectedServiceIds.length === 0) return;
     const requestedResourceId = searchParams.get("resourceId") ?? "";
     if (compatibleResources.some((item) => item.id === requestedResourceId)) setResourceId(requestedResourceId);
     else if (compatibleResources.length === 1) setResourceId(compatibleResources[0]!.id);
-  }, [compatibleResources, searchParams, serviceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compatibleResources, searchParams, selectedServiceIds]);
+
   const visibleServices = useMemo(() => {
     const query = serviceQuery.trim().toLowerCase();
     return services.filter((item) =>
@@ -253,6 +285,10 @@ export default function NewAppointmentPage() {
     const query = staffQuery.trim().toLowerCase();
     return staff.filter((item) => !query || item.name.toLowerCase().includes(query));
   }, [staff, staffQuery]);
+
+  function toggleService(id: string) {
+    setSelectedServiceIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
 
   const customerHelp = useMemo(() => {
     if (selectedCustomer) return `${selectedCustomer.email ?? "senza email"}${selectedCustomer.phone ? ` · ${selectedCustomer.phone}` : ""}`;
@@ -301,16 +337,11 @@ export default function NewAppointmentPage() {
     }
   }
 
-  async function createAppointment(confirmOverlap = false, forceConflicts = false) {
-    if (!salon || saving) return;
+  async function runStep(index: number, confirmOverlap = false, forceConflicts = false) {
+    if (!salon || !selectedCustomer || !selectedStaff) return;
+    const step = sequenceStarts[index];
+    if (!step) return;
     setError("");
-    if (!selectedCustomer) return setError("Seleziona un cliente dalla ricerca.");
-    if (!selectedCategory) return setError("Seleziona una categoria.");
-    if (!selectedService) return setError("Seleziona un servizio.");
-    if (!selectedStaff) return setError("Seleziona un collaboratore.");
-    if (compatibleResources.length > 0 && !selectedResource) return setError("Seleziona una cabina.");
-    if (!startsAt) return setError("Inserisci data e ora dell’appuntamento.");
-
     setSaving(true);
     try {
       const response = await fetch(`${api}/api/salons/${salon.id}/appointments`, {
@@ -320,9 +351,9 @@ export default function NewAppointmentPage() {
           force_conflicts: forceConflicts,
           notes: notes || undefined,
           resource_id: selectedResource?.id,
-          service_id: selectedService.id,
+          service_id: step.service.id,
           staff_id: selectedStaff.id,
-          starts_at: new Date(startsAt).toISOString(),
+          starts_at: step.start.toISOString(),
         }),
         credentials: "include",
         headers: { "content-type": "application/json" },
@@ -331,6 +362,7 @@ export default function NewAppointmentPage() {
       if (!response.ok) {
         const payload = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[] | SchedulingConflict[]; error?: string };
         if (response.status === 409) {
+          setSequenceIndex(index);
           if (payload.error === "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED") {
             setOverlaps((payload.conflicts ?? []) as AppointmentOverlap[]);
             return;
@@ -346,6 +378,13 @@ export default function NewAppointmentPage() {
         throw new Error("Appuntamento non creato.");
       }
       const appointment = await response.json() as { id: string };
+      setCreatedCount((count) => count + 1);
+      setOverlaps([]);
+      setSchedulingWarnings([]);
+      if (index + 1 < sequenceStarts.length) {
+        await runStep(index + 1);
+        return;
+      }
       const waitlistId = searchParams.get("waitlistId");
       if (waitlistId) {
         const waitlistResponse = await fetch(`${api}/api/salons/${salon.id}/waitlist/${waitlistId}`, {
@@ -354,16 +393,29 @@ export default function NewAppointmentPage() {
           headers: { "content-type": "application/json" },
           method: "PATCH",
         });
-        if (!waitlistResponse.ok) setError("Appuntamento creato, ma la richiesta non è stata chiusa automaticamente.");
+        if (!waitlistResponse.ok) setError("Appuntamenti creati, ma la richiesta non è stata chiusa automaticamente.");
       }
-      setOverlaps([]);
-      setSchedulingWarnings([]);
       router.push(`/calendar?appointment=${encodeURIComponent(appointment.id)}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Appuntamento non creato.");
+      setError(
+        createdCount > 0
+          ? `Creati ${createdCount} di ${sequenceStarts.length} appuntamenti, poi: ${reason instanceof Error ? reason.message : "errore imprevisto"}`
+          : reason instanceof Error ? reason.message : "Appuntamento non creato.",
+      );
     } finally {
       setSaving(false);
     }
+  }
+
+  function startSequence() {
+    if (!selectedCustomer) return setError("Seleziona un cliente dalla ricerca.");
+    if (selectedServices.length === 0) return setError("Seleziona almeno un servizio.");
+    if (!selectedStaff) return setError("Seleziona un collaboratore.");
+    if (compatibleResources.length > 0 && !selectedResource) return setError("Seleziona una cabina.");
+    if (!startsAt) return setError("Inserisci data e ora dell’appuntamento.");
+    setCreatedCount(0);
+    setSequenceIndex(0);
+    void runStep(0);
   }
 
   if (loading) return <PageSkeleton />;
@@ -374,7 +426,7 @@ export default function NewAppointmentPage() {
         footer={
           <>
             <Button onClick={() => { setOverlaps([]); setSchedulingWarnings([]); }} variant="outline">Modifica orario</Button>
-            <Button disabled={saving || schedulingWarnings.some((warning) => !warning.forceable)} onClick={() => void createAppointment(true, schedulingWarnings.length > 0)} variant="primary">
+            <Button disabled={saving || schedulingWarnings.some((warning) => !warning.forceable)} onClick={() => void runStep(sequenceIndex, true, schedulingWarnings.length > 0)} variant="primary">
               {saving ? "Creazione..." : schedulingWarnings.length ? "Forza e crea" : "Conferma affiancamento"}
             </Button>
           </>
@@ -383,6 +435,11 @@ export default function NewAppointmentPage() {
         open={overlaps.length > 0 || schedulingWarnings.length > 0}
         title={schedulingWarnings.length ? "Avvisi di pianificazione" : "Appuntamenti sovrapposti"}
       >
+        {sequenceStarts.length > 1 && (
+          <p className="mb-4 text-xs font-bold uppercase tracking-[.1em] text-[#792f59]">
+            Servizio {sequenceIndex + 1} di {sequenceStarts.length}: {sequenceStarts[sequenceIndex]?.service.name}
+          </p>
+        )}
         {schedulingWarnings.length > 0 ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-bold">Puoi forzare gli avvisi consentiti.</p>
@@ -398,10 +455,10 @@ export default function NewAppointmentPage() {
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-white p-3 shadow-sm">
               <p className="text-xs font-bold text-[#792f59]">
-                {startsAt && new Date(startsAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                {sequenceStarts[sequenceIndex] && sequenceStarts[sequenceIndex]!.start.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
               </p>
               <p className="mt-1 truncate text-sm font-bold">{selectedCustomer?.name}</p>
-              <p className="truncate text-xs text-stone-500">{selectedService?.name}</p>
+              <p className="truncate text-xs text-stone-500">{sequenceStarts[sequenceIndex]?.service.name}</p>
             </div>
             <div className="min-w-0 rounded-xl border-l-4 border-amber-500 bg-white p-3 shadow-sm">
               <p className="text-xs font-bold text-amber-700">
@@ -500,7 +557,7 @@ export default function NewAppointmentPage() {
                 <Button aria-label="Crea cliente" className="min-h-11 px-3" onClick={() => setNewCustomerOpen(true)} title="Crea cliente" type="button" variant="outline"><UserPlus className="size-4" /></Button>
                 </div>
               </FormField>
-              <FormField label="Data e ora" required>
+              <FormField description="Orario del primo servizio: gli altri seguono in sequenza." label="Data e ora" required>
                 <DateTimeField aria-label="Data e ora dell’appuntamento" onChange={setStartsAt} required step={300} value={startsAt} />
               </FormField>
             </div>
@@ -509,18 +566,32 @@ export default function NewAppointmentPage() {
           <section aria-labelledby="treatment-section-title" className="rounded-xl border border-stone-200 bg-white p-4 sm:p-5">
             <div className="mb-4">
               <h2 className="text-lg font-bold text-stone-950" id="treatment-section-title">Trattamento</h2>
-              <p className="mt-1 text-sm text-stone-600">Categoria e servizio.</p>
+              <p className="mt-1 text-sm text-stone-600">Seleziona uno o più servizi: verranno prenotati uno dopo l’altro, consecutivi.</p>
             </div>
+
+            {selectedServices.length > 0 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[#ead1df] bg-[#fffafd] p-3">
+                {selectedServices.map((service, index) => (
+                  <span className="inline-flex items-center gap-2 rounded-lg border border-[#e8bfd4] bg-white py-1.5 pl-2.5 pr-1.5 text-xs font-bold text-[#642744]" key={service.id}>
+                    <span className="grid size-5 place-items-center rounded-full bg-[#792f59] text-[10px] font-black text-white">{index + 1}</span>
+                    {service.name}
+                    <span className="font-normal text-stone-500">{duration(service.durationMinutes)}</span>
+                    <button aria-label={`Rimuovi ${service.name} dalla sequenza`} className="grid size-6 place-items-center rounded-full text-stone-400 hover:bg-stone-100 hover:text-red-700" onClick={() => toggleService(service.id)} type="button"><X aria-hidden="true" className="size-3.5" /></button>
+                  </span>
+                ))}
+                <span className="ml-auto text-xs font-bold text-[#792f59]">{duration(totalDurationMinutes)} totali · {euro(totalPriceCents)}</span>
+              </div>
+            )}
+
             <div className="grid gap-5 lg:grid-cols-[minmax(260px,.72fr)_minmax(0,1.28fr)]">
               <fieldset>
-                <legend className="text-sm font-bold text-stone-900">Categoria <span aria-hidden="true" className="text-red-700">*</span></legend>
+                <legend className="text-sm font-bold text-stone-900">Categoria</legend>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {categories.map((category) => {
                     const active = categoryId === category.id;
                     return (
                       <button aria-pressed={active} className={`flex min-h-14 items-center gap-2 rounded-xl border p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={category.id} onClick={() => {
                         setCategoryId(category.id);
-                        setServiceId("");
                         setServiceQuery("");
                       }} type="button">
                         <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${active ? "bg-[#792f59] text-white" : "bg-stone-100 text-[#792f59]"}`}>
@@ -536,15 +607,15 @@ export default function NewAppointmentPage() {
 
               <div className="lg:border-l lg:border-stone-100 lg:pl-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-bold text-stone-900">Servizio <span aria-hidden="true" className="text-red-700">*</span></h3>
+                  <h3 className="text-sm font-bold text-stone-900">Servizi <span aria-hidden="true" className="text-red-700">*</span></h3>
                   {selectedCategory && <input aria-label="Cerca servizio" className="min-h-10 w-full sm:w-56" onChange={(event) => setServiceQuery(event.target.value)} placeholder="Cerca servizio" value={serviceQuery} />}
                 </div>
                 {selectedCategory ? (
                   <div className="mt-2 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                     {visibleServices.map((service) => {
-                      const active = serviceId === service.id;
+                      const active = selectedServiceIds.includes(service.id);
                       return (
-                        <button aria-pressed={active} className={`flex min-h-16 items-start justify-between gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={service.id} onClick={() => setServiceId(service.id)} type="button">
+                        <button aria-pressed={active} className={`flex min-h-16 items-start justify-between gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`} key={service.id} onClick={() => toggleService(service.id)} type="button">
                           <span className="min-w-0"><strong className="block truncate text-sm">{service.name}</strong><small className="mt-0.5 block text-stone-600">{service.durationMinutes} min</small></span>
                           <span className="flex shrink-0 items-center gap-1.5"><b className="text-sm text-[#792f59]">{euro(service.priceCents)}</b>{active && <Check aria-hidden="true" className="size-4 text-[#792f59]" />}</span>
                         </button>
@@ -552,7 +623,7 @@ export default function NewAppointmentPage() {
                     })}
                     {visibleServices.length === 0 && <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600 sm:col-span-2">Nessun servizio trovato.</p>}
                   </div>
-                ) : <p className="mt-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Seleziona una categoria.</p>}
+                ) : <p className="mt-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Seleziona una categoria per sfogliare i servizi.</p>}
               </div>
             </div>
           </section>
@@ -564,7 +635,7 @@ export default function NewAppointmentPage() {
             </div>
             <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(240px,.65fr)]">
               <div>
-                {selectedService ? (
+                {selectedServices.length > 0 ? (
                   <>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <h3 className="text-sm font-bold text-stone-900">Collaboratore <span aria-hidden="true" className="text-red-700">*</span></h3>
@@ -581,7 +652,7 @@ export default function NewAppointmentPage() {
                           </button>
                         );
                       })}
-                      {visibleStaff.length === 0 && <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Nessun collaboratore assegnato a questo servizio.</p>}
+                      {visibleStaff.length === 0 && <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">{selectedServices.length > 1 ? "Nessun collaboratore è abilitato a tutti i servizi selezionati." : "Nessun collaboratore assegnato a questo servizio."}</p>}
                     </div>
 
                     {compatibleResources.length > 0 && (
@@ -596,7 +667,7 @@ export default function NewAppointmentPage() {
                       </div>
                     )}
                   </>
-                ) : <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Seleziona un servizio per scegliere collaboratore e cabina.</p>}
+                ) : <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">Seleziona almeno un servizio per scegliere collaboratore e cabina.</p>}
               </div>
               <div className="lg:border-l lg:border-stone-100 lg:pl-5">
                 <label className="text-sm font-bold text-stone-900" htmlFor="appointment-notes">Note interne <span className="font-normal text-stone-600">(facoltative)</span></label>
@@ -609,15 +680,30 @@ export default function NewAppointmentPage() {
         <aside aria-labelledby="summary-title" className={`self-start rounded-xl border border-stone-200 bg-white p-4 xl:sticky ${fromWaitlist ? "xl:top-36" : "xl:top-20"}`}>
           {fromWaitlist && <p className="mb-2 text-xs font-black uppercase tracking-[.14em] text-[#792f59]">Richiesta cliente</p>}
           <h2 className="text-lg font-bold text-stone-950" id="summary-title">Riepilogo</h2>
-          <p aria-live="polite" className="mt-1 text-sm text-stone-600">{canCreate ? "Tutto pronto per la creazione." : "Completa i campi obbligatori."}</p>
+          <p aria-live="polite" className="mt-1 text-sm text-stone-600">{canCreate ? (sequenceStarts.length > 1 ? `${sequenceStarts.length} appuntamenti consecutivi pronti.` : "Tutto pronto per la creazione.") : "Completa i campi obbligatori."}</p>
           <dl className="mt-3 divide-y divide-stone-100 text-sm">
             <div className="py-2.5"><dt className="text-stone-600">Cliente</dt><dd className="font-bold text-stone-950">{selectedCustomer?.name ?? "Da selezionare"}</dd></div>
-            <div className="py-2.5"><dt className="text-stone-600">Servizio</dt><dd className="font-bold text-stone-950">{selectedService ? `${selectedService.name} · ${selectedService.durationMinutes} min · ${euro(selectedService.priceCents)}` : "Da selezionare"}</dd></div>
+            <div className="py-2.5">
+              <dt className="text-stone-600">{sequenceStarts.length > 1 ? "Servizi in sequenza" : "Servizio"}</dt>
+              {sequenceStarts.length === 0 ? <dd className="font-bold text-stone-950">Da selezionare</dd> : (
+                <dd className="mt-1.5 space-y-1.5">
+                  {sequenceStarts.map((step, index) => (
+                    <div className="flex items-center justify-between gap-2 text-xs" key={step.service.id}>
+                      <span className="min-w-0 truncate font-bold text-stone-950">{index + 1}. {step.service.name}</span>
+                      <span className="shrink-0 font-semibold text-stone-500">{step.start.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}–{step.end.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between border-t border-stone-100 pt-1.5 text-xs font-bold text-[#792f59]"><span>Totale</span><span>{duration(totalDurationMinutes)} · {euro(totalPriceCents)}</span></div>
+                </dd>
+              )}
+            </div>
             <div className="py-2.5"><dt className="text-stone-600">Data e ora</dt><dd className="font-bold text-stone-950">{startsAt ? new Date(startsAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" }) : "Da inserire"}</dd></div>
             <div className="py-2.5"><dt className="text-stone-600">Collaboratore</dt><dd className="font-bold text-stone-950">{selectedStaff?.name ?? "Da selezionare"}</dd></div>
             {compatibleResources.length > 0 && <div className="py-2.5"><dt className="text-stone-600">Cabina</dt><dd className="font-bold text-stone-950">{selectedResource?.name ?? "Da selezionare"}</dd></div>}
           </dl>
-          <Button className="mt-4 w-full" disabled={saving || !canCreate} onClick={() => void createAppointment()} variant="primary">{saving ? "Creazione in corso…" : "Crea appuntamento"}</Button>
+          <Button className="mt-4 w-full" disabled={saving || !canCreate} onClick={startSequence} variant="primary">
+            {saving ? `Creazione ${createdCount + 1} di ${sequenceStarts.length}…` : sequenceStarts.length > 1 ? `Crea ${sequenceStarts.length} appuntamenti` : "Crea appuntamento"}
+          </Button>
           <Button className="mt-2 w-full" onClick={() => router.push("/calendar")} variant="ghost">Annulla</Button>
         </aside>
       </div>
@@ -626,7 +712,7 @@ export default function NewAppointmentPage() {
           <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black text-stone-950">Riepilogo richiesta cliente</h2><span className="text-xs font-bold text-[#792f59]">Da lista d’attesa</span></div>
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
             <div className="min-w-0"><dt className="text-stone-500">Cliente</dt><dd className="truncate font-bold">{selectedCustomer?.name ?? "Caricamento…"}</dd></div>
-            <div className="min-w-0"><dt className="text-stone-500">Servizio</dt><dd className="truncate font-bold">{selectedService?.name ?? "Da selezionare"}</dd></div>
+            <div className="min-w-0"><dt className="text-stone-500">Servizio</dt><dd className="truncate font-bold">{selectedServices[0]?.name ?? "Da selezionare"}</dd></div>
             <div className="min-w-0"><dt className="text-stone-500">Data e ora</dt><dd className="truncate font-bold">{startsAt ? new Date(startsAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" }) : "Da inserire"}</dd></div>
             <div className="min-w-0"><dt className="text-stone-500">Collaboratore</dt><dd className="truncate font-bold">{selectedStaff?.name ?? "Da selezionare"}</dd></div>
           </dl>

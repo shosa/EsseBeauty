@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { SlidersHorizontal, UserRoundCheck, UserRoundMinus, UserRoundPlus } from "lucide-react";
+import { SlidersHorizontal, UserRoundPlus } from "lucide-react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, ConfirmDialog, ExpandableAction, InlineError, PageHeader, PageTransition, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, DataTable, InlineError, PageHeader, PageTransition, StatusBadge, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { staffStatusAction } from "./staff-status-action";
@@ -18,12 +19,20 @@ interface Member {
   color: string;
   displayName: string;
   id: string;
+  locationName?: string | null;
+  serviceCount: number;
   specializations: string[];
   workingHours: WorkingHours;
 }
 
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("") || "—";
+}
+
 export default function SettingsStaffPage() {
+  const router = useRouter();
   const [staff, setStaff] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [confirmDeactivate, setConfirmDeactivate] = useState<Member>();
   const [pendingId, setPendingId] = useState("");
@@ -31,12 +40,15 @@ export default function SettingsStaffPage() {
 
   async function load() {
     if (!salon) return;
+    setLoading(true);
     const response = await fetch(`${api}/api/salons/${salon.id}/staff`, { credentials: "include" });
     if (!response.ok) {
       setError("Impossibile caricare la configurazione staff.");
+      setLoading(false);
       return;
     }
     setStaff(await response.json() as Member[]);
+    setLoading(false);
   }
 
   useEffect(() => { void load(); }, [salon?.id]);
@@ -52,6 +64,7 @@ export default function SettingsStaffPage() {
       method: "PATCH",
     });
     if (!response.ok) {
+      setConfirmDeactivate(undefined);
       setError(`Il collaboratore non è stato ${active ? "riattivato" : "disattivato"}.`);
       setPendingId("");
       return;
@@ -74,33 +87,76 @@ export default function SettingsStaffPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          actions={<ExpandableAction icon={UserRoundPlus} label="Nuovo collaboratore" onClick={() => window.location.assign("/settings/staff/new")} tone="fuchsia" />}
-          eyebrow="Core"
+          actions={<Button onClick={() => router.push("/settings/staff/new")} variant="primary"><UserRoundPlus aria-hidden="true" className="size-4" />Nuovo collaboratore</Button>}
+          eyebrow="Staff"
           title="Staff"
-          subtitle="Profili collaboratori, accessi App Staff e orari ricorrenti. Ferie e assenze si gestiscono dalla pagina Permessi."
+          subtitle="Crea nuovi collaboratori, apri un profilo per configurarlo e attiva o disattiva il loro accesso operativo."
         />
         {error && <InlineError className="mb-5">{error}</InlineError>}
-        <section className="grid gap-4 md:grid-cols-2">
-          {staff.map((member) => (
-            <SectionCard className={member.active ? "" : "bg-stone-50 opacity-70"} key={member.id}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex gap-3">
-                  <span className="mt-1 h-12 w-2 rounded-full" style={{ background: member.color }} />
-                  <div>
-                    <Link href={`/staff/${member.id}`} className="text-lg font-bold hover:text-[#792f59]">{member.displayName}</Link>
-                    <p className="text-sm text-stone-500">{member.specializations.join(", ") || "Specializzazioni da definire"}</p>
-                    <p className={`mt-1 inline-flex items-center gap-1.5 text-xs font-bold ${member.active ? "text-emerald-700" : "text-stone-500"}`}><span className={`size-1.5 rounded-full ${member.active ? "bg-emerald-500" : "bg-stone-400"}`} />{member.active ? "Operativo" : "Disattivato"}</p>
+
+        <div>
+          <DataTable
+            columns={[
+              {
+                header: "Collaboratore",
+                key: "name",
+                render: (member) => (
+                  <Link className="group flex min-w-0 items-center gap-3" href={`/staff/${member.id}`}>
+                    <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ background: member.color }}>
+                      {initials(member.displayName)}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-stone-900 group-hover:text-[#792f59]">{member.displayName}</span>
+                      <span className="block truncate text-xs text-stone-500">{member.specializations.join(", ") || "Specializzazioni da definire"}</span>
+                    </span>
+                  </Link>
+                ),
+              },
+              {
+                header: "Sede",
+                key: "location",
+                render: (member) => member.locationName ?? <span className="text-stone-400">Non assegnata</span>,
+              },
+              {
+                header: "Servizi",
+                key: "services",
+                render: (member) => `${member.serviceCount} ${member.serviceCount === 1 ? "abilitato" : "abilitati"}`,
+              },
+              {
+                header: "Stato",
+                key: "status",
+                render: (member) => (
+                  <StatusBadge status={member.active ? "active" : "inactive"}>{member.active ? "Operativo" : "Disattivato"}</StatusBadge>
+                ),
+              },
+              {
+                align: "right",
+                header: "Azioni",
+                key: "actions",
+                render: (member) => (
+                  <div className="flex items-center justify-end gap-4">
+                    <Button onClick={() => router.push(`/staff/${member.id}`)} size="sm" variant="outline">
+                      <SlidersHorizontal aria-hidden="true" className="size-3.5" />
+                      Configura
+                    </Button>
+                    <span className="flex items-center gap-2" title={`${staffStatusAction(member.active).label} ${member.displayName}`}>
+                      <Switch
+                        aria-label={`${staffStatusAction(member.active).label} ${member.displayName}`}
+                        checked={member.active}
+                        disabled={pendingId === member.id}
+                        onCheckedChange={() => requestStatusChange(member)}
+                      />
+                    </span>
                   </div>
-                </div>
-              </div>
-              <p className="mt-5 text-sm text-stone-600">{member.bio || "Profilo operativo pronto per accesso e orari."}</p>
-              <div className="mt-5 flex justify-end gap-2 border-t border-stone-100 pt-4">
-                <ExpandableAction icon={SlidersHorizontal} label={`Configura ${member.displayName}`} onClick={() => window.location.assign(`/staff/${member.id}`)} tone="fuchsia" />
-                <ExpandableAction disabled={pendingId === member.id} icon={member.active ? UserRoundMinus : UserRoundCheck} label={`${staffStatusAction(member.active).label} ${member.displayName}`} onClick={() => requestStatusChange(member)} tone={member.active ? "rose" : "emerald"} />
-              </div>
-            </SectionCard>
-          ))}
-        </section>
+                ),
+              },
+            ]}
+            empty="Nessun collaboratore configurato"
+            getRowId={(member) => member.id}
+            items={staff}
+            loading={loading}
+          />
+        </div>
       </PageTransition>
       <ConfirmDialog
         confirmLabel="Disattiva"

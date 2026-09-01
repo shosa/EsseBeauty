@@ -1117,7 +1117,7 @@ export function Dialog({
     window.addEventListener("keydown", keydown);
     return () => { window.cancelAnimationFrame(frame); window.removeEventListener("keydown", keydown); previousFocus?.focus(); };
   }, [onClose, open]);
-  return (
+  const dialog = (
     <AnimatePresence>
       {open && (
         <motion.div
@@ -1132,7 +1132,7 @@ export function Dialog({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             aria-labelledby={titleId}
             aria-modal="true"
-            className="w-full max-w-lg rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]"
+            className="my-auto max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]"
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             initial={{ opacity: 0, scale: 0.98, y: 8 }}
             onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}
@@ -1153,6 +1153,7 @@ export function Dialog({
       )}
     </AnimatePresence>
   );
+  return !contained && typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
 }
 
 export function Drawer({
@@ -1190,7 +1191,7 @@ export function Drawer({
     return () => { window.cancelAnimationFrame(frame); window.removeEventListener("keydown", keydown); previousFocus?.focus(); };
   }, [onClose, open]);
   const widths = { md: "max-w-md", xl: "max-w-3xl" };
-  return (
+  const drawer = (
     <AnimatePresence>
       {open && (
         <motion.div
@@ -1225,6 +1226,7 @@ export function Drawer({
       )}
     </AnimatePresence>
   );
+  return typeof document !== "undefined" ? createPortal(drawer, document.body) : drawer;
 }
 
 export function ConfirmDialog({

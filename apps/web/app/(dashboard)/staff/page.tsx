@@ -123,9 +123,9 @@ export default function StaffPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <PageHeader
-          eyebrow="Team operativo"
+          eyebrow="Staff"
           title="Staff"
-          subtitle="Disponibilità di oggi, carico di lavoro, assenze e gestione collaboratori."
+          subtitle="Guarda chi lavora oggi con i relativi orari settimanali e registra un'assenza last-minute."
         />
 
         {error && <InlineError className="mb-5">{error}</InlineError>}
@@ -136,6 +136,7 @@ export default function StaffPage() {
             <section className="grid gap-4 md:grid-cols-2">
               {staff.map((member) => (
                 <button
+                  aria-pressed={selected?.id === member.id}
                   className={`rounded-2xl border p-5 text-left shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] transition hover:-translate-y-0.5 hover:shadow-md ${selected?.id === member.id ? "border-[#792f59] bg-[#fffafd]" : "border-[#e8dfe4] bg-white"}`}
                   key={member.id}
                   onClick={() => setSelected(member)}
@@ -154,10 +155,10 @@ export default function StaffPage() {
                   <div className="mt-5 grid grid-cols-7 gap-1">
                     {orderedDays.map((day) => (
                       <div key={day.key} className="text-center">
-                        <span className="text-[10px] font-bold uppercase text-stone-400">{day.label}</span>
-                        <div className={`mt-1 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 py-1.5 text-[8px] font-black leading-tight ${member.working_hours[day.key]?.length ? "border border-emerald-200 bg-emerald-50 text-emerald-800" : "border border-stone-200 bg-stone-100 text-stone-400"}`}>
+                        <span className="text-[11px] font-bold uppercase text-stone-500">{day.label}</span>
+                        <div className={`mt-1 flex min-h-12 flex-col items-center justify-center rounded-lg px-1 py-1.5 text-[11px] font-black leading-tight ${member.working_hours[day.key]?.length ? "border border-emerald-200 bg-emerald-50 text-emerald-800" : "border border-stone-200 bg-stone-100 text-stone-500"}`}>
                           {member.working_hours[day.key]?.length
-                            ? <span className="text-[11px]">{dailyHours(member.working_hours[day.key])}</span>
+                            ? <span>{dailyHours(member.working_hours[day.key])}</span>
                             : <span>CHIUSO</span>}
                         </div>
                       </div>

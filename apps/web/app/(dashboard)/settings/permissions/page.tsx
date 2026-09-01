@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 
-import { AppPage, Button, DateTimeField, EmptyState, FormField, InlineError, PageHeader, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, DateTimeField, EmptyState, FormField, InlineError, PageHeader, SaveActionButton, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -51,6 +51,10 @@ export default function PermissionsPage() {
   const [message, setMessage] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [reviewingId, setReviewingId] = useState("");
+  const [addingBlock, setAddingBlock] = useState(false);
+  const [removingId, setRemovingId] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState<AvailabilityBlock>();
 
   async function load() {
     if (!salon) return;
@@ -73,6 +77,7 @@ export default function PermissionsPage() {
   async function review(requestId: string, status: "approved" | "rejected") {
     if (!salon) return;
     setError("");
+    setReviewingId(requestId);
     const response = await fetch(`${api}/api/salons/${salon.id}/staff-availability-requests/${requestId}`, {
       body: JSON.stringify({ review_note: notes[requestId] || undefined, status }),
       credentials: "include",
@@ -84,15 +89,19 @@ export default function PermissionsPage() {
       setError(body.error === "NO_WORKING_HOURS_IN_RANGE"
         ? "La richiesta non incrocia orari lavorativi configurati."
         : "La richiesta non è stata aggiornata.");
+      setReviewingId("");
       return;
     }
     setMessage(status === "approved" ? "Richiesta approvata e blocco inserito in agenda." : "Richiesta rifiutata.");
     await load();
+    setReviewingId("");
     window.dispatchEvent(new Event("esse:staff-requests-updated"));
   }
 
   async function addBlock(data: FormData) {
     if (!salon) return;
+    setAddingBlock(true);
+    setError("");
     const staffId = String(data.get("staff_id") ?? "");
     const response = await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/availability-blocks`, {
       body: JSON.stringify({ ends_at: data.get("ends"), reason: data.get("reason"), starts_at: data.get("starts") }),
@@ -102,25 +111,37 @@ export default function PermissionsPage() {
     });
     if (!response.ok) {
       const body = await responseError(response);
-      return setError(body.error === "NO_WORKING_HOURS_IN_RANGE"
+      setError(body.error === "NO_WORKING_HOURS_IN_RANGE"
         ? "Il permesso non incrocia orari lavorativi configurati."
         : "Permesso non inserito.");
+      setAddingBlock(false);
+      return;
     }
     setMessage("Permesso inserito in agenda sugli orari lavorativi.");
     setStartsAt("");
     setEndsAt("");
     await load();
+    setAddingBlock(false);
   }
 
   async function removeBlock(item: AvailabilityBlock) {
     if (!salon) return;
+    setError("");
+    setRemovingId(item.id);
     const response = await fetch(`${api}/api/salons/${salon.id}/staff/${item.staff_id}/availability-blocks/${item.id}`, {
       credentials: "include",
       method: "DELETE",
     });
-    if (!response.ok) return setError("Permesso non eliminato.");
+    if (!response.ok) {
+      setConfirmRemove(undefined);
+      setError("Permesso non eliminato.");
+      setRemovingId("");
+      return;
+    }
     setMessage("Permesso eliminato.");
+    setConfirmRemove(undefined);
     await load();
+    setRemovingId("");
   }
 
   const pending = items.filter((item) => item.status === "pending");
@@ -130,7 +151,7 @@ export default function PermissionsPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message)}>{message}</SaveToast>
-      <PageHeader eyebrow="Organizzazione" title="Permessi e assenze" subtitle="Gestisci richieste, ferie, permessi e indisponibilità di tutto il team in un unico spazio." />
+      <PageHeader eyebrow="Staff" title="Permessi e assenze" subtitle="Approva o rifiuta le richieste dall'App Staff, inserisci manualmente ferie e permessi e rimuovi i blocchi attivi." />
       {error && <InlineError className="mb-4">{error}</InlineError>}
 
       <div className="grid gap-5 xl:grid-cols-12">
@@ -151,8 +172,8 @@ export default function PermissionsPage() {
                   <textarea onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Opzionale" value={notes[item.id] ?? ""} />
                 </FormField>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button onClick={() => void review(item.id, "approved")} variant="primary">Approva</Button>
-                  <Button onClick={() => void review(item.id, "rejected")} variant="destructive">Rifiuta</Button>
+                  <Button disabled={reviewingId === item.id} onClick={() => void review(item.id, "approved")} variant="primary">{reviewingId === item.id ? "Attendere…" : "Approva"}</Button>
+                  <Button disabled={reviewingId === item.id} onClick={() => void review(item.id, "rejected")} variant="destructive">Rifiuta</Button>
                 </div>
               </article>
             ))}
@@ -168,14 +189,14 @@ export default function PermissionsPage() {
             <FormField label="Fine" required><DateTimeField aria-label="Fine permesso" min={startsAt || undefined} name="ends" onChange={setEndsAt} required value={endsAt} /></FormField>
           </div>
           <FormField label="Motivo"><input className="w-full" name="reason" /></FormField>
-          <div className="flex justify-end"><Button disabled={!startsAt || !endsAt || endsAt <= startsAt} type="submit" variant="primary">Inserisci permesso</Button></div>
+          <div className="flex justify-end"><SaveActionButton busy={addingBlock} disabled={!startsAt || !endsAt || endsAt <= startsAt} idleLabel="Inserisci permesso" saved={false} type="submit" /></div>
         </form>
       </SectionCard>
 
       <SectionCard className="xl:col-span-7" title={`Permessi attivi (${activeBlocks.length})`} subtitle="Blocchi correnti e futuri già presenti in agenda per tutto il team.">
         {activeBlocks.length === 0 ? <EmptyState title="Nessun permesso attivo" description="Le assenze approvate o inserite manualmente compariranno qui." /> : <div className="grid gap-3 md:grid-cols-2">
           {activeBlocks.map((item) => <article className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4" key={item.id}>
-            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.staff_name}</p><strong className="mt-1 block">{item.reason || "Non disponibile"}</strong></div><Button aria-label={`Elimina permesso di ${item.staff_name}`} className="size-10 p-0" onClick={() => void removeBlock(item)} size="sm" title="Elimina permesso" variant="destructive"><Trash2 className="size-4" /></Button></div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.staff_name}</p><strong className="mt-1 block">{item.reason || "Non disponibile"}</strong></div><Button aria-label={`Elimina permesso di ${item.staff_name}`} className="size-10 p-0" disabled={removingId === item.id} onClick={() => setConfirmRemove(item)} size="sm" title="Elimina permesso" variant="destructive"><Trash2 className="size-4" /></Button></div>
             <p className="mt-3 text-sm leading-6 text-stone-500">{dateTime(item.starts_at)}<br />fino a {dateTime(item.ends_at)}</p>
           </article>)}
         </div>}
@@ -194,6 +215,15 @@ export default function PermissionsPage() {
         )}
       </SectionCard>
       </div>
+      <ConfirmDialog
+        confirmLabel="Elimina"
+        destructive
+        description="Il collaboratore tornerà disponibile su questa fascia oraria in agenda."
+        onCancel={() => setConfirmRemove(undefined)}
+        onConfirm={() => confirmRemove && void removeBlock(confirmRemove)}
+        open={Boolean(confirmRemove)}
+        title={`Eliminare il permesso di ${confirmRemove?.staff_name ?? "collaboratore"}?`}
+      />
     </AppPage>
   );
 }

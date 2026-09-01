@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Check, CheckCheck, ChevronDown, Clock3, EyeOff, Mail, Pencil, Phone, ReceiptText, ShoppingBag, Trash2, UserRound, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, CheckCheck, ChevronDown, Clock3, EyeOff, Mail, Pencil, Phone, ShoppingBag, Trash2, UserRound, X } from "lucide-react";
 import {
   Button,
   ConfirmDialog,
@@ -21,9 +21,6 @@ import { ConsentRecordsPanel } from "../../settings/documents/_components/Consen
 import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
-
-type ItemType = "service" | "product" | "custom";
-type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 
 const statusActions: AppointmentStatus[] = ["pending", "confirmed", "no_show", "cancelled"];
 
@@ -63,30 +60,7 @@ interface Appointment {
   staff_id: string;
   staff_name: string;
   starts_at: string;
-  status: string;
-}
-
-interface CheckoutLine {
-  customer_package_id?: string;
-  description: string;
-  discount_cents: number;
-  item_type: ItemType;
-  package_item_id?: string;
-  package_name?: string;
-  package_quantity?: number;
-  product_id?: string;
-  quantity: number;
-  service_id?: string;
-  staff_id?: string;
-  unit_price_cents: number;
-}
-
-interface PaymentDraft {
-  amount_cents: number;
-  method: PaymentMethod;
-  voucher_balance_cents?: number;
-  voucher_code?: string;
-  voucher_customer_name?: string;
+  status: AppointmentStatus;
 }
 
 interface AppointmentOverlap {
@@ -97,53 +71,14 @@ interface AppointmentOverlap {
   starts_at: string;
 }
 
-interface VoucherLookup {
-  balance_cents: number;
-  code: string;
-  customer_id: string;
-  customer_name: string;
+interface StaffOption {
   id: string;
+  name: string;
 }
-interface CustomerPackage { id: string; items: Array<{ itemType: ItemType; packageItemId: string; productId?: string | null; remainingQuantity: number; serviceId?: string | null }>; name: string; }
 
 interface CheckoutResponse {
   appointment: Appointment;
-  sale: null | {
-    discountCents: number;
-    id: string;
-    items: Array<{
-      description: string;
-      discountCents: number;
-      itemType: ItemType;
-      productId?: string | null;
-      quantity: number;
-      serviceId?: string | null;
-      staffId?: string | null;
-      unitPriceCents: number;
-    }>;
-    notes?: string | null;
-    payments: Array<{ amountCents: number; method: PaymentMethod }>;
-    status: string;
-    totalCents: number;
-  };
-}
-
-const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
-  { label: "Contanti", value: "cash" },
-  { label: "Carta", value: "card" },
-  { label: "Voucher", value: "voucher" },
-  { label: "Bonifico", value: "bank_transfer" },
-  { label: "Altro", value: "other" },
-];
-const paymentLabels: Record<PaymentMethod, string> = Object.fromEntries(paymentMethods.map((method) => [method.value, method.label])) as Record<PaymentMethod, string>;
-
-function euro(cents: number) {
-  return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
-}
-
-function inputCents(value: string) {
-  const amount = Number(value.replace(",", "."));
-  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0;
+  sale: null | { status: string };
 }
 
 function formatDate(value: string) {
@@ -184,15 +119,10 @@ export default function AppointmentDetailPanel({
   const { salon } = useAuth();
   const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [data, setData] = useState<CheckoutResponse>();
-  const [lines, setLines] = useState<CheckoutLine[]>([]);
-  const [payments, setPayments] = useState<PaymentDraft[]>([{ amount_cents: 0, method: "cash" }]);
-  const [customerVouchers, setCustomerVouchers] = useState<VoucherLookup[]>([]);
-  const [customerPackages, setCustomerPackages] = useState<CustomerPackage[]>([]);
-  const [discountCents, setDiscountCents] = useState(0);
-  const [notes, setNotes] = useState("");
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [staffUpdating, setStaffUpdating] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
@@ -202,6 +132,7 @@ export default function AppointmentDetailPanel({
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
+  const [pendingUpdate, setPendingUpdate] = useState<Record<string, unknown>>();
 
   async function load() {
     if (!salon) return;
@@ -215,55 +146,26 @@ export default function AppointmentDetailPanel({
     }
     const next = await response.json() as CheckoutResponse;
     setData(next);
-    const voucherResponse = await fetch(`${api}/api/salons/${salon.id}/vouchers?${new URLSearchParams({ customer_id: next.appointment.customer_id, status: "active" })}`, { credentials: "include" });
-    setCustomerVouchers(voucherResponse.ok ? await voucherResponse.json() as VoucherLookup[] : []);
-    const packageResponse = await fetch(`${api}/api/salons/${salon.id}/customer-service-packages?${new URLSearchParams({ customer_id: next.appointment.customer_id })}`, { credentials: "include" });
-    const packages = packageResponse.ok ? await packageResponse.json() as CustomerPackage[] : [];
-    setCustomerPackages(packages);
+
+    const staffResponse = await fetch(
+      `${api}/api/salons/${salon.id}/operations/staff?serviceId=${next.appointment.service_id}&strictAssignments=true`,
+      { credentials: "include" },
+    );
+    const staffRows = staffResponse.ok
+      ? await staffResponse.json() as Array<{ display_name: string; id: string }>
+      : [];
+    setStaffOptions(staffRows.map((item) => ({ id: item.id, name: item.display_name })));
+
     setAppointmentDate(dateInputValue(next.appointment.starts_at));
     setAppointmentTime(timeInputValue(next.appointment.starts_at));
     setAppointmentDuration(String(minutesBetween(next.appointment.starts_at, next.appointment.ends_at)));
     setAppointmentNotes(next.appointment.notes ?? "");
-    if (next.sale) {
-      setLines(next.sale.items.map((item) => ({
-        description: item.description,
-        discount_cents: item.discountCents,
-        item_type: item.itemType,
-        product_id: item.productId ?? undefined,
-        quantity: item.quantity,
-        service_id: item.serviceId ?? undefined,
-        staff_id: item.staffId ?? undefined,
-        unit_price_cents: item.unitPriceCents,
-      })));
-      setPayments(next.sale.payments.map((item) => ({ amount_cents: item.amountCents, method: item.method })));
-      setDiscountCents(next.sale.discountCents);
-      setNotes(next.sale.notes ?? "");
-    } else {
-      setLines([{
-        description: next.appointment.service_name,
-        discount_cents: 0,
-        item_type: "service",
-        quantity: 1,
-        service_id: next.appointment.service_id,
-        staff_id: next.appointment.staff_id,
-        unit_price_cents: next.appointment.service_price_cents,
-      }]);
-      setDiscountCents(0);
-      setNotes("");
-    }
-    if (packages.length) window.setTimeout(() => applyPackages(packages), 0);
     setError("");
     setLoading(false);
   }
 
   useEffect(() => { void load(); }, [salon?.id, appointmentId]);
 
-  const subtotalCents = useMemo(() => lines.reduce((total, line) => {
-    const gross = (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents;
-    return total + Math.max(0, gross - line.discount_cents);
-  }, 0), [lines]);
-  const totalCents = Math.max(0, subtotalCents - discountCents);
-  const paidCents = payments.reduce((total, payment) => total + payment.amount_cents, 0);
   const isClosed = data?.sale?.status === "paid";
   const checkoutEnabled = !isClosed && data?.appointment.status === "confirmed";
   const editedEndTime = useMemo(() => {
@@ -274,11 +176,46 @@ export default function AppointmentDetailPanel({
     return end.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
   }, [appointmentDate, appointmentDuration, appointmentTime]);
 
-  useEffect(() => {
-    if (checkoutEnabled && payments.length === 1) {
-      setPayments((current) => [{ ...current[0]!, amount_cents: totalCents }]);
+  async function updateAppointment(body: Record<string, unknown>, options: { onDone?(): void } = {}) {
+    if (!salon) return;
+    setError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${appointmentId}`, {
+      body: JSON.stringify(body),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    const responseBody = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[]; error?: string };
+    if (!response.ok) {
+      if (responseBody.error === "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED") {
+        setOverlaps(responseBody.conflicts ?? []);
+        setPendingUpdate(body);
+        return false;
+      }
+      const messages: Record<string, string> = {
+        APPOINTMENT_CONFLICT: "Il nuovo orario coincide con un blocco o supera il limite di affiancamento configurato.",
+        INVALID_DURATION: "La durata deve essere compresa tra 5 e 720 minuti.",
+        PERMISSION_DENIED: "Non hai i permessi per assegnare questo collaboratore.",
+        STAFF_NOT_QUALIFIED: "Il collaboratore selezionato non è abilitato per questo servizio.",
+      };
+      setError(messages[responseBody.error ?? ""] ?? "Appuntamento non aggiornato.");
+      return false;
     }
-  }, [totalCents, checkoutEnabled]);
+    await load();
+    setOverlaps([]);
+    setPendingUpdate(undefined);
+    onChanged?.();
+    options.onDone?.();
+    return true;
+  }
+
+  async function changeStaff(nextStaffId: string) {
+    if (!data || nextStaffId === data.appointment.staff_id) return;
+
+    setStaffUpdating(true);
+    await updateAppointment({ staff_id: nextStaffId });
+    setStaffUpdating(false);
+  }
 
   async function updateStatus(status: AppointmentStatus) {
     if (!salon) return;
@@ -303,47 +240,34 @@ export default function AppointmentDetailPanel({
     setStatusUpdating(false);
   }
 
-  async function saveAppointment(confirmOverlap = false) {
-    if (!salon || !data || !appointmentDate || !appointmentTime) return;
+  async function saveAppointment() {
+    if (!data || !appointmentDate || !appointmentTime) return;
     const durationMinutes = Number(appointmentDuration);
     if (!Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 720) {
       setError("Inserisci una durata valida, da 5 a 720 minuti.");
       return;
     }
     setSavingAppointment(true);
-    setError("");
     const startsAt = new Date(`${appointmentDate}T${appointmentTime}`);
-    const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${appointmentId}`, {
-      body: JSON.stringify({
-        confirm_overlap: confirmOverlap,
-        duration_minutes: durationMinutes,
-        notes: appointmentNotes,
-        starts_at: startsAt.toISOString(),
-      }),
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      method: "PATCH",
-    });
-    const body = await response.json().catch(() => ({})) as { conflicts?: AppointmentOverlap[]; error?: string };
-    if (!response.ok) {
-      if (body.error === "APPOINTMENT_OVERLAP_CONFIRMATION_REQUIRED") {
-        setOverlaps(body.conflicts ?? []);
-        setSavingAppointment(false);
-        return;
-      }
-      setError(body.error === "APPOINTMENT_CONFLICT"
-        ? "Il nuovo orario coincide con un blocco o supera il limite di affiancamento configurato."
-        : body.error === "INVALID_DURATION"
-          ? "La durata deve essere compresa tra 5 e 720 minuti."
-          : "Appuntamento non aggiornato.");
-      setSavingAppointment(false);
-      return;
-    }
-    await load();
-    setOverlaps([]);
-    onChanged?.();
-    setEditingAppointment(false);
+    await updateAppointment({
+      duration_minutes: durationMinutes,
+      notes: appointmentNotes,
+      starts_at: startsAt.toISOString(),
+    }, { onDone: () => setEditingAppointment(false) });
     setSavingAppointment(false);
+  }
+
+  async function confirmPendingUpdate() {
+    if (!pendingUpdate) return;
+
+    setSavingAppointment(true);
+    setStaffUpdating(true);
+    await updateAppointment(
+      { ...pendingUpdate, confirm_overlap: true },
+      { onDone: () => setEditingAppointment(false) },
+    );
+    setSavingAppointment(false);
+    setStaffUpdating(false);
   }
 
   const closeAppointmentEditor = useCallback(() => {
@@ -356,83 +280,6 @@ export default function AppointmentDetailPanel({
     }
     setEditingAppointment(false);
   }, [data?.appointment]);
-
-  async function completeCheckout() {
-    if (!salon || !checkoutEnabled) return;
-    if (paidCents !== totalCents) {
-      setError(`I pagamenti devono coprire esattamente ${euro(totalCents)}.`);
-      return;
-    }
-    setSaving(true);
-    setError("");
-    const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${appointmentId}/checkout`, {
-      body: JSON.stringify({
-        discount_cents: discountCents,
-        items: lines,
-        notes,
-        payments: payments.map(({ amount_cents, method, voucher_code }) => ({ amount_cents, method, voucher_code })),
-      }),
-      credentials: "include",
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-    const body = await response.json().catch(() => ({})) as { error?: string };
-    if (!response.ok) {
-      const messages: Record<string, string> = {
-        APPOINTMENT_NOT_CONFIRMED: "La cassa è disponibile solo per un appuntamento confermato.",
-        PAYMENT_TOTAL_MISMATCH: "Il totale dei pagamenti non coincide con il conto.",
-        SALE_ALREADY_CLOSED: "Questo conto è già stato chiuso.",
-        VOUCHER_CODE_REQUIRED: "Inserisci il codice del buono.",
-        VOUCHER_CUSTOMER_MISMATCH: "Il buono non appartiene a questo cliente.",
-        VOUCHER_EXHAUSTED: "Il buono è già esaurito.",
-        VOUCHER_INSUFFICIENT_BALANCE: "Il buono non ha saldo sufficiente per questo importo.",
-        VOUCHER_NOT_FOUND: "Buono non trovato.",
-      };
-      setError(messages[body.error ?? ""] ?? "Checkout non completato. Controlla i dati.");
-      setSaving(false);
-      return;
-    }
-    await load();
-    onChanged?.();
-    setSaving(false);
-  }
-
-  function applyPackages(packages = customerPackages) {
-    const remaining = new Map<string, number>();
-    packages.forEach((pack) => pack.items.forEach((item) => remaining.set(`${pack.id}:${item.packageItemId}`, item.remainingQuantity)));
-    setLines((current) => current.map((line) => {
-      if (line.item_type !== "service" && line.item_type !== "product") return line;
-      const match = packages.flatMap((pack) => pack.items.map((item) => ({ ...item, customerPackageId: pack.id, packageName: pack.name }))).find((item) =>
-        item.remainingQuantity > 0 &&
-        item.itemType === line.item_type &&
-        (line.item_type === "service" ? item.serviceId === line.service_id : item.productId === line.product_id)
-      );
-      if (!match) return { ...line, customer_package_id: undefined, package_item_id: undefined, package_name: undefined, package_quantity: undefined };
-      const key = `${match.customerPackageId}:${match.packageItemId}`;
-      const available = remaining.get(key) ?? 0;
-      const covered = Math.min(line.quantity, available);
-      remaining.set(key, available - covered);
-      return { ...line, customer_package_id: match.customerPackageId, package_item_id: match.packageItemId, package_name: match.packageName, package_quantity: covered };
-    }));
-  }
-
-  function applyVoucher(voucher: VoucherLookup, paymentIndex?: number) {
-    const voucherAmount = Math.min(totalCents, voucher.balance_cents);
-    const voucherPayment: PaymentDraft = {
-      amount_cents: voucherAmount,
-      method: "voucher",
-      voucher_balance_cents: voucher.balance_cents,
-      voucher_code: voucher.code,
-      voucher_customer_name: voucher.customer_name,
-    };
-    if (paymentIndex !== undefined) {
-      setPayments((current) => current.map((payment, index) => index === paymentIndex ? voucherPayment : payment));
-      return;
-    }
-    const remainder = totalCents - voucherAmount;
-    setPayments(remainder > 0 ? [voucherPayment, { amount_cents: remainder, method: "cash" }] : [voucherPayment]);
-    setError("");
-  }
 
   async function remove() {
     if (!salon) return;
@@ -459,7 +306,7 @@ export default function AppointmentDetailPanel({
         footer={
           <>
             <Button onClick={() => setOverlaps([])} variant="outline">Modifica orario</Button>
-            <Button disabled={savingAppointment} onClick={() => void saveAppointment(true)} variant="primary">
+            <Button disabled={savingAppointment} onClick={() => void confirmPendingUpdate()} variant="primary">
               {savingAppointment ? "Salvataggio..." : "Conferma affiancamento"}
             </Button>
           </>
@@ -527,13 +374,35 @@ export default function AppointmentDetailPanel({
       {!appointment ? (
         <div className="grid flex-1 place-items-center p-6"><EmptyState title="Appuntamento non trovato" description="Potrebbe essere stato eliminato o non essere accessibile." /></div>
       ) : (
-        <div className="grid min-h-0 min-w-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_380px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_410px]">
-            <main className="min-w-0 space-y-4 p-4 sm:p-5 lg:overflow-y-auto lg:p-6">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+            <main className="mx-auto w-full max-w-6xl space-y-4 p-4 sm:p-5 lg:p-6">
               {error && <InlineError>{error}</InlineError>}
               <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                 <div className="grid divide-y divide-stone-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                   <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[#792f59]"><CalendarDays aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Quando</p></div><p className="mt-2 font-black text-stone-950">{formatDate(appointment.starts_at)}</p><p className="mt-1 text-sm font-semibold text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)} · {minutesBetween(appointment.starts_at, appointment.ends_at)} min</p></div>
-                  <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[#792f59]"><UserRound aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Assegnazione</p></div><p className="mt-2 font-black text-stone-950">{appointment.staff_name}</p><p className="mt-1 text-sm font-semibold text-stone-600">{appointment.service_name}</p></div>
+                  <div className="p-4 sm:p-5">
+                    <div className="flex items-center gap-2 text-[#792f59]">
+                      <UserRound aria-hidden="true" className="size-4" />
+                      <p className="text-[10px] font-black uppercase tracking-[.16em]">Con</p>
+                    </div>
+                    <select
+                      aria-label="Collaboratore assegnato"
+                      className="mt-2 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-black text-stone-950 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+                      disabled={isClosed || staffUpdating}
+                      onChange={(event) => void changeStaff(event.target.value)}
+                      value={appointment.staff_id}
+                    >
+                      {!staffOptions.some((staff) => staff.id === appointment.staff_id) && (
+                        <option value={appointment.staff_id}>{appointment.staff_name}</option>
+                      )}
+                      {staffOptions.map((staff) => (
+                        <option key={staff.id} value={staff.id}>{staff.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-sm font-semibold text-stone-600">
+                      {staffUpdating ? "Aggiornamento collaboratore…" : appointment.service_name}
+                    </p>
+                  </div>
                 </div>
                 <div className="border-t border-stone-100 p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Cliente</p><Link className="mt-1 inline-block text-lg font-black text-stone-950 hover:text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>{appointment.customer_name}</Link></div><Link className="text-sm font-bold text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>Apri anagrafica</Link></div>
@@ -556,92 +425,40 @@ export default function AppointmentDetailPanel({
               </DocumentsModuleGate>
 
               <section className="rounded-xl border border-[#d9a7c2] bg-[#fffafd] p-4 sm:p-5">
-                <div className="flex items-start gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f3e2eb] text-[#792f59]"><ShoppingBag aria-hidden="true" className="size-5" /></span><div className="min-w-0 flex-1"><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Vendita completa</p><h2 className="mt-1 text-lg font-black text-stone-950">Aggiungi prodotti o altri servizi</h2><p className="mt-1 text-sm leading-6 text-stone-600">Apri la Cassa con questo appuntamento già caricato nel checkout, poi completa liberamente il carrello.</p></div></div>
-                {isClosed ? <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">La vendita di questo appuntamento è già stata registrata.</div> : checkoutEnabled ? <Link className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href={`/sales?appointment=${encodeURIComponent(appointment.id)}`}>Aggiungi in Cassa<ArrowRight aria-hidden="true" className="size-4" /></Link> : <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">Conferma prima l’appuntamento per caricarlo in Cassa.</div>}
+                <div className="flex items-start gap-3">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f3e2eb] text-[#792f59]">
+                    <ShoppingBag aria-hidden="true" className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Azione principale</p>
+                    <h2 className="mt-1 text-lg font-black text-stone-950">Porta in cassa</h2>
+                    <p className="mt-1 text-sm leading-6 text-stone-600">
+                      Porta l’appuntamento in Cassa già caricato, quindi completa il conto con eventuali prodotti,
+                      sconti, buoni e modalità di pagamento.
+                    </p>
+                  </div>
+                </div>
+
+                {isClosed ? (
+                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">
+                    La vendita di questo appuntamento è già stata registrata.
+                  </div>
+                ) : checkoutEnabled ? (
+                  <Link
+                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#792f59] px-4 text-sm font-black text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+                    href={`/sales?appointment=${encodeURIComponent(appointment.id)}`}
+                  >
+                    Porta in cassa
+                    <ArrowRight aria-hidden="true" className="size-4" />
+                  </Link>
+                ) : (
+                  <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                    Conferma prima l’appuntamento per portarlo in Cassa.
+                  </div>
+                )}
               </section>
             </main>
 
-            <aside className="flex min-w-0 flex-col border-t border-stone-200 bg-white lg:h-full lg:min-h-0 lg:border-l lg:border-t-0">
-              <div className="min-h-0 flex-1 p-4 sm:p-5 lg:overflow-y-auto lg:p-6">
-                <div className="flex items-center gap-2 text-[#792f59]"><ReceiptText aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Checkout</p></div>
-                <h2 className="mt-1 text-2xl font-black text-stone-950">{isClosed ? "Riepilogo vendita" : "Chiudi il conto"}</h2>
-
-                <div className="mt-6 space-y-3 border-y border-stone-200 py-5 text-sm">
-                  <div className="flex justify-between"><span className="font-semibold text-stone-500">Subtotale</span><b>{euro(subtotalCents)}</b></div>
-                  <label className="flex items-center justify-between gap-3 font-semibold text-stone-500">Sconto sul conto
-                    <input className="w-28 rounded-xl border border-stone-200 px-3 py-2 text-right font-black text-stone-950 disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setDiscountCents(inputCents(event.target.value))} step=".01" type="number" value={(discountCents / 100).toFixed(2)} />
-                  </label>
-                  <div className="flex items-end justify-between gap-3 pt-2"><span className="font-black text-stone-950">Totale</span><strong className="break-words text-right text-3xl font-black tracking-tight text-[#5f2447]">{euro(totalCents)}</strong></div>
-                </div>
-
-                <div className="mt-5">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-black text-stone-950">Pagamenti</h3>
-                    {checkoutEnabled && <button className="text-sm font-black text-[#792f59]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])} type="button">Dividi pagamento</button>}
-                  </div>
-                  {checkoutEnabled && customerVouchers.length > 0 && <section className="mt-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-[10px] font-black uppercase tracking-[.14em] text-teal-800">Buoni disponibili</p><p className="mt-1 text-xs text-teal-950">Credito associato a {data.appointment.customer_name}</p></div>
-                      <strong className="text-teal-950">{euro(customerVouchers.reduce((sum, voucher) => sum + voucher.balance_cents, 0))}</strong>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {customerVouchers.map((voucher) => <button className="rounded-xl border border-teal-300 bg-white px-3 py-2 text-left text-xs hover:bg-teal-100" key={voucher.id ?? voucher.code} onClick={() => applyVoucher(voucher)} type="button">
-                        <strong className="block">Usa {euro(voucher.balance_cents)}</strong>
-                        <span className="font-mono text-[10px] text-teal-700">•••• {voucher.code.slice(-4)}</span>
-                      </button>)}
-                    </div>
-                  </section>}
-                  <div className="mt-3 space-y-3">
-                    {payments.map((payment, index) => (
-                      <div className="rounded-xl border border-stone-200 p-3" key={index}>
-                        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_106px_28px] gap-2">
-                          <select
-                            className="min-h-11 min-w-0 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold disabled:bg-stone-100"
-                            disabled={!checkoutEnabled}
-                            onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? {
-                              amount_cents: entry.amount_cents,
-                              method: event.target.value as PaymentMethod,
-                            } : entry))}
-                            value={payment.method}
-                          >
-                            {paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
-                          </select>
-                          <input className="min-h-11 min-w-0 w-full rounded-xl border border-stone-200 px-3 text-right text-sm font-black disabled:bg-stone-100" disabled={!checkoutEnabled} min={0} onChange={(event) => setPayments((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, amount_cents: inputCents(event.target.value) } : entry))} step=".01" type="number" value={(payment.amount_cents / 100).toFixed(2)} />
-                          {checkoutEnabled && payments.length > 1 ? <button aria-label="Rimuovi pagamento" className="grid size-7 self-center place-items-center rounded-md font-black text-red-700 hover:bg-red-50" onClick={() => setPayments((current) => current.filter((_, entryIndex) => entryIndex !== index))} type="button">×</button> : <span />}
-                        </div>
-                        {payment.method === "voucher" && <div className="mt-3">
-                          {customerVouchers.length === 0 && <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600">Il cliente non ha buoni attivi.</p>}
-                          {customerVouchers.length > 0 && <div className="grid gap-2">
-                            {customerVouchers.map((voucher) => <button className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${payment.voucher_code === voucher.code ? "border-teal-500 bg-teal-50" : "border-stone-200 bg-white hover:border-teal-300"}`} key={voucher.code} onClick={() => applyVoucher(voucher, index)} type="button">
-                              <span><strong className="block">Buono •••• {voucher.code.slice(-4)}</strong><span className="text-stone-500">Disponibile {euro(voucher.balance_cents)}</span></span>
-                              <span className="font-black text-teal-800">{payment.voucher_code === voucher.code ? "Selezionato" : "Usa"}</span>
-                            </button>)}
-                          </div>}
-                        </div>}
-                      </div>
-                    ))}
-                  </div>
-                  <div className={`mt-3 flex justify-between rounded-xl px-3 py-2 text-sm font-bold ${paidCents === totalCents ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
-                    <span>Registrato</span><span>{euro(paidCents)} / {euro(totalCents)}</span>
-                  </div>
-                </div>
-
-                <label className="mt-5 block text-sm font-bold text-stone-600">Nota interna sul movimento
-                  <textarea className="mt-2 min-h-24 w-full resize-none rounded-xl border border-stone-200 bg-white p-3 text-sm font-medium disabled:bg-stone-100" disabled={!checkoutEnabled} onChange={(event) => setNotes(event.target.value)} value={notes} />
-                </label>
-
-                {isClosed ? (
-                  <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
-                    Vendita registrata nella contabilità gestionale. Nessun documento fiscale viene emesso.
-                  </div>
-                ) : !checkoutEnabled ? (
-                  <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-                    La cassa è disabilitata. Imposta l’appuntamento come Confermato per registrare la vendita.
-                  </div>
-                ) : null}
-              </div>
-              {checkoutEnabled && <footer className="sticky bottom-0 z-10 shrink-0 border-t border-stone-200 bg-white p-4 shadow-[0_-12px_28px_rgb(45_29_39_/_0.08)] sm:p-5"><Button className="min-h-14 w-full text-base" disabled={saving || lines.length === 0 || paidCents !== totalCents || payments.some((payment) => payment.method === "voucher" && (!payment.voucher_code || payment.voucher_balance_cents === undefined || payment.amount_cents > payment.voucher_balance_cents))} onClick={() => void completeCheckout()} variant="primary">{saving ? "Registrazione…" : `Incassa ${euro(totalCents)}`}</Button></footer>}
-            </aside>
         </div>
       )}
       <ConfirmDialog

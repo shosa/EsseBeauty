@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { CalendarClock, MapPinned, Smartphone, UserRound } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { CalendarClock, Check, ChevronDown, MapPinned, Smartphone, UserRound } from "lucide-react";
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Breadcrumbs, Button, FormField, PageHeader, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, designTokens, FormField, PageHeader, SaveActionButton, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
 import { useAuth } from "../../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -51,6 +52,13 @@ export default function StaffDetailPage() {
   const [services, setServices] = useState<StaffService[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [locationId, setLocationId] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savedProfile, setSavedProfile] = useState(false);
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [savedAccess, setSavedAccess] = useState(false);
+  const [savingCapabilities, setSavingCapabilities] = useState(false);
+  const [savedCapabilities, setSavedCapabilities] = useState(false);
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
 
   const load = async () => {
     if (!salon) return;
@@ -93,6 +101,8 @@ export default function StaffDetailPage() {
 
   async function save() {
     if (!member || !salon) return;
+    setSavingProfile(true);
+    setSavedProfile(false);
     const response = await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}`, {
       method: "PATCH",
       credentials: "include",
@@ -107,10 +117,14 @@ export default function StaffDetailPage() {
     });
     setMessage(response.ok ? "Profilo staff salvato." : "");
     setError(response.ok ? "" : "Profilo non salvato.");
+    setSavedProfile(response.ok);
+    setSavingProfile(false);
   }
 
   async function saveAccess(data: FormData) {
     if (!salon) return;
+    setSavingAccess(true);
+    setSavedAccess(false);
     const password = String(data.get("password") ?? "");
     const response = await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/access`, {
       method: "PATCH",
@@ -125,10 +139,13 @@ export default function StaffDetailPage() {
     if (!response.ok) {
       const payload = await response.json().catch(() => ({ error: "ACCESS_NOT_SAVED" }));
       setError(payload.error === "PASSWORD_REQUIRED" ? "Inserisci una password per creare il primo accesso." : "Accesso App Staff non salvato.");
+      setSavingAccess(false);
       return;
     }
     setAccess(await response.json() as StaffAccess);
     setMessage("Accesso App Staff salvato.");
+    setSavedAccess(true);
+    setSavingAccess(false);
   }
 
   async function saveCapabilities() {
@@ -138,6 +155,8 @@ export default function StaffDetailPage() {
       setError("Abilita almeno un servizio per il collaboratore.");
       return;
     }
+    setSavingCapabilities(true);
+    setSavedCapabilities(false);
     const response = await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}/services`, {
       body: JSON.stringify({ location_id: locationId, service_ids: serviceIds }),
       credentials: "include",
@@ -146,6 +165,8 @@ export default function StaffDetailPage() {
     });
     setMessage(response.ok ? "Sede e competenze salvate." : "");
     setError(response.ok ? "" : "Sede e competenze non salvate.");
+    setSavedCapabilities(response.ok);
+    setSavingCapabilities(false);
   }
 
   if (!member) return <AppPage maxWidth="max-w-[1600px]"><SectionCard><div className="h-96 animate-pulse rounded-2xl bg-stone-100" /></SectionCard></AppPage>;
@@ -154,7 +175,7 @@ export default function StaffDetailPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message || error)} variant={error ? "error" : "success"}>{error || message}</SaveToast>
       <Breadcrumbs items={[{ href: "/staff", label: "Staff" }, { label: member.displayName }]} />
-      <PageHeader eyebrow="Profilo staff" title={member.displayName} subtitle="Anagrafica, accesso App Staff e orari ricorrenti." />
+      <PageHeader eyebrow="Staff" title={member.displayName} subtitle="Modifica anagrafica e orari, gestisci l'accesso all'App Staff e imposta sede di lavoro e servizi abilitati." />
 
       <div className="grid gap-4 xl:grid-cols-12">
         <SectionCard className="xl:col-span-5" title={<span className="flex items-center gap-2"><UserRound className="size-5 text-[#792f59]" />Profilo</span>} subtitle="Dati visibili nel gestionale e nelle aree collegate al collaboratore.">
@@ -176,7 +197,7 @@ export default function StaffDetailPage() {
             </FormField>
           </div>
           <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-            <Button onClick={() => void save()} variant="primary">Salva profilo</Button>
+            <SaveActionButton busy={savingProfile} idleLabel="Salva profilo" onClick={() => void save()} saved={savedProfile} />
           </div>
         </SectionCard>
 
@@ -205,41 +226,28 @@ export default function StaffDetailPage() {
               </p>
             )}
             <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-              <Button type="submit" variant="primary">Salva accesso App Staff</Button>
+              <SaveActionButton busy={savingAccess} idleLabel="Salva accesso App Staff" saved={savedAccess} type="submit" />
             </div>
           </form>
         </SectionCard>
 
-        <SectionCard className="xl:col-span-8" title={<span className="flex items-center gap-2"><CalendarClock className="size-5 text-[#792f59]" />Orari settimanali</span>} subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4">
-            <div>
-              <strong className="block text-sm text-stone-900">Orario base del salone</strong>
-              <span className="mt-1 block text-xs text-stone-500">Sostituisce le fasce sottostanti con gli orari di apertura attuali.</span>
-            </div>
-            <Button disabled={!salonHours} onClick={() => salonHours && setMember({ ...member, workingHours: structuredClone(salonHours) })} size="sm" variant="outline">Carica orari salone</Button>
-          </div>
-          <ScheduleEditor
-            onChange={(workingHours) => setMember({ ...member, workingHours })}
-            value={member.workingHours}
-          />
-          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-            <Button onClick={() => void save()} variant="primary">Salva orari</Button>
-          </div>
-        </SectionCard>
-
-        <SectionCard className="xl:col-span-4" title={<span className="flex items-center gap-2"><MapPinned className="size-5 text-[#792f59]" />Sede e servizi</span>} subtitle="Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.">
+        <SectionCard className="xl:col-span-8" title={<span className="flex items-center gap-2"><MapPinned className="size-5 text-[#792f59]" />Sede e servizi</span>} subtitle="Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.">
           {locations.length > 0 && (
             <div>
               <p className="text-sm font-bold text-stone-900">Sede di lavoro</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {locations.filter((location) => location.active).map((location) => (
                   <button
+                    aria-pressed={locationId === location.id}
                     className={`rounded-xl border p-4 text-left transition ${locationId === location.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}
                     key={location.id}
                     onClick={() => setLocationId(location.id)}
                     type="button"
                   >
-                    <strong className="block">{location.name}</strong>
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="block">{location.name}</strong>
+                      {locationId === location.id && <Check aria-hidden="true" className="size-4 shrink-0 text-[#9d4f78]" />}
+                    </div>
                     <span className="mt-1 block text-xs text-stone-500">{location.address || "Indirizzo non specificato"}</span>
                   </button>
                 ))}
@@ -254,29 +262,79 @@ export default function StaffDetailPage() {
               </div>
               <Button onClick={() => setServices(services.map((service) => ({ ...service, enabled: service.active })))} size="sm" variant="outline">Seleziona tutti</Button>
             </div>
-            <div className="mt-4 space-y-4">
-              {Array.from(new Set(services.map((service) => service.category))).map((category) => (
-                <div key={category}>
-                  <p className="mb-2 text-[11px] font-black uppercase tracking-[.16em] text-stone-400">{category}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {services.filter((service) => service.category === category).map((service) => (
-                      <button
-                        className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${service.enabled ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-500"}`}
-                        disabled={!service.active}
-                        key={service.id}
-                        onClick={() => setServices(services.map((item) => item.id === service.id ? { ...item, enabled: !item.enabled } : item))}
-                        type="button"
-                      >
-                        {service.name}
-                      </button>
-                    ))}
+            <div className="mt-4 space-y-2">
+              {Array.from(new Set(services.map((service) => service.category))).map((category) => {
+                const categoryServices = services.filter((service) => service.category === category);
+                const enabledCount = categoryServices.filter((service) => service.enabled).length;
+                const isOpen = Boolean(openCategories[category]);
+                const panelId = `services-category-${category.toLowerCase().replace(/\s+/g, "-")}`;
+                return (
+                  <div className="overflow-hidden rounded-xl border border-stone-200" key={category}>
+                    <button
+                      aria-controls={panelId}
+                      aria-expanded={isOpen}
+                      className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+                      onClick={() => setOpenCategories((current) => ({ ...current, [category]: !isOpen }))}
+                      type="button"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold text-stone-900">{category}</span>
+                        <span className="mt-0.5 block text-xs text-stone-500">{enabledCount}/{categoryServices.length} abilitati</span>
+                      </span>
+                      <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-stone-500 transition-transform ${isOpen ? "rotate-180 text-[#792f59]" : ""}`} />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          animate={{ height: "auto", opacity: 1 }}
+                          className="overflow-hidden"
+                          exit={{ height: 0, opacity: 0 }}
+                          id={panelId}
+                          initial={{ height: 0, opacity: 0 }}
+                          transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
+                        >
+                          <div className="flex flex-wrap gap-2 border-t border-stone-100 p-4">
+                            {categoryServices.map((service) => (
+                              <button
+                                aria-pressed={service.enabled}
+                                className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-bold transition ${service.enabled ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-500"}`}
+                                disabled={!service.active}
+                                key={service.id}
+                                onClick={() => setServices(services.map((item) => item.id === service.id ? { ...item, enabled: !item.enabled } : item))}
+                                type="button"
+                              >
+                                {service.enabled && <Check aria-hidden="true" className="size-3.5 shrink-0" />}
+                                {service.name}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
           <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-            <Button onClick={() => void saveCapabilities()} variant="primary">Salva sede e competenze</Button>
+            <SaveActionButton busy={savingCapabilities} idleLabel="Salva sede e competenze" onClick={() => void saveCapabilities()} saved={savedCapabilities} />
+          </div>
+        </SectionCard>
+
+        <SectionCard className="xl:col-span-4" title={<span className="flex items-center gap-2"><CalendarClock className="size-5 text-[#792f59]" />Orari settimanali</span>} subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
+          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4">
+            <div>
+              <strong className="block text-sm text-stone-900">Orario base del salone</strong>
+              <span className="mt-1 block text-xs text-stone-500">Sostituisce le fasce sottostanti con gli orari di apertura attuali.</span>
+            </div>
+            <Button className="self-start" disabled={!salonHours} onClick={() => salonHours && setMember({ ...member, workingHours: structuredClone(salonHours) })} size="sm" variant="outline">Carica orari salone</Button>
+          </div>
+          <ScheduleEditor
+            onChange={(workingHours) => setMember({ ...member, workingHours })}
+            value={member.workingHours}
+          />
+          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+            <SaveActionButton busy={savingProfile} idleLabel="Salva orari" onClick={() => void save()} saved={savedProfile} />
           </div>
         </SectionCard>
 

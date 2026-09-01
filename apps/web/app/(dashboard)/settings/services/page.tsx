@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Archive, FolderPlus, Pencil, Plus, SquareArrowOutUpRight } from "lucide-react";
 
@@ -39,6 +40,7 @@ interface CategoryDraft {
 }
 
 export default function SettingsServicesPage() {
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<Service[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
@@ -143,7 +145,7 @@ export default function SettingsServicesPage() {
           actions={
             <div className="flex flex-wrap gap-2">
               <ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />
-              <ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => window.location.assign(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} tone="fuchsia" />
+              <ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => router.push(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} tone="fuchsia" />
             </div>
           }
           eyebrow="Core"
@@ -211,7 +213,7 @@ export default function SettingsServicesPage() {
 
                   {visibleServices.length === 0 ? (
                     <EmptyState
-                      action={<ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => window.location.assign(`/services/new?category=${selectedCategory.id}`)} tone="fuchsia" />}
+                      action={<ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => router.push(`/services/new?category=${selectedCategory.id}`)} tone="fuchsia" />}
                       description={`Non ci sono ancora servizi nella categoria ${selectedCategory.name}.`}
                       title="Categoria vuota"
                     />
@@ -227,7 +229,7 @@ export default function SettingsServicesPage() {
                           <strong className="text-sm">{formatPrice(item.priceCents, "it-IT")}</strong>
                           <div className="flex items-center justify-end gap-3">
                             <Switch checked={item.active} onCheckedChange={() => void toggle(item)} />
-                            <ExpandableAction icon={SquareArrowOutUpRight} label={`Apri servizio ${item.name}`} onClick={() => window.location.assign(`/services/${item.id}`)} tone="sky" />
+                            <ExpandableAction icon={SquareArrowOutUpRight} label={`Apri servizio ${item.name}`} onClick={() => router.push(`/services/${item.id}`)} tone="sky" />
                             <ExpandableAction icon={Archive} label={`Archivia servizio ${item.name}`} onClick={() => setConfirmDelete(item)} tone="rose" />
                           </div>
                         </article>
