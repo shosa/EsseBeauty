@@ -674,21 +674,21 @@ export default function AccountingPage() {
               {Boolean(data?.payments.length) && (
                 <>
                   <div className="mt-6 text-[11px] font-black uppercase tracking-[.1em] text-stone-500">Metodi di pagamento</div>
-                  <table className="mt-2.5 w-full text-[12.5px]">{data?.payments.map((item) => <tr key={item.method}><td className="border-b border-[#e8dfe4] py-1.5">{methodLabels[item.method as PaymentMethod] ?? item.method}</td><td className="border-b border-[#e8dfe4] py-1.5 text-right font-mono tnum">{euro(item.amount_cents)}</td></tr>)}</table>
+                  <table className="mt-2.5 w-full text-[12.5px]"><tbody>{data?.payments.map((item) => <tr key={item.method}><td className="border-b border-[#e8dfe4] py-1.5">{methodLabels[item.method as PaymentMethod] ?? item.method}</td><td className="border-b border-[#e8dfe4] py-1.5 text-right font-mono tnum">{euro(item.amount_cents)}</td></tr>)}</tbody></table>
                 </>
               )}
 
               {Boolean(overview?.expenses.categories.length) && (
                 <>
                   <div className="mt-6 text-[11px] font-black uppercase tracking-[.1em] text-stone-500">Spese per categoria</div>
-                  <table className="mt-2.5 w-full text-[12.5px]">{overview?.expenses.categories.map((item) => <tr key={item.category}><td className="border-b border-[#e8dfe4] py-1.5">{item.category}</td><td className="border-b border-[#e8dfe4] py-1.5 text-right font-mono tnum">{euro(item.total_cents)}</td></tr>)}</table>
+                  <table className="mt-2.5 w-full text-[12.5px]"><tbody>{overview?.expenses.categories.map((item) => <tr key={item.category}><td className="border-b border-[#e8dfe4] py-1.5">{item.category}</td><td className="border-b border-[#e8dfe4] py-1.5 text-right font-mono tnum">{euro(item.total_cents)}</td></tr>)}</tbody></table>
                 </>
               )}
 
               {Boolean(operatorTotals.length) && (
                 <>
                   <div className="mt-6 text-[11px] font-black uppercase tracking-[.1em] text-stone-500">Migliori operatori</div>
-                  <table className="mt-2.5 w-full text-[12.5px]">{operatorTotals.slice(0, 4).map((item) => <tr key={item.name}><td className="border-b border-[#e8dfe4] py-1.5">{item.name} — {item.count} vendite</td><td className="border-b border-[#e8dfe4] py-1.5 text-right font-mono tnum">{euro(item.total)}</td></tr>)}</table>
+                  <table className="mt-2.5 w-full text-[12.5px]"><tbody>{operatorTotals.slice(0, 4).map((item) => <tr key={item.name}><td className="border-b border-[#e8dfe4] py-1.5">{item.name} — {item.count} vendite</td><td className="border-b border-[#e8dfe4] py-1.5 text-right font-mono tnum">{euro(item.total)}</td></tr>)}</tbody></table>
                 </>
               )}
 
