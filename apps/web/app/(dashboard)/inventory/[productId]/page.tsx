@@ -142,7 +142,7 @@ export default function InventoryProductPage() {
           <EmptyState title="Prodotto non trovato" description="Potrebbe essere archiviato o non accessibile." />
         ) : (
           <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
-            <form action={save} className="grid gap-5 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:grid-cols-2">
+            <form action={save} className="esse-panel grid gap-5 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] md:grid-cols-2">
               <div className="md:col-span-2">
                 <p className="text-xs font-bold uppercase tracking-[.2em] text-rose-700">Prodotto</p>
                 <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
@@ -179,7 +179,7 @@ export default function InventoryProductPage() {
                 <Button type="submit">Salva modifiche</Button>
               </div>
             </form>
-            <aside className="rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+            <aside className="esse-panel rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
               <h2 className="text-xl font-bold">Movimenti</h2>
               <p className="mt-1 text-sm text-stone-600">Scorta attuale: <strong>{product.stockQuantity}</strong></p>
               <div className="mt-4 space-y-3">
