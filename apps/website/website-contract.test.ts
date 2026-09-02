@@ -72,4 +72,11 @@ describe("EsseBeauty sales website", () => {
     expect(styles).toContain(".demo-dialog::-webkit-scrollbar");
     expect(styles).toContain("display: none");
   });
+
+  it("keeps the primary topbar visible while the page scrolls", () => {
+    const styles = source("app/globals.css");
+    expect(styles).toContain(".site-header { position: sticky; top: 0;");
+    expect(styles).toContain("backdrop-filter: blur(16px)");
+    expect(styles).toContain("border-bottom: 1px solid");
+  });
 });
