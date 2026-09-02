@@ -57,7 +57,7 @@ const methodLabels: Record<PaymentMethod, string> = {
   voucher: "Voucher",
 };
 const presetLabels: Array<[Preset, string]> = [["today", "Oggi"], ["week", "Settimana"], ["month", "Mese"], ["last", "Mese scorso"]];
-const reportTypeLabels: Record<Preset, string> = { last: "Riepilogo mese precedente", month: "Riepilogo mensile", today: "Chiusura giornaliera", week: "Riepilogo settimanale" };
+const reportTypeLabels: Record<Preset | "custom", string> = { custom: "Report Personalizzato", last: "Riepilogo mese precedente", month: "Riepilogo mensile", today: "Chiusura giornaliera", week: "Riepilogo settimanale" };
 const paletteColors = ["#792f59", "#b8578a", "#c98a3f", "#3f7d6f", "#7a4fa0", "#57534e"];
 const pageSize = 20;
 
@@ -148,6 +148,14 @@ const sectionByPath: Record<string, Section> = {
   "/accounting/expenses": "expenses",
   "/accounting/report": "report",
   "/accounting/sales": "sales",
+};
+
+const pageHeaderContent: Record<Section, { subtitle: string; title: string }> = {
+  analysis: { subtitle: "Confronta il periodo con quello precedente: andamento del margine e crescita per operatore.", title: "Analisi & confronti" },
+  expenses: { subtitle: "Spese per categoria, principali fornitori e registro completo delle uscite.", title: "Spese" },
+  overview: { subtitle: "KPI del periodo, andamento incassi, metodi di pagamento e classifiche di operatori, clienti e fasce orarie.", title: "Panoramica" },
+  report: { subtitle: "Configura e genera il rapportino di chiusura in PDF o Excel a partire da un'anteprima in tempo reale.", title: "Report" },
+  sales: { subtitle: "Cerca, filtra e apri il dettaglio di ogni vendita registrata nel periodo.", title: "Registro vendite" },
 };
 
 function Card({ actions, bodyClassName = "", children, className = "", subtitle, title }: { actions?: ReactNode; bodyClassName?: string; children: ReactNode; className?: string; subtitle?: ReactNode; title?: ReactNode }) {
@@ -356,7 +364,10 @@ export default function AccountingPage() {
 
   function exportPdf() {
     if (!salon) return;
-    window.location.href = `${api}/api/salons/${salon.id}/accounting/report.pdf?${new URLSearchParams(requestRange(fromDate, toDate))}`;
+    const params = new URLSearchParams(requestRange(fromDate, toDate));
+    params.set("title", reportTypeLabels[preset]);
+    params.set("period", periodLabel(preset, fromDate, toDate));
+    window.location.href = `${api}/api/salons/${salon.id}/accounting/report.pdf?${params}`;
   }
 
   function selectPreset(value: Preset) {
@@ -385,9 +396,9 @@ export default function AccountingPage() {
       {/* ---------- topbar: enterprise console, not a marketing hero ---------- */}
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e8dfe4] pb-4">
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#792f59]">Amministrazione · Centro di controllo</p>
-          <h1 className="mt-1 text-[26px] font-bold tracking-[-.02em] text-stone-950">Contabilità</h1>
-          <p className="mt-1 text-[13px] text-stone-500">Incassi, spese, margini e rapportini in un&apos;unica postazione gestionale.</p>
+          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#792f59]">Contabilità</p>
+          <h1 className="mt-1 text-[26px] font-bold tracking-[-.02em] text-stone-950">{pageHeaderContent[section].title}</h1>
+          <p className="mt-1 text-[13px] text-stone-500">{pageHeaderContent[section].subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <label className="flex h-9 items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3 text-[12.5px] font-bold text-stone-600">
@@ -650,7 +661,7 @@ export default function AccountingPage() {
                 <div className="font-display text-lg font-semibold text-stone-900">{salon?.name ?? "EsseBeauty"}</div>
                 <div className="text-right text-[11px] leading-6 text-stone-500">Generato il {new Date().toLocaleString("it-IT")}</div>
               </div>
-              <h2 className="font-display mt-5 text-2xl font-semibold text-stone-900">{reportTypeLabels[preset === "custom" ? "today" : preset]}</h2>
+              <h2 className="font-display mt-5 text-2xl font-semibold text-stone-900">{reportTypeLabels[preset]}</h2>
               <p className="mt-1 text-[13px] text-stone-500">{periodLabel(preset, fromDate, toDate)}</p>
 
               <div className="mt-6 border-t border-[#d9c9ce]">
