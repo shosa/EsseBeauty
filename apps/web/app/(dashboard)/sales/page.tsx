@@ -226,7 +226,6 @@ export default function SalesPage() {
       setPayments([{ amount_cents: appointment.service_price_cents, method: "cash" }]);
       setNotes(`Da appuntamento agenda ${timeLabel(appointment.starts_at)}`);
     }
-    setMode("service");
     resetServiceCatalogStep();
   }
   useEffect(() => { void loadCatalog(); }, [salon?.id]);

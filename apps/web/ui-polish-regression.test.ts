@@ -329,7 +329,7 @@ describe("professional UI regression guard", () => {
     expect(sales).toContain('type RegisterMode = "agenda" | CatalogType');
     expect(sales).toContain("todayAppointments");
     expect(sales).toContain("appointmentsByStaff");
-    expect(sales).toContain('setMode("service")');
+    expect(sales).not.toContain('setMode("service");');
     expect(sales).toContain("appointment.color");
     expect(sales).toContain("overflow-x-auto");
     expect(sales).toContain("min-w-[210px]");
