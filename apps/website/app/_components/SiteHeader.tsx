@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { SITE_CONFIG } from "../site-config";
 import { BrandLogo } from "./BrandLogo";
@@ -16,9 +16,18 @@ const links = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const updateScrolledState = () => setScrolled(window.scrollY > 8);
+
+    updateScrolledState();
+    window.addEventListener("scroll", updateScrolledState, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrolledState);
+  }, []);
 
   return (
-    <header className="site-header">
+    <header className="site-header" data-scrolled={scrolled}>
       <div className="site-header__inner section-shell">
         <a aria-label="EsseBeauty, torna all’inizio" className="brand-link" href="/"><BrandLogo /></a>
         <button

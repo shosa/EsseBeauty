@@ -15,7 +15,7 @@
   --success: #34715b;
   --focus: #aa4e7a;
   --shadow: 0 24px 70px rgb(73 31 51 / 12%);
-  --header-height: 91px;
+  --header-height: 79px;
 }
 
 * { box-sizing: border-box; }
@@ -30,7 +30,8 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline
 .skip-link { position: fixed; left: 16px; top: -80px; z-index: 100; border-radius: 10px; background: var(--espresso); color: white; padding: 12px 16px; font-weight: 800; }
 .skip-link:focus { top: 16px; }
 
-.site-header { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid rgb(109 36 76 / 10%); background: rgb(251 247 242 / 88%); padding-block: 19px; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.site-header { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid transparent; background: transparent; padding-block: 13px; transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease, backdrop-filter .2s ease; }
+.site-header[data-scrolled="true"] { border-bottom-color: rgb(109 36 76 / 10%); background: rgb(251 247 242 / 88%); box-shadow: 0 8px 28px rgb(73 31 51 / 6%); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
 .site-header__inner { display: flex; align-items: center; justify-content: space-between; min-height: 52px; }
 .brand-link { border-radius: 10px; }
 .brand-logo { display: inline-flex; align-items: center; gap: 10px; font-family: var(--font-display), serif; font-size: 1.34rem; font-weight: 650; letter-spacing: -.035em; }
@@ -189,11 +190,11 @@ h1 em { color: var(--plum); font-weight: 500; }
 }
 
 @media (max-width: 760px) {
-  :root { --header-height: 77px; }
+  :root { --header-height: 71px; }
   .section-shell { width: min(100% - 32px, 620px); }
-  .site-header { padding-block: 12px; }
+  .site-header { padding-block: 9px; }
   .menu-toggle { display: grid; }
-  .site-nav { position: absolute; left: 16px; right: 16px; top: 72px; display: none; align-items: stretch; gap: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--paper); padding: 18px; box-shadow: var(--shadow); }
+  .site-nav { position: absolute; left: 16px; right: 16px; top: 66px; display: none; align-items: stretch; gap: 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--paper); padding: 18px; box-shadow: var(--shadow); }
   .site-nav--open { display: grid; }
   .site-nav__links, .site-nav__actions { display: grid; gap: 4px; }
   .site-nav__links a { min-height: 44px; display: flex; align-items: center; padding-inline: 10px; }

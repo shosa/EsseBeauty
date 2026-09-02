@@ -73,10 +73,14 @@ describe("EsseBeauty sales website", () => {
     expect(styles).toContain("display: none");
   });
 
-  it("keeps the primary topbar visible while the page scrolls", () => {
+  it("keeps the primary topbar fused at the top and separates it after scrolling", () => {
+    const header = source("app/_components/SiteHeader.tsx");
     const styles = source("app/globals.css");
     expect(styles).toContain(".site-header { position: sticky; top: 0;");
+    expect(header).toContain("window.scrollY > 8");
+    expect(header).toContain("data-scrolled={scrolled}");
+    expect(styles).toContain("border-bottom: 1px solid transparent");
+    expect(styles).toContain('.site-header[data-scrolled="true"]');
     expect(styles).toContain("backdrop-filter: blur(16px)");
-    expect(styles).toContain("border-bottom: 1px solid");
   });
 });
