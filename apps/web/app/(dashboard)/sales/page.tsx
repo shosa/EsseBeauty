@@ -591,9 +591,9 @@ export default function SalesPage() {
         </div>
       </Dialog>
 
-      {error && <InlineError className="mb-3">{error}</InlineError>}
+      <div className="fixed inset-x-0 bottom-16 top-16 flex flex-col overflow-hidden bg-white md:bottom-0 md:left-[76px]">
 
-      <div className="flex h-[calc(100vh-9.5rem)] min-h-[600px] flex-col overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+        {error && <InlineError className="mx-4 mt-3 shrink-0">{error}</InlineError>}
 
         {/* slim console topbar */}
         <div className="flex h-12 shrink-0 items-center gap-4 border-b border-[#e8dfe4] px-4">
