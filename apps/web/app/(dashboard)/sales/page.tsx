@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarClock, ChevronDown, CreditCard, Gift, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
+import { Banknote, CalendarClock, ChevronDown, CreditCard, Gift, Landmark, MoreHorizontal, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, designTokens, Dialog, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -42,12 +42,12 @@ interface AppointmentCheckoutPreview {
   };
   sale: unknown | null;
 }
-const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
-  { label: "Contanti", value: "cash" },
-  { label: "Carta", value: "card" },
-  { label: "Voucher", value: "voucher" },
-  { label: "Bonifico", value: "bank_transfer" },
-  { label: "Altro", value: "other" },
+const paymentMethods: Array<{ icon: typeof Banknote; label: string; value: PaymentMethod }> = [
+  { icon: Banknote, label: "Contanti", value: "cash" },
+  { icon: CreditCard, label: "Carta", value: "card" },
+  { icon: Gift, label: "Voucher", value: "voucher" },
+  { icon: Landmark, label: "Bonifico", value: "bank_transfer" },
+  { icon: MoreHorizontal, label: "Altro", value: "other" },
 ];
 const railModes: Array<{ icon: typeof Scissors; key: RegisterMode; label: string }> = [
   { icon: CalendarClock, key: "agenda", label: "Agenda" },
@@ -888,11 +888,12 @@ export default function SalesPage() {
                 <div className="mb-3 flex items-stretch gap-1.5">
                   {paymentMethods.map((methodOption) => (
                     <button
-                      className={`flex-1 rounded-xl border px-1.5 py-2 text-[10.5px] font-black transition ${payments[0]!.method === methodOption.value ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] bg-[#fffafd] text-stone-600 hover:border-[#d7a6c1]"}`}
+                      className={`flex flex-1 flex-col items-center gap-1 rounded-xl border px-1.5 py-2 text-[10.5px] font-black transition ${payments[0]!.method === methodOption.value ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] bg-[#fffafd] text-stone-600 hover:border-[#d7a6c1]"}`}
                       key={methodOption.value}
                       onClick={() => setPayments((current) => [{ ...current[0]!, method: methodOption.value }])}
                       type="button"
                     >
+                      <methodOption.icon aria-hidden="true" className="size-4" />
                       {methodOption.label}
                     </button>
                   ))}
