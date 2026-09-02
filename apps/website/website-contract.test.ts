@@ -65,4 +65,11 @@ describe("EsseBeauty sales website", () => {
     expect(page).toContain("SITE_CONFIG.appUrl");
     expect(finalCta).toContain("SITE_CONFIG.appUrl");
   });
+
+  it("keeps the contact dialog scrollable without showing a scrollbar", () => {
+    const styles = source("app/globals.css");
+    expect(styles).toContain("scrollbar-width: none");
+    expect(styles).toContain(".demo-dialog::-webkit-scrollbar");
+    expect(styles).toContain("display: none");
+  });
 });
