@@ -39,4 +39,13 @@ describe("EsseBeauty sales website", () => {
     expect(features).not.toContain("5 stelle");
     expect(features).not.toContain("risultati garantiti");
   });
+
+  it("defines complete social sharing metadata", () => {
+    const layout = source("app/layout.tsx");
+    expect(layout).toContain("NEXT_PUBLIC_SITE_URL");
+    expect(layout).toContain("openGraph");
+    expect(layout).toContain("twitter");
+    expect(layout).toContain("EsseBeauty");
+    expect(layout).toContain("/og.png");
+  });
 });
