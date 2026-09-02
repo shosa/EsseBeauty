@@ -2,14 +2,22 @@ import type { FastifyInstance } from "fastify";
 import { asc, eq, sql } from "drizzle-orm";
 
 import {
+  salonLocations,
+  salonModules,
+  salonResources,
   salons,
   serviceCategories,
+  serviceResources,
+  serviceStaff,
   services,
   staff,
   type WorkingHours,
 } from "@esse-beauty/db/schema";
 
 import { authenticate, requireRole } from "../../middleware/auth.js";
+import { buildOnboardingSteps } from "./definition.js";
+import { ensurePrimaryLocation } from "./persistence.js";
+import { evaluateOnboardingReadiness } from "./readiness.js";
 
 const colors = ["#792f59", "#b85888", "#5f7661", "#8b6f47", "#536b89", "#9b5c45"];
 
@@ -21,16 +29,47 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
   const ownerOnly = { preHandler: [authenticate, requireRole("owner")] };
 
   app.get("/api/onboarding", ownerOnly, async (request, reply) => {
-    const [salonRows, categoryRows, serviceRows, staffRows] = await Promise.all([
-      app.db.select().from(salons).where(eq(salons.id, request.salonId)),
+    const salonRows = await app.db.select().from(salons).where(eq(salons.id, request.salonId));
+    const salon = salonRows[0];
+    if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    await ensurePrimaryLocation(app.db, salon);
+    const [categoryRows, serviceRows, staffRows, locationRows, resourceRows, moduleRows, staffAssignmentRows, resourceAssignmentRows] = await Promise.all([
       app.db.select().from(serviceCategories).where(eq(serviceCategories.salonId, request.salonId)).orderBy(asc(serviceCategories.displayOrder), asc(serviceCategories.name)),
       app.db.select().from(services).where(eq(services.salonId, request.salonId)).orderBy(asc(services.displayOrder)),
       app.db.select().from(staff).where(eq(staff.salonId, request.salonId)).orderBy(asc(staff.createdAt)),
+      app.db.select().from(salonLocations).where(eq(salonLocations.salonId, request.salonId)).orderBy(asc(salonLocations.displayOrder)),
+      app.db.select().from(salonResources).where(eq(salonResources.salonId, request.salonId)).orderBy(asc(salonResources.name)),
+      app.db.select().from(salonModules).where(eq(salonModules.salonId, request.salonId)),
+      app.db.select().from(serviceStaff).where(eq(serviceStaff.salonId, request.salonId)),
+      app.db.select().from(serviceResources).where(eq(serviceResources.salonId, request.salonId)),
     ]);
-    const salon = salonRows[0];
-    if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const enabledModules = new Set(moduleRows.filter((item) => item.enabled).map((item) => item.moduleKey));
+    const readiness = evaluateOnboardingReadiness({
+      enabledModules,
+      identityComplete: Boolean(salon.name.trim()),
+      locations: locationRows.map((item) => ({ active: item.active, id: item.id })),
+      resources: resourceRows.map((item) => ({ active: item.active, id: item.id, locationId: item.locationId })),
+      services: serviceRows.map((item) => ({ active: item.active, id: item.id, onlineBookingEnabled: item.onlineBookingEnabled })),
+      staff: staffRows.map((item) => ({ active: item.active, id: item.id, locationId: item.locationId })),
+      serviceStaff: staffAssignmentRows,
+      serviceResources: resourceAssignmentRows,
+    });
+    const steps = buildOnboardingSteps(enabledModules, readiness.statuses).map((step) => ({
+      ...step,
+      issues: readiness.issues.filter((issue) => issue.step_key === step.key),
+    }));
     return {
       completed: Boolean(salon.onboardingCompletedAt),
+      locations: locationRows.map((item) => ({
+        active: item.active, address: item.address, email: item.email, id: item.id, name: item.name,
+        phone: item.phone, timezone: item.timezone,
+      })),
+      modules: [...enabledModules],
+      readiness,
+      resources: resourceRows.map((item) => ({
+        active: item.active, capacity: item.capacity, id: item.id, location_id: item.locationId,
+        name: item.name, type: item.type,
+      })),
       salon: {
         address: salon.address ?? "",
         email: salon.email ?? "",
@@ -47,18 +86,29 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
       services: serviceRows.map((item) => ({
         category: item.category,
         category_id: item.categoryId,
+        active: item.active,
+        buffer_after_minutes: item.bufferAfterMinutes,
+        buffer_before_minutes: item.bufferBeforeMinutes,
         duration_minutes: item.durationMinutes,
         id: item.id,
         name: item.name,
+        online_booking_enabled: item.onlineBookingEnabled,
         price_cents: item.priceCents,
       })),
+      service_resources: resourceAssignmentRows.map((item) => ({ resource_id: item.resourceId, service_id: item.serviceId })),
+      service_staff: staffAssignmentRows.map((item) => ({ service_id: item.serviceId, staff_id: item.staffId })),
       staff: staffRows.map((item) => ({
+        active: item.active,
         color: item.color,
         display_name: item.displayName,
         id: item.id,
+        job_title: item.jobTitle,
         linked_to_owner: item.userId === request.user.id,
+        location_id: item.locationId,
+        working_hours: item.workingHours,
       })),
       step: salon.onboardingStep,
+      steps,
     };
   });
 
