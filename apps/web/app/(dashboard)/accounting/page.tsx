@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileText, RefreshCw, Search } from "lucide-react";
-import { AppPage, Button, DateField, Drawer, EmptyState, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, Drawer, EmptyState, FormField, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -52,6 +52,7 @@ const methodLabels: Record<PaymentMethod, string> = {
   voucher: "Voucher",
 };
 const presetLabels: Array<[Preset, string]> = [["today", "Oggi"], ["week", "Settimana"], ["month", "Mese"], ["last", "Mese scorso"]];
+const paletteColors = ["#792f59", "#b8578a", "#c98a3f", "#3f7d6f", "#7a4fa0", "#57534e"];
 
 function euro(cents: number) {
   return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
@@ -134,7 +135,6 @@ export default function AccountingPage() {
   const maxDaily = Math.max(1, ...dailyTotals.map(([, value]) => value));
   const activeDays = Math.max(1, dailyTotals.length);
   const bestDay = [...dailyTotals].sort((a, b) => b[1] - a[1])[0];
-  const casualSales = (data?.rows ?? []).filter((row) => !row.customer_name).length;
   const discountRate = data?.summary.total_cents ? Math.round(data.summary.discount_cents / (data.summary.total_cents + data.summary.discount_cents) * 100) : 0;
   const operatorTotals = useMemo(() => {
     const totals = new Map<string, { count: number; total: number }>();
@@ -148,9 +148,8 @@ export default function AccountingPage() {
   }, [data?.rows]);
   const paymentTotal = (data?.payments ?? []).reduce((sum, item) => sum + item.amount_cents, 0);
   let paymentCursor = 0;
-  const paymentColors = ["#287fb8", "#4a9b8f", "#f0a23b", "#d76969", "#9c83bd"];
-  const paymentSegments = (data?.payments ?? []).map((item, index) => { const start = paymentCursor; paymentCursor += paymentTotal ? item.amount_cents / paymentTotal * 100 : 0; return `${paymentColors[index % paymentColors.length]} ${start}% ${paymentCursor}%`; });
-  const paymentDonut = paymentSegments.length ? `conic-gradient(${paymentSegments.join(",")})` : "#e7e5e4";
+  const paymentSegments = (data?.payments ?? []).map((item, index) => { const start = paymentCursor; paymentCursor += paymentTotal ? item.amount_cents / paymentTotal * 100 : 0; return `${paletteColors[index % paletteColors.length]} ${start}% ${paymentCursor}%`; });
+  const paymentDonut = paymentSegments.length ? `conic-gradient(${paymentSegments.join(",")})` : "#f1e9ee";
 
   function exportRegister() {
     if (!salon) return;
@@ -169,62 +168,177 @@ export default function AccountingPage() {
     setToDate(next.to);
   }
 
+  const filtersActive = Boolean(search || paymentFilter !== "all");
+
+  function resetFilters() {
+    setSearch("");
+    setPaymentFilter("all");
+  }
+
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <PageHeader eyebrow="Amministrazione" title="Contabilità" subtitle="Incassi, composizione dei pagamenti e movimenti in un'unica vista gestionale." />
+      <PageHeader
+        actions={<>
+          <button aria-label="Aggiorna contabilità" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => void loadSales()} title="Aggiorna"><RefreshCw size={15} /></button>
+          <Button onClick={exportPdf} size="sm" variant="outline"><FileText className="mr-1.5" size={16} />PDF</Button>
+          <Button onClick={exportRegister} size="sm" variant="outline"><Download className="mr-1.5" size={16} />Excel</Button>
+        </>}
+        eyebrow="Amministrazione"
+        title="Contabilità"
+        subtitle="Incassi, composizione dei pagamenti e movimenti in un'unica vista gestionale."
+      />
       {error && <InlineError className="mb-5">{error}</InlineError>}
-      {saleLoading && <div className="mb-5 rounded-xl bg-stone-100 px-4 py-3 text-sm font-bold text-stone-600">Caricamento dettaglio vendita...</div>}
+      {saleLoading && <div className="mb-5 rounded-xl border border-[#e8dfe4] bg-[#fffafd] px-4 py-3 text-sm font-bold text-[#792f59]">Caricamento dettaglio vendita…</div>}
 
-      <div className="mb-3 border border-stone-200 bg-white p-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-[#e8dfe4] bg-white p-3 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+        <div className="flex flex-wrap gap-2">
           {presetLabels.map(([value, label]) => <Button key={value} onClick={() => selectPreset(value)} size="sm" variant={preset === value ? "primary" : "outline"}>{label}</Button>)}
-          </div>
-          <div className="ml-auto w-44"><span className="mb-1 block text-[10px] font-bold uppercase text-stone-500">Dal</span><DateField aria-label="Data iniziale" max={toDate} onChange={(value) => { if (value) { setPreset("custom"); setFromDate(value); } }} value={fromDate} /></div>
-          <div className="w-44"><span className="mb-1 block text-[10px] font-bold uppercase text-stone-500">Al</span><DateField aria-label="Data finale" min={fromDate} onChange={(value) => { if (value) { setPreset("custom"); setToDate(value); } }} value={toDate} /></div>
-          <button aria-label="Aggiorna contabilità" className="grid h-8 w-8 place-items-center border border-stone-200" onClick={() => void loadSales()} title="Aggiorna"><RefreshCw size={15} /></button>
-          <Button onClick={exportPdf} size="sm" variant="outline"><FileText className="mr-2" size={16} />PDF</Button>
-          <Button onClick={exportRegister} size="sm" variant="outline"><Download className="mr-2" size={16} />Excel</Button>
+        </div>
+        <div className="ml-auto flex flex-wrap items-end gap-3">
+          <FormField className="w-40" label="Dal"><DateField aria-label="Data iniziale" max={toDate} onChange={(value) => { if (value) { setPreset("custom"); setFromDate(value); } }} value={fromDate} /></FormField>
+          <FormField className="w-40" label="Al"><DateField aria-label="Data finale" min={fromDate} onChange={(value) => { if (value) { setPreset("custom"); setToDate(value); } }} value={toDate} /></FormField>
         </div>
       </div>
 
-      <section className="mb-3 grid border border-stone-200 bg-white sm:grid-cols-3 xl:grid-cols-6">
-        {[["Incassato", euro(data?.summary.total_cents ?? 0), `${activeDays} giorni attivi`], ["Spese", euro(overview?.summary.expense_total_cents ?? 0), `${overview?.expenses.summary.count ?? 0} movimenti`], ["Margine", euro(overview?.summary.gross_margin_cents ?? 0), "incassi meno spese"], ["Vendite", data?.summary.count ?? 0, `${Math.round((data?.summary.count ?? 0) / activeDays)} al giorno`], ["Scontrino medio", euro(data?.summary.average_cents ?? 0), "per movimento"], ["Sconti", euro(data?.summary.discount_cents ?? 0), `${discountRate}% sul lordo`]].map(([label, value, detail]) => <div className="min-h-24 border-b border-r border-stone-200 p-3 last:border-r-0 sm:border-b-0" key={String(label)}><span className="text-[10px] font-black uppercase text-stone-500">{label}</span><strong className="mt-1 block text-2xl font-medium text-stone-950">{value}</strong><span className="text-[10px] text-stone-500">{detail}</span></div>)}
+      <section className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          ["Incassato", euro(data?.summary.total_cents ?? 0), `${activeDays} giorni attivi`],
+          ["Spese", euro(overview?.summary.expense_total_cents ?? 0), `${overview?.expenses.summary.count ?? 0} movimenti`],
+          ["Margine", euro(overview?.summary.gross_margin_cents ?? 0), "incassi meno spese"],
+          ["Vendite", String(data?.summary.count ?? 0), `${Math.round((data?.summary.count ?? 0) / activeDays)} al giorno`],
+          ["Scontrino medio", euro(data?.summary.average_cents ?? 0), "per movimento"],
+          ["Sconti", euro(data?.summary.discount_cents ?? 0), `${discountRate}% sul lordo`],
+        ].map(([label, value, detail]) => (
+          <div className="bg-white px-4 py-4" key={label}>
+            <span className="text-[10px] font-black uppercase tracking-wider text-stone-500">{label}</span>
+            <strong className="mt-1 block text-2xl font-bold tracking-[-.01em] text-[#402334]">{value}</strong>
+            <span className="text-[11px] font-medium text-stone-400">{detail}</span>
+          </div>
+        ))}
       </section>
 
-      <div className="grid gap-3 xl:grid-cols-[1.45fr_.75fr]">
+      <div className="mt-3 grid gap-3 xl:grid-cols-[1.45fr_.75fr]">
         <SectionCard title="Andamento incassi" subtitle="Totale giornaliero delle vendite concluse nel periodo.">
-          {!dailyTotals.length ? <EmptyState title="Nessun incasso" description="Non ci sono movimenti nel periodo." /> : <div className="flex h-56 items-end gap-2 border-b border-stone-200 px-2 pt-6">{dailyTotals.map(([day, value]) => <div className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" key={day}><strong className="text-[9px] text-stone-600">{euro(value)}</strong><div className="w-3/5 min-w-5 max-w-12 bg-[#287fb8]" style={{ height: `${Math.max(8, value / maxDaily * 155)}px` }} /><span className="text-[9px] text-stone-500">{day}</span></div>)}</div>}
+          {!dailyTotals.length ? <EmptyState title="Nessun incasso" description="Non ci sono movimenti nel periodo." /> : (
+            <div className="flex h-56 items-end gap-2 border-b border-[#e8dfe4] px-2 pt-6">
+              {dailyTotals.map(([day, value]) => (
+                <div className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-1.5" key={day}>
+                  <strong className="text-[10px] font-bold text-stone-500 group-hover:text-[#792f59]">{euro(value)}</strong>
+                  <div className="w-3/5 min-w-5 max-w-12 rounded-t-md bg-[linear-gradient(180deg,#b8578a,#792f59)] transition group-hover:opacity-90" style={{ height: `${Math.max(8, value / maxDaily * 155)}px` }} />
+                  <span className="text-[10px] font-semibold text-stone-400">{day}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </SectionCard>
         <SectionCard title="Metodi di pagamento" subtitle="Distribuzione degli incassi registrati.">
-          {data?.payments.length ? <div className="grid grid-cols-[125px_1fr] items-center gap-4"><div className="relative aspect-square rounded-full" style={{ background: paymentDonut }}><div className="absolute inset-[29%] grid place-items-center rounded-full bg-white text-center"><strong className="text-sm">{euro(paymentTotal)}</strong></div></div><div className="space-y-2">{data.payments.map((item, index) => <div className="grid grid-cols-[8px_1fr_auto] items-center gap-2 text-xs" key={item.method}><i className="h-2 w-2" style={{ background: paymentColors[index % paymentColors.length] }} /><span>{methodLabels[item.method as PaymentMethod] ?? item.method}</span><strong>{euro(item.amount_cents)}</strong></div>)}</div></div> : <EmptyState title="Nessun incasso" description="Non ci sono pagamenti nel periodo." />}
+          {data?.payments.length ? (
+            <div className="grid grid-cols-[110px_1fr] items-center gap-4">
+              <div className="relative aspect-square rounded-full" style={{ background: paymentDonut }}>
+                <div className="absolute inset-[26%] grid place-items-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgb(232_223_228)]"><strong className="text-sm font-bold text-[#402334]">{euro(paymentTotal)}</strong></div>
+              </div>
+              <div className="space-y-2.5">
+                {data.payments.map((item, index) => (
+                  <div className="grid grid-cols-[8px_1fr_auto] items-center gap-2.5 text-xs" key={item.method}>
+                    <i className="size-2 rounded-full" style={{ background: paletteColors[index % paletteColors.length] }} />
+                    <span className="font-semibold text-stone-600">{methodLabels[item.method as PaymentMethod] ?? item.method}</span>
+                    <strong className="font-bold text-[#402334]">{euro(item.amount_cents)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <EmptyState title="Nessun incasso" description="Non ci sono pagamenti nel periodo." />}
         </SectionCard>
       </div>
 
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
-        <SectionCard title="Migliori operatori" subtitle={`Giornata migliore: ${bestDay?.[0] ?? "—"}${bestDay ? ` · ${euro(bestDay[1])}` : ""}`}><table className="w-full text-left text-xs"><thead className="bg-stone-100 text-[9px] uppercase"><tr><th className="p-2">#</th><th>Operatore</th><th>Vendite</th><th className="text-right">Incassato</th></tr></thead><tbody>{operatorTotals.map((item, index) => <tr className="border-t border-stone-100" key={item.name}><td className="p-2 text-stone-400">{index + 1}</td><td className="font-bold">{item.name}</td><td>{item.count}</td><td className="text-right font-bold">{euro(item.total)}</td></tr>)}</tbody></table></SectionCard>
-        <SectionCard title="Clienti per valore" subtitle="Classifica per incasso nel periodo selezionato."><table className="w-full text-left text-xs"><thead className="bg-stone-100 text-[9px] uppercase"><tr><th className="p-2">#</th><th>Cliente</th><th>Acquisti</th><th className="text-right">Valore</th></tr></thead><tbody>{customerTotals.map((item, index) => <tr className="border-t border-stone-100" key={item.name}><td className="p-2 text-stone-400">{index + 1}</td><td className="font-bold">{item.name}</td><td>{item.count}</td><td className="text-right font-bold">{euro(item.total)}</td></tr>)}</tbody></table></SectionCard>
+        <SectionCard title="Migliori operatori" subtitle={`Giornata migliore: ${bestDay?.[0] ?? "—"}${bestDay ? ` · ${euro(bestDay[1])}` : ""}`}>
+          {!operatorTotals.length ? <EmptyState title="Nessun dato" description="Non ci sono vendite nel periodo." /> : (
+            <div className="overflow-hidden rounded-xl border border-[#e8dfe4]">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.12em] text-stone-500"><tr><th className="px-4 py-2.5">#</th><th>Operatore</th><th>Vendite</th><th className="pr-4 text-right">Incassato</th></tr></thead>
+                <tbody>{operatorTotals.map((item, index) => <tr className="border-t border-stone-100" key={item.name}><td className="px-4 py-2.5"><span className="grid size-6 place-items-center rounded-full bg-[#f8edf3] text-[11px] font-black text-[#792f59]">{index + 1}</span></td><td className="font-bold text-stone-800">{item.name}</td><td className="text-stone-500">{item.count}</td><td className="pr-4 text-right font-bold text-[#402334]">{euro(item.total)}</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+        <SectionCard title="Clienti per valore" subtitle="Classifica per incasso nel periodo selezionato.">
+          {!customerTotals.length ? <EmptyState title="Nessun dato" description="Non ci sono vendite nel periodo." /> : (
+            <div className="overflow-hidden rounded-xl border border-[#e8dfe4]">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.12em] text-stone-500"><tr><th className="px-4 py-2.5">#</th><th>Cliente</th><th>Acquisti</th><th className="pr-4 text-right">Valore</th></tr></thead>
+                <tbody>{customerTotals.map((item, index) => <tr className="border-t border-stone-100" key={item.name}><td className="px-4 py-2.5"><span className="grid size-6 place-items-center rounded-full bg-[#f8edf3] text-[11px] font-black text-[#792f59]">{index + 1}</span></td><td className="font-bold text-stone-800">{item.name}</td><td className="text-stone-500">{item.count}</td><td className="pr-4 text-right font-bold text-[#402334]">{euro(item.total)}</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
       </div>
 
       <div className="mt-3 grid gap-3 xl:grid-cols-[.8fr_1.2fr]">
         <SectionCard title="Spese per categoria" subtitle="Uscite operative registrate dal magazzino nel periodo.">
-          {!overview?.expenses.categories.length ? <EmptyState title="Nessuna spesa" description="Non ci sono uscite operative nel periodo selezionato." /> : <div className="space-y-3">{overview.expenses.categories.map((item) => {
-            const width = overview.expenses.summary.total_cents ? Math.max(6, item.total_cents / overview.expenses.summary.total_cents * 100) : 0;
-            return <div key={item.category}><div className="flex justify-between gap-3 text-xs"><strong>{item.category}</strong><span>{euro(item.total_cents)} · {item.count}</span></div><div className="mt-1 h-2 bg-stone-100"><div className="h-full bg-[#d76969]" style={{ width: `${width}%` }} /></div></div>;
-          })}</div>}
+          {!overview?.expenses.categories.length ? <EmptyState title="Nessuna spesa" description="Non ci sono uscite operative nel periodo selezionato." /> : (
+            <div className="space-y-3.5">
+              {overview.expenses.categories.map((item, index) => {
+                const width = overview.expenses.summary.total_cents ? Math.max(6, item.total_cents / overview.expenses.summary.total_cents * 100) : 0;
+                return (
+                  <div key={item.category}>
+                    <div className="flex justify-between gap-3 text-xs"><strong className="font-bold text-stone-700">{item.category}</strong><span className="font-semibold text-stone-500">{euro(item.total_cents)} · {item.count}</span></div>
+                    <div className="mt-1.5 h-2 rounded-full bg-[#f1e9ee]"><div className="h-full rounded-full" style={{ background: paletteColors[index % paletteColors.length], width: `${width}%` }} /></div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </SectionCard>
         <SectionCard title="Registro spese" subtitle={`${overview?.expenses.rows.length ?? 0} uscite nel periodo selezionato.`}>
-          {!overview?.expenses.rows.length ? <EmptyState title="Nessuna uscita" description="Le spese registrate compariranno qui insieme al documento sorgente." /> : <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-[#f7eef3]"><tr><th className="p-3">Data</th><th>Descrizione</th><th>Categoria</th><th>Fornitore</th><th>Documento</th><th className="text-right">Totale</th></tr></thead><tbody>{overview.expenses.rows.slice(0, 12).map((expense) => <tr className="border-t border-stone-100" key={expense.id}><td className="p-3">{new Date(expense.competence_date).toLocaleDateString("it-IT")}</td><td className="font-bold">{expense.description}</td><td>{expense.category}</td><td>{expense.supplier_name ?? "—"}</td><td>{expense.document_number ?? "—"}</td><td className="text-right font-black">{euro(expense.total_cents)}</td></tr>)}</tbody></table></div>}
+          {!overview?.expenses.rows.length ? <EmptyState title="Nessuna uscita" description="Le spese registrate compariranno qui insieme al documento sorgente." /> : (
+            <div className="overflow-x-auto rounded-xl border border-[#e8dfe4]">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead className="bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.12em] text-stone-500"><tr><th className="px-4 py-3">Data</th><th>Descrizione</th><th>Categoria</th><th>Fornitore</th><th>Documento</th><th className="pr-4 text-right">Totale</th></tr></thead>
+                <tbody>{overview.expenses.rows.slice(0, 12).map((expense) => <tr className="border-t border-stone-100" key={expense.id}><td className="px-4 py-3 text-stone-500">{new Date(expense.competence_date).toLocaleDateString("it-IT")}</td><td className="font-bold text-stone-800">{expense.description}</td><td className="text-stone-600">{expense.category}</td><td className="text-stone-600">{expense.supplier_name ?? "—"}</td><td className="text-stone-500">{expense.document_number ?? "—"}</td><td className="pr-4 text-right font-black text-[#402334]">{euro(expense.total_cents)}</td></tr>)}</tbody>
+              </table>
+            </div>
+          )}
         </SectionCard>
       </div>
 
       <SectionCard className="mt-3" title="Registro vendite" subtitle={`${filteredRows.length} movimenti visibili nel periodo selezionato.`}>
-        <div className="mb-4 flex flex-wrap gap-3">
-          <label className="relative min-w-[240px] flex-1"><Search className="pointer-events-none absolute left-3 top-3 text-stone-400" size={18} /><input className="w-full rounded-xl border border-stone-200 py-2.5 pl-10 pr-3 text-sm" onChange={(event) => setSearch(event.target.value)} placeholder="Cerca cliente o operatore" value={search} /></label>
-          <select className="rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold" onChange={(event) => setPaymentFilter(event.target.value as PaymentMethod | "all")} value={paymentFilter}><option value="all">Tutti i pagamenti</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-          <select className="rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold" onChange={(event) => setSort(event.target.value as "date" | "total")} value={sort}><option value="date">Più recenti</option><option value="total">Totale più alto</option></select>
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <label className="relative min-w-[240px] flex-1">
+            <span className="sr-only">Cerca cliente o operatore</span>
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+            <input className="w-full pl-10" onChange={(event) => setSearch(event.target.value)} placeholder="Cerca cliente o operatore" value={search} />
+          </label>
+          <select className="w-[190px]" onChange={(event) => setPaymentFilter(event.target.value as PaymentMethod | "all")} value={paymentFilter}><option value="all">Tutti i pagamenti</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <select className="w-[190px]" onChange={(event) => setSort(event.target.value as "date" | "total")} value={sort}><option value="date">Più recenti</option><option value="total">Totale più alto</option></select>
+          {filtersActive && <Button onClick={resetFilters} size="sm" variant="outline">Azzera filtri</Button>}
         </div>
-        {!filteredRows.length ? <EmptyState title="Nessun movimento" description="Modifica la ricerca, i filtri o il periodo selezionato." /> : <div className="overflow-x-auto rounded-2xl border"><table className="w-full min-w-[880px] text-left text-sm"><thead className="bg-[#f7eef3]"><tr><th className="p-4">Data</th><th>Cliente</th><th>Operatore</th><th>Pagamento</th><th>Sconto</th><th className="text-right">Totale</th><th /></tr></thead><tbody>{filteredRows.map((row) => <tr className="cursor-pointer border-t transition hover:bg-[#fff8fb]" key={row.id} onClick={() => void openSale(row.id)}><td className="p-4">{new Date(row.closed_at).toLocaleString("it-IT")}</td><td className="font-bold">{row.customer_name || "Cliente occasionale"}</td><td>{row.staff_name || "—"}</td><td><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-md bg-stone-100 px-2 py-1 text-[10px] font-bold" key={method}>{methodLabels[method]}</span>)}</div></td><td>{euro(row.discount_cents)}</td><td className="text-right text-base font-black">{euro(row.total_cents)}</td><td className="p-4 text-right"><span className="font-bold text-[#792f59]">Dettaglio</span></td></tr>)}</tbody></table></div>}
+        {!filteredRows.length ? <EmptyState title="Nessun movimento" description="Modifica la ricerca, i filtri o il periodo selezionato." /> : (
+          <div className="overflow-x-auto rounded-2xl border border-[#e8dfe4]">
+            <table className="w-full min-w-[880px] text-left text-sm">
+              <thead className="bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.14em] text-stone-500"><tr><th className="px-5 py-3">Data</th><th>Cliente</th><th>Operatore</th><th>Pagamento</th><th>Sconto</th><th className="text-right">Totale</th><th className="w-8 pr-5" /></tr></thead>
+              <tbody>
+                {filteredRows.map((row) => (
+                  <tr
+                    className="group cursor-pointer border-t border-stone-100 transition hover:bg-[#fffafd] focus-visible:bg-[#fffafd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#b85888]"
+                    key={row.id}
+                    onClick={() => void openSale(row.id)}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openSale(row.id); } }}
+                    tabIndex={0}
+                  >
+                    <td className="px-5 py-3.5 text-stone-500">{new Date(row.closed_at).toLocaleString("it-IT")}</td>
+                    <td className="font-bold text-stone-900 group-hover:text-[#792f59]">{row.customer_name || "Cliente occasionale"}</td>
+                    <td className="text-stone-600">{row.staff_name || "—"}</td>
+                    <td><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-full bg-[#f8edf3] px-2 py-1 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
+                    <td className="text-stone-500">{euro(row.discount_cents)}</td>
+                    <td className="text-right text-base font-black text-[#402334]">{euro(row.total_cents)}</td>
+                    <td className="pr-5 text-right text-[11px] font-bold text-[#792f59]">Dettaglio</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </SectionCard>
 
       <Drawer onClose={() => setSelectedSale(undefined)} open={Boolean(selectedSale)} title="Dettaglio vendita">
@@ -232,30 +346,30 @@ export default function AccountingPage() {
           <section className="rounded-2xl bg-[#402334] p-5 text-white">
             <p className="text-xs font-black uppercase tracking-[.16em] text-[#e8bfd4]">Incasso registrato</p>
             <strong className="mt-2 block text-4xl">{euro(selectedSale.total_cents)}</strong>
-            <p className="mt-2 text-sm text-stone-300">{new Date(selectedSale.closed_at).toLocaleString("it-IT")}</p>
+            <p className="mt-2 text-sm text-[#d9c3d0]">{new Date(selectedSale.closed_at).toLocaleString("it-IT")}</p>
           </section>
           <section className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Cliente</span><strong className="mt-1 block">{selectedSale.customer_name || "Cliente occasionale"}</strong></div>
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Operatore</span><strong className="mt-1 block">{selectedSale.staff_name || "Non assegnato"}</strong></div>
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Registrata da</span><strong className="mt-1 block">{selectedSale.cashier_name || "Sistema"}</strong></div>
-            <div className="rounded-xl border border-stone-200 p-3"><span className="text-[10px] font-black uppercase text-stone-400">Origine</span><strong className="mt-1 block">{selectedSale.appointment_id ? "Appuntamento" : "Vendita libera"}</strong></div>
+            <div className="rounded-xl border border-[#e8dfe4] p-3"><span className="text-[10px] font-black uppercase text-stone-400">Cliente</span><strong className="mt-1 block text-stone-900">{selectedSale.customer_name || "Cliente occasionale"}</strong></div>
+            <div className="rounded-xl border border-[#e8dfe4] p-3"><span className="text-[10px] font-black uppercase text-stone-400">Operatore</span><strong className="mt-1 block text-stone-900">{selectedSale.staff_name || "Non assegnato"}</strong></div>
+            <div className="rounded-xl border border-[#e8dfe4] p-3"><span className="text-[10px] font-black uppercase text-stone-400">Registrata da</span><strong className="mt-1 block text-stone-900">{selectedSale.cashier_name || "Sistema"}</strong></div>
+            <div className="rounded-xl border border-[#e8dfe4] p-3"><span className="text-[10px] font-black uppercase text-stone-400">Origine</span><strong className="mt-1 block text-stone-900">{selectedSale.appointment_id ? "Appuntamento" : "Vendita libera"}</strong></div>
           </section>
           <section>
-            <h3 className="font-black">Cosa e stato venduto</h3>
+            <h3 className="font-black text-stone-900">Cosa è stato venduto</h3>
             <div className="mt-3 space-y-2">
-              {selectedSale.items.map((item) => <article className="rounded-2xl border border-stone-200 p-4" key={item.id}>
-                <div className="flex items-start justify-between gap-3"><div><strong>{item.description}</strong><p className="mt-1 text-xs uppercase text-stone-400">{item.item_type === "service" ? "Servizio" : item.item_type === "product" ? "Prodotto" : "Voce libera"}</p></div><strong>{euro(item.total_cents)}</strong></div>
-                <div className="mt-3 flex flex-wrap gap-3 text-xs text-stone-500"><span>Quantita: {item.quantity}</span><span>Prezzo: {euro(item.unit_price_cents)}</span>{item.discount_cents > 0 && <span>Sconto: {euro(item.discount_cents)}</span>}</div>
+              {selectedSale.items.map((item) => <article className="rounded-2xl border border-[#e8dfe4] p-4" key={item.id}>
+                <div className="flex items-start justify-between gap-3"><div><strong className="text-stone-900">{item.description}</strong><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-stone-400">{item.item_type === "service" ? "Servizio" : item.item_type === "product" ? "Prodotto" : "Voce libera"}</p></div><strong className="text-stone-900">{euro(item.total_cents)}</strong></div>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-stone-500"><span>Quantità: {item.quantity}</span><span>Prezzo: {euro(item.unit_price_cents)}</span>{item.discount_cents > 0 && <span>Sconto: {euro(item.discount_cents)}</span>}</div>
               </article>)}
             </div>
           </section>
-          <section className="rounded-2xl border border-stone-200 p-4">
-            <div className="flex justify-between text-sm"><span>Subtotale</span><strong>{euro(selectedSale.subtotal_cents)}</strong></div>
+          <section className="rounded-2xl border border-[#e8dfe4] p-4">
+            <div className="flex justify-between text-sm text-stone-600"><span>Subtotale</span><strong className="text-stone-900">{euro(selectedSale.subtotal_cents)}</strong></div>
             {selectedSale.discount_cents > 0 && <div className="mt-2 flex justify-between text-sm text-stone-500"><span>Sconto conto</span><strong>- {euro(selectedSale.discount_cents)}</strong></div>}
-            <div className="mt-4 flex justify-between border-t border-stone-200 pt-4 text-lg"><strong>Totale</strong><strong className="text-[#792f59]">{euro(selectedSale.total_cents)}</strong></div>
+            <div className="mt-4 flex justify-between border-t border-[#e8dfe4] pt-4 text-lg"><strong>Totale</strong><strong className="text-[#792f59]">{euro(selectedSale.total_cents)}</strong></div>
           </section>
           <section>
-            <h3 className="font-black">Pagamenti</h3>
+            <h3 className="font-black text-stone-900">Pagamenti</h3>
             <div className="mt-3 space-y-2">{selectedSale.payments.map((payment) => <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900" key={payment.id}>
               <div><strong>{methodLabels[payment.method] ?? payment.method}</strong>{payment.method === "voucher" && payment.reference && <span className="mt-1 block font-mono text-[11px] tracking-[.1em]">{payment.reference.replace(/(\d{4})(?=\d)/g, "$1 ")}</span>}</div>
               <strong>{euro(payment.amount_cents)}</strong>
@@ -263,8 +377,8 @@ export default function AccountingPage() {
           </section>
           {selectedSale.notes && <section className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black uppercase text-amber-800">Nota interna</p><p className="mt-2 text-sm text-amber-950">{selectedSale.notes}</p></section>}
           <div className="flex flex-wrap gap-2">
-            {selectedSale.customer_id && <Link className="rounded-xl border border-stone-200 px-4 py-3 text-sm font-bold text-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
-            {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
+            {selectedSale.customer_id && <Link className="rounded-xl border border-[#e8dfe4] px-4 py-3 text-sm font-bold text-[#792f59] transition hover:border-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
+            {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#3a1830]" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
           </div>
         </div>}
       </Drawer>
