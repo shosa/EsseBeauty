@@ -160,7 +160,7 @@ const pageHeaderContent: Record<Section, { subtitle: string; title: string }> = 
 
 function Card({ actions, bodyClassName = "", children, className = "", subtitle, title }: { actions?: ReactNode; bodyClassName?: string; children: ReactNode; className?: string; subtitle?: ReactNode; title?: ReactNode }) {
   return (
-    <div className={`overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_1px_2px_rgb(45_29_39_/_0.04)] ${className}`}>
+    <div className={`overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] transition hover:-translate-y-0.5 hover:shadow-md ${className}`}>
       {(title || subtitle || actions) && (
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e8dfe4] px-4 py-3.5">
           <div>{title && <h2 className="text-[14.5px] font-bold text-stone-900">{title}</h2>}{subtitle && <p className="mt-0.5 text-xs text-stone-500">{subtitle}</p>}</div>
@@ -406,7 +406,7 @@ export default function AccountingPage() {
             Confronta periodo precedente
           </label>
           <div className="inline-flex gap-0.5 rounded-xl border border-[#e8dfe4] bg-[#faf7f9] p-1">
-            {presetLabels.map(([value, label]) => <button className={`h-8 rounded-lg px-3 text-[12px] font-bold transition ${preset === value ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-[#792f59]"}`} key={value} onClick={() => selectPreset(value)} type="button">{label}</button>)}
+            {presetLabels.map(([value, label]) => <button aria-pressed={preset === value} className={`h-8 rounded-lg px-3 text-[12px] font-bold transition ${preset === value ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-[#792f59]"}`} key={value} onClick={() => selectPreset(value)} type="button">{label}</button>)}
           </div>
           <button aria-label="Aggiorna contabilità" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => void loadSales()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
         </div>
@@ -494,14 +494,14 @@ export default function AccountingPage() {
 
       {/* ============ REGISTRO VENDITE ============ */}
       {section === "sales" && (
-        <Card actions={<div className="inline-flex gap-0.5 rounded-lg border border-[#e8dfe4] bg-[#faf7f9] p-0.5"><button className={`h-7 rounded-md px-2.5 text-[11px] font-bold ${density === "comfortable" ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500"}`} onClick={() => setDensity("comfortable")} type="button">Comoda</button><button className={`h-7 rounded-md px-2.5 text-[11px] font-bold ${density === "compact" ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500"}`} onClick={() => setDensity("compact")} type="button">Compatta</button></div>} bodyClassName="p-0" className="mt-4" subtitle={`${filteredRows.length} movimenti nel periodo selezionato.`} title="Registro vendite">
+        <Card actions={<div className="inline-flex gap-0.5 rounded-lg border border-[#e8dfe4] bg-[#faf7f9] p-0.5"><button aria-pressed={density === "comfortable"} className={`h-7 rounded-md px-2.5 text-[11px] font-bold ${density === "comfortable" ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500"}`} onClick={() => setDensity("comfortable")} type="button">Comoda</button><button aria-pressed={density === "compact"} className={`h-7 rounded-md px-2.5 text-[11px] font-bold ${density === "compact" ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500"}`} onClick={() => setDensity("compact")} type="button">Compatta</button></div>} bodyClassName="p-0" className="mt-4" subtitle={`${filteredRows.length} movimenti nel periodo selezionato.`} title="Registro vendite">
           <div className="flex flex-wrap items-center gap-3 p-4 pb-0">
             <label className="relative min-w-[240px] flex-1">
               <span className="sr-only">Cerca cliente o operatore</span>
               <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
               <input className="w-full pl-10" onChange={(event) => setSearch(event.target.value)} placeholder="Cerca cliente o operatore" value={search} />
             </label>
-            <select className="w-[190px]" onChange={(event) => setPaymentFilter(event.target.value as PaymentMethod | "all")} value={paymentFilter}><option value="all">Tutti i pagamenti</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <select aria-label="Filtra per metodo di pagamento" className="w-[190px]" onChange={(event) => setPaymentFilter(event.target.value as PaymentMethod | "all")} value={paymentFilter}><option value="all">Tutti i pagamenti</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
             {filtersActive && <Button onClick={resetFilters} size="sm" variant="outline">Azzera filtri</Button>}
           </div>
           {!filteredRows.length ? <div className="p-4"><EmptyState description="Modifica la ricerca, i filtri o il periodo selezionato." title="Nessun movimento" /></div> : (
@@ -600,9 +600,9 @@ export default function AccountingPage() {
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-[#e8dfe4] bg-white p-4"><span className="text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Incassato</span><div className="mt-1.5 flex items-baseline gap-2"><strong className="text-2xl font-black tnum">{euro(data?.summary.total_cents ?? 0)}</strong><span className="tnum text-xs text-stone-400 line-through">{euro(previousData.summary.total_cents)}</span></div><DeltaChip value={incassatoDelta} /></div>
-                <div className="rounded-2xl border border-[#e8dfe4] bg-white p-4"><span className="text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Margine netto</span><div className="mt-1.5 flex items-baseline gap-2"><strong className="text-2xl font-black tnum">{euro(overview?.summary.gross_margin_cents ?? 0)}</strong><span className="tnum text-xs text-stone-400 line-through">{euro(previousOverview?.summary.gross_margin_cents ?? 0)}</span></div><DeltaChip value={margineDelta} /></div>
-                <div className="rounded-2xl border border-[#e8dfe4] bg-white p-4"><span className="text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Scontrino medio</span><div className="mt-1.5 flex items-baseline gap-2"><strong className="text-2xl font-black tnum">{euro(data?.summary.average_cents ?? 0)}</strong><span className="tnum text-xs text-stone-400 line-through">{euro(previousData.summary.average_cents)}</span></div><DeltaChip value={scontrinoDelta} /></div>
+                <div className="rounded-2xl border border-[#e8dfe4] bg-white p-4 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] transition hover:-translate-y-0.5 hover:shadow-md"><span className="text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Incassato</span><div className="mt-1.5 flex items-baseline gap-2"><strong className="text-2xl font-black tnum">{euro(data?.summary.total_cents ?? 0)}</strong><span className="tnum text-xs text-stone-400 line-through">{euro(previousData.summary.total_cents)}</span></div><DeltaChip value={incassatoDelta} /></div>
+                <div className="rounded-2xl border border-[#e8dfe4] bg-white p-4 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] transition hover:-translate-y-0.5 hover:shadow-md"><span className="text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Margine netto</span><div className="mt-1.5 flex items-baseline gap-2"><strong className="text-2xl font-black tnum">{euro(overview?.summary.gross_margin_cents ?? 0)}</strong><span className="tnum text-xs text-stone-400 line-through">{euro(previousOverview?.summary.gross_margin_cents ?? 0)}</span></div><DeltaChip value={margineDelta} /></div>
+                <div className="rounded-2xl border border-[#e8dfe4] bg-white p-4 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] transition hover:-translate-y-0.5 hover:shadow-md"><span className="text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Scontrino medio</span><div className="mt-1.5 flex items-baseline gap-2"><strong className="text-2xl font-black tnum">{euro(data?.summary.average_cents ?? 0)}</strong><span className="tnum text-xs text-stone-400 line-through">{euro(previousData.summary.average_cents)}</span></div><DeltaChip value={scontrinoDelta} /></div>
               </div>
 
               <Card subtitle="Ricavi meno spese registrate, giorno per giorno nel periodo." title="Margine netto — andamento nel periodo">
@@ -647,8 +647,8 @@ export default function AccountingPage() {
             <div className="border-b border-[#e8dfe4] p-4">
               <span className="mb-2.5 block text-[11px] font-black uppercase tracking-[.08em] text-stone-500">Formato</span>
               <div className="flex gap-1.5">
-                <button className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-[12.5px] font-bold ${reportFormat === "pdf" ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] text-stone-600"}`} onClick={() => setReportFormat("pdf")} type="button"><FileText size={14} />PDF</button>
-                <button className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-[12.5px] font-bold ${reportFormat === "excel" ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] text-stone-600"}`} onClick={() => setReportFormat("excel")} type="button"><Download size={14} />Excel</button>
+                <button aria-pressed={reportFormat === "pdf"} className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-[12.5px] font-bold ${reportFormat === "pdf" ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] text-stone-600"}`} onClick={() => setReportFormat("pdf")} type="button"><FileText size={14} />PDF</button>
+                <button aria-pressed={reportFormat === "excel"} className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border text-[12.5px] font-bold ${reportFormat === "excel" ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] text-stone-600"}`} onClick={() => setReportFormat("excel")} type="button"><Download size={14} />Excel</button>
               </div>
               <p className="mt-2.5 text-[11.5px] leading-5 text-stone-500">{reportFormat === "pdf" ? "Il PDF contiene il riepilogo del periodo e le spese per categoria, pronto da stampare o archiviare." : "L'Excel contiene il dettaglio riga per riga di ogni vendita e ogni pagamento del periodo."}</p>
             </div>
