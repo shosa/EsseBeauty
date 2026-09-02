@@ -1,10 +1,11 @@
+import { MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { describe, expect, it } from "vitest";
 
 import { buildDemoScenario } from "./build-demo-scenario.js";
 
 const options = {
   anchor: new Date("2026-09-02T10:00:00.000Z"),
-  moduleKeys: ["calendar", "crm", "inventory", "loyalty", "marketing", "multi_location", "reviews"],
+  moduleKeys: Object.values(MODULE_KEYS),
   seed: 20260902,
 };
 

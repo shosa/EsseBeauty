@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
+import { MODULE_KEYS } from "@esse-beauty/feature-flags";
 import {
   appointments,
   customers,
@@ -26,7 +27,7 @@ const postgresSuite = databaseUrl ? describe : describe.skip;
 
 const scenarioOptions = {
   anchor: new Date("2026-09-02T10:00:00.000Z"),
-  moduleKeys: ["calendar", "crm", "inventory", "loyalty", "marketing", "multi_location", "reviews"],
+  moduleKeys: Object.values(MODULE_KEYS),
   seed: 20260902,
 };
 
