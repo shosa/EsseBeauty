@@ -152,18 +152,76 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
     },
   );
 
+  app.patch<{ Body: { locations: Array<{ active?: boolean; address?: string; email?: string; id?: string; name: string; phone?: string; timezone?: string }> } }>(
+    "/api/onboarding/locations",
+    ownerOnly,
+    async (request, reply) => {
+      const drafts = request.body.locations ?? [];
+      if (!drafts.length || drafts.some((item) => !item.name?.trim())) return reply.code(400).send({ error: "INVALID_LOCATIONS" });
+      const modules = await app.db.select().from(salonModules).where(eq(salonModules.salonId, request.salonId));
+      if (drafts.length > 1 && !modules.some((item) => item.enabled && item.moduleKey === "multi_location")) {
+        return reply.code(409).send({ error: "MULTI_LOCATION_REQUIRED" });
+      }
+      const existing = await app.db.select().from(salonLocations).where(eq(salonLocations.salonId, request.salonId));
+      const existingIds = new Set(existing.map((item) => item.id));
+      if (drafts.some((item) => item.id && !existingIds.has(item.id))) return reply.code(400).send({ error: "INVALID_LOCATION" });
+      await app.db.transaction(async (tx) => {
+        for (const item of drafts) {
+          const values = { active: item.active ?? true, address: item.address?.trim() || null, email: item.email?.trim() || null, name: item.name.trim(), phone: item.phone?.trim() || null, timezone: item.timezone?.trim() || null };
+          if (item.id) await tx.update(salonLocations).set(values).where(eq(salonLocations.id, item.id));
+          else await tx.insert(salonLocations).values({ ...values, salonId: request.salonId });
+        }
+        const kept = new Set(drafts.flatMap((item) => item.id ? [item.id] : []));
+        for (const item of existing) if (!kept.has(item.id)) await tx.update(salonLocations).set({ active: false }).where(eq(salonLocations.id, item.id));
+      });
+      return { saved: drafts.length };
+    },
+  );
+
+  app.patch<{ Body: { resources: Array<{ active?: boolean; capacity?: number; id?: string; location_id: string; name: string; type?: string }> } }>(
+    "/api/onboarding/resources",
+    ownerOnly,
+    async (request, reply) => {
+      const drafts = request.body.resources ?? [];
+      if (drafts.some((item) => !item.name?.trim() || !item.location_id)) return reply.code(400).send({ error: "INVALID_RESOURCES" });
+      const [existing, locations] = await Promise.all([
+        app.db.select().from(salonResources).where(eq(salonResources.salonId, request.salonId)),
+        app.db.select().from(salonLocations).where(eq(salonLocations.salonId, request.salonId)),
+      ]);
+      const existingIds = new Set(existing.map((item) => item.id));
+      const locationIds = new Set(locations.map((item) => item.id));
+      if (drafts.some((item) => (item.id && !existingIds.has(item.id)) || !locationIds.has(item.location_id))) return reply.code(400).send({ error: "INVALID_RESOURCE" });
+      await app.db.transaction(async (tx) => {
+        for (const item of drafts) {
+          const values = { active: item.active ?? true, capacity: Math.max(1, item.capacity ?? 1), locationId: item.location_id, name: item.name.trim(), type: item.type ?? "cabin" };
+          if (item.id) await tx.update(salonResources).set(values).where(eq(salonResources.id, item.id));
+          else await tx.insert(salonResources).values({ ...values, salonId: request.salonId });
+        }
+        const kept = new Set(drafts.flatMap((item) => item.id ? [item.id] : []));
+        for (const item of existing) if (!kept.has(item.id)) await tx.update(salonResources).set({ active: false }).where(eq(salonResources.id, item.id));
+      });
+      return { saved: drafts.length };
+    },
+  );
+
   app.patch<{
     Body: {
       categories?: Array<{
+        active?: boolean;
         icon?: string;
         id?: string;
         name: string;
       }>;
       services: Array<{
+        active?: boolean;
+        buffer_after_minutes?: number;
+        buffer_before_minutes?: number;
         category: string;
         category_id?: string;
         duration_minutes: number;
         name: string;
+        id?: string;
+        online_booking_enabled?: boolean;
         price_cents: number;
       }>;
     };
@@ -188,17 +246,26 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
     if (normalizedCategories.length === 0) {
       return reply.code(400).send({ error: "INVALID_SERVICES" });
     }
+    const [existingCategories, existingServices] = await Promise.all([
+      app.db.select().from(serviceCategories).where(eq(serviceCategories.salonId, request.salonId)),
+      app.db.select().from(services).where(eq(services.salonId, request.salonId)),
+    ]);
+    const categoryIds = new Set(existingCategories.map((item) => item.id));
+    const serviceIds = new Set(existingServices.map((item) => item.id));
+    if (normalizedCategories.some((item) => item.id && !item.id.startsWith("local-") && !categoryIds.has(item.id)) || rows.some((item) => item.id && !serviceIds.has(item.id))) {
+      return reply.code(400).send({ error: "INVALID_SERVICES" });
+    }
     await app.db.transaction(async (tx) => {
-      await tx.delete(services).where(eq(services.salonId, request.salonId));
-      await tx.delete(serviceCategories).where(eq(serviceCategories.salonId, request.salonId));
-      const insertedCategories = await tx.insert(serviceCategories).values(
-        normalizedCategories.map((item, index) => ({
-          displayOrder: index,
-          icon: item.icon,
-          name: item.name,
-          salonId: request.salonId,
-        })),
-      ).returning();
+      const insertedCategories = [] as Array<{ id: string; name: string }>;
+      for (const [index, item] of normalizedCategories.entries()) {
+        if (item.id && categoryIds.has(item.id)) {
+          const updated = await tx.update(serviceCategories).set({ active: true, displayOrder: index, icon: item.icon, name: item.name }).where(eq(serviceCategories.id, item.id)).returning();
+          if (updated[0]) insertedCategories.push(updated[0]);
+        } else {
+          const inserted = await tx.insert(serviceCategories).values({ active: true, displayOrder: index, icon: item.icon, name: item.name, salonId: request.salonId }).returning();
+          if (inserted[0]) insertedCategories.push(inserted[0]);
+        }
+      }
       const categoryByKey = new Map<string, { id: string; name: string }>();
       insertedCategories.forEach((item, index) => {
         const draft = normalizedCategories[index];
@@ -206,17 +273,24 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
         categoryByKey.set(item.name, item);
       });
 
-      await tx.insert(services).values(
-        rows.map((item, index) => ({
+      for (const [index, item] of rows.entries()) {
+        const values = {
+          active: item.active ?? true,
+          bufferAfterMinutes: Math.max(0, item.buffer_after_minutes ?? 0),
+          bufferBeforeMinutes: Math.max(0, item.buffer_before_minutes ?? 0),
           category: (categoryByKey.get(item.category_id ?? "") ?? categoryByKey.get(item.category.trim()))?.name ?? item.category.trim(),
           categoryId: (categoryByKey.get(item.category_id ?? "") ?? categoryByKey.get(item.category.trim()))?.id,
           displayOrder: index,
           durationMinutes: item.duration_minutes,
           name: item.name.trim(),
+          onlineBookingEnabled: item.online_booking_enabled ?? true,
           priceCents: item.price_cents,
-          salonId: request.salonId,
-        })),
-      );
+        };
+        if (item.id) await tx.update(services).set(values).where(eq(services.id, item.id));
+        else await tx.insert(services).values({ ...values, salonId: request.salonId });
+      }
+      const keptServices = new Set(rows.flatMap((item) => item.id ? [item.id] : []));
+      for (const item of existingServices) if (!keptServices.has(item.id)) await tx.update(services).set({ active: false, onlineBookingEnabled: false }).where(eq(services.id, item.id));
       const salonRows = await tx.select({ step: salons.onboardingStep }).from(salons).where(eq(salons.id, request.salonId));
       await tx.update(salons).set({
         onboardingStep: nextStep(salonRows[0]?.step ?? 1, 3),
@@ -237,17 +311,30 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
     if (rows.length === 0 || rows.some((item) => !item.display_name?.trim())) {
       return reply.code(400).send({ error: "INVALID_STAFF" });
     }
+    const extendedRows = rows as Array<{ active?: boolean; color?: string; display_name: string; id?: string; job_title?: string; location_id?: string | null; working_hours?: WorkingHours }>;
+    const [existingStaff, locations] = await Promise.all([
+      app.db.select().from(staff).where(eq(staff.salonId, request.salonId)),
+      app.db.select().from(salonLocations).where(eq(salonLocations.salonId, request.salonId)),
+    ]);
+    const staffIds = new Set(existingStaff.map((item) => item.id));
+    const locationIds = new Set(locations.map((item) => item.id));
+    if (extendedRows.some((item) => (item.id && !staffIds.has(item.id)) || (item.location_id && !locationIds.has(item.location_id)))) return reply.code(400).send({ error: "INVALID_STAFF" });
     await app.db.transaction(async (tx) => {
-      await tx.delete(staff).where(eq(staff.salonId, request.salonId));
-      await tx.insert(staff).values(
-        rows.map((item, index) => ({
+      for (const [index, item] of extendedRows.entries()) {
+        const values = {
+          active: item.active ?? true,
           color: item.color || colors[index % colors.length] || "#792f59",
           displayName: item.display_name.trim(),
-          salonId: request.salonId,
+          jobTitle: item.job_title?.trim() || null,
+          locationId: item.location_id || null,
           userId: request.body.link_owner && index === 0 ? request.user.id : null,
-          workingHours: request.body.working_hours,
-        })),
-      );
+          workingHours: item.working_hours ?? request.body.working_hours,
+        };
+        if (item.id) await tx.update(staff).set(values).where(eq(staff.id, item.id));
+        else await tx.insert(staff).values({ ...values, salonId: request.salonId });
+      }
+      const kept = new Set(extendedRows.flatMap((item) => item.id ? [item.id] : []));
+      for (const item of existingStaff) if (!kept.has(item.id)) await tx.update(staff).set({ active: false }).where(eq(staff.id, item.id));
       const salonRows = await tx.select({ step: salons.onboardingStep }).from(salons).where(eq(salons.id, request.salonId));
       await tx.update(salons).set({
         onboardingStep: nextStep(salonRows[0]?.step ?? 1, 4),
@@ -257,14 +344,56 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
     return { saved: rows.length };
   });
 
+  app.put<{ Body: { service_resources?: Array<{ resource_id: string; service_id: string }>; service_staff?: Array<{ service_id: string; staff_id: string }> } }>(
+    "/api/onboarding/assignments",
+    ownerOnly,
+    async (request, reply) => {
+      const staffPairs = request.body.service_staff ?? [];
+      const resourcePairs = request.body.service_resources ?? [];
+      const [serviceRows, staffRows, resourceRows] = await Promise.all([
+        app.db.select({ id: services.id }).from(services).where(eq(services.salonId, request.salonId)),
+        app.db.select({ id: staff.id }).from(staff).where(eq(staff.salonId, request.salonId)),
+        app.db.select({ id: salonResources.id }).from(salonResources).where(eq(salonResources.salonId, request.salonId)),
+      ]);
+      const serviceIds = new Set(serviceRows.map((item) => item.id));
+      const staffIds = new Set(staffRows.map((item) => item.id));
+      const resourceIds = new Set(resourceRows.map((item) => item.id));
+      if (staffPairs.some((item) => !serviceIds.has(item.service_id) || !staffIds.has(item.staff_id))) return reply.code(400).send({ error: "INVALID_STAFF_ASSIGNMENT" });
+      if (resourcePairs.some((item) => !serviceIds.has(item.service_id) || !resourceIds.has(item.resource_id))) return reply.code(400).send({ error: "INVALID_RESOURCE_ASSIGNMENT" });
+      await app.db.transaction(async (tx) => {
+        await tx.delete(serviceStaff).where(eq(serviceStaff.salonId, request.salonId));
+        await tx.delete(serviceResources).where(eq(serviceResources.salonId, request.salonId));
+        const uniqueStaff = [...new Map(staffPairs.map((item) => [`${item.service_id}:${item.staff_id}`, item])).values()];
+        const uniqueResources = [...new Map(resourcePairs.map((item) => [`${item.service_id}:${item.resource_id}`, item])).values()];
+        if (uniqueStaff.length) await tx.insert(serviceStaff).values(uniqueStaff.map((item) => ({ salonId: request.salonId, serviceId: item.service_id, staffId: item.staff_id })));
+        if (uniqueResources.length) await tx.insert(serviceResources).values(uniqueResources.map((item) => ({ resourceId: item.resource_id, salonId: request.salonId, serviceId: item.service_id })));
+      });
+      return { saved: staffPairs.length + resourcePairs.length };
+    },
+  );
+
   app.post("/api/onboarding/complete", ownerOnly, async (request, reply) => {
-    const [serviceCount, staffCount] = await Promise.all([
-      app.db.select({ count: sql<number>`count(*)` }).from(services).where(eq(services.salonId, request.salonId)),
-      app.db.select({ count: sql<number>`count(*)` }).from(staff).where(eq(staff.salonId, request.salonId)),
+    const [salonRows, locationRows, resourceRows, serviceRows, staffRows, staffAssignmentRows, resourceAssignmentRows, moduleRows] = await Promise.all([
+      app.db.select().from(salons).where(eq(salons.id, request.salonId)),
+      app.db.select().from(salonLocations).where(eq(salonLocations.salonId, request.salonId)),
+      app.db.select().from(salonResources).where(eq(salonResources.salonId, request.salonId)),
+      app.db.select().from(services).where(eq(services.salonId, request.salonId)),
+      app.db.select().from(staff).where(eq(staff.salonId, request.salonId)),
+      app.db.select().from(serviceStaff).where(eq(serviceStaff.salonId, request.salonId)),
+      app.db.select().from(serviceResources).where(eq(serviceResources.salonId, request.salonId)),
+      app.db.select().from(salonModules).where(eq(salonModules.salonId, request.salonId)),
     ]);
-    if (Number(serviceCount[0]?.count ?? 0) === 0 || Number(staffCount[0]?.count ?? 0) === 0) {
-      return reply.code(409).send({ error: "ONBOARDING_INCOMPLETE" });
-    }
+    const readiness = evaluateOnboardingReadiness({
+      enabledModules: new Set(moduleRows.filter((item) => item.enabled).map((item) => item.moduleKey)),
+      identityComplete: Boolean(salonRows[0]?.name.trim()),
+      locations: locationRows.map((item) => ({ active: item.active, id: item.id })),
+      resources: resourceRows.map((item) => ({ active: item.active, id: item.id, locationId: item.locationId })),
+      services: serviceRows.map((item) => ({ active: item.active, id: item.id, onlineBookingEnabled: item.onlineBookingEnabled })),
+      staff: staffRows.map((item) => ({ active: item.active, id: item.id, locationId: item.locationId })),
+      serviceStaff: staffAssignmentRows,
+      serviceResources: resourceAssignmentRows,
+    });
+    if (!readiness.ready) return reply.code(409).send({ error: "ONBOARDING_INCOMPLETE", issues: readiness.issues });
     await app.db.update(salons).set({
       onboardingCompletedAt: new Date(),
       onboardingStep: 5,

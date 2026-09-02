@@ -24,4 +24,16 @@ describe("operational onboarding API contract", () => {
   it("ensures a primary location before returning the payload", () => {
     expect(source).toContain("ensurePrimaryLocation");
   });
+
+  it("persists operational collections and assignments", () => {
+    expect(source).toContain('"/api/onboarding/locations"');
+    expect(source).toContain('"/api/onboarding/resources"');
+    expect(source).toContain('"/api/onboarding/assignments"');
+    expect(source).not.toContain("tx.delete(services)");
+    expect(source).not.toContain("tx.delete(staff)");
+  });
+
+  it("uses readiness issues when completing onboarding", () => {
+    expect(source).toContain('error: "ONBOARDING_INCOMPLETE", issues: readiness.issues');
+  });
 });
