@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { AppPage, EmptyState, PageHeaderMetrics, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import {
+  AppPage,
+  EmptyState,
+  PageHeaderMetrics,
+  SectionCard,
+  StatusBadge,
+} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -32,17 +38,45 @@ export default function MarketingPage() {
       .then(setItems);
   }, [salon]);
 
-  const scheduled = useMemo(() => items.filter((item) => item.status === "scheduled").length, [items]);
-  const sent = useMemo(() => items.filter((item) => item.status === "sent").length, [items]);
-  const drafts = useMemo(() => items.filter((item) => item.status === "draft").length, [items]);
+  const scheduled = useMemo(
+    () => items.filter((item) => item.status === "scheduled").length,
+    [items],
+  );
+  const sent = useMemo(
+    () => items.filter((item) => item.status === "sent").length,
+    [items],
+  );
+  const drafts = useMemo(
+    () => items.filter((item) => item.status === "draft").length,
+    [items],
+  );
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <PageHeaderMetrics
-        actions={<div className="flex flex-wrap gap-2"><Link className="inline-flex min-h-11 items-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-800" href="/marketing/templates">Modelli</Link><Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/marketing/new">Nuova campagna</Link></div>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex min-h-11 items-center rounded-xl border border-stone-200 bg-white px-4 py-2.5 font-semibold text-stone-800"
+              href="/marketing/templates"
+            >
+              Modelli
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5"
+              href="/marketing/new"
+            >
+              Nuova campagna
+            </Link>
+          </div>
+        }
         eyebrow="Marketing"
         metrics={[
-          { detail: "Invii pianificati", label: "In programma", value: scheduled },
+          {
+            detail: "Invii pianificati",
+            label: "In programma",
+            value: scheduled,
+          },
           { detail: "Comunicazioni concluse", label: "Inviate", value: sent },
           { detail: "Da completare", label: "Bozze", value: drafts },
         ]}
@@ -50,10 +84,20 @@ export default function MarketingPage() {
         subtitle="Prepara comunicazioni mirate per clienti, liste e promozioni senza perdere il controllo dello stato."
       />
 
-      <SectionCard title="Archivio campagne" subtitle="Ogni card mostra canale, pubblico e prossima data utile.">
+      <SectionCard
+        title="Archivio campagne"
+        subtitle="Ogni card mostra canale, pubblico e prossima data utile."
+      >
         {items.length === 0 ? (
           <EmptyState
-            action={<Link className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5" href="/marketing/new">Crea campagna</Link>}
+            action={
+              <Link
+                className="inline-flex min-h-11 items-center rounded-xl border border-[#402334] bg-[linear-gradient(135deg,#402334_0%,#792f59_58%,#b85888_100%)] px-4 py-2.5 font-semibold text-white shadow-[0_16px_36px_rgb(121_47_89_/_0.28)] transition hover:-translate-y-0.5"
+                href="/marketing/new"
+              >
+                Crea campagna
+              </Link>
+            }
             description="Le campagne create compariranno qui con stato, canale e pubblico."
             title="Nessuna campagna"
           />
@@ -66,13 +110,25 @@ export default function MarketingPage() {
                 key={item.id}
               >
                 <div className="min-w-0">
-                  <h2 className="truncate text-lg font-bold text-stone-950 group-hover:text-[#792f59]">{item.name}</h2>
-                  <p className="mt-1 text-sm text-stone-500">Pubblico: {item.targetSegment.type.replace("_", " ")}</p>
+                  <h2 className="truncate text-lg font-bold text-stone-950 group-hover:text-[#792f59]">
+                    {item.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Pubblico:{" "}
+                    {item.targetSegment?.type?.replace("_", " ") ??
+                      "Non specificato"}
+                  </p>{" "}
                 </div>
-                <span className="w-fit rounded-full border border-[#ead1df] bg-[#fffafd] px-3 py-1 text-xs font-black uppercase tracking-[.08em] text-[#792f59]">{item.channel}</span>
+                <span className="w-fit rounded-full border border-[#ead1df] bg-[#fffafd] px-3 py-1 text-xs font-black uppercase tracking-[.08em] text-[#792f59]">
+                  {item.channel}
+                </span>
                 <StatusBadge status={item.status} />
                 <time className="text-sm font-semibold text-stone-500">
-                  {item.sentAt || item.scheduledAt ? new Date(item.sentAt ?? item.scheduledAt!).toLocaleString("it-IT") : "Bozza"}
+                  {item.sentAt || item.scheduledAt
+                    ? new Date(item.sentAt ?? item.scheduledAt!).toLocaleString(
+                        "it-IT",
+                      )
+                    : "Bozza"}
                 </time>
               </Link>
             ))}
