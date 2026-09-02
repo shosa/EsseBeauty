@@ -804,7 +804,7 @@ export function buildDemoScenario(options: DemoSeedOptions): DemoScenario {
     const expiresAt = addUtcDays(now, 30 + index);
     return {
       appointmentId: review.appointmentId, channel: "email" as const, consumedAt: review.rating ? addUtcDays(expiresAt, -25) : null,
-      deliveredAt: addUtcDays(expiresAt, -29), deliveryAttempts: 1, deliveryStatus: "delivered" as const,
+      deliveredAt: addUtcDays(expiresAt, -29), deliveryAttempts: 1, deliveryStatus: "sent" as const,
       expiresAt, id: random.uuid("review-invitation"), salonId, tokenHash: String(index + 1).padStart(64, "b").slice(-64),
     };
   });
