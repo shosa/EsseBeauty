@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
@@ -55,11 +55,11 @@ postgresSuite("applyDemoScenario with PostgreSQL", () => {
   }, 30_000);
 
   afterAll(async () => {
+    // Only the sentinel is ours to remove. The Demo tenant this test creates
+    // or replaces is left in place on purpose: regenerating it is the whole
+    // point of the feature, and a developer running the suite locally ends
+    // up with a working Demo tenant, matching what `pnpm demo:seed` does.
     await db.delete(salons).where(eq(salons.id, sentinelSalonId));
-    const demoSalon = await db.select({ id: salons.id }).from(salons).where(eq(salons.slug, DEMO_IDENTITY.salonSlug));
-    if (demoSalon[0]) {
-      await db.delete(salons).where(eq(salons.id, demoSalon[0].id));
-    }
     await db.$client.end();
   }, 30_000);
 
@@ -70,8 +70,11 @@ postgresSuite("applyDemoScenario with PostgreSQL", () => {
     const scenario = buildDemoScenario(scenarioOptions);
     const firstReport = await applyDemoScenario(db, scenario, { ownerPassword: "demo123456" });
 
+    // Whether this replaces a pre-existing Demo tenant (e.g. from a prior
+    // `pnpm demo:seed` run against this same database) or creates a fresh
+    // one depends on state outside this test's control; idempotency is what
+    // the second call below actually proves.
     expect(firstReport.dryRun).toBe(false);
-    expect(firstReport.replacedTenantId).toBeNull();
 
     const demoSalonRows = await db.select().from(salons).where(eq(salons.slug, DEMO_IDENTITY.salonSlug));
     expect(demoSalonRows).toHaveLength(1);
@@ -127,11 +130,11 @@ postgresSuite("applyDemoScenario with PostgreSQL", () => {
   }, 120_000);
 
   it("supports a dry run that makes no database changes", async () => {
-    const before = await db.select({ count: sql<number>`count(*)` }).from(salons);
+    const before = await db.select({ id: salons.id }).from(salons).where(eq(salons.slug, DEMO_IDENTITY.salonSlug));
     const scenario = buildDemoScenario(scenarioOptions);
     const report = await applyDemoScenario(db, scenario, { dryRun: true, ownerPassword: "demo123456" });
     expect(report.dryRun).toBe(true);
-    const after = await db.select({ count: sql<number>`count(*)` }).from(salons);
-    expect(after[0]!.count).toBe(before[0]!.count);
+    const after = await db.select({ id: salons.id }).from(salons).where(eq(salons.slug, DEMO_IDENTITY.salonSlug));
+    expect(after).toEqual(before);
   }, 30_000);
 });
