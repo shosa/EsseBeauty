@@ -309,6 +309,13 @@
       "when": 1788354294961,
       "tag": "0043_sale_void_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1788355462299,
+      "tag": "0044_inventory_movements_sale_link",
+      "breakpoints": true
     }
   ]
 }

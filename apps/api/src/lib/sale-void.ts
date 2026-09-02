@@ -42,13 +42,14 @@ export async function buildSaleVoidPlan(db: any, salonId: string, saleId: string
 
   const movementRows = await db.select({
     delta: inventoryMovements.delta,
+    movementType: inventoryMovements.movementType,
     productId: inventoryMovements.productId,
     productName: inventoryProducts.name,
   }).from(inventoryMovements)
     .innerJoin(inventoryProducts, eq(inventoryProducts.id, inventoryMovements.productId))
-    .where(and(eq(inventoryMovements.salonId, salonId), eq(inventoryMovements.reason, `Vendita ${saleId}`)));
+    .where(and(eq(inventoryMovements.salonId, salonId), eq(inventoryMovements.saleId, saleId)));
   const products: SaleVoidRestoreProduct[] = movementRows
-    .filter((row: any) => row.delta < 0)
+    .filter((row: any) => row.movementType === "sale" && row.delta < 0)
     .map((row: any) => ({ product_id: row.productId, product_name: row.productName, quantity: -row.delta }));
 
   const issuedVoucherRows = await db.select().from(purchaseVouchers).where(and(
@@ -140,7 +141,8 @@ export async function voidSale(
 
   const movementRows = await tx.select().from(inventoryMovements).where(and(
     eq(inventoryMovements.salonId, input.salonId),
-    eq(inventoryMovements.reason, `Vendita ${input.saleId}`),
+    eq(inventoryMovements.saleId, input.saleId),
+    eq(inventoryMovements.movementType, "sale"),
   ));
   for (const movement of movementRows) {
     if (movement.delta >= 0) continue;
@@ -148,16 +150,22 @@ export async function voidSale(
     const productRows = await tx.select().from(inventoryProducts).where(eq(inventoryProducts.id, movement.productId)).for("update");
     const product = productRows[0];
     if (!product) continue;
-    const stockAfter = product.stockQuantity + restore;
+    const stockBefore = product.stockQuantity;
+    const stockAfter = stockBefore + restore;
     await tx.update(inventoryProducts).set({ stockQuantity: stockAfter, updatedAt: new Date() }).where(eq(inventoryProducts.id, product.id));
     await tx.insert(inventoryMovements).values({
       createdByUserId: input.userId,
       delta: restore,
+      movementType: "sale_reversal",
       productId: product.id,
       reason: `Storno vendita ${input.saleId}`,
       reversesMovementId: movement.id,
+      saleId: input.saleId,
       salonId: input.salonId,
       stockAfter,
+      stockBefore,
+      unitCostCents: movement.unitCostCents,
+      valueCents: movement.valueCents === null ? null : -movement.valueCents,
     });
   }
 

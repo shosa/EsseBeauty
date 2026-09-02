@@ -46,6 +46,7 @@ interface Movement {
   customer_name?: string | null;
   delta: number;
   id: string;
+  movement_type?: string | null;
   reason: string;
   sale_id?: string | null;
 }
@@ -190,7 +191,11 @@ export default function InventoryProductPage() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <strong className="block text-stone-950">
-                          {movement.sale_id ? `Vendita a ${movement.customer_name || "cliente"}` : movement.reason}
+                          {movement.sale_id
+                            ? movement.movement_type === "sale_reversal"
+                              ? `Storno vendita a ${movement.customer_name || "cliente"}`
+                              : `Vendita a ${movement.customer_name || "cliente"}`
+                            : movement.reason}
                         </strong>
                         <p className="mt-1 text-xs text-stone-500">{new Date(movement.created_at).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</p>
                         {movement.appointment_id && (

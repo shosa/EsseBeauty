@@ -2156,6 +2156,9 @@ export const inventoryMovements = pgTable(
   appointmentId: uuid("appointment_id").references(() => appointments.id, {
     onDelete: "set null",
   }),
+  saleId: uuid("sale_id").references(() => sales.id, {
+    onDelete: "set null",
+  }),
   createdByUserId: uuid("created_by_user_id").references(() => users.id, {
     onDelete: "set null",
   }),

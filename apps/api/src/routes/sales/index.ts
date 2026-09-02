@@ -647,15 +647,21 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         ));
         const product = productRows[0];
         if (!product) throw new Error("PRODUCT_NOT_FOUND");
-        const stockAfter = product.stockQuantity - line.quantity;
+        const stockBefore = product.stockQuantity;
+        const stockAfter = stockBefore - line.quantity;
         await tx.update(inventoryProducts).set({ stockQuantity: stockAfter, updatedAt: new Date() }).where(eq(inventoryProducts.id, product.id));
         await tx.insert(inventoryMovements).values({
           createdByUserId: request.user.id,
           delta: -line.quantity,
+          movementType: "sale",
           productId: product.id,
           reason: `Vendita ${sale.id}`,
+          saleId: sale.id,
           salonId: request.salonId,
           stockAfter,
+          stockBefore,
+          unitCostCents: product.averageCostCents,
+          valueCents: -line.quantity * product.averageCostCents,
         });
         await notifyNegativeStock(tx, {
           productId: product.id,
@@ -877,7 +883,8 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           ));
           const product = productRows[0];
           if (!product) throw new Error("PRODUCT_NOT_FOUND");
-          const stockAfter = product.stockQuantity - line.quantity;
+          const stockBefore = product.stockQuantity;
+          const stockAfter = stockBefore - line.quantity;
           await tx.update(inventoryProducts).set({
             stockQuantity: stockAfter,
             updatedAt: new Date(),
@@ -886,10 +893,15 @@ export async function registerSalesRoutes(app: FastifyInstance) {
             appointmentId: appointment.id,
             createdByUserId: request.user.id,
             delta: -line.quantity,
+            movementType: "sale",
             productId: product.id,
             reason: `Vendita ${sale.id}`,
+            saleId: sale.id,
             salonId: request.salonId,
             stockAfter,
+            stockBefore,
+            unitCostCents: product.averageCostCents,
+            valueCents: -line.quantity * product.averageCostCents,
           });
           await notifyNegativeStock(tx, {
             productId: product.id,

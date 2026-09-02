@@ -198,22 +198,37 @@ export async function registerInventoryReportingRoutes(app: FastifyInstance) {
     const selectedLines = lines.filter((line) => selectedDocumentIds.has(line.documentId) && lineMatches(line, productById.get(line.productId ?? ""), request.query));
     const selectedLineIds = new Set(selectedLines.map((line) => line.id));
     const valuationRows = products.filter((product) => product.trackStock && (!request.query.item_type || product.itemType === request.query.item_type) && (!request.query.category || product.category === request.query.category) && (!request.query.supplier_id || product.preferredSupplierId === request.query.supplier_id)).map((product) => ({ product_id: product.id, name: product.name, category: product.category, item_type: product.itemType, stock_quantity: product.stockQuantity, average_cost_cents: product.averageCostCents, value_cents: product.stockQuantity * product.averageCostCents }));
+    const saleMovementTypes = new Set(["sale", "sale_reversal"]);
     const reportMovements = movements.filter((movement) => {
-      if (!selectedDocumentIds.has(movement.documentId ?? "") || !inDateRange(movement.createdAt, bounds)) return false;
+      if (!inDateRange(movement.createdAt, bounds)) return false;
+      const isSaleMovement = saleMovementTypes.has(movement.movementType ?? "");
+      if (!isSaleMovement && !selectedDocumentIds.has(movement.documentId ?? "")) return false;
       const line = movement.documentLineId ? lineById.get(movement.documentLineId) : undefined;
       return (!line || selectedLineIds.has(line.id)) && (!request.query.item_type || (line?.itemType ?? productById.get(movement.productId)?.itemType) === request.query.item_type) && (!request.query.category || productById.get(movement.productId)?.category === request.query.category);
     });
+    // Sales made through the register (and their storno reversals) never carry a warehouse
+    // document, so they're folded into "consumption" here by movement_type rather than by
+    // looking up a document.kind — that's the only way retail sales ever show up in this report.
     const grouped = (kind: "consumption" | "waste") => {
       const rows = new Map<string, { product_id: string; name: string; quantity: number; value_cents: number }>();
+      const add = (productId: string, name: string, quantity: number, valueCents: number) => {
+        const current = rows.get(productId) ?? { product_id: productId, name, quantity: 0, value_cents: 0 };
+        current.quantity += quantity;
+        current.value_cents += valueCents;
+        rows.set(productId, current);
+      };
       for (const movement of reportMovements) {
-        const document = documentById.get(movement.documentId ?? "");
-        if (!document || (kind === "waste" ? document.kind !== "waste" : document.kind === "waste") || movement.delta >= 0) continue;
         const product = productById.get(movement.productId);
         if (!product) continue;
-        const current = rows.get(product.id) ?? { product_id: product.id, name: product.name, quantity: 0, value_cents: 0 };
-        current.quantity += Math.abs(movement.delta);
-        current.value_cents += Math.abs(money(movement.valueCents));
-        rows.set(product.id, current);
+        if (saleMovementTypes.has(movement.movementType ?? "")) {
+          if (kind !== "consumption") continue;
+          const sign = movement.movementType === "sale" ? 1 : -1;
+          add(product.id, product.name, sign * Math.abs(movement.delta), sign * Math.abs(money(movement.valueCents)));
+          continue;
+        }
+        const document = documentById.get(movement.documentId ?? "");
+        if (!document || (kind === "waste" ? document.kind !== "waste" : document.kind === "waste") || movement.delta >= 0) continue;
+        add(product.id, product.name, Math.abs(movement.delta), Math.abs(money(movement.valueCents)));
       }
       return [...rows.values()];
     };

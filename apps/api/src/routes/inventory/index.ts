@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq, lt } from "drizzle-orm";
 
 import {
-  appointments,
   customers,
   inventoryDocumentLines,
   inventoryDocuments,
@@ -318,13 +317,13 @@ export async function registerInventoryRoutes(app: FastifyInstance) {
           customer_name: customers.fullName,
           delta: inventoryMovements.delta,
           id: inventoryMovements.id,
+          movement_type: inventoryMovements.movementType,
           reason: inventoryMovements.reason,
           sale_id: sales.id,
         })
         .from(inventoryMovements)
-        .leftJoin(appointments, eq(appointments.id, inventoryMovements.appointmentId))
-        .leftJoin(customers, eq(customers.id, appointments.customerId))
-        .leftJoin(sales, eq(sales.appointmentId, appointments.id))
+        .leftJoin(sales, eq(sales.id, inventoryMovements.saleId))
+        .leftJoin(customers, eq(customers.id, sales.customerId))
         .where(
           and(
             eq(inventoryMovements.productId, request.params.productId),
