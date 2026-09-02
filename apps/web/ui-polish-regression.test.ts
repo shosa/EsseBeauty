@@ -479,4 +479,18 @@ describe("professional UI regression guard", () => {
     expect(shared).toContain("WEEK_DAYS_IT");
     expect(shared).toContain("formatWeekdayIt");
   });
+
+  it("mirrors the client detail hero and tab pattern in the staff detail page", () => {
+    const staffDetail = readFileSync(join(dashboardRoot, "settings", "staff", "[staffId]", "page.tsx"), "utf8");
+    expect(staffDetail).not.toContain("SectionCard");
+    expect(staffDetail).not.toContain("PageHeader");
+    expect(staffDetail).toContain("PageTransition");
+    expect(staffDetail).toContain('Breadcrumbs items={[{ href: "/staff", label: "Staff" }');
+    expect(staffDetail).toContain('useState<TabKey>("profile")');
+    expect(staffDetail).toContain("staffStatusAction(member.active)");
+    expect(staffDetail).toContain("ConfirmDialog");
+    expect(staffDetail).toContain("Servizi abilitati");
+    expect(staffDetail).toContain("Giorni lavorativi");
+    expect(staffDetail).toContain("WEEK_DAYS_IT");
+  });
 });
