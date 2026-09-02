@@ -169,16 +169,22 @@ services:
     networks:
       - app
   website:
-    container_name: esse-beauty-website
-    build:
-      context: .
-      dockerfile: apps/website/Dockerfile
-    restart: unless-stopped
-    init: true
-    ports:
-      - "${WEBSITE_PORT:-3005}:3005"
-    networks:
-      - app
+  container_name: esse-beauty-website
+  build:
+    context: .
+    dockerfile: apps/website/Dockerfile
+    args:
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://shosa.me}
+      NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_WEB_URL:-https://essebeauty.shosa.me}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.essebeauty.shosa.me}
+      NEXT_PUBLIC_PLATFORM_URL: ${NEXT_PUBLIC_PLATFORM_URL:-https://admin.essebeauty.shosa.me}
+      NEXT_PUBLIC_PWA_URL: ${NEXT_PUBLIC_PWA_URL:-https://app.essebeauty.shosa.me}
+  restart: unless-stopped
+  init: true
+  ports:
+    - "${WEBSITE_PORT:-3005}:3005"
+  networks:
+    - app
 networks:
   app:
     name: esse-beauty-network
