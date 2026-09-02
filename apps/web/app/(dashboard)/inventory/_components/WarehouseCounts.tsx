@@ -1,8 +1,9 @@
 "use client";
 
-import { ClipboardList, Plus, Save, Send } from "lucide-react";
+import { Barcode, Plus, Save, Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, EmptyState, SectionCard } from "@esse-beauty/ui";
+import { Button, EmptyState } from "@esse-beauty/ui";
+import { Card } from "./EnterpriseCard";
 import { warehouseApi } from "../warehouse-api";
 import type { WarehouseCount, WarehouseCountLine, WarehouseProduct } from "../warehouse-types";
 
@@ -15,7 +16,8 @@ export function parseWarehousePaste(text: string) {
   });
 }
 
-function statusLabel(status: WarehouseCount["status"]) { return status === "posted" ? "Registrato" : status === "counting" ? "In corso" : status; }
+function statusLabel(status: WarehouseCount["status"]) { return status === "posted" ? "Registrato" : status === "counting" ? "In corso" : status === "cancelled" ? "Annullato" : "Bozza"; }
+function statusBadge(status: WarehouseCount["status"]) { return status === "posted" ? "bg-[#e5f3ec] text-[#1c7a5c]" : status === "counting" ? "bg-[#f7ecdc] text-[#a5691a]" : status === "cancelled" ? "bg-stone-100 text-stone-500" : "bg-stone-100 text-stone-600"; }
 
 export function WarehouseCounts({ counts, onRefresh, products, salonId }: { counts: WarehouseCount[]; onRefresh(): Promise<void>; products: WarehouseProduct[]; salonId?: string }) {
   const [active, setActive] = useState<WarehouseCount>();
@@ -60,6 +62,81 @@ export function WarehouseCounts({ counts, onRefresh, products, salonId }: { coun
   };
   const update = (productId: string, changes: Partial<WarehouseCountLine>) => setLines((current) => current.map((line) => line.productId === productId ? { ...line, ...changes } : line));
 
-  return <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]"><SectionCard actions={<Button disabled={saving} onClick={() => void create()} size="sm" variant="primary"><Plus className="size-4" />Nuovo</Button>} title="Inventari" subtitle="Conteggi aperti e registrati."><div className="space-y-2">{counts.map((count) => <button className={`w-full rounded-lg border p-3 text-left text-sm ${active?.id === count.id ? "border-[#8f3a68] bg-[#fff7fb]" : "border-stone-200"}`} key={count.id} onClick={() => void open(count)} type="button"><span className="block font-bold text-[#402334]">{statusLabel(count.status)}</span><span className="text-xs text-stone-500">{new Date(count.openedAt).toLocaleDateString("it-IT")}</span></button>)}{!counts.length && <EmptyState description="Apri un conteggio per congelare le quantità teoriche." title="Nessun inventario" />}</div></SectionCard>
-    <SectionCard actions={active && active.status !== "posted" ? <div className="flex gap-2"><Button disabled={saving} onClick={() => void save(false)} size="sm" variant="outline"><Save className="size-4" />Salva</Button><Button disabled={saving} onClick={() => void save(true)} size="sm" variant="primary"><Send className="size-4" />Registra</Button></div> : undefined} title="Conteggio fisico" subtitle="Le quantità teoriche sono congelate all'apertura. Il salvataggio non cambia le scorte.">{active ? <><div className="mb-3 flex flex-wrap gap-2"><input aria-label="Barcode" autoComplete="off" className="min-h-10 rounded-lg border border-stone-200 px-3 text-sm" placeholder="Scansiona barcode" ref={barcodeRef} /><details className="rounded-lg border border-stone-200 px-3 py-2"><summary className="cursor-pointer text-sm font-bold text-[#792f59]">Incolla conteggi</summary><textarea className="mt-2 min-h-20 w-full min-w-[300px] rounded border border-stone-200 p-2 text-xs" onChange={(event) => setPaste(event.target.value)} placeholder="SKU/barcode\tquantità\tnota" value={paste} /><Button className="mt-2" onClick={() => void previewPaste()} size="sm" variant="tableAction">Anteprima sicura</Button></details></div><div className="overflow-x-auto rounded-xl border border-stone-200"><table className="w-full min-w-[760px] text-sm"><thead className="bg-[#faf3f7] text-left text-[10px] font-black uppercase tracking-[.1em] text-[#792f59]"><tr><th className="px-3 py-2">Articolo</th><th className="px-3 py-2">Quantità teorica</th><th className="px-3 py-2">Quantità contata</th><th className="px-3 py-2">Differenza</th><th className="px-3 py-2">Nota</th><th className="px-3 py-2">Stato</th></tr></thead><tbody>{lines.map((line) => { const product = productsById.get(line.productId); const difference = line.countedQuantity === null ? null : line.countedQuantity - line.theoreticalQuantity; return <tr className="border-t border-stone-100" key={line.id}><td className="px-3 py-2"><strong>{product?.name ?? line.productId}</strong><span className="ml-2 text-xs text-stone-500">{product?.sku}</span></td><td className="px-3 py-2">{line.theoreticalQuantity}</td><td className="px-3 py-2"><input className="w-24 rounded border border-stone-200 px-2 py-1" disabled={active.status === "posted"} min="0" onChange={(event) => update(line.productId, { countedQuantity: event.target.value === "" ? null : Number(event.target.value) })} type="number" value={line.countedQuantity ?? ""} /></td><td className="px-3 py-2 font-bold">{difference ?? "—"}</td><td className="px-3 py-2"><input className="w-full rounded border border-stone-200 px-2 py-1" disabled={active.status === "posted"} onChange={(event) => update(line.productId, { note: event.target.value || null })} value={line.note ?? ""} /></td><td className="px-3 py-2 text-xs">{difference === null ? "Da contare" : difference === 0 ? "Allineato" : "Da rettificare"}</td></tr>; })}</tbody></table></div></> : <EmptyState description="Apri un nuovo inventario per lavorare sulle quantità congelate." title="Seleziona un inventario" />}{error && <p aria-live="polite" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}</SectionCard></div>;
+  const countedLines = lines.filter((line) => line.countedQuantity !== null).length;
+
+  return (
+    <div className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)] xl:items-start">
+      <Card bodyClassName="p-0" actions={<Button disabled={saving} onClick={() => void create()} size="sm" variant="primary"><Plus className="size-4" />Nuova</Button>} title="Sessioni di conteggio">
+        {counts.length === 0 ? (
+          <div className="p-4"><EmptyState description="Apri un conteggio per congelare le quantità teoriche." title="Nessun inventario" /></div>
+        ) : (
+          <div>
+            {counts.map((count) => (
+              <button className={`flex w-full items-center gap-3 border-t border-stone-100 px-4 py-3 text-left text-sm transition first:border-t-0 ${active?.id === count.id ? "bg-[#f7eef3]" : "hover:bg-[#fffafd]"}`} key={count.id} onClick={() => void open(count)} type="button">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-bold text-stone-900">{count.category || "Conteggio generale"}</div>
+                  <div className="text-[11px] text-stone-400">{new Date(count.openedAt).toLocaleDateString("it-IT")}</div>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${statusBadge(count.status)}`}>{statusLabel(count.status)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card
+        bodyClassName="p-0"
+        actions={active && active.status !== "posted" ? (
+          <div className="flex gap-2">
+            <Button disabled={saving} onClick={() => void save(false)} size="sm" variant="outline"><Save className="size-4" />Salva bozza</Button>
+            <Button disabled={saving} onClick={() => void save(true)} size="sm" variant="primary"><Send className="size-4" />Registra</Button>
+          </div>
+        ) : undefined}
+        subtitle={active ? `${lines.length} articoli da verificare · ${countedLines} già contati` : "Le quantità teoriche sono congelate all'apertura. Il salvataggio non cambia le scorte."}
+        title={active ? (active.category || "Conteggio generale") : "Conteggio fisico"}
+      >
+        {!active ? (
+          <div className="p-4"><EmptyState description="Apri un nuovo inventario per lavorare sulle quantità congelate." title="Seleziona un inventario" /></div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2.5 border-b border-[#e8dfe4] bg-[#faf7f9] px-4 py-3">
+              <Barcode aria-hidden="true" className="size-4 shrink-0 text-stone-400" />
+              <input aria-label="Barcode" autoComplete="off" className="h-9 flex-1 font-mono text-[13px]" placeholder="Scansiona un codice a barre o cerca un articolo…" ref={barcodeRef} />
+              <details className="relative shrink-0">
+                <summary className="cursor-pointer whitespace-nowrap rounded-lg border border-[#e8dfe4] bg-white px-3 py-2 text-[12.5px] font-bold text-[#792f59]">Incolla conteggi</summary>
+                <div className="absolute right-0 z-10 mt-2 w-[min(360px,90vw)] rounded-xl border border-[#e8dfe4] bg-white p-3 shadow-[0_18px_44px_rgb(45_29_39_/_0.16)]">
+                  <textarea className="min-h-24 w-full text-xs" onChange={(event) => setPaste(event.target.value)} placeholder={"SKU/barcode\tquantità\tnota"} value={paste} />
+                  <Button className="mt-2" onClick={() => void previewPaste()} size="sm" variant="tableAction">Anteprima sicura</Button>
+                </div>
+              </details>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.12em] text-stone-500">
+                  <tr><th className="px-5 py-3">Articolo</th><th className="text-right">Teorica</th><th className="text-right">Contata</th><th className="text-right">Differenza</th><th>Nota</th><th>Stato</th></tr>
+                </thead>
+                <tbody>
+                  {lines.map((line) => {
+                    const product = productsById.get(line.productId);
+                    const difference = line.countedQuantity === null ? null : line.countedQuantity - line.theoreticalQuantity;
+                    return (
+                      <tr className="border-t border-stone-100" key={line.id}>
+                        <td className="px-5 py-3"><strong className="text-stone-900">{product?.name ?? line.productId}</strong><span className="ml-2 text-xs text-stone-400">{product?.sku}</span></td>
+                        <td className="text-right tnum text-stone-600">{line.theoreticalQuantity}</td>
+                        <td className="text-right"><input className="w-20 text-right tnum" disabled={active.status === "posted"} min="0" onChange={(event) => update(line.productId, { countedQuantity: event.target.value === "" ? null : Number(event.target.value) })} type="number" value={line.countedQuantity ?? ""} /></td>
+                        <td className={`text-right tnum font-black ${difference === null ? "text-stone-400" : difference === 0 ? "text-stone-400" : difference > 0 ? "text-[#1c7a5c]" : "text-[#b23a2e]"}`}>{difference === null ? "—" : difference > 0 ? `+${difference}` : difference}</td>
+                        <td><input className="w-full" disabled={active.status === "posted"} onChange={(event) => update(line.productId, { note: event.target.value || null })} value={line.note ?? ""} /></td>
+                        <td><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${difference === null ? "bg-stone-100 text-stone-500" : difference === 0 ? "bg-[#e5f3ec] text-[#1c7a5c]" : "bg-[#faeae8] text-[#b23a2e]"}`}>{difference === null ? "Da contare" : difference === 0 ? "Allineato" : "Da rettificare"}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+        {error && <p aria-live="polite" className="border-t border-[#e8dfe4] px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
+      </Card>
+    </div>
+  );
 }
