@@ -28,6 +28,10 @@ describe("warehouse workspace", () => {
       join(dashboard, "inventory", "warehouse-workspace.tsx"),
       "utf8",
     );
+    const documentLabel = readFileSync(
+      join(dashboard, "inventory", "document-label.ts"),
+      "utf8",
+    );
     expect(`${shell}${registry}`).toContain('label: "Magazzino"');
     for (const label of ["Panoramica", "Articoli", "Movimenti"]) {
       expect(workspace).toContain(label);
@@ -35,8 +39,11 @@ describe("warehouse workspace", () => {
     for (const removed of ["WarehouseDocuments", "WarehouseCounts", "WarehouseSuppliers", "WarehouseCosts", "WarehouseReports"]) {
       expect(workspace).not.toContain(removed);
     }
-    for (const action of ["Carico", "Scarico", "Inventario", "Importa"])
+    // "Inventario" lives in the shared document-kind vocabulary (document-label.ts), imported
+    // by the workspace rather than duplicated inline.
+    for (const action of ["Carico", "Scarico", "Importa"])
       expect(workspace).toContain(action);
+    expect(documentLabel).toContain("Inventario");
   });
 
   it("keeps the required quick actions live", () => {
@@ -44,8 +51,13 @@ describe("warehouse workspace", () => {
       join(dashboard, "inventory", "warehouse-workspace.tsx"),
       "utf8",
     );
-    for (const action of ["Carico", "Scarico", "Inventario", "Importa"])
+    const documentLabel = readFileSync(
+      join(dashboard, "inventory", "document-label.ts"),
+      "utf8",
+    );
+    for (const action of ["Carico", "Scarico", "Importa"])
       expect(workspace).toContain(action);
+    expect(documentLabel).toContain("Inventario");
     expect(workspace).not.toContain(
       'disabled title="Disponibile nei prossimi incrementi"',
     );

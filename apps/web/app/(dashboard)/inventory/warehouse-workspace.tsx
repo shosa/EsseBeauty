@@ -11,7 +11,7 @@ import { WarehouseOperationDialog } from "./_components/WarehouseOperationDialog
 import { WarehouseOverview } from "./_components/WarehouseOverview";
 import { WarehouseProducts } from "./_components/WarehouseProducts";
 import { warehouseApi } from "./warehouse-api";
-import { warehouseDocumentLabel } from "./document-label";
+import { documentKindBadgeClass, documentKindLabels, warehouseDocumentLabel } from "./document-label";
 import type {
   WarehouseDocument,
   WarehouseDocumentDetails,
@@ -57,34 +57,6 @@ const stockDocumentKinds = new Set<WarehouseDocumentKind>([
   "waste",
 ]);
 
-const documentKindLabels: Record<WarehouseDocumentKind, string> = {
-  adjustment: "Rettifica",
-  count: "Inventario",
-  credit_note: "Nota credito",
-  equipment_purchase: "Acquisto attrezzatura",
-  expense: "Spesa",
-  internal_use: "Consumo interno",
-  opening: "Giacenza iniziale",
-  purchase: "Carico",
-  supplier_invoice: "Fattura fornitore",
-  supplier_return: "Reso fornitore",
-  waste: "Scarto",
-};
-
-const documentKindBadge: Record<WarehouseDocumentKind, string> = {
-  adjustment: "bg-[#f7ecdc] text-[#a5691a]",
-  count: "bg-[#f7ecdc] text-[#a5691a]",
-  credit_note: "bg-[#eee2f7] text-[#7a4fa0]",
-  equipment_purchase: "bg-[#e5f3ec] text-[#1c7a5c]",
-  expense: "bg-stone-100 text-stone-600",
-  internal_use: "bg-stone-100 text-stone-600",
-  opening: "bg-[#e5f3ec] text-[#1c7a5c]",
-  purchase: "bg-[#e5f3ec] text-[#1c7a5c]",
-  supplier_invoice: "bg-[#e5f3ec] text-[#1c7a5c]",
-  supplier_return: "bg-[#faeae8] text-[#b23a2e]",
-  waste: "bg-[#faeae8] text-[#b23a2e]",
-};
-
 function WarehouseMovements({
   documents,
   onOpen,
@@ -111,7 +83,7 @@ function WarehouseMovements({
               {rows.map((document) => (
                 <tr className="border-t border-stone-100 transition hover:bg-[#fffafd]" key={document.id}>
                   <td className="px-5 py-3 text-stone-500">{new Date(document.documentDate).toLocaleDateString("it-IT")}</td>
-                  <td><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${documentKindBadge[document.kind]}`}>{document.status === "reversed" ? "↩ Storno" : documentKindLabels[document.kind]}</span></td>
+                  <td><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${documentKindBadgeClass[document.kind]}`}>{document.status === "reversed" ? "↩ Storno" : documentKindLabels[document.kind]}</span></td>
                   <td className="font-bold text-stone-900">{warehouseDocumentLabel(document)}</td>
                   <td className="text-right font-black tnum text-[#402334]">{money.format(document.totalCents / 100)}</td>
                   <td className="pr-5 text-right"><button className="text-[11px] font-bold text-[#792f59]" onClick={() => onOpen(document.id)} type="button">Apri</button></td>
