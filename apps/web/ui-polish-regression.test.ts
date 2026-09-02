@@ -313,25 +313,23 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("min-h-14");
   });
 
-  it("guides POS service sales through categories before services", () => {
+  it("guides POS service sales through always-visible categories, not a picker step", () => {
     const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
     expect(sales).toContain("ServiceCategoryIcon");
     expect(sales).toContain("selectedServiceCategoryId");
     expect(sales).toContain("serviceCategories");
-    expect(sales).toContain("Scegli una categoria");
-    expect(sales).toContain("Cambia categoria");
     expect(sales).toContain("resetServiceCatalogStep");
     expect(sales).toContain("category_icon");
     expect(sales).toContain("category_id");
+    expect(sales).not.toContain("Cambia categoria");
   });
 
-  it("lets POS recall today's agenda appointments into checkout", () => {
+  it("recalls today's agenda into checkout from a dedicated register mode, not a collapsible accordion", () => {
     const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
-    expect(sales).toContain("Agenda di oggi");
+    expect(sales).toContain('type RegisterMode = "agenda" | CatalogType');
     expect(sales).toContain("todayAppointments");
-    expect(sales).toContain("agendaExpanded");
     expect(sales).toContain("appointmentsByStaff");
-    expect(sales).toContain("setAgendaExpanded(false)");
+    expect(sales).toContain('setMode("service")');
     expect(sales).toContain("appointment.color");
     expect(sales).toContain("overflow-x-auto");
     expect(sales).toContain("min-w-[210px]");
@@ -342,6 +340,15 @@ describe("professional UI regression guard", () => {
     expect(sales).toContain("selectedAppointmentId");
     expect(sales).toContain('/appointments/${selectedAppointmentId}/checkout');
     expect(sales).toContain('/appointments/${appointmentId}/checkout');
+    expect(sales).not.toContain("agendaExpanded");
+  });
+
+  it("pins the POS running total in a always-visible register display above the scrolling cart", () => {
+    const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
+    expect(sales).toContain("Totale conto");
+    expect(sales).toContain("font-display");
+    expect(sales).toContain('checkoutDisabled');
+    expect(sales).toContain("shrink-0 border-t border-[#e8dfe4] bg-white");
   });
 
   it("keeps POS cash register separate from accounting registers and stats", () => {

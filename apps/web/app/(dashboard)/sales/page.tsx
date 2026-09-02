@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronUp, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
-import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, SectionCard } from "@esse-beauty/ui";
+import { CalendarClock, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
+import { AppPage, Button, Dialog, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -12,6 +12,7 @@ const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 type CatalogType = "service" | "product" | "package";
 type CartItemType = CatalogType | "custom";
+type RegisterMode = "agenda" | CatalogType;
 
 interface CatalogItem { category?: string; category_icon?: string | null; category_id?: string | null; id: string; name: string; price_cents: number; stock_quantity?: number; }
 interface Customer { email?: string | null; id: string; name: string; phone?: string | null; }
@@ -47,7 +48,12 @@ const paymentMethods: Array<{ label: string; value: PaymentMethod }> = [
   { label: "Bonifico", value: "bank_transfer" },
   { label: "Altro", value: "other" },
 ];
-const methodLabels: Record<PaymentMethod, string> = Object.fromEntries(paymentMethods.map((method) => [method.value, method.label])) as Record<PaymentMethod, string>;
+const railModes: Array<{ icon: typeof Scissors; key: RegisterMode; label: string }> = [
+  { icon: CalendarClock, key: "agenda", label: "Agenda" },
+  { icon: Scissors, key: "service", label: "Servizi" },
+  { icon: ShoppingBag, key: "product", label: "Prodotti" },
+  { icon: Package, key: "package", label: "Pacchetti" },
+];
 function euro(cents: number) { return (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" }); }
 function cents(value: string) { const amount = Number(value.replace(",", ".")); return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : 0; }
 function todayAgendaRange() {
@@ -67,6 +73,9 @@ function readableTextColor(hex?: string | null) {
   const blue = Number.parseInt(hex.slice(5, 7), 16);
   return (red * 299 + green * 587 + blue * 114) / 1000 > 150 ? "#2d1d27" : "#ffffff";
 }
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
 
 export default function SalesPage() {
   const { salon } = useAuth();
@@ -75,7 +84,7 @@ export default function SalesPage() {
   const loadedAppointmentFromUrlRef = useRef("");
   const [catalog, setCatalog] = useState<PosCatalog>();
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [catalogType, setCatalogType] = useState<CatalogType>("service");
+  const [mode, setMode] = useState<RegisterMode>("service");
   const [selectedServiceCategoryId, setSelectedServiceCategoryId] = useState("");
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -102,8 +111,13 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
   const [todayAppointments, setTodayAppointments] = useState<AgendaAppointment[]>([]);
   const [agendaLoading, setAgendaLoading] = useState(false);
-  const [agendaExpanded, setAgendaExpanded] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!message) return;
@@ -167,7 +181,7 @@ export default function SalesPage() {
     setIssuedVouchers([]);
     setPayments([{ amount_cents: appointment.service_price_cents, method: "cash" }]);
     setNotes(`Da appuntamento agenda ${timeLabel(appointment.starts_at)}`);
-    setAgendaExpanded(false);
+    setMode("service");
     resetServiceCatalogStep();
   }
   useEffect(() => { void loadCatalog(); }, [salon?.id]);
@@ -258,8 +272,8 @@ export default function SalesPage() {
     }
     return Array.from(categories.values()).sort((left, right) => left.name.localeCompare(right.name, "it"));
   }, [catalog?.services]);
-  const visibleCatalog = (catalogType === "service" ? catalog?.services : catalogType === "product" ? catalog?.products : catalog?.packages)
-    ?.filter((item) => catalogType !== "service" || item.category_id === selectedServiceCategoryId || (!item.category_id && item.category === selectedServiceCategoryId))
+  const visibleCatalog = mode === "agenda" ? [] : (mode === "service" ? catalog?.services : mode === "product" ? catalog?.products : catalog?.packages)
+    ?.filter((item) => mode !== "service" || item.category_id === selectedServiceCategoryId || (!item.category_id && item.category === selectedServiceCategoryId))
     .filter((item) => `${item.name} ${item.category ?? ""}`.toLowerCase().includes(query.toLowerCase())) ?? [];
   const appointmentsByStaff = useMemo(() => {
     const groups = new Map<string, { color?: string | null; items: AgendaAppointment[]; name: string; staffId: string }>();
@@ -278,10 +292,10 @@ export default function SalesPage() {
     }));
   }, [todayAppointments]);
 
-  function selectCatalogType(type: CatalogType) {
-    setCatalogType(type);
+  function selectMode(next: RegisterMode) {
+    setMode(next);
     setQuery("");
-    if (type !== "service") setSelectedServiceCategoryId("");
+    if (next !== "service") setSelectedServiceCategoryId("");
   }
 
   function resetServiceCatalogStep() {
@@ -290,7 +304,8 @@ export default function SalesPage() {
   }
 
   function addItem(item: CatalogItem) {
-    if (catalogType === "package") {
+    if (mode === "agenda") return;
+    if (mode === "package") {
       if (!selectedCustomer) {
         setError("Seleziona il cliente a cui intestare il pacchetto.");
         return;
@@ -306,6 +321,7 @@ export default function SalesPage() {
       }]);
       return;
     }
+    const catalogType = mode;
     setCart((current) => {
       const found = current.find((line) => line.id === item.id && line.item_type === catalogType);
       const next = found ? current.map((line) => line === found ? { ...line, quantity: line.quantity + 1 } : line) : [...current, {
@@ -313,7 +329,6 @@ export default function SalesPage() {
         product_id: catalogType === "product" ? item.id : undefined, quantity: 1,
         service_id: catalogType === "service" ? item.id : undefined, unit_price_cents: item.price_cents,
       }];
-      if (catalogType === "service") resetServiceCatalogStep();
       window.setTimeout(() => applyPackages(), 0);
       return next;
     });
@@ -465,8 +480,11 @@ export default function SalesPage() {
     setSaving(false);
   }
 
+  const checkoutDisabled = saving || !cart.length || paid !== total || cart.some((line) => !line.description.trim())
+    || payments.some((payment) => payment.method === "voucher" && (!payment.voucher_code || payment.voucher_balance_cents === undefined || payment.amount_cents > payment.voucher_balance_cents));
+
   return (
-    <AppPage className="sales-register-page xl:pr-[552px]" maxWidth="max-w-[1600px]">
+    <AppPage className="sales-register-page" maxWidth="max-w-[1600px]">
       {message && (
         <div className="sales-success-overlay fixed inset-0 z-50 grid place-items-center bg-[#2d1d27]/18 px-6 backdrop-blur-sm" role="status" aria-live="polite">
           <div className="sales-success-card w-full max-w-sm rounded-2xl border border-white/70 bg-white/95 p-7 text-center shadow-[0_28px_80px_rgb(45_29_39_/_0.22)]">
@@ -492,7 +510,7 @@ export default function SalesPage() {
           {!customerLoading && customerQuery.trim().length >= 2 && customerResults.length === 0 && <EmptyState title="Nessun cliente trovato" description="Controlla il testo inserito oppure usa Cliente occasionale." />}
           {!customerLoading && customerResults.map((customer) => (
             <button className="flex w-full items-center gap-3 rounded-2xl border border-stone-200 p-3 text-left transition hover:border-[#c98cac] hover:bg-[#fff9fc]" key={customer.id} onClick={() => chooseCustomer(customer)} type="button">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-xs font-black text-[#792f59]">{customer.name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-xs font-black text-[#792f59]">{initials(customer.name)}</span>
               <span className="min-w-0 flex-1">
                 <strong className="block truncate">{customer.name}</strong>
                 <span className="mt-1 block truncate text-xs text-stone-500">{[customer.phone, customer.email].filter(Boolean).join(" · ") || "Nessun recapito"}</span>
@@ -524,7 +542,7 @@ export default function SalesPage() {
             {voucherRecipient ? (
               <div className="flex min-h-14 items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4">
                 <span className="grid size-9 place-items-center rounded-full bg-white text-xs font-black text-emerald-800">
-                  {voucherRecipient.name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                  {initials(voucherRecipient.name)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <strong className="block truncate">{voucherRecipient.name}</strong>
@@ -572,258 +590,366 @@ export default function SalesPage() {
           </Button>
         </div>
       </Dialog>
-      <PageHeader eyebrow="Punto vendita" title="Cassa" subtitle="Vendite da appuntamento, servizi liberi, prodotti e pagamenti in un unico flusso." />
-      {error && <InlineError className="mb-5">{error}</InlineError>}
 
-      <div className="grid gap-5">
-        <div className="space-y-5">
-        <SectionCard>
+      {error && <InlineError className="mb-3">{error}</InlineError>}
+
+      <div className="flex h-[calc(100vh-9.5rem)] min-h-[600px] flex-col overflow-hidden rounded-2xl border border-[#e8dfe4] bg-white shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+
+        {/* slim console topbar */}
+        <div className="flex h-12 shrink-0 items-center gap-4 border-b border-[#e8dfe4] px-4">
+          <div className="flex items-baseline gap-2">
+            <ReceiptText aria-hidden="true" className="size-4 text-[#792f59]" />
+            <strong className="font-display text-base text-[#5f2447]">Cassa</strong>
+          </div>
+          <div className="hidden h-5 w-px bg-[#e8dfe4] sm:block" />
+          <span className="hidden truncate text-xs font-bold text-stone-600 sm:block">{salon?.name ?? "Salone"}</span>
+          <span className="ml-auto hidden text-xs font-semibold capitalize text-stone-400 md:block">
+            {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short", weekday: "short" })} · {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+          </span>
           <button
-            className="flex w-full items-center justify-between gap-4 text-left"
-            onClick={() => setAgendaExpanded((value) => !value)}
+            aria-label="Azzera conto"
+            className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#e8dfe4] bg-[#fffafd] text-[#792f59] transition hover:bg-[#faf3f7]"
+            onClick={resetRegister}
+            title="Azzera conto"
             type="button"
           >
-            <span>
-              <span className="block text-xs font-black uppercase tracking-[.16em] text-[#792f59]">Agenda di oggi</span>
-              <strong className="mt-1 block text-xl">Appuntamenti da completare</strong>
-              <span className="mt-1 block text-sm text-stone-500">{todayAppointments.length} appuntamenti richiamabili in cassa</span>
-            </span>
-            <span aria-hidden="true" className="grid size-8 place-items-center rounded-full border border-stone-200 text-[#792f59]">{agendaExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}</span>
+            <RotateCcw className="size-4" />
           </button>
-          {agendaExpanded && (
-            <div className="mt-5">
-              {agendaLoading ? (
-                <div className="rounded-2xl bg-stone-50 p-5 text-sm font-bold text-stone-500">Caricamento agenda…</div>
-              ) : appointmentsByStaff.length ? (
-                <div className="overflow-x-auto pb-2">
-                <div className="flex min-w-max gap-3">
-                  {appointmentsByStaff.map((group) => (
-                    <section className="min-w-[210px] max-w-[210px] rounded-xl border border-stone-200 bg-[#fbfaf8] p-2" key={group.staffId}>
-                      <div className="mb-2 flex items-center gap-1.5">
-                        <span className="size-2.5 rounded-full" style={{ backgroundColor: group.color ?? "#792f59" }} />
-                        <strong className="truncate text-xs">{group.name}</strong>
-                        <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-stone-500">{group.items.length}</span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {group.items.map((appointment) => {
-                          const disabled = appointment.status !== "confirmed";
-                          const selected = selectedAppointmentId === appointment.id;
-                          const background = appointment.color ?? "#792f59";
-                          const foreground = readableTextColor(background);
-                          return (
-                            <button
-                              className={`min-h-[74px] w-full rounded-lg border px-2.5 py-2 text-left shadow-sm transition ${selected ? "ring-2 ring-[#2d1d27]" : "hover:-translate-y-0.5 hover:shadow-md"} ${disabled ? "cursor-not-allowed opacity-55 hover:translate-y-0 hover:shadow-sm" : ""}`}
-                              disabled={disabled}
-                              key={appointment.id}
-                              onClick={() => void loadAppointmentCheckout(appointment.id)}
-                              style={{ backgroundColor: background, borderColor: background, color: foreground }}
-                              title={disabled ? "Conferma l'appuntamento prima di incassare" : "Carica appuntamento in cassa"}
-                              type="button"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="text-[11px] font-black">{timeLabel(appointment.starts_at)}</span>
-                                <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[8px] font-black uppercase">{appointment.status}</span>
-                              </div>
-                              <strong className="mt-1.5 block truncate text-sm leading-4">{appointment.customer_name}</strong>
-                              <span className="mt-0.5 block truncate text-[11px] leading-4 opacity-90">{appointment.service_name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-                </div>
-              ) : (
-                <EmptyState title="Nessun appuntamento da incassare" description="Gli appuntamenti di oggi non completati appariranno qui." />
-              )}
-            </div>
-          )}
-        </SectionCard>
-        <SectionCard title="Catalogo" subtitle="Seleziona servizi o prodotti da aggiungere al conto.">
-          <div className="mb-4 flex flex-wrap gap-2">
-            <Button onClick={() => selectCatalogType("service")} variant={catalogType === "service" ? "primary" : "outline"}><Scissors className="size-4" /> Servizi</Button>
-            <Button onClick={() => selectCatalogType("product")} variant={catalogType === "product" ? "primary" : "outline"}><ShoppingBag className="size-4" /> Prodotti</Button>
-            <Button onClick={() => selectCatalogType("package")} variant={catalogType === "package" ? "primary" : "outline"}><Package className="size-4" /> Pacchetti</Button>
-            <Button onClick={addCustomItem} variant="outline"><Plus className="size-4" /> Riga libera</Button>
-            <Button onClick={() => setVoucherDialogOpen(true)} variant="outline"><Gift className="size-4" /> Buono regalo</Button>
-            {(catalogType !== "service" || selectedServiceCategoryId) && <input className="min-h-11 min-w-64 flex-1 rounded-xl border border-stone-200 px-4" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca nel catalogo" value={query} />}
+        </div>
+
+        <div className="flex min-h-0 flex-1">
+
+          {/* mode rail */}
+          <div className="flex w-24 shrink-0 flex-col items-stretch gap-1.5 overflow-y-auto border-r border-[#e8dfe4] p-2.5">
+            {railModes.map((item) => {
+              const active = mode === item.key;
+              return (
+                <button
+                  className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-1 py-3 text-center transition ${active ? "border-[#e8dfe4] bg-gradient-to-b from-[#fffafd] to-[#faf3f7] text-[#5f2447] shadow-[inset_3px_0_0_#792f59]" : "border-transparent text-stone-500 hover:bg-[#faf7f9]"}`}
+                  key={item.key}
+                  onClick={() => selectMode(item.key)}
+                  type="button"
+                >
+                  <item.icon aria-hidden="true" className="size-5" />
+                  <span className="text-[10px] font-bold leading-none">{item.label}</span>
+                  {item.key === "agenda" && todayAppointments.length > 0 && (
+                    <span className="absolute right-2.5 top-2 grid min-w-4 place-items-center rounded-full bg-[#792f59] px-1 text-[9px] font-black text-white">{todayAppointments.length}</span>
+                  )}
+                </button>
+              );
+            })}
+            <div className="my-1 h-px bg-[#e8dfe4]" />
+            <button
+              className="flex flex-col items-center gap-1.5 rounded-2xl border border-transparent px-1 py-3 text-center text-stone-500 transition hover:bg-[#faf7f9]"
+              onClick={() => setVoucherDialogOpen(true)}
+              type="button"
+            >
+              <Gift aria-hidden="true" className="size-5" />
+              <span className="text-[10px] font-bold leading-none">Buono</span>
+            </button>
           </div>
-          {catalogType === "service" && !selectedServiceCategoryId ? (
-            <div>
-              <p className="mb-3 text-sm font-bold text-stone-900">Scegli una categoria</p>
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                {serviceCategories.map((category) => (
-                  <button
-                    className="flex min-h-20 items-center gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md"
-                    key={category.id}
-                    onClick={() => setSelectedServiceCategoryId(category.id)}
-                    type="button"
-                  >
-                    <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f4e4ec] text-[#792f59]">
-                      <ServiceCategoryIcon className="size-5" name={category.icon} />
-                    </span>
-                    <span>
-                      <strong className="block">{category.name}</strong>
-                      <small className="text-stone-500">{category.count} servizi</small>
-                    </span>
-                  </button>
-                ))}
-                {!serviceCategories.length && <EmptyState title="Nessuna categoria" description="Il catalogo non contiene servizi vendibili." />}
+
+          {/* center: catalog or agenda */}
+          {mode === "agenda" ? (
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden px-5 py-4">
+              <div className="mb-3 flex shrink-0 items-center gap-3">
+                <div>
+                  <strong className="block text-sm font-black text-stone-900">Da completare oggi</strong>
+                  <span className="text-xs text-stone-500">Tocca un appuntamento confermato per caricarlo in cassa.</span>
+                </div>
+                <span className="ml-auto text-xs font-bold text-stone-400">{todayAppointments.length} appuntamenti richiamabili in cassa</span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto pb-2">
+                {agendaLoading ? (
+                  <div className="rounded-2xl bg-stone-50 p-5 text-sm font-bold text-stone-500">Caricamento agenda…</div>
+                ) : appointmentsByStaff.length ? (
+                  <div className="flex h-full min-w-max gap-3">
+                    {appointmentsByStaff.map((group) => (
+                      <section className="min-w-[210px] max-w-[210px] rounded-xl border border-stone-200 bg-[#fbfaf8] p-2" key={group.staffId}>
+                        <div className="mb-2 flex items-center gap-1.5">
+                          <span className="size-2.5 rounded-full" style={{ backgroundColor: group.color ?? "#792f59" }} />
+                          <strong className="truncate text-xs">{group.name}</strong>
+                          <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[9px] font-black text-stone-500">{group.items.length}</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {group.items.map((appointment) => {
+                            const disabled = appointment.status !== "confirmed";
+                            const selected = selectedAppointmentId === appointment.id;
+                            const background = appointment.color ?? "#792f59";
+                            const foreground = readableTextColor(background);
+                            return (
+                              <button
+                                className={`min-h-[74px] w-full rounded-lg border px-2.5 py-2 text-left shadow-sm transition ${selected ? "ring-2 ring-[#2d1d27]" : "hover:-translate-y-0.5 hover:shadow-md"} ${disabled ? "cursor-not-allowed opacity-55 hover:translate-y-0 hover:shadow-sm" : ""}`}
+                                disabled={disabled}
+                                key={appointment.id}
+                                onClick={() => void loadAppointmentCheckout(appointment.id)}
+                                style={{ backgroundColor: background, borderColor: background, color: foreground }}
+                                title={disabled ? "Conferma l'appuntamento prima di incassare" : "Carica appuntamento in cassa"}
+                                type="button"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-[11px] font-black">{timeLabel(appointment.starts_at)}</span>
+                                  <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[8px] font-black uppercase">{appointment.status}</span>
+                                </div>
+                                <strong className="mt-1.5 block truncate text-sm leading-4">{appointment.customer_name}</strong>
+                                <span className="mt-0.5 block truncate text-[11px] leading-4 opacity-90">{appointment.service_name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState title="Nessun appuntamento da incassare" description="Gli appuntamenti di oggi non completati appariranno qui." />
+                )}
               </div>
             </div>
           ) : (
-            <div>
-              {catalogType === "service" && (
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#faf3f7] px-4 py-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">Categoria</p>
-                    <strong>{serviceCategories.find((category) => category.id === selectedServiceCategoryId)?.name ?? "Servizi"}</strong>
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden px-5 py-4">
+              <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+                {mode === "service" ? (
+                  <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+                    {serviceCategories.map((category) => (
+                      <button
+                        className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-xs font-bold transition ${selectedServiceCategoryId === category.id ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] bg-white text-stone-600 hover:border-[#d7a6c1]"}`}
+                        key={category.id}
+                        onClick={() => { setSelectedServiceCategoryId(category.id); setQuery(""); }}
+                        type="button"
+                      >
+                        <ServiceCategoryIcon className="size-3.5" name={category.icon} />
+                        {category.name}
+                        <span className={selectedServiceCategoryId === category.id ? "text-white/70" : "text-stone-400"}>{category.count}</span>
+                      </button>
+                    ))}
+                    {!serviceCategories.length && <span className="text-xs font-semibold text-stone-400">Nessuna categoria di servizi vendibili.</span>}
                   </div>
-                  <Button onClick={() => { setSelectedServiceCategoryId(""); setQuery(""); }} size="sm" variant="outline">Cambia categoria</Button>
+                ) : <div className="flex-1" />}
+                <label className="flex h-10 min-w-[200px] items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3">
+                  <Search aria-hidden="true" className="size-4 shrink-0 text-stone-400" />
+                  <span className="sr-only">Cerca nel catalogo</span>
+                  <input className="w-full border-0 bg-transparent p-0 text-sm outline-none focus:ring-0" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca nel catalogo…" value={query} />
+                </label>
+                <Button onClick={addCustomItem} size="sm" variant="outline"><Plus className="size-4" /> Riga libera</Button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+                  {visibleCatalog.map((item) => (
+                    <button className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md" key={item.id} onClick={() => addItem(item)} type="button">
+                      <div className="flex items-start justify-between gap-3"><strong className="text-sm">{item.name}</strong><span className="font-display text-base font-semibold text-[#792f59]">{euro(item.price_cents)}</span></div>
+                      <p className={`mt-2 text-xs ${mode === "product" && (item.stock_quantity ?? 0) <= 0 ? "font-bold text-amber-700" : "text-stone-500"}`}>{mode === "service" ? item.category || "Servizio" : mode === "package" ? "Assegnazione immediata al cliente" : `Disponibilità: ${item.stock_quantity ?? 0}${(item.stock_quantity ?? 0) <= 0 ? " · vendita consentita" : ""}`}</p>
+                    </button>
+                  ))}
+                  {!visibleCatalog.length && (
+                    <div className="col-span-full">
+                      <EmptyState
+                        title={mode === "service" && !selectedServiceCategoryId ? "Scegli una categoria" : "Nessun elemento"}
+                        description={mode === "service" && !selectedServiceCategoryId ? "Tocca una categoria qui sopra per vedere i servizi vendibili." : "Il catalogo non contiene risultati per questa ricerca."}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-                {visibleCatalog.map((item) => <button className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md" key={item.id} onClick={() => addItem(item)} type="button">
-                  <div className="flex items-start justify-between gap-3"><strong>{item.name}</strong><span className="font-black text-[#792f59]">{euro(item.price_cents)}</span></div>
-                  <p className={`mt-2 text-xs ${catalogType === "product" && (item.stock_quantity ?? 0) <= 0 ? "font-bold text-amber-700" : "text-stone-500"}`}>{catalogType === "service" ? item.category || "Servizio" : catalogType === "package" ? "Assegnazione immediata al cliente" : `Disponibilità: ${item.stock_quantity ?? 0}${(item.stock_quantity ?? 0) <= 0 ? " · vendita consentita" : ""}`}</p>
-                </button>)}
-                {!visibleCatalog.length && <EmptyState title="Nessun elemento" description="Il catalogo non contiene risultati per questa ricerca." />}
               </div>
             </div>
           )}
-        </SectionCard>
-        </div>
 
-        <aside className="flex flex-col overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#fffafd] shadow-[0_10px_30px_rgb(45_29_39_/_0.055)] xl:fixed xl:bottom-0 xl:right-0 xl:top-[61px] xl:z-10 xl:w-[520px] xl:rounded-none xl:border-y-0 xl:border-r-0 xl:border-l xl:border-white/70 xl:shadow-[-12px_0_36px_rgb(30_15_24_/_0.12)]">
-          <div className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(244,216,168,0.32),transparent_34%),linear-gradient(135deg,#2d1d27_0%,#5f2447_54%,#8f3a68_100%)] px-5 py-5 text-white">
-            <div className="absolute -right-10 -top-14 size-36 rounded-full border border-white/10" aria-hidden="true" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="flex min-w-0 items-start gap-3">
-                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/12 text-[#f4d8a8] ring-1 ring-white/15"><ReceiptText className="size-5" /></span>
-                <div className="min-w-0">
-                  <p className="text-xs font-black uppercase tracking-[.18em] text-white/58">Conto corrente</p>
-                  <h2 className="mt-1 truncate text-2xl font-black text-white">Nuova vendita</h2>
-                </div>
+          {/* ticket panel */}
+          <aside className="flex w-[416px] shrink-0 flex-col border-l border-[#e8dfe4] bg-[#fffafd]">
+
+            {/* pinned register display */}
+            <div className="relative shrink-0 overflow-hidden bg-[radial-gradient(circle_at_18%_0%,rgba(244,216,168,0.32),transparent_34%),linear-gradient(135deg,#2d1d27_0%,#5f2447_54%,#8f3a68_100%)] px-5 py-4 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-[10px] font-black uppercase tracking-[.18em] text-white/60">Totale conto</span>
+                <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] font-black uppercase tracking-[.04em] ${paid === total ? "bg-emerald-50 text-emerald-800" : "bg-white/14 text-white"}`}>
+                  <span className="size-1.5 rounded-full bg-current" />{paid === total ? "Saldato" : "In corso"}
+                </span>
               </div>
-              <button
-                aria-label="Azzera conto"
-                className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/15 bg-white/10 text-white/80 transition hover:-translate-y-0.5 hover:bg-white hover:text-[#792f59]"
-                onClick={resetRegister}
-                title="Azzera conto"
-                type="button"
-              >
-                <RotateCcw className="size-4" />
-              </button>
-            </div>
-          </div>
-          <div className="sidebar-scroll min-h-0 flex-1 px-5 py-5 xl:overflow-y-auto xl:pr-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Cliente">
-              <div className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 bg-white p-1.5">
-                <div className="min-w-0 flex-1 px-2">
-                  <strong className="block truncate text-sm">{selectedCustomer?.name ?? "Cliente occasionale"}</strong>
-                  {selectedCustomer && <span className="block truncate text-[11px] text-stone-500">{selectedCustomer.phone || selectedCustomer.email || "Cliente in rubrica"}</span>}
+              <p className="font-display mt-1 text-[42px] font-semibold leading-none tabular-nums">{euro(total)}</p>
+
+              <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-white/16 bg-white/10 px-3 py-2">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-white/90 text-[11px] font-black text-[#792f59]">{selectedCustomer ? initials(selectedCustomer.name) : <UserRound className="size-4" />}</span>
+                <div className="min-w-0 flex-1">
+                  <strong className="block truncate text-[12.5px]">{selectedCustomer?.name ?? "Cliente occasionale"}</strong>
+                  <span className="block truncate text-[10.5px] text-white/68">{selectedCustomer ? (selectedCustomer.phone || selectedCustomer.email || "Cliente in rubrica") : "Nessun cliente selezionato"}</span>
                 </div>
-                {selectedCustomer && <button aria-label="Rimuovi cliente" className="rounded-lg px-2 py-2 text-xs font-bold text-stone-500 hover:bg-stone-100" onClick={clearCustomer} type="button">Rimuovi</button>}
+                {selectedCustomer && <button className="shrink-0 rounded-lg bg-white/16 px-2 py-1.5 text-[10.5px] font-bold text-white" onClick={clearCustomer} type="button">Rimuovi</button>}
                 <button
                   aria-label="Apri rubrica clienti"
-                  className="grid size-10 shrink-0 place-items-center rounded-xl border border-[#d7a6c1] text-[#792f59] transition hover:bg-[#f8eaf1]"
+                  className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/16 text-white transition hover:bg-white/26"
                   onClick={() => setCustomerDialogOpen(true)}
                   title="Apri rubrica clienti"
                   type="button"
                 >
-                  <UserRound aria-hidden="true" className="size-5" />
+                  <UserRound aria-hidden="true" className="size-4" />
                 </button>
               </div>
-            </FormField>
-            <FormField label="Operatore"><select className="w-full" onChange={(event) => setStaffId(event.target.value)} value={staffId}><option value="">Non assegnato</option>{catalog?.staff.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></FormField>
-          </div>
-          {selectedCustomer && customerVouchers.length > 0 && <section className="mt-4 rounded-2xl border border-teal-200 bg-teal-50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div><p className="text-xs font-black uppercase tracking-[.14em] text-teal-800">Credito disponibile</p><p className="mt-1 text-sm text-teal-950">{selectedCustomer.name} ha {customerVouchers.length === 1 ? "un buono attivo" : `${customerVouchers.length} buoni attivi`}.</p></div>
-              <strong className="text-xl text-teal-950">{euro(customerVouchers.reduce((sum, voucher) => sum + voucher.balance_cents, 0))}</strong>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {customerVouchers.map((voucher) => <button className="rounded-xl border border-teal-300 bg-white px-3 py-2 text-left text-xs transition hover:bg-teal-100" key={voucher.id} onClick={() => applyVoucher(voucher)} type="button">
-                <span className="block font-black text-teal-950">Usa {euro(voucher.balance_cents)}</span>
-                <span className="font-mono text-[10px] text-teal-700">•••• {voucher.code.slice(-4)}</span>
-              </button>)}
-            </div>
-          </section>}
-          {selectedCustomer && customerPackages.some((pack) => pack.items.some((item) => item.remainingQuantity > 0)) && <section className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
-            <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-violet-800">Pacchetti attivi</p><p className="mt-1 text-sm text-violet-950">La cassa può coprire automaticamente servizi e prodotti ancora disponibili.</p></div><Button onClick={() => applyPackages()} size="sm" variant="outline">Applica pacchetto</Button></div>
-            <div className="mt-3 flex flex-wrap gap-2">{customerPackages.map((pack) => <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-violet-900" key={pack.id}>{pack.name}</span>)}</div>
-          </section>}
-          <div className="mt-5 space-y-3">
-            {!cart.length && <EmptyState title="Carrello vuoto" description="Aggiungi un servizio o un prodotto dal catalogo." />}
-            {cart.map((line, index) => <article className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-3" key={`${line.item_type}-${line.id}`}>
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1">
-                {line.issued_voucher_id
-                  ? <strong>{line.description}</strong>
-                  : line.item_type === "custom"
-                  ? <input aria-label="Descrizione riga libera" className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 font-bold" onChange={(event) => updateLine(index, { description: event.target.value })} value={line.description} />
-                  : <strong>{line.description}</strong>}
-                <p className="mt-1 text-xs uppercase text-stone-400">{line.issued_voucher_id ? "Buono regalo" : line.assigned_package_id ? "Pacchetto cliente" : line.item_type === "service" ? "Servizio" : line.item_type === "product" ? "Prodotto" : "Voce libera"}</p>
-                {(line.package_quantity ?? 0) > 0 && <p className="mt-2 rounded-lg bg-violet-100 px-2 py-1 text-xs font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name} · {euro(line.package_quantity! * line.unit_price_cents)} azzerati</p>}
-              </div><button aria-label={`Rimuovi ${line.description || "riga"}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-red-700 transition hover:bg-red-50" onClick={() => removeCartLine(index)} title="Rimuovi" type="button"><X className="size-4" /></button></div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <label className="text-[10px] font-bold text-stone-500">Quantità<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={1} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })} type="number" value={line.quantity} /></label>
-                <label className="text-[10px] font-bold text-stone-500">Prezzo<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { unit_price_cents: cents(event.target.value) })} type="number" value={(line.unit_price_cents / 100).toFixed(2)} /></label>
-                <label className="text-[10px] font-bold text-stone-500">Sconto<input className="mt-1 w-full rounded-lg border p-2 disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { discount_cents: cents(event.target.value) })} type="number" value={(line.discount_cents / 100).toFixed(2)} /></label>
-              </div>
-            </article>)}
-          </div>
-          <div className="mt-5 rounded-xl border border-[#ead1df] bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-black text-[#5f2447]"><WalletCards className="size-4" /> Riepilogo</div>
-              <span className={`rounded-full px-3 py-1 text-[11px] font-black ${paid === total ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{paid === total ? "Saldato" : "In corso"}</span>
-            </div>
-            <div className="mt-4 flex justify-between text-sm"><span className="text-stone-500">Subtotale</span><b>{euro(subtotal)}</b></div>
-            <label className="mt-3 flex items-center justify-between gap-3 text-sm text-stone-500">Sconto conto<input className="w-28 rounded-xl border p-2 text-right font-bold text-stone-950 disabled:bg-stone-100" disabled={issuedVouchers.length > 0} min={0} onChange={(event) => setDiscountCents(cents(event.target.value))} type="number" value={(discountCents / 100).toFixed(2)} /></label>
-            <div className="mt-5 flex items-end justify-between border-t border-[#ead1df] pt-4"><strong className="text-sm uppercase tracking-[.16em] text-stone-400">Totale</strong><b className="text-5xl font-black tracking-tight text-[#5f2447]">{euro(total)}</b></div>
-          </div>
-          <div className="mt-5 rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3"><strong className="flex items-center gap-2"><CreditCard className="size-4 text-[#792f59]" />Pagamenti</strong><button className="rounded-full bg-[#f4e4ec] px-3 py-1.5 text-sm font-black text-[#792f59] transition hover:bg-[#ead1df]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])}>Dividi</button></div>
-            <div className="mt-3 space-y-3">{payments.map((payment, index) => <div className="rounded-2xl border border-stone-200 p-3" key={index}>
-              <div className="grid grid-cols-[1fr_130px_auto] gap-2">
-                <select
-                  className="rounded-xl border px-3"
-                  onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? {
-                    amount_cents: item.amount_cents,
-                    method: event.target.value as PaymentMethod,
-                  } : item))}
-                  value={payment.method}
-                >
-                  {paymentMethods.map((method) => <option key={method.value} value={method.value}>{method.label}</option>)}
+
+            {/* scrollable middle: operator, credit banners, cart lines */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <FormField label="Operatore">
+                <select className="w-full" onChange={(event) => setStaffId(event.target.value)} value={staffId}>
+                  <option value="">Non assegnato</option>
+                  {catalog?.staff.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
-                <input className="rounded-xl border p-2 text-right font-bold" onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? { ...item, amount_cents: cents(event.target.value) } : item))} type="number" value={(payment.amount_cents / 100).toFixed(2)} />
-                {payments.length > 1 && <button aria-label="Rimuovi pagamento" className="px-2 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, i) => i !== index))}>×</button>}
+              </FormField>
+
+              {selectedCustomer && customerVouchers.length > 0 && (
+                <section className="mt-3 rounded-2xl border border-teal-200 bg-teal-50 p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-teal-800">Credito disponibile</p><p className="mt-1 text-xs text-teal-950">{customerVouchers.length === 1 ? "1 buono attivo" : `${customerVouchers.length} buoni attivi`}</p></div>
+                    <strong className="text-base text-teal-950">{euro(customerVouchers.reduce((sum, voucher) => sum + voucher.balance_cents, 0))}</strong>
+                  </div>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {customerVouchers.map((voucher) => <button className="rounded-xl border border-teal-300 bg-white px-2.5 py-1.5 text-left text-[11px] transition hover:bg-teal-100" key={voucher.id} onClick={() => applyVoucher(voucher)} type="button">
+                      <span className="block font-black text-teal-950">Usa {euro(voucher.balance_cents)}</span>
+                      <span className="font-mono text-[9.5px] text-teal-700">•••• {voucher.code.slice(-4)}</span>
+                    </button>)}
+                  </div>
+                </section>
+              )}
+              {selectedCustomer && customerPackages.some((pack) => pack.items.some((item) => item.remainingQuantity > 0)) && (
+                <section className="mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-violet-800">Pacchetti attivi</p><p className="mt-1 text-xs text-violet-950">Copertura automatica su servizi/prodotti disponibili.</p></div>
+                    <Button onClick={() => applyPackages()} size="sm" variant="outline">Applica</Button>
+                  </div>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">{customerPackages.map((pack) => <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-violet-900" key={pack.id}>{pack.name}</span>)}</div>
+                </section>
+              )}
+
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <b className="text-[10px] font-black uppercase tracking-[.1em] text-stone-500">Conto · {cart.length} {cart.length === 1 ? "voce" : "voci"}</b>
+                </div>
+                {!cart.length && <div className="py-4"><EmptyState description="Aggiungi un servizio o un prodotto dal catalogo." title="Carrello vuoto" /></div>}
+                {cart.map((line, index) => (
+                  <article className="border-b border-[#f0e7eb] py-3 last:border-b-0" key={`${line.item_type}-${line.id}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        {line.issued_voucher_id
+                          ? <strong className="text-[13px]">{line.description}</strong>
+                          : line.item_type === "custom"
+                          ? <input aria-label="Descrizione riga libera" className="w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[13px] font-bold" onChange={(event) => updateLine(index, { description: event.target.value })} value={line.description} />
+                          : <strong className="text-[13px]">{line.description}</strong>}
+                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[.03em] text-stone-400">{line.issued_voucher_id ? "Buono regalo" : line.assigned_package_id ? "Pacchetto cliente" : line.item_type === "service" ? "Servizio" : line.item_type === "product" ? "Prodotto" : "Voce libera"}</p>
+                        {(line.package_quantity ?? 0) > 0 && <p className="mt-1.5 rounded-lg bg-violet-100 px-2 py-1 text-[10.5px] font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name}</p>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-[13px] font-black tabular-nums text-stone-900">{euro(Math.max(0, (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents - line.discount_cents))}</span>
+                        <button aria-label={`Rimuovi ${line.description || "riga"}`} className="grid size-7 shrink-0 place-items-center rounded-lg text-red-700 transition hover:bg-red-50" onClick={() => removeCartLine(index)} title="Rimuovi" type="button"><X className="size-3.5" /></button>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-3 gap-2">
+                      <label className="text-[9.5px] font-bold text-stone-500">Quantità<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={1} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })} type="number" value={line.quantity} /></label>
+                      <label className="text-[9.5px] font-bold text-stone-500">Prezzo<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { unit_price_cents: cents(event.target.value) })} type="number" value={(line.unit_price_cents / 100).toFixed(2)} /></label>
+                      <label className="text-[9.5px] font-bold text-stone-500">Sconto<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { discount_cents: cents(event.target.value) })} type="number" value={(line.discount_cents / 100).toFixed(2)} /></label>
+                    </div>
+                  </article>
+                ))}
               </div>
-              {payment.method === "voucher" && <div className="mt-3">
-                {!selectedCustomer && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Seleziona prima il cliente intestatario.</p>}
-                {selectedCustomer && customerVouchers.length === 0 && <p className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600">Il cliente non ha buoni attivi.</p>}
-                {customerVouchers.length > 0 && <div className="grid gap-2">
-                  {customerVouchers.map((voucher) => <button className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${payment.voucher_code === voucher.code ? "border-teal-500 bg-teal-50" : "border-stone-200 bg-white hover:border-teal-300"}`} key={voucher.id} onClick={() => applyVoucher(voucher, index)} type="button">
-                    <span><strong className="block">Buono •••• {voucher.code.slice(-4)}</strong><span className="text-stone-500">Disponibile {euro(voucher.balance_cents)}</span></span>
-                    <span className="font-black text-teal-800">{payment.voucher_code === voucher.code ? "Selezionato" : "Usa"}</span>
-                  </button>)}
-                </div>}
-              </div>}
-            </div>)}</div>
-            <div className={`mt-3 rounded-2xl px-3 py-2 text-sm font-black ${paid === total ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>Registrato: {euro(paid)} / {euro(total)}</div>
-          </div>
-          <FormField className="mt-5" label="Nota interna"><textarea className="min-h-20 w-full" onChange={(event) => setNotes(event.target.value)} value={notes} /></FormField>
-          <Button
-            className="mt-5 min-h-14 w-full text-base"
-            disabled={saving || !cart.length || paid !== total || cart.some((line) => !line.description.trim()) || payments.some((payment) => payment.method === "voucher" && (!payment.voucher_code || payment.voucher_balance_cents === undefined || payment.amount_cents > payment.voucher_balance_cents))}
-            onClick={() => void checkout()}
-            variant="primary"
-          >
-            {saving ? "Registrazione…" : `Incassa ${euro(total)}`}
-          </Button>
-          </div>
-        </aside>
+            </div>
+
+            {/* pinned footer: payments, totals, pay button */}
+            <div className="shrink-0 border-t border-[#e8dfe4] bg-white px-4 py-3.5">
+              <div className="mb-2.5 flex items-center justify-between">
+                <strong className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[.06em] text-stone-600"><CreditCard className="size-3.5 text-[#792f59]" />Pagamento</strong>
+                <button className="rounded-full bg-[#f4e4ec] px-2.5 py-1 text-[11px] font-black text-[#792f59] transition hover:bg-[#ead1df]" onClick={() => setPayments((current) => [...current, { amount_cents: 0, method: "cash" }])} type="button">+ Dividi</button>
+              </div>
+
+              {payments.length === 1 ? (
+                <div className="mb-3 flex items-stretch gap-1.5">
+                  {paymentMethods.map((methodOption) => (
+                    <button
+                      className={`flex-1 rounded-xl border px-1.5 py-2 text-[10.5px] font-black transition ${payments[0]!.method === methodOption.value ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] bg-[#fffafd] text-stone-600 hover:border-[#d7a6c1]"}`}
+                      key={methodOption.value}
+                      onClick={() => setPayments((current) => [{ ...current[0]!, method: methodOption.value }])}
+                      type="button"
+                    >
+                      {methodOption.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mb-3 space-y-2">
+                  {payments.map((payment, index) => (
+                    <div className="rounded-xl border border-stone-200 p-2.5" key={index}>
+                      <div className="grid grid-cols-[1fr_100px_auto] gap-1.5">
+                        <select
+                          className="rounded-lg border border-stone-200 px-2 text-xs"
+                          onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? {
+                            amount_cents: item.amount_cents,
+                            method: event.target.value as PaymentMethod,
+                          } : item))}
+                          value={payment.method}
+                        >
+                          {paymentMethods.map((methodOption) => <option key={methodOption.value} value={methodOption.value}>{methodOption.label}</option>)}
+                        </select>
+                        <input className="rounded-lg border border-stone-200 p-1.5 text-right text-xs font-bold" onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? { ...item, amount_cents: cents(event.target.value) } : item))} type="number" value={(payment.amount_cents / 100).toFixed(2)} />
+                        <button aria-label="Rimuovi pagamento" className="px-1 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, i) => i !== index))} type="button">×</button>
+                      </div>
+                      {payment.method === "voucher" && (
+                        <div className="mt-2">
+                          {!selectedCustomer && <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10.5px] font-bold text-amber-900">Seleziona prima il cliente intestatario.</p>}
+                          {selectedCustomer && customerVouchers.length === 0 && <p className="rounded-lg bg-stone-100 px-2.5 py-1.5 text-[10.5px] font-bold text-stone-600">Il cliente non ha buoni attivi.</p>}
+                          {customerVouchers.length > 0 && (
+                            <div className="grid gap-1.5">
+                              {customerVouchers.map((voucher) => (
+                                <button className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-left text-[10.5px] ${payment.voucher_code === voucher.code ? "border-teal-500 bg-teal-50" : "border-stone-200 bg-white hover:border-teal-300"}`} key={voucher.id} onClick={() => applyVoucher(voucher, index)} type="button">
+                                  <span><strong className="block">•••• {voucher.code.slice(-4)}</strong><span className="text-stone-500">{euro(voucher.balance_cents)}</span></span>
+                                  <span className="font-black text-teal-800">{payment.voucher_code === voucher.code ? "Selezionato" : "Usa"}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {payments[0]!.method === "voucher" && payments.length === 1 && (
+                <div className="mb-3">
+                  {!selectedCustomer && <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[10.5px] font-bold text-amber-900">Seleziona prima il cliente intestatario.</p>}
+                  {selectedCustomer && customerVouchers.length === 0 && <p className="rounded-lg bg-stone-100 px-2.5 py-1.5 text-[10.5px] font-bold text-stone-600">Il cliente non ha buoni attivi.</p>}
+                  {customerVouchers.length > 0 && (
+                    <div className="grid gap-1.5">
+                      {customerVouchers.map((voucher) => (
+                        <button className={`flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-left text-[10.5px] ${payments[0]!.voucher_code === voucher.code ? "border-teal-500 bg-teal-50" : "border-stone-200 bg-white hover:border-teal-300"}`} key={voucher.id} onClick={() => applyVoucher(voucher)} type="button">
+                          <span><strong className="block">•••• {voucher.code.slice(-4)}</strong><span className="text-stone-500">{euro(voucher.balance_cents)}</span></span>
+                          <span className="font-black text-teal-800">{payments[0]!.voucher_code === voucher.code ? "Selezionato" : "Usa"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mb-3 flex items-center justify-between rounded-xl bg-[#faf3f7] px-3 py-2 text-[11.5px] font-black text-[#5f2447]">
+                <span className="flex items-center gap-1.5"><WalletCards className="size-3.5" />Registrato</span>
+                <span className={paid === total ? "text-emerald-700" : "text-amber-800"}>{euro(paid)} / {euro(total)}</span>
+              </div>
+
+              <div className="mb-3 space-y-1 text-xs">
+                <div className="flex items-center justify-between text-stone-500"><span>Subtotale</span><b className="tabular-nums text-stone-900">{euro(subtotal)}</b></div>
+                <label className="flex items-center justify-between text-stone-500">Sconto conto<input className="w-24 rounded-lg border border-stone-200 p-1.5 text-right text-xs font-bold text-stone-950 disabled:bg-stone-100" disabled={issuedVouchers.length > 0} min={0} onChange={(event) => setDiscountCents(cents(event.target.value))} type="number" value={(discountCents / 100).toFixed(2)} /></label>
+              </div>
+
+              <FormField label="Nota interna"><textarea className="min-h-9 w-full resize-y" onChange={(event) => setNotes(event.target.value)} rows={1} value={notes} /></FormField>
+
+              <Button
+                className="mt-3 min-h-[52px] w-full text-[15px]"
+                disabled={checkoutDisabled}
+                onClick={() => void checkout()}
+                variant="primary"
+              >
+                {saving ? "Registrazione…" : `Incassa ${euro(total)}`}
+              </Button>
+            </div>
+          </aside>
+        </div>
       </div>
     </AppPage>
   );
