@@ -1,15 +1,17 @@
 "use client";
 
 import { ArchiveX, PackagePlus, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { AppPage, Button, EmptyState, ExpandableAction, InlineError, PageHeader, SectionCard, StatCard, StatGrid } from "@esse-beauty/ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppPage, Button, EmptyState, InlineError } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
+import { Card } from "../_components/EnterpriseCard";
 import { AssetDisposalDialog } from "../_components/AssetDisposalDialog";
 import { AssetPurchaseDialog } from "../_components/AssetPurchaseDialog";
 import { warehouseApi } from "../warehouse-api";
 import type { WarehouseAsset, WarehouseSupplier } from "../warehouse-types";
 
 const euro = (cents: number) => (cents / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
+const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 30 * 6;
 
 export function AssetWorkspace() {
   const { salon } = useAuth();
@@ -57,21 +59,78 @@ export function AssetWorkspace() {
     await load();
   };
 
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const active = items.filter((asset) => asset.status === "active");
+    const disposed = items.length - active.length;
+    const expiringSoon = active.filter((asset) => {
+      if (!asset.warrantyExpiresAt) return false;
+      const delta = new Date(asset.warrantyExpiresAt).getTime() - now;
+      return delta > 0 && delta <= SIX_MONTHS_MS;
+    }).length;
+    const inWarranty = active.filter((asset) => asset.warrantyExpiresAt && new Date(asset.warrantyExpiresAt).getTime() > now).length;
+    return { active: active.length, disposed, expiringSoon, inWarranty };
+  }, [items]);
+
   return (
     <AppPage maxWidth="max-w-[1400px]">
-      <PageHeader
-        actions={<><ExpandableAction icon={PackagePlus} label="Inserisci attrezzatura" onClick={() => setPurchaseOpen(true)} tone="indigo" /><Button disabled={loading} onClick={() => void load()} size="sm" variant="outline"><RefreshCw className="size-4" />Aggiorna</Button></>}
-        eyebrow="Magazzino"
-        subtitle="Acquisti, posizione, garanzia e dismissione delle attrezzature durevoli."
-        title="Attrezzature"
-      />
-      {error && <InlineError className="mb-4">{error}</InlineError>}
-      <StatGrid className="mb-4"><StatCard detail="Costo storico" label="Attrezzature" value={euro(total)} /></StatGrid>
-      <SectionCard title="Registro attrezzature" subtitle="Beni durevoli separati da articoli, giacenze e movimenti stock.">
-        {loading ? <div className="px-4 py-8 text-center text-sm text-stone-500">Caricamento attrezzature...</div> : items.length === 0 ? <EmptyState description="Inserisci un'attrezzatura per seguirne posizione, garanzia e stato." title="Nessuna attrezzatura inserita" /> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-sm"><thead className="bg-[#faf3f7] text-left text-[10px] font-black uppercase tracking-[.11em] text-[#792f59]"><tr><th className="px-3 py-2">Attrezzatura</th><th className="px-3 py-2">Matricola</th><th className="px-3 py-2">Posizione</th><th className="px-3 py-2">Garanzia</th><th className="px-3 py-2">Documento</th><th className="px-3 py-2 text-right">Costo</th><th className="px-3 py-2" /></tr></thead><tbody>{items.map((asset) => <tr className="border-t border-stone-100" key={asset.id}><td className="px-3 py-2 font-bold">{asset.description}<div className="text-xs font-normal text-stone-500">{asset.status === "disposed" ? "Dismessa" : "Attiva"}</div></td><td className="px-3 py-2">{asset.serialNumber ?? "-"}</td><td className="px-3 py-2">{asset.location ?? "-"}</td><td className="px-3 py-2">{asset.warrantyExpiresAt ? new Date(asset.warrantyExpiresAt).toLocaleDateString("it-IT") : "-"}</td><td className="px-3 py-2">{asset.source_document_number ?? "-"}</td><td className="px-3 py-2 text-right font-bold">{euro(asset.purchaseCostCents)}</td><td className="px-3 py-2 text-right">{asset.status === "active" && <Button aria-label={`Dismetti ${asset.description}`} onClick={() => setDisposing(asset)} size="sm" variant="icon"><ArchiveX className="size-4" /></Button>}</td></tr>)}</tbody></table></div>
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e8dfe4] pb-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#792f59]">Magazzino</p>
+          <h1 className="mt-1 text-[26px] font-bold tracking-[-.02em] text-stone-950">Attrezzature</h1>
+          <p className="mt-1 text-[13px] text-stone-500">Acquisti, posizione, garanzia e dismissione dei beni durevoli in dotazione al salone.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button aria-label="Aggiorna attrezzature" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59] disabled:opacity-50" disabled={loading} onClick={() => void load()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
+          <Button onClick={() => setPurchaseOpen(true)} variant="primary"><PackagePlus className="size-4" />Inserisci attrezzatura</Button>
+        </div>
+      </header>
+
+      <div className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] sm:grid-cols-3">
+        <div className="bg-white px-4 py-3.5"><span className="text-[10px] font-black uppercase tracking-wider text-stone-500">Attrezzature attive</span><strong className="mt-1 block text-xl font-bold tnum text-stone-950">{stats.active}</strong><span className="text-[11px] font-medium text-stone-400">{stats.disposed} dismesse</span></div>
+        <div className="bg-white px-4 py-3.5"><span className="text-[10px] font-black uppercase tracking-wider text-stone-500">Valore storico</span><strong className="mt-1 block text-xl font-bold tnum text-stone-950">{euro(total)}</strong><span className="text-[11px] font-medium text-stone-400">costo d&apos;acquisto</span></div>
+        <div className="bg-white px-4 py-3.5"><span className="text-[10px] font-black uppercase tracking-wider text-stone-500">In garanzia</span><strong className="mt-1 block text-xl font-bold tnum text-stone-950">{stats.inWarranty}</strong><span className="text-[11px] font-medium text-stone-400">{stats.expiringSoon > 0 ? `${stats.expiringSoon} in scadenza entro 6 mesi` : "nessuna scadenza imminente"}</span></div>
+      </div>
+
+      <Card bodyClassName="p-0" className="mt-4" title="Registro attrezzature" subtitle="Beni durevoli separati da articoli, giacenze e movimenti stock.">
+        {loading ? (
+          <div className="p-8 text-center text-sm font-semibold text-stone-500">Caricamento attrezzature…</div>
+        ) : items.length === 0 ? (
+          <div className="p-4"><EmptyState description="Inserisci un'attrezzatura per seguirne posizione, garanzia e stato." title="Nessuna attrezzatura inserita" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead className="bg-[#faf7f9] text-[10px] font-black uppercase tracking-[.12em] text-stone-500">
+                <tr><th className="px-5 py-3">Attrezzatura</th><th>Matricola</th><th>Posizione</th><th>Garanzia</th><th>Documento</th><th className="text-right">Costo</th><th className="w-12 pr-5" /></tr>
+              </thead>
+              <tbody>
+                {items.map((asset) => {
+                  const warrantyDate = asset.warrantyExpiresAt ? new Date(asset.warrantyExpiresAt) : null;
+                  const warrantyExpired = warrantyDate ? warrantyDate.getTime() < Date.now() : false;
+                  const warrantySoon = warrantyDate ? !warrantyExpired && warrantyDate.getTime() - Date.now() <= SIX_MONTHS_MS : false;
+                  return (
+                    <tr className="border-t border-stone-100 transition hover:bg-[#fffafd]" key={asset.id}>
+                      <td className="px-5 py-3.5">
+                        <div className="font-bold text-stone-900">{asset.description}</div>
+                        <div className="text-[11px] text-stone-400">{asset.status === "disposed" ? "Dismessa" : "Attiva"}</div>
+                      </td>
+                      <td className="tnum text-stone-600">{asset.serialNumber ?? "—"}</td>
+                      <td className="text-stone-600">{asset.location ?? "—"}</td>
+                      <td className={warrantyExpired ? "text-stone-400" : warrantySoon ? "font-bold text-[#a5691a]" : "text-stone-600"}>{warrantyDate ? (warrantyExpired ? "Scaduta" : `Scade ${warrantyDate.toLocaleDateString("it-IT", { day: "2-digit", month: "short" })}`) : "—"}</td>
+                      <td className="text-stone-500">{asset.source_document_number ?? "—"}</td>
+                      <td className="text-right font-black tnum text-[#402334]">{euro(asset.purchaseCostCents)}</td>
+                      <td className="pr-5 text-right">
+                        {asset.status === "active" && <button aria-label={`Dismetti ${asset.description}`} className="grid size-8 place-items-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-700" onClick={() => setDisposing(asset)} title="Dismetti attrezzatura" type="button"><ArchiveX className="size-4" /></button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </SectionCard>
+      </Card>
+      {error && <InlineError className="mt-4">{error}</InlineError>}
       <AssetPurchaseDialog onClose={() => setPurchaseOpen(false)} onSave={savePurchase} open={purchaseOpen} suppliers={suppliers} />
       <AssetDisposalDialog asset={disposing} onClose={() => setDisposing(undefined)} onSave={saveDisposal} />
     </AppPage>

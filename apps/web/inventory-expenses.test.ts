@@ -33,7 +33,7 @@ describe("inventory expense and asset workspaces", () => {
     expect(expenseDialog).toContain("Aggiungi dettagli documento");
     expect(expenseDialog).toContain('paymentMethod: "cash"');
     expect(expenses).not.toContain("WarehouseOperationDialog");
-    expect(assets).toContain('label="Inserisci attrezzatura"');
+    expect(assets).toContain("Inserisci attrezzatura");
     expect(assets).toContain("serialNumber");
     expect(assets).toContain("warrantyExpiresAt");
     expect(assets).toContain("location");
