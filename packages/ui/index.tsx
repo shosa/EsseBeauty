@@ -827,12 +827,14 @@ export function ContextTabs({
 }: {
   className?: string;
   currentPath: string;
-  items: Array<{ href: string; label: string }> | readonly { href: string; label: string }[];
+  items: Array<{ fallback?: boolean; href: string; label: string }> | readonly { fallback?: boolean; href: string; label: string }[];
 }) {
   if (items.length === 0) return null;
-  const activeHref = items
-    .filter((item) => currentPath === item.href || (item.href !== "/" && currentPath.startsWith(`${item.href}/`)))
-    .sort((left, right) => right.href.length - left.href.length)[0]?.href;
+  const strongMatches = items.filter((item, index) => index === 0
+    ? currentPath === item.href
+    : currentPath === item.href || currentPath.startsWith(`${item.href}/`));
+  const fallbackItem = items.find((item) => item.fallback) ?? items[0];
+  const activeHref = (strongMatches.sort((left, right) => right.href.length - left.href.length)[0] ?? fallbackItem)?.href;
   return (
     <nav aria-label="Viste dell'app" className={`flex min-h-11 items-end gap-1 overflow-x-auto border-b border-stone-200 ${className}`}>
       {items.map((item) => {

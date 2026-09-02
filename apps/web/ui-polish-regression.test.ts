@@ -256,7 +256,7 @@ describe("professional UI regression guard", () => {
     expect(services).toContain('label={`Archivia servizio ${item.name}`}');
     expect(services).not.toMatch(/>\s*Modifica categoria\s*<\/button>/);
     expect(services).not.toMatch(/>\s*Apri\s*<\/Link>/);
-    expect(ui).toContain("const activeHref = items");
+    expect(ui).toContain("const strongMatches = items");
     expect(ui).toContain("right.href.length - left.href.length");
   });
 
@@ -492,5 +492,12 @@ describe("professional UI regression guard", () => {
     expect(staffDetail).toContain("Servizi abilitati");
     expect(staffDetail).toContain("Giorni lavorativi");
     expect(staffDetail).toContain("WEEK_DAYS_IT");
+  });
+
+  it("highlights the Collaboratori tab, not Dashboard, on the staff detail page", () => {
+    const registry = readFileSync(join(process.cwd(), "app", "(dashboard)", "_components", "app-registry.ts"), "utf8");
+    const ui = readFileSync(sharedUi, "utf8");
+    expect(registry).toContain('{ fallback: true, href: "/staff/manage", label: "Collaboratori"');
+    expect(ui).toContain("const fallbackItem = items.find((item) => item.fallback) ?? items[0];");
   });
 });

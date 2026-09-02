@@ -28,6 +28,7 @@ export type AppDomainKey = "day" | "relationships" | "growth" | "control";
 export type AppIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export interface AppTab {
+  fallback?: boolean;
   href: string;
   label: string;
   permissions?: readonly PermissionKey[];
@@ -168,7 +169,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     }],
     tabs: [
       { href: "/staff", label: "Dashboard" },
-      { href: "/staff/manage", label: "Collaboratori", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
+      { fallback: true, href: "/staff/manage", label: "Collaboratori", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
       { href: "/staff/permissions", label: "Permessi", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
     ],
   },
