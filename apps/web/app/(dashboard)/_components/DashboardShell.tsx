@@ -38,7 +38,7 @@ import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import { CommunicationWorkspaceProvider, useCommunicationWorkspace } from "./CommunicationWorkspaceProvider";
 import { WhatsAppChatDrawer } from "./WhatsAppChatDrawer";
-import { appForPath, browserTitleForPath, visibleApps, visibleQuickActions, visibleTabs, type AppQuickAction } from "./app-registry";
+import { appForPath, browserTitleForPath, visibleApps, visibleQuickActions, visibleTabs, type AppIcon, type AppQuickAction } from "./app-registry";
 import { applyNotificationSnapshot, markNotificationRead, playIncomingMessageSound, type ShellNotification } from "./notification-state";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -189,7 +189,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
   );
 }
 
-function CommandPalette({ actions, onClose, open, salonId }: { actions: readonly AppQuickAction[]; onClose(): void; open: boolean; salonId?: string }) {
+function CommandPalette({ actions, onClose, open, salonId }: { actions: ReadonlyArray<AppQuickAction & { icon: AppIcon }>; onClose(): void; open: boolean; salonId?: string }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState("");
@@ -224,7 +224,7 @@ function CommandPalette({ actions, onClose, open, salonId }: { actions: readonly
       <div className="mt-4 border-b border-stone-100 pb-4">
         <p className="mb-2 text-xs font-black uppercase tracking-[.16em] text-stone-400">Azioni rapide</p>
         <div className="grid gap-2">
-          {actions.map((action) => <Link className="rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold hover:bg-[#f3e2eb]" href={action.href} key={action.href} onClick={onClose}>{action.label}</Link>)}
+          {actions.map((action) => <Link className="flex items-center gap-2.5 rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold hover:bg-[#f3e2eb]" href={action.href} key={action.href} onClick={onClose}><action.icon aria-hidden="true" className="size-4 shrink-0 text-[#792f59]" />{action.label}</Link>)}
         </div>
       </div>
       {error && <InlineError className="mt-4">{error}</InlineError>}
@@ -448,7 +448,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   );
   const currentApp = apps.find((app) => app.key === appForPath(pathname)?.key);
   const quickActions = useMemo(
-    () => apps.flatMap((app) => visibleQuickActions(app, grantedPermissions)),
+    () => apps.flatMap((app) => visibleQuickActions(app, grantedPermissions).map((action) => ({ ...action, icon: app.icon }))),
     [apps, grantedPermissions],
   );
   const currentQuickActions = useMemo(
