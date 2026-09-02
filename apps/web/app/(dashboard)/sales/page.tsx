@@ -591,7 +591,7 @@ export default function SalesPage() {
         </div>
       </Dialog>
 
-      <div className="fixed inset-x-0 bottom-16 top-16 flex flex-col overflow-hidden bg-white md:bottom-0 md:left-[76px]">
+      <div className="fixed inset-0 bottom-16 flex flex-col overflow-hidden bg-white md:bottom-0">
 
         {error && <InlineError className="mx-4 mt-3 shrink-0">{error}</InlineError>}
 
@@ -625,7 +625,7 @@ export default function SalesPage() {
               const active = mode === item.key;
               return (
                 <button
-                  className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-1 py-3 text-center transition ${active ? "border-[#e8dfe4] bg-gradient-to-b from-[#fffafd] to-[#faf3f7] text-[#5f2447] shadow-[inset_3px_0_0_#792f59]" : "border-transparent text-stone-500 hover:bg-[#faf7f9]"}`}
+                  className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-1 py-3 text-center transition ${active ? "border-[#e8dfe4] bg-gradient-to-b from-[#fffafd] to-[#faf3f7] text-[#5f2447] shadow-[inset_3px_0_0_#792f59]" : "border-transparent text-stone-500 hover:-translate-y-0.5 hover:border-[#ead1df] hover:bg-white hover:text-[#792f59] hover:shadow-[0_8px_18px_rgb(45_29_39_/_0.1)]"}`}
                   key={item.key}
                   onClick={() => selectMode(item.key)}
                   type="button"
@@ -640,7 +640,7 @@ export default function SalesPage() {
             })}
             <div className="my-1 h-px bg-[#e8dfe4]" />
             <button
-              className="flex flex-col items-center gap-1.5 rounded-2xl border border-transparent px-1 py-3 text-center text-stone-500 transition hover:bg-[#faf7f9]"
+              className="flex flex-col items-center gap-1.5 rounded-2xl border border-transparent px-1 py-3 text-center text-stone-500 transition hover:-translate-y-0.5 hover:border-[#ead1df] hover:bg-white hover:text-[#792f59] hover:shadow-[0_8px_18px_rgb(45_29_39_/_0.1)]"
               onClick={() => setVoucherDialogOpen(true)}
               type="button"
             >
