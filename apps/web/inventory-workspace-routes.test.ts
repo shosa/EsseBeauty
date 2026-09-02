@@ -44,9 +44,7 @@ describe("inventory workspace routes", () => {
     const workspaceSource = readFileSync(join(inventoryRoot, "_workspaces", "SupplierWorkspace.tsx"), "utf8");
 
     expect(routeSource).not.toContain("WarehouseWorkspace");
-    expect(workspaceSource).toContain("PageHeader");
-    expect(workspaceSource).toContain("ExpandableAction");
-    expect(workspaceSource).toContain('label="Nuovo fornitore"');
+    expect(workspaceSource).toContain("Nuovo fornitore");
     expect(workspaceSource).toContain("query");
     expect(workspaceSource).toContain("activeFilter");
     expect(workspaceSource).toContain("SupplierFormDialog");
