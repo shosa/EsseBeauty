@@ -3,6 +3,7 @@ import { DM_Sans, Fraunces } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import { DemoContactProvider } from "./_components/DemoContact";
 
 const sans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
 const display = Fraunces({ subsets: ["latin"], variable: "--font-display" });
@@ -31,5 +32,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <html className={`${sans.variable} ${display.variable}`} lang="it"><body>{children}</body></html>;
+  return <html className={`${sans.variable} ${display.variable}`} lang="it"><body><DemoContactProvider>{children}</DemoContactProvider></body></html>;
 }
