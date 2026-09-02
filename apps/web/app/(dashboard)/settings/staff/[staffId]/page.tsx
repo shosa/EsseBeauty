@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarClock, Check, ChevronDown, MapPinned, Smartphone, UserRound } from "lucide-react";
-import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Breadcrumbs, Button, designTokens, FormField, PageHeader, SaveActionButton, SaveToast, ScheduleEditor, SectionCard } from "@esse-beauty/ui";
+import { Ban, CalendarClock, Check, ChevronDown, MapPinned, ShieldCheck, Smartphone, UserRound } from "lucide-react";
+import { WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, designTokens, FormField, PageTransition, SaveActionButton, SaveToast, ScheduleEditor, Switch } from "@esse-beauty/ui";
 import { useAuth } from "../../../../../lib/auth-context";
+import { staffStatusAction } from "../staff-status-action";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
+type TabKey = "profile" | "access" | "location" | "hours";
+
 interface Member {
+  active: boolean;
   id: string;
   displayName: string;
   bio?: string;
@@ -41,6 +45,17 @@ interface Location {
   name: string;
 }
 
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+const tabs: Array<{ icon: typeof UserRound; key: TabKey; label: string }> = [
+  { icon: UserRound, key: "profile", label: "Profilo" },
+  { icon: Smartphone, key: "access", label: "Accesso App Staff" },
+  { icon: MapPinned, key: "location", label: "Sede & Servizi" },
+  { icon: CalendarClock, key: "hours", label: "Orari" },
+];
+
 export default function StaffDetailPage() {
   const { staffId } = useParams<{ staffId: string }>();
   const { salon } = useAuth();
@@ -59,6 +74,9 @@ export default function StaffDetailPage() {
   const [savingCapabilities, setSavingCapabilities] = useState(false);
   const [savedCapabilities, setSavedCapabilities] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const [tab, setTab] = useState<TabKey>("profile");
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
 
   const load = async () => {
     if (!salon) return;
@@ -131,7 +149,7 @@ export default function StaffDetailPage() {
       credentials: "include",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        active: data.get("active") === "on",
+        active: access.active,
         email: data.get("email"),
         ...(password ? { password } : {}),
       }),
@@ -169,176 +187,293 @@ export default function StaffDetailPage() {
     setSavingCapabilities(false);
   }
 
-  if (!member) return <AppPage maxWidth="max-w-[1600px]"><SectionCard><div className="h-96 animate-pulse rounded-2xl bg-stone-100" /></SectionCard></AppPage>;
+  async function toggleActive() {
+    if (!salon || !member) return;
+    setTogglingActive(true);
+    const nextActive = staffStatusAction(member.active).nextActive;
+    const response = await fetch(`${api}/api/salons/${salon.id}/staff/${staffId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ active: nextActive }),
+    });
+    setConfirmDeactivate(false);
+    if (!response.ok) {
+      setError(`Il collaboratore non è stato ${nextActive ? "riattivato" : "disattivato"}.`);
+      setTogglingActive(false);
+      return;
+    }
+    setMember({ ...member, active: nextActive });
+    setMessage(nextActive ? "Collaboratore riattivato." : "Collaboratore disattivato.");
+    setTogglingActive(false);
+  }
+
+  function requestStatusChange() {
+    if (!member) return;
+    const action = staffStatusAction(member.active);
+    if (action.confirmationRequired) {
+      setConfirmDeactivate(true);
+      return;
+    }
+    void toggleActive();
+  }
+
+  const enabledServiceCount = useMemo(() => services.filter((service) => service.enabled).length, [services]);
+  const workingDayCount = useMemo(
+    () => WEEK_DAYS_IT.filter((day) => (member?.workingHours[day.key]?.length ?? 0) > 0).length,
+    [member],
+  );
+  const currentLocationName = useMemo(
+    () => locations.find((location) => location.id === locationId)?.name ?? "Non assegnata",
+    [locations, locationId],
+  );
+  const accessStatusLabel = access.user_id ? (access.active ? "Attivo" : "Disattivato") : "Non configurato";
+
+  if (!member) return <AppPage maxWidth="max-w-[1600px]"><div className="h-72 animate-pulse rounded-2xl bg-stone-100" /></AppPage>;
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <SaveToast visible={Boolean(message || error)} variant={error ? "error" : "success"}>{error || message}</SaveToast>
-      <Breadcrumbs items={[{ href: "/staff", label: "Staff" }, { label: member.displayName }]} />
-      <PageHeader eyebrow="Staff" title={member.displayName} subtitle="Modifica anagrafica e orari, gestisci l'accesso all'App Staff e imposta sede di lavoro e servizi abilitati." />
+      <PageTransition>
+        <SaveToast visible={Boolean(message || error)} variant={error ? "error" : "success"}>{error || message}</SaveToast>
+        <Breadcrumbs items={[{ href: "/staff", label: "Staff" }, { label: member.displayName }]} />
 
-      <div className="grid gap-4 xl:grid-cols-12">
-        <SectionCard className="xl:col-span-5" title={<span className="flex items-center gap-2"><UserRound className="size-5 text-[#792f59]" />Profilo</span>} subtitle="Dati visibili nel gestionale e nelle aree collegate al collaboratore.">
-          <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_170px]">
-            <FormField label="Nome collaboratore" required>
-              <input className="w-full" value={member.displayName} onChange={(event) => setMember({ ...member, displayName: event.target.value })} />
-            </FormField>
-            <FormField label="Colore">
-              <div className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-[#fffafd] px-3">
-                <label className="relative block size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(214_211_209)]" style={{ backgroundColor: member.color }}>
-                  <span className="sr-only">Scegli colore collaboratore</span>
-                  <input aria-label="Colore collaboratore" className="absolute inset-0 size-full cursor-pointer opacity-0" type="color" value={member.color} onChange={(event) => setMember({ ...member, color: event.target.value })} />
-                </label>
-                <span className="text-sm font-bold uppercase text-stone-500">{member.color}</span>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
+          <div className="flex min-w-0 items-center gap-4">
+            <span className="grid size-16 shrink-0 place-items-center rounded-full text-lg font-black text-white" style={{ background: member.color }}>{initials(member.displayName)}</span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-stone-950">{member.displayName}</h1>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-stone-600">
+                <span className="flex items-center gap-1.5"><Smartphone aria-hidden="true" className="size-3.5 text-stone-400" />{access.email || "Accesso non configurato"}</span>
+                <span className="flex items-center gap-1.5"><MapPinned aria-hidden="true" className="size-3.5 text-stone-400" />{currentLocationName}</span>
               </div>
-            </FormField>
-            <FormField label="Biografia" description="Nota interna o breve presentazione del collaboratore." className="sm:col-span-2">
-              <textarea className="min-h-28 w-full resize-y" value={member.bio ?? ""} onChange={(event) => setMember({ ...member, bio: event.target.value })} />
-            </FormField>
+            </div>
           </div>
-          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-            <SaveActionButton busy={savingProfile} idleLabel="Salva profilo" onClick={() => void save()} saved={savedProfile} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button disabled={togglingActive} onClick={requestStatusChange} variant="outline">
+              {member.active ? <Ban aria-hidden="true" className="size-4" /> : <ShieldCheck aria-hidden="true" className="size-4" />}
+              {staffStatusAction(member.active).label} collaboratore
+            </Button>
           </div>
-        </SectionCard>
+        </div>
 
-        <SectionCard className="xl:col-span-7" title={<span className="flex items-center gap-2"><Smartphone className="size-5 text-[#792f59]" />Accesso App Staff</span>} subtitle="Credenziali usate dal collaboratore per accedere alla propria app operativa.">
-          <form action={saveAccess}>
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField label="Email dipendente" required>
-                <input className="w-full" name="email" type="email" required value={access.email} onChange={(event) => setAccess({ ...access, email: event.target.value })} />
-              </FormField>
-              <FormField label={access.user_id ? "Reimposta password" : "Password iniziale"} description={access.user_id ? "Lascia vuoto per mantenere la password attuale. Minimo 10 caratteri." : "Minimo 10 caratteri."}>
-                <input className="w-full" name="password" type="password" minLength={10} />
-              </FormField>
-              <div className="md:col-span-2">
-                <label className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-[#fbfaf8] px-4">
-                  <span>
-                    <strong className="block text-sm text-stone-900">Accesso App Staff attivo</strong>
-                    <span className="mt-1 block text-xs text-stone-500">Consente al collaboratore di accedere alla propria agenda.</span>
-                  </span>
-                  <input disabled={access.role === "owner"} name="active" type="checkbox" checked={access.active} onChange={(event) => setAccess({ ...access, active: event.target.checked })} />
-                </label>
-              </div>
-            </div>
-            {access.role === "owner" && (
-              <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-                Questo profilo è collegato al titolare. L’accesso all’App Staff usa lo stesso account senza modificarne ruolo o stato.
-              </p>
-            )}
-            <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-              <SaveActionButton busy={savingAccess} idleLabel="Salva accesso App Staff" saved={savedAccess} type="submit" />
-            </div>
-          </form>
-        </SectionCard>
+        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] md:grid-cols-4">
+          <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{enabledServiceCount}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Servizi abilitati</span></div>
+          <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{workingDayCount}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Giorni lavorativi</span></div>
+          <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{accessStatusLabel}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Accesso App Staff</span></div>
+          <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{currentLocationName}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Sede</span></div>
+        </div>
 
-        <SectionCard className="xl:col-span-8" title={<span className="flex items-center gap-2"><MapPinned className="size-5 text-[#792f59]" />Sede e servizi</span>} subtitle="Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.">
-          {locations.length > 0 && (
-            <div>
-              <p className="text-sm font-bold text-stone-900">Sede di lavoro</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {locations.filter((location) => location.active).map((location) => (
-                  <button
-                    aria-pressed={locationId === location.id}
-                    className={`rounded-xl border p-4 text-left transition ${locationId === location.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}
-                    key={location.id}
-                    onClick={() => setLocationId(location.id)}
-                    type="button"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <strong className="block">{location.name}</strong>
-                      {locationId === location.id && <Check aria-hidden="true" className="size-4 shrink-0 text-[#9d4f78]" />}
-                    </div>
-                    <span className="mt-1 block text-xs text-stone-500">{location.address || "Indirizzo non specificato"}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className={locations.length > 0 ? "mt-6 border-t border-stone-100 pt-6" : ""}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-stone-900">Competenze operative</p>
-                <p className="mt-1 text-xs text-stone-500">I servizi non abilitati non compariranno tra le scelte disponibili per questo collaboratore.</p>
-              </div>
-              <Button onClick={() => setServices(services.map((service) => ({ ...service, enabled: service.active })))} size="sm" variant="outline">Seleziona tutti</Button>
-            </div>
-            <div className="mt-4 space-y-2">
-              {Array.from(new Set(services.map((service) => service.category))).map((category) => {
-                const categoryServices = services.filter((service) => service.category === category);
-                const enabledCount = categoryServices.filter((service) => service.enabled).length;
-                const isOpen = Boolean(openCategories[category]);
-                const panelId = `services-category-${category.toLowerCase().replace(/\s+/g, "-")}`;
-                return (
-                  <div className="overflow-hidden rounded-xl border border-stone-200" key={category}>
-                    <button
-                      aria-controls={panelId}
-                      aria-expanded={isOpen}
-                      className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
-                      onClick={() => setOpenCategories((current) => ({ ...current, [category]: !isOpen }))}
-                      type="button"
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-sm font-bold text-stone-900">{category}</span>
-                        <span className="mt-0.5 block text-xs text-stone-500">{enabledCount}/{categoryServices.length} abilitati</span>
-                      </span>
-                      <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-stone-500 transition-transform ${isOpen ? "rotate-180 text-[#792f59]" : ""}`} />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          animate={{ height: "auto", opacity: 1 }}
-                          className="overflow-hidden"
-                          exit={{ height: 0, opacity: 0 }}
-                          id={panelId}
-                          initial={{ height: 0, opacity: 0 }}
-                          transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
-                        >
-                          <div className="flex flex-wrap gap-2 border-t border-stone-100 p-4">
-                            {categoryServices.map((service) => (
-                              <button
-                                aria-pressed={service.enabled}
-                                className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-bold transition ${service.enabled ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-500"}`}
-                                disabled={!service.active}
-                                key={service.id}
-                                onClick={() => setServices(services.map((item) => item.id === service.id ? { ...item, enabled: !item.enabled } : item))}
-                                type="button"
-                              >
-                                {service.enabled && <Check aria-hidden="true" className="size-3.5 shrink-0" />}
-                                {service.name}
-                              </button>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+        <nav aria-label="Sezioni scheda collaboratore" className="mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
+          {tabs.map((item) => {
+            const count = item.key === "location" ? enabledServiceCount : undefined;
+            const active = tab === item.key;
+            return (
+              <button
+                aria-selected={active}
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-t-xl border border-b-0 px-4 py-2.5 text-sm font-bold transition ${active ? "border-stone-200 bg-white text-[#792f59]" : "border-transparent bg-stone-100 text-stone-500 hover:bg-stone-50 hover:text-stone-800"}`}
+                key={item.key}
+                onClick={() => setTab(item.key)}
+                role="tab"
+                type="button"
+              >
+                <item.icon aria-hidden="true" className="size-4" />
+                {item.label}
+                {Boolean(count) && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${active ? "bg-[#f3e2eb] text-[#792f59]" : "bg-white text-stone-500"}`}>{count}</span>}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="mt-6">
+          {tab === "profile" && (
+            <article className="rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-sm">
+              <h2 className="flex items-center gap-2 font-bold text-stone-950"><UserRound aria-hidden="true" className="size-4 text-[#792f59]" />Profilo</h2>
+              <p className="mt-1 text-xs text-stone-500">Dati visibili nel gestionale e nelle aree collegate al collaboratore.</p>
+              <div className="mt-4 grid gap-5 sm:grid-cols-[minmax(0,1fr)_170px]">
+                <FormField label="Nome collaboratore" required>
+                  <input className="w-full" value={member.displayName} onChange={(event) => setMember({ ...member, displayName: event.target.value })} />
+                </FormField>
+                <FormField label="Colore">
+                  <div className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-[#fffafd] px-3">
+                    <label className="relative block size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(214_211_209)]" style={{ backgroundColor: member.color }}>
+                      <span className="sr-only">Scegli colore collaboratore</span>
+                      <input aria-label="Colore collaboratore" className="absolute inset-0 size-full cursor-pointer opacity-0" type="color" value={member.color} onChange={(event) => setMember({ ...member, color: event.target.value })} />
+                    </label>
+                    <span className="text-sm font-bold uppercase text-stone-500">{member.color}</span>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-            <SaveActionButton busy={savingCapabilities} idleLabel="Salva sede e competenze" onClick={() => void saveCapabilities()} saved={savedCapabilities} />
-          </div>
-        </SectionCard>
+                </FormField>
+                <FormField label="Biografia" description="Nota interna o breve presentazione del collaboratore." className="sm:col-span-2">
+                  <textarea className="min-h-28 w-full resize-y" value={member.bio ?? ""} onChange={(event) => setMember({ ...member, bio: event.target.value })} />
+                </FormField>
+              </div>
+              <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+                <SaveActionButton busy={savingProfile} idleLabel="Salva profilo" onClick={() => void save()} saved={savedProfile} />
+              </div>
+            </article>
+          )}
 
-        <SectionCard className="xl:col-span-4" title={<span className="flex items-center gap-2"><CalendarClock className="size-5 text-[#792f59]" />Orari settimanali</span>} subtitle="Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.">
-          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4">
-            <div>
-              <strong className="block text-sm text-stone-900">Orario base del salone</strong>
-              <span className="mt-1 block text-xs text-stone-500">Sostituisce le fasce sottostanti con gli orari di apertura attuali.</span>
-            </div>
-            <Button className="self-start" disabled={!salonHours} onClick={() => salonHours && setMember({ ...member, workingHours: structuredClone(salonHours) })} size="sm" variant="outline">Carica orari salone</Button>
-          </div>
-          <ScheduleEditor
-            onChange={(workingHours) => setMember({ ...member, workingHours })}
-            value={member.workingHours}
-          />
-          <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
-            <SaveActionButton busy={savingProfile} idleLabel="Salva orari" onClick={() => void save()} saved={savedProfile} />
-          </div>
-        </SectionCard>
+          {tab === "access" && (
+            <article className="rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-sm">
+              <h2 className="flex items-center gap-2 font-bold text-stone-950"><Smartphone aria-hidden="true" className="size-4 text-[#792f59]" />Accesso App Staff</h2>
+              <p className="mt-1 text-xs text-stone-500">Credenziali usate dal collaboratore per accedere alla propria app operativa.</p>
+              <form action={saveAccess} className="mt-4">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <FormField label="Email dipendente" required>
+                    <input className="w-full" name="email" type="email" required value={access.email} onChange={(event) => setAccess({ ...access, email: event.target.value })} />
+                  </FormField>
+                  <FormField label={access.user_id ? "Reimposta password" : "Password iniziale"} description={access.user_id ? "Lascia vuoto per mantenere la password attuale. Minimo 10 caratteri." : "Minimo 10 caratteri."}>
+                    <input className="w-full" name="password" type="password" minLength={10} />
+                  </FormField>
+                  <div className="md:col-span-2">
+                    <div className="flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-stone-200 bg-[#fbfaf8] px-4">
+                      <span>
+                        <strong className="block text-sm text-stone-900">Accesso App Staff attivo</strong>
+                        <span className="mt-1 block text-xs text-stone-500">Consente al collaboratore di accedere alla propria agenda.</span>
+                      </span>
+                      <Switch aria-label="Accesso App Staff attivo" checked={access.active} disabled={access.role === "owner"} onCheckedChange={(checked) => setAccess({ ...access, active: checked })} />
+                    </div>
+                  </div>
+                </div>
+                {access.role === "owner" && (
+                  <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+                    Questo profilo è collegato al titolare. L’accesso all’App Staff usa lo stesso account senza modificarne ruolo o stato.
+                  </p>
+                )}
+                <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+                  <SaveActionButton busy={savingAccess} idleLabel="Salva accesso App Staff" saved={savedAccess} type="submit" />
+                </div>
+              </form>
+            </article>
+          )}
 
-      </div>
+          {tab === "location" && (
+            <article className="rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-sm">
+              <h2 className="flex items-center gap-2 font-bold text-stone-950"><MapPinned aria-hidden="true" className="size-4 text-[#792f59]" />Sede & Servizi</h2>
+              <p className="mt-1 text-xs text-stone-500">Determina dove può lavorare il collaboratore e quali prenotazioni può ricevere dall’App Clienti.</p>
+              <div className="mt-4">
+                {locations.length > 0 && (
+                  <div>
+                    <p className="text-sm font-bold text-stone-900">Sede di lavoro</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {locations.filter((location) => location.active).map((location) => (
+                        <button
+                          aria-pressed={locationId === location.id}
+                          className={`rounded-xl border p-4 text-left transition ${locationId === location.id ? "border-[#9d4f78] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-[#d7a6c1]"}`}
+                          key={location.id}
+                          onClick={() => setLocationId(location.id)}
+                          type="button"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <strong className="block">{location.name}</strong>
+                            {locationId === location.id && <Check aria-hidden="true" className="size-4 shrink-0 text-[#9d4f78]" />}
+                          </div>
+                          <span className="mt-1 block text-xs text-stone-500">{location.address || "Indirizzo non specificato"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className={locations.length > 0 ? "mt-6 border-t border-stone-100 pt-6" : ""}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-stone-900">Competenze operative</p>
+                      <p className="mt-1 text-xs text-stone-500">I servizi non abilitati non compariranno tra le scelte disponibili per questo collaboratore.</p>
+                    </div>
+                    <Button onClick={() => setServices(services.map((service) => ({ ...service, enabled: service.active })))} size="sm" variant="outline">Seleziona tutti</Button>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {Array.from(new Set(services.map((service) => service.category))).map((category) => {
+                      const categoryServices = services.filter((service) => service.category === category);
+                      const enabledCount = categoryServices.filter((service) => service.enabled).length;
+                      const isOpen = Boolean(openCategories[category]);
+                      const panelId = `services-category-${category.toLowerCase().replace(/\s+/g, "-")}`;
+                      return (
+                        <div className="overflow-hidden rounded-xl border border-stone-200" key={category}>
+                          <button
+                            aria-controls={panelId}
+                            aria-expanded={isOpen}
+                            className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+                            onClick={() => setOpenCategories((current) => ({ ...current, [category]: !isOpen }))}
+                            type="button"
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-sm font-bold text-stone-900">{category}</span>
+                              <span className="mt-0.5 block text-xs text-stone-500">{enabledCount}/{categoryServices.length} abilitati</span>
+                            </span>
+                            <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-stone-500 transition-transform ${isOpen ? "rotate-180 text-[#792f59]" : ""}`} />
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {isOpen && (
+                              <motion.div
+                                animate={{ height: "auto", opacity: 1 }}
+                                className="overflow-hidden"
+                                exit={{ height: 0, opacity: 0 }}
+                                id={panelId}
+                                initial={{ height: 0, opacity: 0 }}
+                                transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
+                              >
+                                <div className="flex flex-wrap gap-2 border-t border-stone-100 p-4">
+                                  {categoryServices.map((service) => (
+                                    <button
+                                      aria-pressed={service.enabled}
+                                      className={`inline-flex items-center gap-1.5 rounded-xl border px-4 py-3 text-sm font-bold transition ${service.enabled ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-stone-200 bg-white text-stone-500"}`}
+                                      disabled={!service.active}
+                                      key={service.id}
+                                      onClick={() => setServices(services.map((item) => item.id === service.id ? { ...item, enabled: !item.enabled } : item))}
+                                      type="button"
+                                    >
+                                      {service.enabled && <Check aria-hidden="true" className="size-3.5 shrink-0" />}
+                                      {service.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+                <SaveActionButton busy={savingCapabilities} idleLabel="Salva sede e competenze" onClick={() => void saveCapabilities()} saved={savedCapabilities} />
+              </div>
+            </article>
+          )}
+
+          {tab === "hours" && (
+            <article className="rounded-2xl border border-[#e8dfe4] bg-white p-5 shadow-sm">
+              <h2 className="flex items-center gap-2 font-bold text-stone-950"><CalendarClock aria-hidden="true" className="size-4 text-[#792f59]" />Orari settimanali</h2>
+              <p className="mt-1 text-xs text-stone-500">Puoi aggiungere più fasce nello stesso giorno, ad esempio 09:00–13:00 e 15:00–19:00.</p>
+              <div className="mt-4 mb-5 flex flex-col gap-3 rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4">
+                <div>
+                  <strong className="block text-sm text-stone-900">Orario base del salone</strong>
+                  <span className="mt-1 block text-xs text-stone-500">Sostituisce le fasce sottostanti con gli orari di apertura attuali.</span>
+                </div>
+                <Button className="self-start" disabled={!salonHours} onClick={() => salonHours && setMember({ ...member, workingHours: structuredClone(salonHours) })} size="sm" variant="outline">Carica orari salone</Button>
+              </div>
+              <ScheduleEditor
+                onChange={(workingHours) => setMember({ ...member, workingHours })}
+                value={member.workingHours}
+              />
+              <div className="mt-6 flex justify-end border-t border-stone-100 pt-5">
+                <SaveActionButton busy={savingProfile} idleLabel="Salva orari" onClick={() => void save()} saved={savedProfile} />
+              </div>
+            </article>
+          )}
+        </div>
+      </PageTransition>
+
+      <ConfirmDialog
+        confirmLabel="Disattiva"
+        destructive
+        description="Il collaboratore verrà escluso dalle configurazioni attive senza eliminare lo storico."
+        onCancel={() => setConfirmDeactivate(false)}
+        onConfirm={() => void toggleActive()}
+        open={confirmDeactivate}
+        title={`Disattivare ${member.displayName}?`}
+      />
     </AppPage>
   );
 }
