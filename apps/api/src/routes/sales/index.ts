@@ -32,6 +32,7 @@ import { awardSaleLoyalty } from "../../lib/loyalty-engine.js";
 import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
 import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
 import { renderAccountingPdf } from "../../lib/accounting-pdf.js";
+import { buildSaleVoidPlan, voidSale } from "../../lib/sale-void.js";
 
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 type ItemType = "service" | "product" | "custom";
@@ -210,6 +211,11 @@ async function canUsePos(request: any) {
     await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS, request.server.db) ||
     await hasPermission(request.user.id, PERMISSION_KEYS.INVENTORY_MANAGE, request.server.db)
   );
+}
+
+async function canVoidSale(request: any) {
+  if (!(await canUsePos(request))) return false;
+  return hasPermission(request.user.id, PERMISSION_KEYS.SETTINGS_SALON, request.server.db);
 }
 
 function normalizedLine(item: CheckoutItem) {
@@ -952,6 +958,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       .select({
         appointment_id: sales.appointmentId,
         closed_at: sales.closedAt,
+        customer_id: sales.customerId,
         customer_name: customers.fullName,
         discount_cents: sales.discountCents,
         id: sales.id,
@@ -1114,5 +1121,41 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       }).from(salePayments).where(and(eq(salePayments.saleId, sale.id), eq(salePayments.salonId, request.salonId))),
     ]);
     return { ...sale, items, payments };
+  });
+
+  app.get<{
+    Params: { id: string; saleId: string };
+  }>("/api/salons/:id/sales/:saleId/void-preview", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canVoidSale(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const saleRows = await app.db.select({ status: sales.status }).from(sales).where(and(
+      eq(sales.id, request.params.saleId),
+      eq(sales.salonId, request.salonId),
+    ));
+    const sale = saleRows[0];
+    if (!sale) return reply.code(404).send({ error: "SALE_NOT_FOUND" });
+    if (sale.status !== "paid") return reply.code(409).send({ error: "SALE_NOT_VOIDABLE" });
+    return buildSaleVoidPlan(app.db, request.salonId, request.params.saleId);
+  });
+
+  app.post<{
+    Body: { reason?: string };
+    Params: { id: string; saleId: string };
+  }>("/api/salons/:id/sales/:saleId/void", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canVoidSale(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const result = await app.db.transaction((tx: any) => voidSale(tx, {
+      reason: request.body?.reason,
+      saleId: request.params.saleId,
+      salonId: request.salonId,
+      userId: request.user.id,
+    }).then((plan) => ({ error: undefined, plan }))).catch((error: unknown) => ({
+      error: error instanceof Error ? error.message : "SALE_VOID_FAILED",
+      plan: undefined,
+    }));
+    if (result.error === "SALE_NOT_FOUND") return reply.code(404).send({ error: result.error });
+    if (result.error === "SALE_NOT_VOIDABLE" || result.error === "SALE_VOID_BLOCKED") return reply.code(409).send({ error: result.error });
+    if (result.error) return reply.code(400).send({ error: result.error });
+    return reply.code(200).send(result.plan);
   });
 }

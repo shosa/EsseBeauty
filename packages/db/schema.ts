@@ -1068,6 +1068,11 @@ export const sales = pgTable(
     closedByUserId: uuid("closed_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    voidedAt: timestamp("voided_at", { withTimezone: true }),
+    voidedByUserId: uuid("voided_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    voidReason: text("void_reason"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

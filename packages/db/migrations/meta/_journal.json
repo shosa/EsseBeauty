@@ -302,6 +302,13 @@
       "when": 1788284174646,
       "tag": "0042_richer_inventory_products",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788354294961,
+      "tag": "0043_sale_void_fields",
+      "breakpoints": true
     }
   ]
 }
