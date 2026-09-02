@@ -151,11 +151,18 @@ export default function PermissionsPage() {
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <SaveToast visible={Boolean(message)}>{message}</SaveToast>
-      <PageHeader eyebrow="Staff" title="Permessi e assenze" subtitle="Approva o rifiuta le richieste dall'App Staff, inserisci manualmente ferie e permessi e rimuovi i blocchi attivi." />
+      <PageHeader eyebrow="Staff" title="Permessi e Ferie" subtitle="Approva o rifiuta le richieste dall'App Staff, inserisci manualmente ferie e permessi e rimuovi i blocchi attivi." />
       {error && <InlineError className="mb-4">{error}</InlineError>}
 
+      <div className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] md:grid-cols-4">
+        <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{pending.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Da revisionare</span></div>
+        <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{activeBlocks.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Permessi attivi</span></div>
+        <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{reviewed.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Storico revisioni</span></div>
+        <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{new Set(activeBlocks.map((item) => item.staff_name)).size}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Collaboratori coinvolti</span></div>
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-12">
-      <SectionCard className="xl:col-span-7" title={`Da revisionare (${pending.length})`} subtitle="Le richieste inviate dall’App Staff restano qui finché non vengono approvate o rifiutate.">
+      <SectionCard className="xl:col-span-7" title="Da revisionare" subtitle="Le richieste inviate dall’App Staff restano qui finché non vengono approvate o rifiutate.">
         {pending.length === 0 ? <EmptyState title="Nessuna richiesta in attesa" description="Le nuove richieste inviate dall’App Staff appariranno qui." /> : (
           <div className="space-y-4">
             {pending.map((item) => (
@@ -193,7 +200,7 @@ export default function PermissionsPage() {
         </form>
       </SectionCard>
 
-      <SectionCard className="xl:col-span-7" title={`Permessi attivi (${activeBlocks.length})`} subtitle="Blocchi correnti e futuri già presenti in agenda per tutto il team.">
+      <SectionCard className="xl:col-span-7" title="Permessi attivi" subtitle="Blocchi correnti e futuri già presenti in agenda per tutto il team.">
         {activeBlocks.length === 0 ? <EmptyState title="Nessun permesso attivo" description="Le assenze approvate o inserite manualmente compariranno qui." /> : <div className="grid gap-3 md:grid-cols-2">
           {activeBlocks.map((item) => <article className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4" key={item.id}>
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.staff_name}</p><strong className="mt-1 block">{item.reason || "Non disponibile"}</strong></div><Button aria-label={`Elimina permesso di ${item.staff_name}`} className="size-10 p-0" disabled={removingId === item.id} onClick={() => setConfirmRemove(item)} size="sm" title="Elimina permesso" variant="destructive"><Trash2 className="size-4" /></Button></div>
