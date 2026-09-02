@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, FileText, RefreshCw, Search, Undo2 } from "lucide-react";
-import { AppPage, Button, DateField, Drawer, EmptyState, InlineError } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, Dialog, Drawer, EmptyState, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -869,74 +869,73 @@ export default function AccountingPage() {
           </section>
           {selectedSale.notes && <section className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black uppercase text-amber-800">Nota interna</p><p className="mt-2 text-sm text-amber-950">{selectedSale.notes}</p></section>}
 
-          {!voidMode && (
-            <div className="flex flex-wrap gap-2">
-              {selectedSale.customer_id && <Link className="rounded-xl border border-[#e8dfe4] px-4 py-3 text-sm font-bold text-[#792f59] transition hover:border-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
-              {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#3a1830]" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
-              {selectedSale.status === "void" ? (
-                <span className="rounded-xl bg-stone-100 px-4 py-3 text-sm font-bold text-stone-500">Vendita già stornata</span>
-              ) : (
-                <button className="flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50" onClick={() => void startVoid()} type="button"><Undo2 size={15} />Storna vendita</button>
-              )}
-            </div>
-          )}
-
-          {voidMode && (
-            <section className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
-              <h3 className="font-black text-stone-900">Storno vendita</h3>
-              <p className="mt-1 text-sm text-stone-600">Riepilogo di cosa verrà ripristinato annullando questo movimento.</p>
-              {voidPreviewLoading && <p className="mt-3 text-sm font-semibold text-stone-500">Calcolo anteprima…</p>}
-              {voidError && <InlineError className="mt-3">{voidError}</InlineError>}
-              {voidPreview && (
-                <div className="mt-3 space-y-3">
-                  {voidPreview.blocking_reasons.length > 0 && (
-                    <div className="rounded-xl border border-red-300 bg-red-100 p-3 text-sm font-semibold text-red-800">
-                      Non è possibile stornare questa vendita:
-                      <ul className="mt-1 list-disc pl-5">{voidPreview.blocking_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-                    </div>
-                  )}
-                  {voidPreview.products.length > 0 && (
-                    <div><p className="text-xs font-black uppercase text-stone-500">Magazzino</p>
-                      <div className="mt-1.5 space-y-1">{voidPreview.products.map((item) => <div className="flex items-center justify-between text-sm" key={item.product_id}><span className="text-stone-700">{item.product_name}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">+{item.quantity}</span></div>)}</div>
-                    </div>
-                  )}
-                  {voidPreview.vouchers_issued.length > 0 && (
-                    <div><p className="text-xs font-black uppercase text-stone-500">Buoni emessi da annullare</p>
-                      <div className="mt-1.5 space-y-1">{voidPreview.vouchers_issued.map((item) => <div className="flex items-center justify-between text-sm" key={item.code}><span className={item.blocked ? "text-red-700" : "text-stone-700"}>{item.code}{item.blocked_reason ? ` — ${item.blocked_reason}` : ""}</span><span className="tnum font-bold text-stone-800">{euro(item.amount_cents)}</span></div>)}</div>
-                    </div>
-                  )}
-                  {voidPreview.vouchers_redeemed.length > 0 && (
-                    <div><p className="text-xs font-black uppercase text-stone-500">Buoni da riaccreditare</p>
-                      <div className="mt-1.5 space-y-1">{voidPreview.vouchers_redeemed.map((item) => <div className="flex items-center justify-between text-sm" key={item.code}><span className="text-stone-700">{item.code}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black tnum text-emerald-800">+{euro(item.amount_cents)}</span></div>)}</div>
-                    </div>
-                  )}
-                  {voidPreview.packages_purchased.length > 0 && (
-                    <div><p className="text-xs font-black uppercase text-stone-500">Pacchetti da rimuovere</p>
-                      <div className="mt-1.5 space-y-1">{voidPreview.packages_purchased.map((item) => <div className="text-sm" key={item.package_name}><span className={item.blocked ? "text-red-700" : "text-stone-700"}>{item.package_name}{item.blocked_reason ? ` — ${item.blocked_reason}` : ""}</span></div>)}</div>
-                    </div>
-                  )}
-                  {voidPreview.packages_consumed.length > 0 && (
-                    <div><p className="text-xs font-black uppercase text-stone-500">Utilizzo pacchetto da ripristinare</p>
-                      <div className="mt-1.5 space-y-1">{voidPreview.packages_consumed.map((item, index) => <div className="flex items-center justify-between text-sm" key={`${item.package_name}-${index}`}><span className="text-stone-700">{item.item_name} <span className="text-stone-400">({item.package_name})</span></span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">+{item.quantity}</span></div>)}</div>
-                    </div>
-                  )}
-                  {voidPreview.loyalty_points > 0 && (
-                    <div className="flex items-center justify-between text-sm"><span className="text-xs font-black uppercase text-stone-500">Punti fedeltà da revocare</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">-{voidPreview.loyalty_points}</span></div>
-                  )}
-                  {!voidPreview.products.length && !voidPreview.vouchers_issued.length && !voidPreview.vouchers_redeemed.length && !voidPreview.packages_purchased.length && !voidPreview.packages_consumed.length && !voidPreview.loyalty_points && (
-                    <p className="text-sm text-stone-500">Nessun effetto collaterale da ripristinare: solo l&apos;incasso verrà rimosso dai movimenti di cassa.</p>
-                  )}
-                  <label className="block text-sm font-bold text-stone-700">Motivo (facoltativo)<textarea className="mt-1.5 w-full" onChange={(event) => setVoidReason(event.target.value)} placeholder="Es. errore operatore, richiesta cliente…" rows={2} value={voidReason} /></label>
-                  <div className="flex flex-wrap justify-end gap-2 pt-1">
-                    <Button onClick={() => { setVoidMode(false); setVoidPreview(undefined); setVoidError(""); }} type="button" variant="outline">Annulla</Button>
-                    <Button disabled={!voidPreview.can_void || voiding} onClick={() => void confirmVoid()} type="button" variant="destructive">{voiding ? "Storno in corso…" : "Conferma storno"}</Button>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {selectedSale.customer_id && <Link className="rounded-xl border border-[#e8dfe4] px-4 py-3 text-sm font-bold text-[#792f59] transition hover:border-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
+            {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#3a1830]" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
+            {selectedSale.status === "void" ? (
+              <span className="rounded-xl bg-stone-100 px-4 py-3 text-sm font-bold text-stone-500">Vendita già stornata</span>
+            ) : (
+              <button className="flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50" onClick={() => void startVoid()} type="button"><Undo2 size={15} />Storna vendita</button>
+            )}
+          </div>
         </div>}
       </Drawer>
+
+      <Dialog
+        footer={voidPreview && <>
+          <Button onClick={() => { setVoidMode(false); setVoidPreview(undefined); setVoidError(""); }} type="button" variant="outline">Annulla</Button>
+          <Button disabled={!voidPreview.can_void || voiding} onClick={() => void confirmVoid()} type="button" variant="destructive">{voiding ? "Storno in corso…" : "Conferma storno"}</Button>
+        </>}
+        onClose={() => { setVoidMode(false); setVoidPreview(undefined); setVoidError(""); }}
+        open={voidMode}
+        title="Storno vendita"
+      >
+        <p className="text-sm text-stone-600">Riepilogo di cosa verrà ripristinato annullando questo movimento.</p>
+        {voidPreviewLoading && <p className="mt-3 text-sm font-semibold text-stone-500">Calcolo anteprima…</p>}
+        {voidError && <InlineError className="mt-3">{voidError}</InlineError>}
+        {voidPreview && (
+          <div className="mt-3 space-y-3">
+            {voidPreview.blocking_reasons.length > 0 && (
+              <div className="rounded-xl border border-red-300 bg-red-100 p-3 text-sm font-semibold text-red-800">
+                Non è possibile stornare questa vendita:
+                <ul className="mt-1 list-disc pl-5">{voidPreview.blocking_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+              </div>
+            )}
+            {voidPreview.products.length > 0 && (
+              <div><p className="text-xs font-black uppercase text-stone-500">Magazzino</p>
+                <div className="mt-1.5 space-y-1">{voidPreview.products.map((item) => <div className="flex items-center justify-between text-sm" key={item.product_id}><span className="text-stone-700">{item.product_name}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">+{item.quantity}</span></div>)}</div>
+              </div>
+            )}
+            {voidPreview.vouchers_issued.length > 0 && (
+              <div><p className="text-xs font-black uppercase text-stone-500">Buoni emessi da annullare</p>
+                <div className="mt-1.5 space-y-1">{voidPreview.vouchers_issued.map((item) => <div className="flex items-center justify-between text-sm" key={item.code}><span className={item.blocked ? "text-red-700" : "text-stone-700"}>{item.code}{item.blocked_reason ? ` — ${item.blocked_reason}` : ""}</span><span className="tnum font-bold text-stone-800">{euro(item.amount_cents)}</span></div>)}</div>
+              </div>
+            )}
+            {voidPreview.vouchers_redeemed.length > 0 && (
+              <div><p className="text-xs font-black uppercase text-stone-500">Buoni da riaccreditare</p>
+                <div className="mt-1.5 space-y-1">{voidPreview.vouchers_redeemed.map((item) => <div className="flex items-center justify-between text-sm" key={item.code}><span className="text-stone-700">{item.code}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black tnum text-emerald-800">+{euro(item.amount_cents)}</span></div>)}</div>
+              </div>
+            )}
+            {voidPreview.packages_purchased.length > 0 && (
+              <div><p className="text-xs font-black uppercase text-stone-500">Pacchetti da rimuovere</p>
+                <div className="mt-1.5 space-y-1">{voidPreview.packages_purchased.map((item) => <div className="text-sm" key={item.package_name}><span className={item.blocked ? "text-red-700" : "text-stone-700"}>{item.package_name}{item.blocked_reason ? ` — ${item.blocked_reason}` : ""}</span></div>)}</div>
+              </div>
+            )}
+            {voidPreview.packages_consumed.length > 0 && (
+              <div><p className="text-xs font-black uppercase text-stone-500">Utilizzo pacchetto da ripristinare</p>
+                <div className="mt-1.5 space-y-1">{voidPreview.packages_consumed.map((item, index) => <div className="flex items-center justify-between text-sm" key={`${item.package_name}-${index}`}><span className="text-stone-700">{item.item_name} <span className="text-stone-400">({item.package_name})</span></span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">+{item.quantity}</span></div>)}</div>
+              </div>
+            )}
+            {voidPreview.loyalty_points > 0 && (
+              <div className="flex items-center justify-between text-sm"><span className="text-xs font-black uppercase text-stone-500">Punti fedeltà da revocare</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">-{voidPreview.loyalty_points}</span></div>
+            )}
+            {!voidPreview.products.length && !voidPreview.vouchers_issued.length && !voidPreview.vouchers_redeemed.length && !voidPreview.packages_purchased.length && !voidPreview.packages_consumed.length && !voidPreview.loyalty_points && (
+              <p className="text-sm text-stone-500">Nessun effetto collaterale da ripristinare: solo l&apos;incasso verrà rimosso dai movimenti di cassa.</p>
+            )}
+            <label className="block text-sm font-bold text-stone-700">Motivo (facoltativo)<textarea className="mt-1.5 w-full" onChange={(event) => setVoidReason(event.target.value)} placeholder="Es. errore operatore, richiesta cliente…" rows={2} value={voidReason} /></label>
+          </div>
+        )}
+      </Dialog>
     </AppPage>
   );
 }
