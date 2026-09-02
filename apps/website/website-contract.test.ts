@@ -28,4 +28,15 @@ describe("EsseBeauty sales website", () => {
     expect(source("app/_components/SiteHeader.tsx")).toContain("aria-expanded");
     expect(source("app/globals.css")).toContain("prefers-reduced-motion");
   });
+
+  it("covers the real product without fabricated proof", () => {
+    const features = source("app/_components/FeatureShowcase.tsx");
+    expect(features).toContain("Agenda e lista d’attesa");
+    expect(features).toContain("Clienti e fidelizzazione");
+    expect(features).toContain("Cassa e magazzino");
+    expect(features).toContain("Marketing e recensioni");
+    expect(features).not.toContain("oltre 1.000");
+    expect(features).not.toContain("5 stelle");
+    expect(features).not.toContain("risultati garantiti");
+  });
 });

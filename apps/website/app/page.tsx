@@ -1,7 +1,13 @@
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 import { ProductPreview } from "./_components/ProductPreview";
+import { FeatureShowcase } from "./_components/FeatureShowcase";
+import { FinalCta } from "./_components/FinalCta";
+import { OutcomeStrip } from "./_components/OutcomeStrip";
+import { ReasonsSection } from "./_components/ReasonsSection";
 import { SiteHeader } from "./_components/SiteHeader";
+import { SiteFooter } from "./_components/SiteFooter";
+import { StepsSection } from "./_components/StepsSection";
 import { SITE_CONFIG } from "./site-config";
 
 export default function HomePage() {
@@ -11,6 +17,7 @@ export default function HomePage() {
       <div id="top" />
       <SiteHeader />
       <main id="main-content">
+        <span className="sr-only">Funzionalità · Come funziona · Perché EsseBeauty</span>
         <section className="hero section-shell">
           <div className="hero__copy">
             <p className="eyebrow"><span><CheckCircle2 aria-hidden="true" /></span> Il gestionale creato per il mondo beauty</p>
@@ -28,10 +35,13 @@ export default function HomePage() {
           </div>
           <ProductPreview />
         </section>
-        <section className="preview-anchors section-shell" id="funzionalita" aria-label="Anteprima delle sezioni">
-          <span>Funzionalità</span><span>Come funziona</span><span>Perché EsseBeauty</span>
-        </section>
+        <OutcomeStrip />
+        <FeatureShowcase />
+        <StepsSection />
+        <ReasonsSection />
+        <FinalCta />
       </main>
+      <SiteFooter />
     </>
   );
 }
