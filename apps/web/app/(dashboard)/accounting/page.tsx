@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Download, FileText, RefreshCw, Search } from "lucide-react";
 import { AppPage, Button, DateField, Drawer, EmptyState, InlineError } from "@esse-beauty/ui";
@@ -142,13 +143,12 @@ function totalsByStaff(rows: SaleRow[]) {
   return totals;
 }
 
-const sections: Array<{ key: Section; label: string }> = [
-  { key: "overview", label: "Panoramica" },
-  { key: "sales", label: "Registro vendite" },
-  { key: "expenses", label: "Spese" },
-  { key: "analysis", label: "Analisi & confronti" },
-  { key: "report", label: "Report" },
-];
+const sectionByPath: Record<string, Section> = {
+  "/accounting/analysis": "analysis",
+  "/accounting/expenses": "expenses",
+  "/accounting/report": "report",
+  "/accounting/sales": "sales",
+};
 
 function Card({ actions, bodyClassName = "", children, className = "", subtitle, title }: { actions?: ReactNode; bodyClassName?: string; children: ReactNode; className?: string; subtitle?: ReactNode; title?: ReactNode }) {
   return (
@@ -226,7 +226,8 @@ function MarginLineChart({ points }: { points: Array<{ day: string; total: numbe
 
 export default function AccountingPage() {
   const { salon } = useAuth();
-  const [section, setSection] = useState<Section>("overview");
+  const pathname = usePathname();
+  const section: Section = sectionByPath[pathname] ?? "overview";
   const [compareEnabled, setCompareEnabled] = useState(true);
   const [preset, setPreset] = useState<Preset | "custom">("today");
   const initialRange = useMemo(() => presetRange("today"), []);
@@ -399,18 +400,6 @@ export default function AccountingPage() {
           <button aria-label="Aggiorna contabilità" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => void loadSales()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
         </div>
       </header>
-
-      {/* ---------- tabs ---------- */}
-      <nav className="flex flex-wrap gap-6 border-b border-[#e8dfe4]">
-        {sections.map((item) => (
-          <button className={`relative flex items-center gap-1.5 py-3 text-[13.5px] font-bold transition ${section === item.key ? "text-[#792f59]" : "text-stone-500 hover:text-stone-800"}`} key={item.key} onClick={() => setSection(item.key)} type="button">
-            {item.label}
-            {item.key === "sales" && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${section === item.key ? "bg-[#f7eef3] text-[#792f59]" : "bg-stone-100 text-stone-400"}`}>{filteredRows.length}</span>}
-            {item.key === "expenses" && <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${section === item.key ? "bg-[#f7eef3] text-[#792f59]" : "bg-stone-100 text-stone-400"}`}>{overview?.expenses.rows.length ?? 0}</span>}
-            {section === item.key && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-t-full bg-[#792f59]" />}
-          </button>
-        ))}
-      </nav>
 
       {/* ---------- date range sub-bar ---------- */}
       <div className="flex flex-wrap items-center gap-3 border-b border-[#e8dfe4] py-3">
