@@ -2,7 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { AppPage, Button, DateField, FormField, InlineError, PageHeader } from "@esse-beauty/ui";
+import { AppPage, DateField, InlineError } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
 import { WarehouseAnalytics } from "../_components/WarehouseAnalytics";
 import { warehouseApi } from "../warehouse-api";
@@ -53,23 +53,24 @@ export function AnalyticsWorkspace() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <AppPage maxWidth="max-w-[1500px]">
-      <PageHeader
-        actions={<Button disabled={loading} onClick={() => void load()} size="sm" variant="outline"><RefreshCw className="size-4" />Aggiorna</Button>}
-        eyebrow="Magazzino"
-        subtitle="Valorizzazione scorte, acquisti, consumi, scarti e riepiloghi fornitori."
-        title="Analisi"
-      />
-      <div className="mb-4 grid gap-3 rounded-xl border border-stone-200 bg-white p-3 shadow-sm sm:grid-cols-2 lg:max-w-2xl">
-        <FormField label="Da">
+    <AppPage maxWidth="max-w-[1600px]">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e8dfe4] pb-4">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#792f59]">Magazzino</p>
+          <h1 className="mt-1 text-[26px] font-bold tracking-[-.02em] text-stone-950">Analisi</h1>
+          <p className="mt-1 text-[13px] text-stone-500">Valorizzazione, consumi, acquisti e scarti in un&apos;unica vista analitica.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
           <DateField aria-label="Data iniziale analisi" onChange={setDateFrom} value={dateFrom} />
-        </FormField>
-        <FormField label="A">
+          <span className="text-xs font-bold text-stone-400">→</span>
           <DateField aria-label="Data finale analisi" min={dateFrom} onChange={setDateTo} value={dateTo} />
-        </FormField>
+          <button aria-label="Aggiorna analisi" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59] disabled:opacity-50" disabled={loading} onClick={() => void load()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
+        </div>
+      </header>
+      {error && <InlineError className="mt-4">{error}</InlineError>}
+      <div className="mt-4">
+        {loading ? <div className="rounded-2xl border border-[#e8dfe4] bg-white px-4 py-8 text-center text-sm font-semibold text-stone-500">Caricamento analisi…</div> : <WarehouseAnalytics reports={reports} summary={summary} />}
       </div>
-      {error && <InlineError className="mb-4">{error}</InlineError>}
-      {loading ? <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-sm font-semibold text-stone-500">Caricamento analisi...</div> : <WarehouseAnalytics reports={reports} summary={summary} />}
     </AppPage>
   );
 }
