@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, Download, FileText, RefreshCw, Search } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, Download, FileText, RefreshCw, Search, Undo2 } from "lucide-react";
 import { AppPage, Button, DateField, Drawer, EmptyState, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -16,7 +16,17 @@ type Section = "overview" | "sales" | "expenses" | "analysis" | "report";
 type Density = "comfortable" | "compact";
 type ReportFormat = "pdf" | "excel";
 
-interface SaleRow { appointment_id?: string | null; closed_at: string; customer_name?: string | null; discount_cents: number; id: string; payment_methods: PaymentMethod[]; staff_name?: string | null; total_cents: number; }
+interface SaleRow { appointment_id?: string | null; closed_at: string; customer_id?: string | null; customer_name?: string | null; discount_cents: number; id: string; payment_methods: PaymentMethod[]; staff_name?: string | null; total_cents: number; }
+interface SaleVoidPlan {
+  blocking_reasons: string[];
+  can_void: boolean;
+  loyalty_points: number;
+  packages_consumed: Array<{ item_name: string; package_name: string; quantity: number }>;
+  packages_purchased: Array<{ blocked: boolean; blocked_reason?: string; package_name: string }>;
+  products: Array<{ product_id: string; product_name: string; quantity: number }>;
+  vouchers_issued: Array<{ amount_cents: number; blocked: boolean; blocked_reason?: string; code: string }>;
+  vouchers_redeemed: Array<{ amount_cents: number; code: string }>;
+}
 interface SaleDetail {
   appointment_id?: string | null;
   cashier_name?: string | null;
@@ -31,6 +41,7 @@ interface SaleDetail {
   notes?: string | null;
   payments: Array<{ amount_cents: number; id: string; method: PaymentMethod; paid_at: string; reference?: string | null }>;
   staff_name?: string | null;
+  status?: "open" | "paid" | "void";
   subtotal_cents: number;
   total_cents: number;
 }
@@ -143,6 +154,40 @@ function totalsByStaff(rows: SaleRow[]) {
   return totals;
 }
 
+interface SaleGroup { closed_at: string; customer_id: string | null; customer_name: string | null; discount_cents: number; key: string; payment_methods: PaymentMethod[]; rows: SaleRow[]; staff_names: string[]; total_cents: number; }
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
+function groupSaleRows(rows: SaleRow[]): SaleGroup[] {
+  const chronological = [...rows].sort((a, b) => new Date(a.closed_at).getTime() - new Date(b.closed_at).getTime());
+  const groups: SaleGroup[] = [];
+  for (const row of chronological) {
+    const last = groups[groups.length - 1];
+    const sameSession = row.customer_id && last?.customer_id === row.customer_id
+      && Math.abs(new Date(row.closed_at).getTime() - new Date(last.closed_at).getTime()) <= GROUP_WINDOW_MS;
+    if (sameSession && last) {
+      last.rows.push(row);
+      last.closed_at = row.closed_at;
+      last.total_cents += row.total_cents;
+      last.discount_cents += row.discount_cents;
+      for (const method of row.payment_methods) if (!last.payment_methods.includes(method)) last.payment_methods.push(method);
+      if (row.staff_name && !last.staff_names.includes(row.staff_name)) last.staff_names.push(row.staff_name);
+    } else {
+      groups.push({
+        closed_at: row.closed_at,
+        customer_id: row.customer_id ?? null,
+        customer_name: row.customer_name ?? null,
+        discount_cents: row.discount_cents,
+        key: row.id,
+        payment_methods: [...row.payment_methods],
+        rows: [row],
+        staff_names: row.staff_name ? [row.staff_name] : [],
+        total_cents: row.total_cents,
+      });
+    }
+  }
+  return groups;
+}
+
 const sectionByPath: Record<string, Section> = {
   "/accounting/analysis": "analysis",
   "/accounting/expenses": "expenses",
@@ -248,6 +293,7 @@ export default function AccountingPage() {
   const [reportFormat, setReportFormat] = useState<ReportFormat>("pdf");
   const [salesPage, setSalesPage] = useState(1);
   const [expensePage, setExpensePage] = useState(1);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [data, setData] = useState<SalesResponse>();
   const [overview, setOverview] = useState<AccountingOverview>();
   const [previousData, setPreviousData] = useState<SalesResponse>();
@@ -255,6 +301,13 @@ export default function AccountingPage() {
   const [error, setError] = useState("");
   const [selectedSale, setSelectedSale] = useState<SaleDetail>();
   const [saleLoading, setSaleLoading] = useState(false);
+  const [voidPreview, setVoidPreview] = useState<SaleVoidPlan>();
+  const [voidPreviewLoading, setVoidPreviewLoading] = useState(false);
+  const [voidMode, setVoidMode] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidError, setVoidError] = useState("");
+  const [voiding, setVoiding] = useState(false);
+  const [voidSuccess, setVoidSuccess] = useState("");
 
   async function loadSales() {
     if (!salon) return;
@@ -287,6 +340,11 @@ export default function AccountingPage() {
     if (!salon) return;
     setSaleLoading(true);
     setError("");
+    setVoidMode(false);
+    setVoidPreview(undefined);
+    setVoidError("");
+    setVoidReason("");
+    setVoidSuccess("");
     const response = await fetch(`${api}/api/salons/${salon.id}/sales/${saleId}`, { credentials: "include" });
     if (!response.ok) {
       setError("Dettaglio vendita non disponibile.");
@@ -295,6 +353,52 @@ export default function AccountingPage() {
     }
     setSelectedSale(await response.json() as SaleDetail);
     setSaleLoading(false);
+  }
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  async function startVoid() {
+    if (!salon || !selectedSale) return;
+    setVoidMode(true);
+    setVoidError("");
+    setVoidPreviewLoading(true);
+    const response = await fetch(`${api}/api/salons/${salon.id}/sales/${selectedSale.id}/void-preview`, { credentials: "include" });
+    if (!response.ok) {
+      setVoidError("Anteprima storno non disponibile.");
+      setVoidPreviewLoading(false);
+      return;
+    }
+    setVoidPreview(await response.json() as SaleVoidPlan);
+    setVoidPreviewLoading(false);
+  }
+
+  async function confirmVoid() {
+    if (!salon || !selectedSale || !voidPreview?.can_void) return;
+    setVoiding(true);
+    setVoidError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/sales/${selectedSale.id}/void`, {
+      body: JSON.stringify({ reason: voidReason.trim() || undefined }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      setVoidError(body.error === "SALE_VOID_BLOCKED" ? "Lo storno non è più possibile: alcuni elementi sono stati usati nel frattempo." : "Storno non riuscito.");
+      setVoiding(false);
+      return;
+    }
+    setVoiding(false);
+    setSelectedSale(undefined);
+    setVoidMode(false);
+    setVoidSuccess("Vendita stornata: prodotti, buoni, pacchetti e punti coinvolti sono stati ripristinati.");
+    await loadSales();
   }
 
   useEffect(() => { void loadSales(); }, [compareEnabled, fromDate, salon?.id, toDate]);
@@ -308,8 +412,12 @@ export default function AccountingPage() {
       .filter((row) => paymentFilter === "all" || row.payment_methods.includes(paymentFilter))
       .sort((a, b) => sort === "total" ? b.total_cents - a.total_cents : new Date(b.closed_at).getTime() - new Date(a.closed_at).getTime());
   }, [data?.rows, paymentFilter, search, sort]);
-  const pagedRows = filteredRows.slice((salesPage - 1) * pageSize, salesPage * pageSize);
-  const totalSalesPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const groupedRows = useMemo(
+    () => groupSaleRows(filteredRows).sort((a, b) => sort === "total" ? b.total_cents - a.total_cents : new Date(b.closed_at).getTime() - new Date(a.closed_at).getTime()),
+    [filteredRows, sort],
+  );
+  const pagedGroups = groupedRows.slice((salesPage - 1) * pageSize, salesPage * pageSize);
+  const totalSalesPages = Math.max(1, Math.ceil(groupedRows.length / pageSize));
   const pagedExpenseRows = (overview?.expenses.rows ?? []).slice((expensePage - 1) * pageSize, expensePage * pageSize);
   const totalExpensePages = Math.max(1, Math.ceil((overview?.expenses.rows.length ?? 0) / pageSize));
 
@@ -422,6 +530,7 @@ export default function AccountingPage() {
 
       {error && <InlineError className="mt-4">{error}</InlineError>}
       {saleLoading && <div className="mt-4 rounded-xl border border-[#e8dfe4] bg-[#fffafd] px-4 py-3 text-sm font-bold text-[#792f59]">Caricamento dettaglio vendita…</div>}
+      {voidSuccess && <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{voidSuccess}</div>}
 
       {/* ============ PANORAMICA ============ */}
       {section === "overview" && (
@@ -517,28 +626,53 @@ export default function AccountingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pagedRows.map((row) => (
-                      <tr
-                        className={`group cursor-pointer border-t border-stone-100 transition hover:bg-[#fffafd] focus-visible:bg-[#fffafd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#b85888] ${density === "compact" ? "[&>td]:py-1.5" : "[&>td]:py-3.5"}`}
-                        key={row.id}
-                        onClick={() => void openSale(row.id)}
-                        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openSale(row.id); } }}
-                        tabIndex={0}
-                      >
-                        <td className="px-5 text-stone-500">{new Date(row.closed_at).toLocaleString("it-IT")}</td>
-                        <td className="font-bold text-stone-900 group-hover:text-[#792f59]">{row.customer_name || "Cliente occasionale"}</td>
-                        <td className="text-stone-600">{row.staff_name || "—"}</td>
-                        <td><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-full bg-[#f8edf3] px-2 py-1 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
-                        <td className="tnum text-stone-500">{euro(row.discount_cents)}</td>
-                        <td className="text-right text-base font-black tnum text-[#402334]">{euro(row.total_cents)}</td>
-                        <td className="pr-5 text-right text-[11px] font-bold text-[#792f59]">Dettaglio</td>
-                      </tr>
-                    ))}
+                    {pagedGroups.map((group) => {
+                      const rowClass = `group cursor-pointer border-t border-stone-100 transition hover:bg-[#fffafd] focus-visible:bg-[#fffafd] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#b85888] ${density === "compact" ? "[&>td]:py-1.5" : "[&>td]:py-3.5"}`;
+                      if (group.rows.length === 1) {
+                        const row = group.rows[0]!;
+                        return (
+                          <tr className={rowClass} key={group.key} onClick={() => void openSale(row.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openSale(row.id); } }} tabIndex={0}>
+                            <td className="px-5 text-stone-500">{new Date(row.closed_at).toLocaleString("it-IT")}</td>
+                            <td className="font-bold text-stone-900 group-hover:text-[#792f59]">{row.customer_name || "Cliente occasionale"}</td>
+                            <td className="text-stone-600">{row.staff_name || "—"}</td>
+                            <td><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-full bg-[#f8edf3] px-2 py-1 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
+                            <td className="tnum text-stone-500">{euro(row.discount_cents)}</td>
+                            <td className="text-right text-base font-black tnum text-[#402334]">{euro(row.total_cents)}</td>
+                            <td className="pr-5 text-right text-[11px] font-bold text-[#792f59]">Dettaglio</td>
+                          </tr>
+                        );
+                      }
+                      const expanded = expandedGroups.has(group.key);
+                      return (
+                        <Fragment key={group.key}>
+                          <tr className={`${rowClass} bg-[#faf7f9]/60`} onClick={() => toggleGroup(group.key)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleGroup(group.key); } }} tabIndex={0}>
+                            <td className="px-5 text-stone-500">{new Date(group.closed_at).toLocaleString("it-IT")}</td>
+                            <td className="font-bold text-stone-900 group-hover:text-[#792f59]">{group.customer_name || "Cliente occasionale"}<span className="ml-2 rounded-full bg-[#f7eef3] px-2 py-0.5 text-[10px] font-black text-[#792f59]">{group.rows.length} appuntamenti raggruppati</span></td>
+                            <td className="text-stone-600">{group.staff_names.join(", ") || "—"}</td>
+                            <td><div className="flex flex-wrap gap-1">{group.payment_methods.map((method) => <span className="rounded-full bg-[#f8edf3] px-2 py-1 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
+                            <td className="tnum text-stone-500">{euro(group.discount_cents)}</td>
+                            <td className="text-right text-base font-black tnum text-[#402334]">{euro(group.total_cents)}</td>
+                            <td className="pr-5 text-right text-[#792f59]"><ChevronDown className={`inline transition-transform ${expanded ? "rotate-180" : ""}`} size={16} /></td>
+                          </tr>
+                          {expanded && group.rows.map((row) => (
+                            <tr className="cursor-pointer border-t border-stone-100 bg-[#fffafd] transition hover:bg-[#fdf1f7]" key={row.id} onClick={() => void openSale(row.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void openSale(row.id); } }} tabIndex={0}>
+                              <td className="py-2 pl-9 pr-5 text-xs text-stone-400">{new Date(row.closed_at).toLocaleString("it-IT")}</td>
+                              <td className="py-2 text-xs font-semibold text-stone-500">↳ singola vendita</td>
+                              <td className="py-2 text-xs text-stone-500">{row.staff_name || "—"}</td>
+                              <td className="py-2"><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
+                              <td className="py-2 tnum text-xs text-stone-400">{euro(row.discount_cents)}</td>
+                              <td className="py-2 text-right text-sm font-bold tnum text-[#402334]">{euro(row.total_cents)}</td>
+                              <td className="py-2 pr-5 text-right text-[11px] font-bold text-[#792f59]">Dettaglio</td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e8dfe4] px-5 py-3 text-xs text-stone-500">
-                <span>{(salesPage - 1) * pageSize + 1}–{Math.min(salesPage * pageSize, filteredRows.length)} di {filteredRows.length} movimenti</span>
+                <span>{filteredRows.length} movimenti · {(salesPage - 1) * pageSize + 1}–{Math.min(salesPage * pageSize, groupedRows.length)} di {groupedRows.length} operazioni</span>
                 <div className="flex items-center gap-1.5">
                   <Button disabled={salesPage <= 1} onClick={() => setSalesPage((value) => Math.max(1, value - 1))} size="sm" variant="outline">‹</Button>
                   <span className="px-2 font-bold text-stone-600">{salesPage} / {totalSalesPages}</span>
@@ -734,10 +868,73 @@ export default function AccountingPage() {
             </div>)}</div>
           </section>
           {selectedSale.notes && <section className="rounded-2xl bg-amber-50 p-4"><p className="text-xs font-black uppercase text-amber-800">Nota interna</p><p className="mt-2 text-sm text-amber-950">{selectedSale.notes}</p></section>}
-          <div className="flex flex-wrap gap-2">
-            {selectedSale.customer_id && <Link className="rounded-xl border border-[#e8dfe4] px-4 py-3 text-sm font-bold text-[#792f59] transition hover:border-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
-            {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#3a1830]" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
-          </div>
+
+          {!voidMode && (
+            <div className="flex flex-wrap gap-2">
+              {selectedSale.customer_id && <Link className="rounded-xl border border-[#e8dfe4] px-4 py-3 text-sm font-bold text-[#792f59] transition hover:border-[#792f59]" href={`/clients/${selectedSale.customer_id}`}>Apri cliente</Link>}
+              {selectedSale.appointment_id && <Link className="rounded-xl bg-[#402334] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#3a1830]" href={`/calendar?appointment=${selectedSale.appointment_id}`}>Apri appuntamento</Link>}
+              {selectedSale.status === "void" ? (
+                <span className="rounded-xl bg-stone-100 px-4 py-3 text-sm font-bold text-stone-500">Vendita già stornata</span>
+              ) : (
+                <button className="flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-3 text-sm font-bold text-red-700 transition hover:bg-red-50" onClick={() => void startVoid()} type="button"><Undo2 size={15} />Storna vendita</button>
+              )}
+            </div>
+          )}
+
+          {voidMode && (
+            <section className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
+              <h3 className="font-black text-stone-900">Storno vendita</h3>
+              <p className="mt-1 text-sm text-stone-600">Riepilogo di cosa verrà ripristinato annullando questo movimento.</p>
+              {voidPreviewLoading && <p className="mt-3 text-sm font-semibold text-stone-500">Calcolo anteprima…</p>}
+              {voidError && <InlineError className="mt-3">{voidError}</InlineError>}
+              {voidPreview && (
+                <div className="mt-3 space-y-3">
+                  {voidPreview.blocking_reasons.length > 0 && (
+                    <div className="rounded-xl border border-red-300 bg-red-100 p-3 text-sm font-semibold text-red-800">
+                      Non è possibile stornare questa vendita:
+                      <ul className="mt-1 list-disc pl-5">{voidPreview.blocking_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                    </div>
+                  )}
+                  {voidPreview.products.length > 0 && (
+                    <div><p className="text-xs font-black uppercase text-stone-500">Magazzino</p>
+                      <div className="mt-1.5 space-y-1">{voidPreview.products.map((item) => <div className="flex items-center justify-between text-sm" key={item.product_id}><span className="text-stone-700">{item.product_name}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">+{item.quantity}</span></div>)}</div>
+                    </div>
+                  )}
+                  {voidPreview.vouchers_issued.length > 0 && (
+                    <div><p className="text-xs font-black uppercase text-stone-500">Buoni emessi da annullare</p>
+                      <div className="mt-1.5 space-y-1">{voidPreview.vouchers_issued.map((item) => <div className="flex items-center justify-between text-sm" key={item.code}><span className={item.blocked ? "text-red-700" : "text-stone-700"}>{item.code}{item.blocked_reason ? ` — ${item.blocked_reason}` : ""}</span><span className="tnum font-bold text-stone-800">{euro(item.amount_cents)}</span></div>)}</div>
+                    </div>
+                  )}
+                  {voidPreview.vouchers_redeemed.length > 0 && (
+                    <div><p className="text-xs font-black uppercase text-stone-500">Buoni da riaccreditare</p>
+                      <div className="mt-1.5 space-y-1">{voidPreview.vouchers_redeemed.map((item) => <div className="flex items-center justify-between text-sm" key={item.code}><span className="text-stone-700">{item.code}</span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black tnum text-emerald-800">+{euro(item.amount_cents)}</span></div>)}</div>
+                    </div>
+                  )}
+                  {voidPreview.packages_purchased.length > 0 && (
+                    <div><p className="text-xs font-black uppercase text-stone-500">Pacchetti da rimuovere</p>
+                      <div className="mt-1.5 space-y-1">{voidPreview.packages_purchased.map((item) => <div className="text-sm" key={item.package_name}><span className={item.blocked ? "text-red-700" : "text-stone-700"}>{item.package_name}{item.blocked_reason ? ` — ${item.blocked_reason}` : ""}</span></div>)}</div>
+                    </div>
+                  )}
+                  {voidPreview.packages_consumed.length > 0 && (
+                    <div><p className="text-xs font-black uppercase text-stone-500">Utilizzo pacchetto da ripristinare</p>
+                      <div className="mt-1.5 space-y-1">{voidPreview.packages_consumed.map((item, index) => <div className="flex items-center justify-between text-sm" key={`${item.package_name}-${index}`}><span className="text-stone-700">{item.item_name} <span className="text-stone-400">({item.package_name})</span></span><span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">+{item.quantity}</span></div>)}</div>
+                    </div>
+                  )}
+                  {voidPreview.loyalty_points > 0 && (
+                    <div className="flex items-center justify-between text-sm"><span className="text-xs font-black uppercase text-stone-500">Punti fedeltà da revocare</span><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-800">-{voidPreview.loyalty_points}</span></div>
+                  )}
+                  {!voidPreview.products.length && !voidPreview.vouchers_issued.length && !voidPreview.vouchers_redeemed.length && !voidPreview.packages_purchased.length && !voidPreview.packages_consumed.length && !voidPreview.loyalty_points && (
+                    <p className="text-sm text-stone-500">Nessun effetto collaterale da ripristinare: solo l&apos;incasso verrà rimosso dai movimenti di cassa.</p>
+                  )}
+                  <label className="block text-sm font-bold text-stone-700">Motivo (facoltativo)<textarea className="mt-1.5 w-full" onChange={(event) => setVoidReason(event.target.value)} placeholder="Es. errore operatore, richiesta cliente…" rows={2} value={voidReason} /></label>
+                  <div className="flex flex-wrap justify-end gap-2 pt-1">
+                    <Button onClick={() => { setVoidMode(false); setVoidPreview(undefined); setVoidError(""); }} type="button" variant="outline">Annulla</Button>
+                    <Button disabled={!voidPreview.can_void || voiding} onClick={() => void confirmVoid()} type="button" variant="destructive">{voiding ? "Storno in corso…" : "Conferma storno"}</Button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
         </div>}
       </Drawer>
     </AppPage>
