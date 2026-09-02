@@ -52,13 +52,14 @@ describe("warehouse workspace", () => {
     expect(workspace).not.toContain('label="Nuovo documento"');
   });
 
-  it("renders fixed-size colored warehouse actions with labels in accessible tooltips", () => {
+  it("renders a grouped movement menu instead of loose colored action buttons", () => {
     const workspace = readFileSync(
       join(dashboard, "inventory", "warehouse-workspace.tsx"),
       "utf8",
     );
     const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
-    expect(workspace).toContain("ExpandableAction");
+    expect(workspace).toContain("NewMovementMenu");
+    expect(workspace).not.toContain("ExpandableAction");
     expect(ui).not.toContain("group-hover:max-w-");
     expect(ui).not.toContain("group-focus-visible:max-w-");
     expect(ui).toContain("bottom-full");
@@ -202,8 +203,8 @@ describe("warehouse workspace", () => {
     for (const label of ["Costo acquisto", "Prezzo vendita", "Barcode / EAN", "Codice produttore", "Ubicazione", "Note interne"]) {
       expect(`${create}${detail}`).toContain(label);
     }
-    expect(list).toContain("Costo acquisto");
-    expect(list).toContain("Prezzo vendita");
+    expect(list).toContain(">Costo<");
+    expect(list).toContain(">Prezzo<");
     expect(`${create}${detail}`).toContain("cost_cents");
     expect(`${create}${detail}`).toContain("unit_price_cents");
   });
