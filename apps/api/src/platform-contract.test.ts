@@ -17,7 +17,7 @@ describe("platform tier contract", () => {
     const platform = readFileSync(join(process.cwd(), "src", "routes", "platform", "index.ts"), "utf8");
 
     expect(platform).toContain('"/api/platform/salons/:salonId"');
-    expect(platform).toContain("confirmation: string");
+    expect(platform).toContain("confirmation?: string");
     expect(platform).toContain("SALON_CONFIRMATION_MISMATCH");
     expect(platform).toContain('action: "salon.deleted"');
     expect(platform).toContain('action: "salon.created"');
