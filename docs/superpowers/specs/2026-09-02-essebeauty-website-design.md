@@ -15,7 +15,7 @@ The site has two primary outcomes:
 1. A prospective customer understands the product and selects the primary conversion action, “Richiedi una demo”.
 2. An existing subscriber selects “Accedi” and reaches the existing EsseBeauty login application.
 
-The demo action will initially be a clear contact conversion rather than an account-creation or payment flow. It will open an email request with a prefilled subject and body, keeping the first version operational without adding a backend, CRM integration, or unapproved commercial details. The contact destination must be centralized in configuration so it can be replaced later.
+The demo action is a contact conversion rather than an account-creation or payment flow. Every “Richiedi una demo” action opens the same accessible contact modal. Until a delivery service is configured, submitting the validated form opens a composed email in the visitor’s mail application. The interface must state this behavior instead of displaying a false sent/saved confirmation. The contact destination remains centralized so the bridge can later be replaced by an API, CRM, or email provider without redesigning the form.
 
 ## Product positioning
 
@@ -36,12 +36,12 @@ Claims will remain qualitative unless the repository supplies verifiable evidenc
 
 ## Information architecture
 
-The first release is a single-page site with anchored navigation. A single route keeps the sales story focused and makes the application independent without creating empty secondary pages.
+The website uses a focused sales homepage plus a dedicated module-catalog route. The homepage preserves its anchored narrative, while `/moduli` gives interested prospects enough detail to evaluate the complete suite without overloading the primary sales story.
 
 ### Header
 
 - EsseBeauty brand mark and wordmark.
-- Anchor navigation: “Funzionalità”, “Come funziona”, “Perché EsseBeauty”.
+- Navigation: “Funzionalità”, “Tutti i moduli”, “Come funziona”, “Perché EsseBeauty”.
 - Secondary action: “Accedi”.
 - Primary action: “Richiedi una demo”.
 - Responsive mobile menu with semantic controls and full keyboard support.
@@ -71,6 +71,39 @@ Capabilities are grouped into four commercial pillars:
 4. **Ogni decisione parte dai dati giusti** — dashboard, reports, operational indicators, targeted marketing, and WhatsApp communication flows.
 
 Each pillar combines concise outcome-led copy, a short capability list, and a representative interface preview. The composition alternates rhythm without changing the core component language.
+
+### Complete modules page
+
+`/moduli` is the evaluation page for prospects who need more depth before contacting EsseBeauty. It shares the website header, contact modal, final conversion section, and footer, but uses a denser catalog layout rather than repeating the homepage narrative.
+
+The page opens with a compact editorial hero and a clear explanation that modules work as one connected suite. An in-page category navigator links to eight groups:
+
+1. **Agenda e operatività** — calendar, appointments, waitlist, salon closures, cabins, and scheduling resources.
+2. **Clienti e fidelizzazione** — customer records, history, segmentation, loyalty, packages, and vouchers.
+3. **Team e risorse** — collaborators, permissions, availability, requests, working rules, and staff workspace.
+4. **Cassa e vendite** — checkout, services, products, payment records, packages, vouchers, and daily commercial operations.
+5. **Magazzino e acquisti** — inventory, stock movements, suppliers, purchase documents, expenses, counts, and analytics.
+6. **Marketing e WhatsApp** — audiences, campaigns, templates, consent-aware WhatsApp communication, and conversation workspace.
+7. **Recensioni e documenti** — review invitations, delivery status, consent templates, signing flows, and evidence records.
+8. **Report e amministrazione** — dashboard indicators, reports, accounting views, settings, locations, modules, and operational controls.
+
+Each group contains a benefit-led heading, a concise explanation, and focused module cards. Every card names a real capability, explains what it enables, and lists representative functions. The page does not imply that every feature is included in every commercial plan because plans are not yet defined.
+
+### Demo-contact modal
+
+The modal is available through a shared `DemoContactProvider` and `DemoContactButton`, so all existing and future demo CTAs open the same flow without duplicating state or markup. It contains:
+
+- name (required);
+- salon/business name (required);
+- email (required, browser-valid email format);
+- phone (optional);
+- team-size choice (required: “Solo io”, “2–5 persone”, “6–10 persone”, “Più di 10”);
+- free-text message (optional);
+- a short disclosure that continuing opens the visitor’s email application and does not yet submit data directly to EsseBeauty.
+
+The modal uses a native `<dialog>` or an equivalently accessible dialog primitive with an accessible title and description, focus containment, Escape dismissal, close control, and focus restoration. Background scrolling is disabled while it is open. Submission uses browser validation, composes the entered data into the centralized mailto destination, and navigates to that mailto URL. It never shows “sent”, “saved”, or a success confirmation because no server has accepted the data.
+
+The existing-subscriber “Accedi” action remains a normal link and never opens the contact modal.
 
 ### “How it works” section
 
@@ -150,8 +183,9 @@ The preferred implementation is a lightweight Next.js application matching the e
 Primary files are expected to include:
 
 - app layout and metadata;
-- one page composing the marketing sections;
+- a homepage composing the marketing sections and a `/moduli` catalog page;
 - a small set of focused presentational components;
+- a shared client-side contact-dialog provider and trigger component;
 - global styles and semantic design tokens;
 - public brand and social-preview assets;
 - package and framework configuration aligned with the workspace.
@@ -205,13 +239,13 @@ Browser visual QA is outside the initial requirement unless explicitly requested
 
 - Pricing and online purchase, because commercial plans are not specified.
 - Account registration or subscriber authentication inside the website.
-- A custom lead database or CRM integration.
+- A custom lead database, direct email delivery, or CRM integration.
 - Live chat, chatbot, newsletter, or marketing automation.
 - Blog, customer case studies, testimonials, or partner logos.
 - Internationalization beyond Italian.
 - Product-tour video or autoplaying media.
-- Separate feature, pricing, or legal routes without real content requirements.
+- Separate pricing or legal routes without real content requirements.
 
 ## Completion criteria
 
-The website is complete when it runs as an independent workspace application, accurately presents the existing suite, creates a polished and responsive sales narrative, offers an operational demo-contact action, provides a prominent existing-subscriber login path, meets the stated accessibility requirements, defines complete metadata, and passes its production build and focused verification checks.
+The website is complete when it runs as an independent workspace application, accurately presents the existing suite on both the homepage and the complete `/moduli` catalog, creates a polished and responsive sales narrative, offers a reusable and truthful demo-contact modal, provides a prominent existing-subscriber login path, meets the stated accessibility requirements, defines complete metadata for both routes, and passes its production build and focused verification checks.

@@ -323,6 +323,13 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS,
       PERMISSION_KEYS.INVENTORY_MANAGE,
     ],
+    tabs: [
+      { href: "/accounting", label: "Panoramica" },
+      { href: "/accounting/sales", label: "Registro vendite" },
+      { href: "/accounting/expenses", label: "Spese" },
+      { href: "/accounting/analysis", label: "Analisi & confronti" },
+      { href: "/accounting/report", label: "Report" },
+    ],
   },
   {
     accent: "#4338ca",

@@ -1,0 +1,9 @@
+import { cpSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = dirname(fileURLToPath(import.meta.url));
+const src = join(root, "..", "src", "assets");
+const dest = join(root, "..", "dist", "assets");
+
+if (existsSync(src)) cpSync(src, dest, { recursive: true });

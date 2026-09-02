@@ -31,6 +31,8 @@ import { authenticate } from "../../middleware/auth.js";
 import { awardSaleLoyalty } from "../../lib/loyalty-engine.js";
 import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
 import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
+import { renderAccountingPdf } from "../../lib/accounting-pdf.js";
+import { buildSaleVoidPlan, voidSale } from "../../lib/sale-void.js";
 
 type PaymentMethod = "cash" | "card" | "bank_transfer" | "voucher" | "other";
 type ItemType = "service" | "product" | "custom";
@@ -63,7 +65,7 @@ interface IssuedVoucher {
 }
 interface AssignedPackage { package_id: string; }
 
-interface AccountingQuery { from?: string; to?: string }
+interface AccountingQuery { from?: string; period?: string; title?: string; to?: string }
 
 function dateRangeConditions(column: any, query: AccountingQuery) {
   return [
@@ -74,15 +76,6 @@ function dateRangeConditions(column: any, query: AccountingQuery) {
 
 function cents(value: number | null | undefined) {
   return value ?? 0;
-}
-
-function euro(value: number) {
-  return (value / 100).toLocaleString("it-IT", { currency: "EUR", style: "currency" });
-}
-
-function formatDate(value: Date | string | null | undefined) {
-  if (!value) return "";
-  return new Date(value).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
 }
 
 async function accountingSnapshot(app: FastifyInstance, salonId: string, query: AccountingQuery) {
@@ -144,6 +137,12 @@ async function accountingSnapshot(app: FastifyInstance, salonId: string, query: 
     const current = categoryTotals.get(row.category) ?? { count: 0, total_cents: 0 };
     categoryTotals.set(row.category, { count: current.count + 1, total_cents: current.total_cents + cents(row.total_cents) });
   }
+  const operatorTotals = new Map<string, { count: number; total_cents: number }>();
+  for (const row of saleRows) {
+    const name = row.staff ?? "Non assegnato";
+    const current = operatorTotals.get(name) ?? { count: 0, total_cents: 0 };
+    operatorTotals.set(name, { count: current.count + 1, total_cents: current.total_cents + cents(row.total_cents) });
+  }
   return {
     expenses: {
       categories: [...categoryTotals.entries()].map(([category, value]) => ({ category, ...value })).sort((a, b) => b.total_cents - a.total_cents),
@@ -155,8 +154,9 @@ async function accountingSnapshot(app: FastifyInstance, salonId: string, query: 
         total_cents: expenseTotalCents,
       },
     },
+    operators: [...operatorTotals.entries()].map(([name, value]) => ({ name, ...value })).sort((a, b) => b.total_cents - a.total_cents),
     payments: paymentRows,
-    period: { from: query.from ?? null, to: query.to ?? null },
+    period: { from: query.from ?? null, period: query.period, title: query.title, to: query.to ?? null },
     sales: {
       rows: saleRows,
       summary: {
@@ -176,73 +176,7 @@ async function accountingSnapshot(app: FastifyInstance, salonId: string, query: 
 }
 
 function accountingPdf(snapshot: Awaited<ReturnType<typeof accountingSnapshot>>) {
-  const period = `${snapshot.period.from ? formatDate(snapshot.period.from) : "inizio"} - ${snapshot.period.to ? formatDate(snapshot.period.to) : "fine"}`;
-  const lines = [
-    `Report contabile - ${snapshot.salon_name}`,
-    `Periodo: ${period}`,
-    `Generato: ${formatDate(new Date())}`,
-    "",
-    "Riepilogo",
-    `Incassi: ${euro(snapshot.summary.revenue_cents)}`,
-    `Spese: ${euro(snapshot.summary.expense_total_cents)}`,
-    `Margine lordo: ${euro(snapshot.summary.gross_margin_cents)}`,
-    `Vendite: ${snapshot.sales.summary.count}`,
-    `Spese registrate: ${snapshot.expenses.summary.count}`,
-    "",
-    "Spese per categoria",
-    ...snapshot.expenses.categories.map((row) => `${row.category}: ${euro(row.total_cents)} (${row.count})`),
-    "",
-    "Vendite",
-    ...snapshot.sales.rows.slice(0, 35).map((row) => `${formatDate(row.closed_at)} | ${row.customer ?? "Cliente occasionale"} | ${euro(row.total_cents)}`),
-    "",
-    "Spese",
-    ...snapshot.expenses.rows.slice(0, 35).map((row) => `${formatDate(row.competence_date)} | ${row.category} | ${row.description} | ${euro(row.total_cents)}`),
-  ];
-  return simplePdf(lines);
-}
-
-function simplePdf(lines: string[]) {
-  const pages: string[][] = [];
-  for (let index = 0; index < lines.length; index += 42) pages.push(lines.slice(index, index + 42));
-  const objects: string[] = [];
-  const addObject = (value: string) => {
-    objects.push(value);
-    return objects.length;
-  };
-  const fontId = addObject("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-  const pageIds: number[] = [];
-  const contentIds: number[] = [];
-  for (const page of pages) {
-    const stream = page.map((line, index) => `BT /F1 ${index === 0 ? 17 : 10} Tf 48 ${790 - index * 17} Td (${pdfText(line)}) Tj ET`).join("\n");
-    const contentId = addObject(`<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`);
-    contentIds.push(contentId);
-    pageIds.push(0);
-  }
-  const pagesId = objects.length + pages.length + 1;
-  for (let index = 0; index < pages.length; index += 1) {
-    pageIds[index] = addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentIds[index]} 0 R >>`);
-  }
-  addObject(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
-  const catalogId = addObject(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  for (let index = 0; index < objects.length; index += 1) {
-    offsets.push(Buffer.byteLength(pdf, "latin1"));
-    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
-  }
-  const xref = Buffer.byteLength(pdf, "latin1");
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xref}\n%%EOF`;
-  return Buffer.from(pdf, "latin1");
-}
-
-function pdfText(value: string) {
-  return value
-    .replace(/[^\x20-\x7e\xa0-\xff]/g, " ")
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)");
+  return renderAccountingPdf(snapshot, { period: snapshot.period.period, title: snapshot.period.title });
 }
 
 async function ownStaffId(request: any) {
@@ -277,6 +211,11 @@ async function canUsePos(request: any) {
     await hasPermission(request.user.id, PERMISSION_KEYS.CALENDAR_MANAGE_OTHERS, request.server.db) ||
     await hasPermission(request.user.id, PERMISSION_KEYS.INVENTORY_MANAGE, request.server.db)
   );
+}
+
+async function canVoidSale(request: any) {
+  if (!(await canUsePos(request))) return false;
+  return hasPermission(request.user.id, PERMISSION_KEYS.SETTINGS_SALON, request.server.db);
 }
 
 function normalizedLine(item: CheckoutItem) {
@@ -1019,6 +958,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       .select({
         appointment_id: sales.appointmentId,
         closed_at: sales.closedAt,
+        customer_id: sales.customerId,
         customer_name: customers.fullName,
         discount_cents: sales.discountCents,
         id: sales.id,
@@ -1076,7 +1016,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     return reply
       .header("content-type", "application/pdf")
       .header("content-disposition", 'attachment; filename="contabilita.pdf"')
-      .send(accountingPdf(snapshot));
+      .send(await accountingPdf(snapshot));
   });
 
   app.get<{
@@ -1181,5 +1121,41 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       }).from(salePayments).where(and(eq(salePayments.saleId, sale.id), eq(salePayments.salonId, request.salonId))),
     ]);
     return { ...sale, items, payments };
+  });
+
+  app.get<{
+    Params: { id: string; saleId: string };
+  }>("/api/salons/:id/sales/:saleId/void-preview", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canVoidSale(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const saleRows = await app.db.select({ status: sales.status }).from(sales).where(and(
+      eq(sales.id, request.params.saleId),
+      eq(sales.salonId, request.salonId),
+    ));
+    const sale = saleRows[0];
+    if (!sale) return reply.code(404).send({ error: "SALE_NOT_FOUND" });
+    if (sale.status !== "paid") return reply.code(409).send({ error: "SALE_NOT_VOIDABLE" });
+    return buildSaleVoidPlan(app.db, request.salonId, request.params.saleId);
+  });
+
+  app.post<{
+    Body: { reason?: string };
+    Params: { id: string; saleId: string };
+  }>("/api/salons/:id/sales/:saleId/void", { preHandler: [authenticate] }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    if (!(await canVoidSale(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+    const result = await app.db.transaction((tx: any) => voidSale(tx, {
+      reason: request.body?.reason,
+      saleId: request.params.saleId,
+      salonId: request.salonId,
+      userId: request.user.id,
+    }).then((plan) => ({ error: undefined, plan }))).catch((error: unknown) => ({
+      error: error instanceof Error ? error.message : "SALE_VOID_FAILED",
+      plan: undefined,
+    }));
+    if (result.error === "SALE_NOT_FOUND") return reply.code(404).send({ error: result.error });
+    if (result.error === "SALE_NOT_VOIDABLE" || result.error === "SALE_VOID_BLOCKED") return reply.code(409).send({ error: result.error });
+    if (result.error) return reply.code(400).send({ error: result.error });
+    return reply.code(200).send(result.plan);
   });
 }
