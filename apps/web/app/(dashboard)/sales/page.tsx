@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarClock, CreditCard, Gift, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
-import { AppPage, Button, Dialog, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
+import { AnimatePresence, motion } from "motion/react";
+import { CalendarClock, ChevronDown, CreditCard, Gift, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
+import { AppPage, Button, designTokens, Dialog, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -76,6 +77,13 @@ function readableTextColor(hex?: string | null) {
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
+function lineTag(line: CartLine): { color: string; label: string } {
+  if (line.issued_voucher_id) return { color: "#0d9488", label: "Buono regalo" };
+  if (line.assigned_package_id) return { color: "#7c3aed", label: "Pacchetto cliente" };
+  if (line.item_type === "service") return { color: "#792f59", label: "Servizio" };
+  if (line.item_type === "product") return { color: "#b45309", label: "Prodotto" };
+  return { color: "#78716c", label: "Voce libera" };
+}
 
 export default function SalesPage() {
   const { salon } = useAuth();
@@ -112,6 +120,7 @@ export default function SalesPage() {
   const [todayAppointments, setTodayAppointments] = useState<AgendaAppointment[]>([]);
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
+  const [openLines, setOpenLines] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!message) return;
@@ -807,30 +816,64 @@ export default function SalesPage() {
                   <b className="text-[10px] font-black uppercase tracking-[.1em] text-stone-500">Conto · {cart.length} {cart.length === 1 ? "voce" : "voci"}</b>
                 </div>
                 {!cart.length && <div className="py-4"><EmptyState description="Aggiungi un servizio o un prodotto dal catalogo." title="Carrello vuoto" /></div>}
-                {cart.map((line, index) => (
-                  <article className="mb-2 rounded-xl border border-[#e8dfe4] bg-white p-3 last:mb-0" key={`${line.item_type}-${line.id}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        {line.issued_voucher_id
-                          ? <strong className="text-[13px]">{line.description}</strong>
-                          : line.item_type === "custom"
-                          ? <input aria-label="Descrizione riga libera" className="w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[13px] font-bold" onChange={(event) => updateLine(index, { description: event.target.value })} value={line.description} />
-                          : <strong className="text-[13px]">{line.description}</strong>}
-                        <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[.03em] text-stone-400">{line.issued_voucher_id ? "Buono regalo" : line.assigned_package_id ? "Pacchetto cliente" : line.item_type === "service" ? "Servizio" : line.item_type === "product" ? "Prodotto" : "Voce libera"}</p>
-                        {(line.package_quantity ?? 0) > 0 && <p className="mt-1.5 rounded-lg bg-violet-100 px-2 py-1 text-[10.5px] font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name}</p>}
+                {cart.map((line, index) => {
+                  const key = `${line.item_type}-${line.id}`;
+                  const open = Boolean(openLines[key]);
+                  const locked = Boolean(line.issued_voucher_id || line.assigned_package_id);
+                  const tag = lineTag(line);
+                  const lineTotal = Math.max(0, (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents - line.discount_cents);
+                  return (
+                    <article className="mb-2 overflow-hidden rounded-xl border border-[#e8dfe4] bg-white last:mb-0" key={key}>
+                      <div
+                        aria-expanded={open}
+                        className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+                        onClick={() => setOpenLines((current) => ({ ...current, [key]: !open }))}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setOpenLines((current) => ({ ...current, [key]: !open }));
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-stone-900">
+                          {line.description || "Voce libera"}
+                          {line.quantity > 1 && <span className="ml-1.5 font-black text-stone-400">×{line.quantity}</span>}
+                          {(line.package_quantity ?? 0) > 0 && <span className="ml-1.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9.5px] font-black text-violet-900">pacchetto</span>}
+                        </span>
+                        <span className="shrink-0 text-[13px] font-black tabular-nums text-stone-900">{euro(lineTotal)}</span>
+                        <button aria-label={`Rimuovi ${line.description || "riga"}`} className="grid size-6 shrink-0 place-items-center rounded-lg text-red-700 transition hover:bg-red-50" onClick={(event) => { event.stopPropagation(); removeCartLine(index); }} title="Rimuovi" type="button"><X className="size-3.5" /></button>
+                        <ChevronDown aria-hidden="true" className={`size-3.5 shrink-0 text-stone-400 transition-transform ${open ? "rotate-180" : ""}`} />
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-[13px] font-black tabular-nums text-stone-900">{euro(Math.max(0, (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents - line.discount_cents))}</span>
-                        <button aria-label={`Rimuovi ${line.description || "riga"}`} className="grid size-7 shrink-0 place-items-center rounded-lg text-red-700 transition hover:bg-red-50" onClick={() => removeCartLine(index)} title="Rimuovi" type="button"><X className="size-3.5" /></button>
-                      </div>
-                    </div>
-                    <div className="mt-2.5 grid grid-cols-3 gap-2">
-                      <label className="text-[9.5px] font-bold text-stone-500">Quantità<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={1} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })} type="number" value={line.quantity} /></label>
-                      <label className="text-[9.5px] font-bold text-stone-500">Prezzo<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { unit_price_cents: cents(event.target.value) })} type="number" value={(line.unit_price_cents / 100).toFixed(2)} /></label>
-                      <label className="text-[9.5px] font-bold text-stone-500">Sconto<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={Boolean(line.issued_voucher_id || line.assigned_package_id)} min={0} onChange={(event) => updateLine(index, { discount_cents: cents(event.target.value) })} type="number" value={(line.discount_cents / 100).toFixed(2)} /></label>
-                    </div>
-                  </article>
-                ))}
+                      <AnimatePresence initial={false}>
+                        {open && (
+                          <motion.div
+                            animate={{ height: "auto", opacity: 1 }}
+                            className="overflow-hidden"
+                            exit={{ height: 0, opacity: 0 }}
+                            initial={{ height: 0, opacity: 0 }}
+                            transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
+                          >
+                            <div className="border-t border-[#f0e7eb] px-3 pb-3 pt-2.5">
+                              <p className="text-[10px] font-bold uppercase tracking-[.03em]" style={{ color: tag.color }}>{tag.label}</p>
+                              {line.item_type === "custom" && !line.issued_voucher_id && (
+                                <input aria-label="Descrizione riga libera" className="mt-1.5 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-[13px] font-bold" onChange={(event) => updateLine(index, { description: event.target.value })} value={line.description} />
+                              )}
+                              {(line.package_quantity ?? 0) > 0 && <p className="mt-1.5 rounded-lg bg-violet-100 px-2 py-1 text-[10.5px] font-black text-violet-900">{line.package_quantity}× coperto da {line.package_name}</p>}
+                              <div className="mt-2.5 grid grid-cols-3 gap-2">
+                                <label className="text-[9.5px] font-bold text-stone-500">Quantità<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={locked} min={1} onChange={(event) => updateLine(index, { quantity: Math.max(1, Number(event.target.value)) })} type="number" value={line.quantity} /></label>
+                                <label className="text-[9.5px] font-bold text-stone-500">Prezzo<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={locked} min={0} onChange={(event) => updateLine(index, { unit_price_cents: cents(event.target.value) })} type="number" value={(line.unit_price_cents / 100).toFixed(2)} /></label>
+                                <label className="text-[9.5px] font-bold text-stone-500">Sconto<input className="mt-1 w-full rounded-lg border border-stone-200 p-1.5 text-xs disabled:bg-stone-100" disabled={locked} min={0} onChange={(event) => updateLine(index, { discount_cents: cents(event.target.value) })} type="number" value={(line.discount_cents / 100).toFixed(2)} /></label>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </article>
+                  );
+                })}
               </div>
             </div>
 
