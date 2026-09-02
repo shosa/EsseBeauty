@@ -48,4 +48,21 @@ describe("EsseBeauty sales website", () => {
     expect(layout).toContain("EsseBeauty");
     expect(layout).toContain("/og.png");
   });
+
+  it("connects module discovery and the shared demo flow across the site", () => {
+    const header = source("app/_components/SiteHeader.tsx");
+    const page = source("app/page.tsx");
+    const finalCta = source("app/_components/FinalCta.tsx");
+    const footer = source("app/_components/SiteFooter.tsx");
+    for (const consumer of [header, page, finalCta]) {
+      expect(consumer).toContain("DemoContactButton");
+      expect(consumer).not.toContain("SITE_CONFIG.demoMailto");
+    }
+    expect(header).toContain('href: "/moduli"');
+    expect(footer).toContain('href="/moduli"');
+    expect(page).toContain("Esplora tutti i moduli");
+    expect(header).toContain("SITE_CONFIG.appUrl");
+    expect(page).toContain("SITE_CONFIG.appUrl");
+    expect(finalCta).toContain("SITE_CONFIG.appUrl");
+  });
 });

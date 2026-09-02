@@ -5,11 +5,13 @@ import { useState } from "react";
 
 import { SITE_CONFIG } from "../site-config";
 import { BrandLogo } from "./BrandLogo";
+import { DemoContactButton } from "./DemoContact";
 
 const links = [
-  { href: "#funzionalita", label: "Funzionalità" },
-  { href: "#come-funziona", label: "Come funziona" },
-  { href: "#perche-essebeauty", label: "Perché EsseBeauty" },
+  { href: "/#funzionalita", label: "Funzionalità" },
+  { href: "/moduli", label: "Tutti i moduli" },
+  { href: "/#come-funziona", label: "Come funziona" },
+  { href: "/#perche-essebeauty", label: "Perché EsseBeauty" },
 ];
 
 export function SiteHeader() {
@@ -18,7 +20,7 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="site-header__inner section-shell">
-        <a aria-label="EsseBeauty, torna all’inizio" className="brand-link" href="#top"><BrandLogo /></a>
+        <a aria-label="EsseBeauty, torna all’inizio" className="brand-link" href="/"><BrandLogo /></a>
         <button
           aria-controls="primary-navigation"
           aria-expanded={open}
@@ -35,7 +37,7 @@ export function SiteHeader() {
           </div>
           <div className="site-nav__actions">
             <a className="button-secondary" href={SITE_CONFIG.appUrl}>Accedi</a>
-            <a className="button-primary" href={SITE_CONFIG.demoMailto}>Richiedi una demo</a>
+            <DemoContactButton className="button-primary">Richiedi una demo</DemoContactButton>
           </div>
         </nav>
       </div>
