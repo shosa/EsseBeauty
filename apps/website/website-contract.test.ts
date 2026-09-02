@@ -8,8 +8,8 @@ const source = (path: string) => readFileSync(join(root, path), "utf8");
 describe("EsseBeauty sales website", () => {
   it("centralizes the demo and subscriber destinations", () => {
     const config = source("app/site-config.ts");
-    expect(config).toContain("NEXT_PUBLIC_ESSEBEAUTY_APP_URL");
-    expect(config).toContain("NEXT_PUBLIC_ESSEBEAUTY_DEMO_EMAIL");
+    expect(config).toContain("NEXT_PUBLIC_WEB_URL");
+    expect(config).toContain("NEXT_PUBLIC_BUSINESS_EMAIL");
     expect(config).toContain("demoMailto");
   });
 
