@@ -337,10 +337,19 @@ describe("professional UI regression guard", () => {
     expect(sales).toContain("loadTodayAppointments");
     expect(sales).toContain("Array.isArray(result)");
     expect(sales).toContain("loadAppointmentCheckout");
-    expect(sales).toContain("selectedAppointmentId");
-    expect(sales).toContain('/appointments/${selectedAppointmentId}/checkout');
+    expect(sales).toContain("linkedAppointmentIds");
     expect(sales).toContain('/appointments/${appointmentId}/checkout');
     expect(sales).not.toContain("agendaExpanded");
+  });
+
+  it("lets the register combine several of the same customer's appointments into one checkout", () => {
+    const sales = readFileSync(join(dashboardRoot, "sales", "page.tsx"), "utf8");
+    expect(sales).toContain("appointment_id");
+    expect(sales).toContain("cart.some((line) => line.appointment_id === appointment.id)");
+    expect(sales).toContain("customerId === appointment.customer_id");
+    expect(sales).toContain("splitAmountByShares");
+    expect(sales).toContain("allocatePayments");
+    expect(sales).toContain("SALE_ALREADY_CLOSED");
   });
 
   it("pins the POS running total in a always-visible register display above the scrolling cart", () => {

@@ -19,7 +19,7 @@ interface CatalogItem { category?: string; category_icon?: string | null; catego
 interface Customer { email?: string | null; id: string; name: string; phone?: string | null; }
 interface StaffItem { color: string; id: string; name: string; }
 interface PosCatalog { packages?: CatalogItem[]; products: CatalogItem[]; services: CatalogItem[]; staff: StaffItem[]; }
-interface CartLine { assigned_package_id?: string; customer_package_id?: string; description: string; discount_cents: number; id: string; issued_voucher_id?: string; item_type: CartItemType; package_item_id?: string; package_name?: string; package_quantity?: number; product_id?: string; quantity: number; service_id?: string; unit_price_cents: number; }
+interface CartLine { appointment_id?: string; assigned_package_id?: string; customer_package_id?: string; description: string; discount_cents: number; id: string; issued_voucher_id?: string; item_type: CartItemType; package_item_id?: string; package_name?: string; package_quantity?: number; product_id?: string; quantity: number; service_id?: string; unit_price_cents: number; }
 interface Payment { amount_cents: number; method: PaymentMethod; voucher_balance_cents?: number; voucher_code?: string; voucher_customer_name?: string; }
 interface IssuedVoucherDraft { amount_cents: number; id: string; message?: string; recipient_customer_id: string; recipient_name: string; }
 interface VoucherLookup { balance_cents: number; code: string; customer_id: string; customer_name: string; id: string; status: string; }
@@ -84,6 +84,42 @@ function lineTag(line: CartLine): { color: string; label: string } {
   if (line.item_type === "product") return { color: "#b45309", label: "Prodotto" };
   return { color: "#78716c", label: "Voce libera" };
 }
+function lineNetTotal(line: CartLine) {
+  return Math.max(0, (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents - line.discount_cents);
+}
+/** Splits amountCents proportionally across shares; the last share absorbs the rounding remainder so the parts always sum back to amountCents exactly. */
+function splitAmountByShares(amountCents: number, shares: number[]): number[] {
+  if (shares.length === 0) return [];
+  const shareSum = shares.reduce((sum, value) => sum + value, 0);
+  if (shareSum <= 0) return shares.map(() => 0);
+  let allocated = 0;
+  return shares.map((share, index) => {
+    if (index === shares.length - 1) return amountCents - allocated;
+    const portion = Math.round((amountCents * share) / shareSum);
+    allocated += portion;
+    return portion;
+  });
+}
+/** Slices a flat sequence of payments into per-target buckets that each sum exactly to their target, splitting a payment across a bucket boundary when needed. Requires sum(targets) === sum(payment amounts). */
+function allocatePayments(sourcePayments: Payment[], targets: number[]): Payment[][] {
+  const result: Payment[][] = targets.map(() => []);
+  let sourceIndex = 0;
+  let remainingInSource = sourcePayments[0]?.amount_cents ?? 0;
+  for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
+    let remainingTarget = targets[targetIndex]!;
+    while (remainingTarget > 0 && sourceIndex < sourcePayments.length) {
+      const take = Math.min(remainingTarget, remainingInSource);
+      if (take > 0) result[targetIndex]!.push({ ...sourcePayments[sourceIndex]!, amount_cents: take });
+      remainingTarget -= take;
+      remainingInSource -= take;
+      if (remainingInSource <= 0) {
+        sourceIndex += 1;
+        remainingInSource = sourcePayments[sourceIndex]?.amount_cents ?? 0;
+      }
+    }
+  }
+  return result;
+}
 
 export default function SalesPage() {
   const { salon } = useAuth();
@@ -119,7 +155,6 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
   const [todayAppointments, setTodayAppointments] = useState<AgendaAppointment[]>([]);
   const [agendaLoading, setAgendaLoading] = useState(false);
-  const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
   const [openLines, setOpenLines] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -162,16 +197,9 @@ export default function SalesPage() {
       setError("Puoi incassare solo appuntamenti confermati.");
       return;
     }
-    setSelectedAppointmentId(appointment.id);
-    setCustomerId(appointment.customer_id);
-    setSelectedCustomer({
-      email: appointment.customer_email,
-      id: appointment.customer_id,
-      name: appointment.customer_name,
-      phone: appointment.customer_phone,
-    });
-    setStaffId(appointment.staff_id);
-    setCart([{
+    if (cart.some((line) => line.appointment_id === appointment.id)) return;
+    const newLine: CartLine = {
+      appointment_id: appointment.id,
       description: appointment.service_name,
       discount_cents: 0,
       id: appointment.service_id,
@@ -179,11 +207,25 @@ export default function SalesPage() {
       quantity: 1,
       service_id: appointment.service_id,
       unit_price_cents: appointment.service_price_cents,
-    }]);
-    setDiscountCents(0);
-    setIssuedVouchers([]);
-    setPayments([{ amount_cents: appointment.service_price_cents, method: "cash" }]);
-    setNotes(`Da appuntamento agenda ${timeLabel(appointment.starts_at)}`);
+    };
+    if (cart.length > 0 && customerId === appointment.customer_id) {
+      setCart((current) => [...current, newLine]);
+      setNotes((current) => current ? `${current} · ${appointment.service_name} ${timeLabel(appointment.starts_at)}` : `Da appuntamento agenda ${timeLabel(appointment.starts_at)}`);
+    } else {
+      setCustomerId(appointment.customer_id);
+      setSelectedCustomer({
+        email: appointment.customer_email,
+        id: appointment.customer_id,
+        name: appointment.customer_name,
+        phone: appointment.customer_phone,
+      });
+      setStaffId(appointment.staff_id);
+      setCart([newLine]);
+      setDiscountCents(0);
+      setIssuedVouchers([]);
+      setPayments([{ amount_cents: appointment.service_price_cents, method: "cash" }]);
+      setNotes(`Da appuntamento agenda ${timeLabel(appointment.starts_at)}`);
+    }
     setMode("service");
     resetServiceCatalogStep();
   }
@@ -253,7 +295,7 @@ export default function SalesPage() {
       .catch(() => setCustomerPackages([]));
   }, [customerId, salon?.id]);
 
-  const subtotal = useMemo(() => cart.reduce((sum, line) => sum + Math.max(0, (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents - line.discount_cents), 0), [cart]);
+  const subtotal = useMemo(() => cart.reduce((sum, line) => sum + lineNetTotal(line), 0), [cart]);
   const total = Math.max(0, subtotal - discountCents);
   const paid = payments.reduce((sum, item) => sum + item.amount_cents, 0);
   useEffect(() => { if (payments.length === 1) setPayments((current) => [{ ...current[0]!, amount_cents: total }]); }, [total]);
@@ -294,6 +336,10 @@ export default function SalesPage() {
       items: group.items.sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime()),
     }));
   }, [todayAppointments]);
+  const linkedAppointmentIds = useMemo(
+    () => Array.from(new Set(cart.map((line) => line.appointment_id).filter((id): id is string => Boolean(id)))),
+    [cart],
+  );
 
   function selectMode(next: RegisterMode) {
     setMode(next);
@@ -415,13 +461,12 @@ export default function SalesPage() {
     setSelectedCustomer(undefined);
     setCustomerVouchers([]);
     setCustomerPackages([]);
-    setSelectedAppointmentId("");
-    setCart((current) => current.filter((line) => !line.assigned_package_id));
+    setCart((current) => current.filter((line) => !line.assigned_package_id && !line.appointment_id));
     setPayments((current) => current.map((payment) => payment.method === "voucher"
       ? { amount_cents: payment.amount_cents, method: "cash" }
       : payment));
   }
-  function resetRegister() { setCart([]); setIssuedVouchers([]); clearCustomer(); setStaffId(""); setDiscountCents(0); setPayments([{ amount_cents: 0, method: "cash" }]); setNotes(""); setSelectedAppointmentId(""); }
+  function resetRegister() { setCart([]); setIssuedVouchers([]); clearCustomer(); setStaffId(""); setDiscountCents(0); setPayments([{ amount_cents: 0, method: "cash" }]); setNotes(""); }
 
   function applyVoucher(voucher: VoucherLookup, paymentIndex?: number) {
     const voucherAmount = Math.min(total, voucher.balance_cents);
@@ -441,45 +486,76 @@ export default function SalesPage() {
     setError("");
   }
 
+  const checkoutErrorMessages: Record<string, string> = {
+    PAYMENT_TOTAL_MISMATCH: "I pagamenti non coincidono con il totale.",
+    VOUCHER_CODE_REQUIRED: "Inserisci il codice del buono.",
+    VOUCHER_CANNOT_BE_DISCOUNTED: "I buoni acquisto devono essere emessi al loro valore nominale. Rimuovi lo sconto sul conto.",
+    VOUCHER_CUSTOMER_MISMATCH: "Il buono non appartiene al cliente selezionato.",
+    VOUCHER_EXHAUSTED: "Il buono è già esaurito.",
+    VOUCHER_INSUFFICIENT_BALANCE: "Il buono non ha saldo sufficiente per questo importo.",
+    VOUCHER_NOT_FOUND: "Buono non trovato.",
+    PACKAGE_CUSTOMER_REQUIRED: "Seleziona il cliente a cui intestare il pacchetto.",
+    PACKAGE_NOT_FOUND: "Pacchetto non disponibile.",
+    APPOINTMENT_NOT_CONFIRMED: "L'appuntamento deve essere confermato prima dell'incasso.",
+  };
+
   async function checkout() {
     if (!salon || !cart.length || paid !== total) return;
     setSaving(true); setError("");
-    const checkoutUrl = selectedAppointmentId
-      ? `${api}/api/salons/${salon.id}/appointments/${selectedAppointmentId}/checkout`
-      : `${api}/api/salons/${salon.id}/pos-checkout`;
-    const response = await fetch(checkoutUrl, {
-      body: JSON.stringify({
-        assigned_packages: cart.filter((line) => line.assigned_package_id).map((line) => ({ package_id: line.assigned_package_id })),
-        customer_id: customerId || undefined,
-        discount_cents: discountCents,
-        issued_vouchers: issuedVouchers.map(({ amount_cents, message, recipient_customer_id }) => ({ amount_cents, message, recipient_customer_id })),
-        items: cart,
-        notes,
-        payments: payments.map(({ amount_cents, method, voucher_code }) => ({ amount_cents, method, voucher_code })),
-        staff_id: staffId || undefined,
-      }),
-      credentials: "include", headers: { "content-type": "application/json" }, method: "POST",
-    });
-    const body = await response.json().catch(() => ({})) as { error?: string; issued_vouchers?: IssuedVoucherResult[] };
-    if (!response.ok) {
-      const messages: Record<string, string> = {
-        PAYMENT_TOTAL_MISMATCH: "I pagamenti non coincidono con il totale.",
-        VOUCHER_CODE_REQUIRED: "Inserisci il codice del buono.",
-        VOUCHER_CANNOT_BE_DISCOUNTED: "I buoni acquisto devono essere emessi al loro valore nominale. Rimuovi lo sconto sul conto.",
-        VOUCHER_CUSTOMER_MISMATCH: "Il buono non appartiene al cliente selezionato.",
-        VOUCHER_EXHAUSTED: "Il buono è già esaurito.",
-        VOUCHER_INSUFFICIENT_BALANCE: "Il buono non ha saldo sufficiente per questo importo.",
-        VOUCHER_NOT_FOUND: "Buono non trovato.",
-        PACKAGE_CUSTOMER_REQUIRED: "Seleziona il cliente a cui intestare il pacchetto.",
-        PACKAGE_NOT_FOUND: "Pacchetto non disponibile.",
-        APPOINTMENT_NOT_CONFIRMED: "L'appuntamento deve essere confermato prima dell'incasso.",
-      };
-      setError(messages[body.error ?? ""] ?? "Vendita non registrata."); setSaving(false); return;
+
+    // Group cart lines by originating appointment so each appointment gets its own
+    // sale (and gets marked completed) — appointment groups first, plain/walk-in
+    // items (key undefined) last in one pos-checkout call.
+    const groupKeys: Array<string | undefined> = [];
+    const groupLines = new Map<string | undefined, CartLine[]>();
+    for (const line of cart) {
+      const key = line.appointment_id;
+      if (!groupLines.has(key)) { groupLines.set(key, []); groupKeys.push(key); }
+      groupLines.get(key)!.push(line);
     }
-    const codes = body.issued_vouchers?.map((voucher) => voucher.code.replace(/(\d{4})(?=\d)/g, "$1 ")).join(", ");
+    const orderedKeys = [...groupKeys.filter((key) => key !== undefined), ...groupKeys.filter((key) => key === undefined)];
+    const groupSubtotals = orderedKeys.map((key) => groupLines.get(key)!.reduce((sum, line) => sum + lineNetTotal(line), 0));
+    const groupTargets = splitAmountByShares(total, groupSubtotals);
+    const groupPayments = allocatePayments(payments, groupTargets);
+
+    const issuedCodes: string[] = [];
+    let completedCount = 0;
+    for (let index = 0; index < orderedKeys.length; index += 1) {
+      const appointmentId = orderedKeys[index];
+      const lines = groupLines.get(appointmentId)!;
+      const checkoutUrl = appointmentId
+        ? `${api}/api/salons/${salon.id}/appointments/${appointmentId}/checkout`
+        : `${api}/api/salons/${salon.id}/pos-checkout`;
+      const response = await fetch(checkoutUrl, {
+        body: JSON.stringify({
+          assigned_packages: lines.filter((line) => line.assigned_package_id).map((line) => ({ package_id: line.assigned_package_id })),
+          ...(appointmentId ? {} : { customer_id: customerId || undefined, staff_id: staffId || undefined }),
+          discount_cents: groupSubtotals[index]! - groupTargets[index]!,
+          issued_vouchers: appointmentId ? [] : issuedVouchers.map(({ amount_cents, message, recipient_customer_id }) => ({ amount_cents, message, recipient_customer_id })),
+          items: lines,
+          notes,
+          payments: (groupPayments[index] ?? []).map(({ amount_cents, method, voucher_code }) => ({ amount_cents, method, voucher_code })),
+        }),
+        credentials: "include", headers: { "content-type": "application/json" }, method: "POST",
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string; issued_vouchers?: IssuedVoucherResult[] };
+      if (!response.ok) {
+        if (body.error === "SALE_ALREADY_CLOSED") { completedCount += 1; continue; }
+        const prefix = completedCount > 0 ? `${completedCount} di ${orderedKeys.length} vendite registrate. ` : "";
+        setError(`${prefix}${checkoutErrorMessages[body.error ?? ""] ?? "Vendita non registrata."}`);
+        setSaving(false);
+        await Promise.all([loadCatalog(), loadTodayAppointments()]);
+        return;
+      }
+      completedCount += 1;
+      if (body.issued_vouchers) issuedCodes.push(...body.issued_vouchers.map((voucher) => voucher.code.replace(/(\d{4})(?=\d)/g, "$1 ")));
+    }
+
     resetRegister();
     await Promise.all([loadCatalog(), loadTodayAppointments()]);
-    setMessage(codes ? `Vendita registrata. Buono emesso: ${codes}` : "Vendita registrata correttamente.");
+    setMessage(issuedCodes.length
+      ? `Vendita registrata. Buono emesso: ${issuedCodes.join(", ")}`
+      : orderedKeys.length > 1 ? `${orderedKeys.length} vendite registrate correttamente.` : "Vendita registrata correttamente.");
     setSaving(false);
   }
 
@@ -655,7 +731,7 @@ export default function SalesPage() {
                         <div className="space-y-1.5">
                           {group.items.map((appointment) => {
                             const disabled = appointment.status !== "confirmed";
-                            const selected = selectedAppointmentId === appointment.id;
+                            const selected = linkedAppointmentIds.includes(appointment.id);
                             const background = appointment.color ?? "#792f59";
                             const foreground = readableTextColor(background);
                             return (
@@ -821,7 +897,7 @@ export default function SalesPage() {
                   const open = Boolean(openLines[key]);
                   const locked = Boolean(line.issued_voucher_id || line.assigned_package_id);
                   const tag = lineTag(line);
-                  const lineTotal = Math.max(0, (line.quantity - (line.package_quantity ?? 0)) * line.unit_price_cents - line.discount_cents);
+                  const lineTotal = lineNetTotal(line);
                   return (
                     <article className="mb-2 overflow-hidden rounded-xl border border-[#e8dfe4] bg-white last:mb-0" key={key}>
                       <div
