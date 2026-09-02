@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, Download, FileText, RefreshCw, Search, Undo2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, FileText, RefreshCw, Search, Undo2 } from "lucide-react";
 import { AppPage, Button, DateField, Drawer, EmptyState, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -638,7 +638,7 @@ export default function AccountingPage() {
                             <td><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-full bg-[#f8edf3] px-2 py-1 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
                             <td className="tnum text-stone-500">{euro(row.discount_cents)}</td>
                             <td className="text-right text-base font-black tnum text-[#402334]">{euro(row.total_cents)}</td>
-                            <td className="pr-5 text-right text-[11px] font-bold text-[#792f59]">Dettaglio</td>
+                            <td className="pr-5 text-right"><ChevronRight aria-label="Apri dettaglio vendita" className="inline text-[#792f59] transition group-hover:translate-x-0.5" size={16} /></td>
                           </tr>
                         );
                       }
@@ -662,7 +662,7 @@ export default function AccountingPage() {
                               <td className="py-2"><div className="flex flex-wrap gap-1">{row.payment_methods.map((method) => <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-[#792f59]" key={method}>{methodLabels[method]}</span>)}</div></td>
                               <td className="py-2 tnum text-xs text-stone-400">{euro(row.discount_cents)}</td>
                               <td className="py-2 text-right text-sm font-bold tnum text-[#402334]">{euro(row.total_cents)}</td>
-                              <td className="py-2 pr-5 text-right text-[11px] font-bold text-[#792f59]">Dettaglio</td>
+                              <td className="py-2 pr-5 text-right"><ChevronRight aria-label="Apri dettaglio vendita" className="inline text-[#792f59]" size={15} /></td>
                             </tr>
                           ))}
                         </Fragment>

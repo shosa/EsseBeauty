@@ -1102,12 +1102,14 @@ export function Dialog({
 }) {
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const frame = window.requestAnimationFrame(() => dialogRef.current?.querySelector<HTMLElement>('input, select, textarea, button, a[href], [tabindex]:not([tabindex="-1"])')?.focus());
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { onClose(); return; }
+      if (event.key === "Escape") { onCloseRef.current(); return; }
       if (event.key !== "Tab" || !dialogRef.current) return;
       const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'));
       if (!focusable.length) return;
@@ -1118,7 +1120,8 @@ export function Dialog({
     };
     window.addEventListener("keydown", keydown);
     return () => { window.cancelAnimationFrame(frame); window.removeEventListener("keydown", keydown); previousFocus?.focus(); };
-  }, [onClose, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-runs only on open/close, not on every onClose identity change (which would steal focus back on each keystroke inside the dialog)
+  }, [open]);
   const dialog = (
     <AnimatePresence>
       {open && (
@@ -1175,12 +1178,14 @@ export function Drawer({
 }) {
   const titleId = useId();
   const drawerRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const frame = window.requestAnimationFrame(() => drawerRef.current?.querySelector<HTMLElement>('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')?.focus());
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { onClose(); return; }
+      if (event.key === "Escape") { onCloseRef.current(); return; }
       if (event.key !== "Tab" || !drawerRef.current) return;
       const focusable = Array.from(drawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'));
       if (!focusable.length) return;
@@ -1191,7 +1196,8 @@ export function Drawer({
     };
     window.addEventListener("keydown", keydown);
     return () => { window.cancelAnimationFrame(frame); window.removeEventListener("keydown", keydown); previousFocus?.focus(); };
-  }, [onClose, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-runs only on open/close, not on every onClose identity change (which would steal focus back on each keystroke inside the drawer)
+  }, [open]);
   const widths = { md: "max-w-md", xl: "max-w-3xl" };
   const drawer = (
     <AnimatePresence>
