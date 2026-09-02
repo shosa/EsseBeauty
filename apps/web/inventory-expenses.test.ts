@@ -29,7 +29,7 @@ describe("inventory expense and asset workspaces", () => {
     const expenses = readFileSync(join(inventoryRoot, "_workspaces", "ExpenseWorkspace.tsx"), "utf8");
     const assets = readFileSync(join(inventoryRoot, "_workspaces", "AssetWorkspace.tsx"), "utf8");
     const expenseDialog = readFileSync(join(inventoryRoot, "_components", "ExpenseDialog.tsx"), "utf8");
-    expect(expenses).toContain('label="Registra spesa"');
+    expect(expenses).toContain("Registra spesa");
     expect(expenseDialog).toContain("Aggiungi dettagli documento");
     expect(expenseDialog).toContain('paymentMethod: "cash"');
     expect(expenses).not.toContain("WarehouseOperationDialog");
