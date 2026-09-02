@@ -1,4 +1,4 @@
-const appUrl = process.env.NEXT_PUBLIC_ESSEBEAUTY_APP_URL || "http://localhost:3000/login";
+const appUrl = process.env.NEXT_PUBLIC_WEB_APP_URL || "http://localhost:3000/login";
 const demoEmail = process.env.NEXT_PUBLIC_ESSEBEAUTY_DEMO_EMAIL || "info@essebeauty.it";
 const subject = encodeURIComponent("Richiesta demo EsseBeauty");
 const body = encodeURIComponent("Buongiorno, vorrei scoprire EsseBeauty e richiedere una demo.");
