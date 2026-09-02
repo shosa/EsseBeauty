@@ -163,14 +163,14 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       PERMISSION_KEYS.CALENDAR_VIEW_OTHERS,
     ],
     quickActions: [{
-      href: "/staff/new",
+      href: "/staff/manage?new=1",
       label: "Nuovo collaboratore",
       permissions: [PERMISSION_KEYS.SETTINGS_STAFF],
     }],
     tabs: [
       { href: "/staff", label: "Dashboard" },
       { fallback: true, href: "/staff/manage", label: "Collaboratori", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
-      { href: "/staff/permissions", label: "Permessi", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
+      { href: "/staff/permissions", label: "Permessi e Ferie", permissions: [PERMISSION_KEYS.SETTINGS_STAFF] },
     ],
   },
   {

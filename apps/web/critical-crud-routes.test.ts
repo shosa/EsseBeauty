@@ -15,7 +15,6 @@ const requiredRoutes = [
   "services/manage/page.tsx",
   "services/new/page.tsx",
   "staff/manage/page.tsx",
-  "staff/new/page.tsx",
   "packages/page.tsx",
   "loyalty/page.tsx",
   "loyalty/rewards/new/page.tsx",

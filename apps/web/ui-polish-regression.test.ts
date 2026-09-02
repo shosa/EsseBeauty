@@ -100,7 +100,6 @@ describe("professional UI regression guard", () => {
     for (const file of [
       "settings/services/new/page.tsx",
       "settings/services/[serviceId]/page.tsx",
-      "settings/staff/new/page.tsx",
       "settings/users/invite/page.tsx",
       "settings/loyalty/rewards/new/page.tsx",
       "settings/loyalty/rewards/[rewardId]/page.tsx",
@@ -226,7 +225,7 @@ describe("professional UI regression guard", () => {
     expect(services).toContain("/operations/services");
     expect(services).not.toContain("/services/new");
     expect(services).not.toContain("method: \"PATCH\"");
-    expect(settingsStaff).toContain("/settings/staff/new");
+    expect(settingsStaff).toContain("setNewOpen(true)");
     expect(settingsStaff).toContain("/api/salons/${salon.id}/staff");
     expect(settingsServices).toContain("/services/new");
     expect(settingsServices).toContain("/api/salons/${salon.id}/services");
@@ -234,14 +233,16 @@ describe("professional UI regression guard", () => {
     expect(appointmentNew).toContain("/operations/staff");
   });
 
-  it("uses the consolidated icon CTA pattern in the collaborators workspace", () => {
+  it("opens a new-collaborator dialog instead of a standalone page, mirroring the clients directory", () => {
     const collaborators = readFileSync(join(dashboardRoot, "settings", "staff", "page.tsx"), "utf8");
     expect(collaborators).toContain("PageHeader");
-    expect(collaborators).toContain("ExpandableAction");
-    expect(collaborators).toContain('label="Nuovo collaboratore"');
-    expect(collaborators).toContain('label={`Configura ${member.displayName}`}');
+    expect(collaborators).toContain("Dialog");
+    expect(collaborators).toContain('title="Collaboratori"');
+    expect(collaborators).toContain('onClick={() => setNewOpen(true)}');
+    expect(collaborators).toContain('if (searchParams.get("new") === "1")');
     expect(collaborators).toContain("staffStatusAction(member.active).label");
-    expect(collaborators).not.toContain("size-[52px]");
+    expect(collaborators).not.toContain("/settings/staff/new");
+    expect(existsSync(join(dashboardRoot, "settings", "staff", "new", "page.tsx"))).toBe(false);
   });
 
   it("uses the consolidated header and icon CTA pattern in service management", () => {

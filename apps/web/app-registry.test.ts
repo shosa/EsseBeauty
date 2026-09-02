@@ -125,7 +125,7 @@ describe("app-oriented dashboard registry", () => {
     expect(contextTabsForPath("/staff/permissions", allPermissions).map((tab) => [tab.label, tab.href])).toEqual([
       ["Dashboard", "/staff"],
       ["Collaboratori", "/staff/manage"],
-      ["Permessi", "/staff/permissions"],
+      ["Permessi e Ferie", "/staff/permissions"],
     ]);
     expect(contextTabsForPath("/settings", allPermissions).map((tab) => tab.href)).not.toContain("/settings/permissions");
   });
