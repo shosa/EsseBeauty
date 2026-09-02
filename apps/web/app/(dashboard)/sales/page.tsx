@@ -679,9 +679,18 @@ export default function SalesPage() {
             </div>
           ) : (
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden px-5 py-4">
-              <div className="mb-3 flex shrink-0 flex-wrap items-center gap-2">
-                {mode === "service" ? (
-                  <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+              <div className="mb-3 flex shrink-0 items-center gap-2 border-b border-[#e8dfe4] pb-3">
+                <label className="flex h-10 min-w-[200px] flex-1 items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3">
+                  <Search aria-hidden="true" className="size-4 shrink-0 text-stone-400" />
+                  <span className="sr-only">Cerca nel catalogo</span>
+                  <input className="w-full border-0 bg-transparent p-0 text-sm outline-none focus:ring-0" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca nel catalogo…" value={query} />
+                </label>
+                <Button onClick={addCustomItem} size="sm" variant="outline"><Plus className="size-4" /> Riga libera</Button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                {mode === "service" && (
+                  <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
                     {serviceCategories.map((category) => (
                       <button
                         className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-xs font-bold transition ${selectedServiceCategoryId === category.id ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] bg-white text-stone-600 hover:border-[#d7a6c1]"}`}
@@ -696,16 +705,7 @@ export default function SalesPage() {
                     ))}
                     {!serviceCategories.length && <span className="text-xs font-semibold text-stone-400">Nessuna categoria di servizi vendibili.</span>}
                   </div>
-                ) : <div className="flex-1" />}
-                <label className="flex h-10 min-w-[200px] items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3">
-                  <Search aria-hidden="true" className="size-4 shrink-0 text-stone-400" />
-                  <span className="sr-only">Cerca nel catalogo</span>
-                  <input className="w-full border-0 bg-transparent p-0 text-sm outline-none focus:ring-0" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca nel catalogo…" value={query} />
-                </label>
-                <Button onClick={addCustomItem} size="sm" variant="outline"><Plus className="size-4" /> Riga libera</Button>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+                )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
                   {visibleCatalog.map((item) => (
                     <button className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4 text-left transition hover:-translate-y-0.5 hover:border-[#b85888] hover:shadow-md" key={item.id} onClick={() => addItem(item)} type="button">
@@ -808,7 +808,7 @@ export default function SalesPage() {
                 </div>
                 {!cart.length && <div className="py-4"><EmptyState description="Aggiungi un servizio o un prodotto dal catalogo." title="Carrello vuoto" /></div>}
                 {cart.map((line, index) => (
-                  <article className="border-b border-[#f0e7eb] py-3 last:border-b-0" key={`${line.item_type}-${line.id}`}>
+                  <article className="mb-2 rounded-xl border border-[#e8dfe4] bg-white p-3 last:mb-0" key={`${line.item_type}-${line.id}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         {line.issued_voucher_id
