@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarClock, CreditCard, Gift, Package, Plus, ReceiptText, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
+import { CalendarClock, CreditCard, Gift, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -112,12 +112,6 @@ export default function SalesPage() {
   const [todayAppointments, setTodayAppointments] = useState<AgendaAppointment[]>([]);
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (!message) return;
@@ -595,28 +589,6 @@ export default function SalesPage() {
 
         {error && <InlineError className="mx-4 mt-3 shrink-0">{error}</InlineError>}
 
-        {/* slim console topbar */}
-        <div className="flex h-12 shrink-0 items-center gap-4 border-b border-[#e8dfe4] px-4">
-          <div className="flex items-baseline gap-2">
-            <ReceiptText aria-hidden="true" className="size-4 text-[#792f59]" />
-            <strong className="font-display text-base text-[#5f2447]">Cassa</strong>
-          </div>
-          <div className="hidden h-5 w-px bg-[#e8dfe4] sm:block" />
-          <span className="hidden truncate text-xs font-bold text-stone-600 sm:block">{salon?.name ?? "Salone"}</span>
-          <span className="ml-auto hidden text-xs font-semibold capitalize text-stone-400 md:block">
-            {now.toLocaleDateString("it-IT", { day: "2-digit", month: "short", weekday: "short" })} · {now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-          <button
-            aria-label="Azzera conto"
-            className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#e8dfe4] bg-[#fffafd] text-[#792f59] transition hover:bg-[#faf3f7]"
-            onClick={resetRegister}
-            title="Azzera conto"
-            type="button"
-          >
-            <RotateCcw className="size-4" />
-          </button>
-        </div>
-
         <div className="flex min-h-0 flex-1">
 
           {/* mode rail */}
@@ -625,7 +597,7 @@ export default function SalesPage() {
               const active = mode === item.key;
               return (
                 <button
-                  className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-1 py-3 text-center transition ${active ? "border-[#e8dfe4] bg-gradient-to-b from-[#fffafd] to-[#faf3f7] text-[#5f2447] shadow-[inset_3px_0_0_#792f59]" : "border-transparent text-stone-500 hover:-translate-y-0.5 hover:border-[#ead1df] hover:bg-white hover:text-[#792f59] hover:shadow-[0_8px_18px_rgb(45_29_39_/_0.1)]"}`}
+                  className={`relative flex flex-col items-center gap-1.5 rounded-2xl border px-1 py-3 text-center transition ${active ? "border-[#792f59] bg-[#792f59] text-white" : "border-transparent text-stone-500 hover:-translate-y-0.5 hover:border-[#ead1df] hover:bg-white hover:text-[#792f59] hover:shadow-[0_8px_18px_rgb(45_29_39_/_0.1)]"}`}
                   key={item.key}
                   onClick={() => selectMode(item.key)}
                   type="button"
@@ -633,7 +605,7 @@ export default function SalesPage() {
                   <item.icon aria-hidden="true" className="size-5" />
                   <span className="text-[10px] font-bold leading-none">{item.label}</span>
                   {item.key === "agenda" && todayAppointments.length > 0 && (
-                    <span className="absolute right-2.5 top-2 grid min-w-4 place-items-center rounded-full bg-[#792f59] px-1 text-[9px] font-black text-white">{todayAppointments.length}</span>
+                    <span className={`absolute right-2.5 top-2 grid min-w-4 place-items-center rounded-full px-1 text-[9px] font-black ${active ? "bg-white text-[#792f59]" : "bg-[#792f59] text-white"}`}>{todayAppointments.length}</span>
                   )}
                 </button>
               );
@@ -761,9 +733,20 @@ export default function SalesPage() {
             <div className="relative shrink-0 overflow-hidden bg-[radial-gradient(circle_at_18%_0%,rgba(244,216,168,0.32),transparent_34%),linear-gradient(135deg,#2d1d27_0%,#5f2447_54%,#8f3a68_100%)] px-5 py-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <span className="text-[10px] font-black uppercase tracking-[.18em] text-white/60">Totale conto</span>
-                <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] font-black uppercase tracking-[.04em] ${paid === total ? "bg-emerald-50 text-emerald-800" : "bg-white/14 text-white"}`}>
-                  <span className="size-1.5 rounded-full bg-current" />{paid === total ? "Saldato" : "In corso"}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[9.5px] font-black uppercase tracking-[.04em] ${paid === total ? "bg-emerald-50 text-emerald-800" : "bg-white/14 text-white"}`}>
+                    <span className="size-1.5 rounded-full bg-current" />{paid === total ? "Saldato" : "In corso"}
+                  </span>
+                  <button
+                    aria-label="Azzera conto"
+                    className="grid size-7 shrink-0 place-items-center rounded-full bg-white/14 text-white transition hover:bg-white/24"
+                    onClick={resetRegister}
+                    title="Azzera conto"
+                    type="button"
+                  >
+                    <RotateCcw className="size-3.5" />
+                  </button>
+                </div>
               </div>
               <p className="font-display mt-1 text-[42px] font-semibold leading-none tabular-nums">{euro(total)}</p>
 
