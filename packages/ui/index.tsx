@@ -217,6 +217,7 @@ export function DateField({
   onChange,
   required = false,
   value,
+  variant = "field",
 }: {
   "aria-label"?: string;
   className?: string;
@@ -227,6 +228,7 @@ export function DateField({
   onChange(value: string): void;
   required?: boolean;
   value: string;
+  variant?: "field" | "icon";
 }) {
   const selected = parseIsoDate(value);
   const [open, setOpen] = useState(false);
@@ -362,9 +364,15 @@ export function DateField({
 
   return <div className={`relative ${className}`} ref={rootRef}>
     {name && <input name={name} type="hidden" value={value} />}
-    <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
-      <span>{formattedValue}</span><CalendarDays aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
-    </button>
+    {variant === "icon" ? (
+      <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="grid min-h-11 w-full place-items-center rounded-xl text-[#792f59] transition-colors hover:bg-[#f3e2eb] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
+        <CalendarDays aria-hidden="true" className="size-4" />
+      </button>
+    ) : (
+      <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
+        <span>{formattedValue}</span><CalendarDays aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
+      </button>
+    )}
     {calendar}
   </div>;
 }
@@ -1102,7 +1110,7 @@ export function Dialog({
   footer?: ReactNode;
   onClose(): void;
   open: boolean;
-  size?: "md" | "xl";
+  size?: "md" | "xl" | "2xl";
   title: string;
 }) {
   const titleId = useId();
@@ -1142,7 +1150,7 @@ export function Dialog({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             aria-labelledby={titleId}
             aria-modal="true"
-            className={`my-auto max-h-full w-full overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)] ${size === "xl" ? "max-w-3xl" : "max-w-lg"}`}
+            className={`my-auto max-h-full w-full overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)] ${size === "2xl" ? "max-w-5xl" : size === "xl" ? "max-w-3xl" : "max-w-lg"}`}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             initial={{ opacity: 0, scale: 0.98, y: 8 }}
             onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}

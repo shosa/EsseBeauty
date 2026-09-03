@@ -21,7 +21,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  initialScale: 1,
+  maximumScale: 1,
   themeColor: "#ffffff",
+  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

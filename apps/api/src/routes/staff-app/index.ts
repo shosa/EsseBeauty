@@ -94,10 +94,12 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
         color: staff.color,
         customer_name: customers.fullName,
         customer_notes: customers.notes,
+        customer_phone: customers.phone,
         ends_at: appointments.endsAt,
         id: appointments.id,
         notes: appointments.internalNotes,
         service_name: services.name,
+        service_price_cents: services.priceCents,
         staff_name: staff.displayName,
         starts_at: appointments.startsAt,
         status: appointments.status,
@@ -143,7 +145,7 @@ export async function registerStaffAppRoutes(app: FastifyInstance) {
   });
 
   app.patch<{
-    Body: { status: "confirmed" | "completed" | "no_show" };
+    Body: { status: "cancelled" | "confirmed" | "completed" | "no_show" };
     Params: { appointmentId: string };
   }>(
     "/api/staff-app/appointments/:appointmentId/status",

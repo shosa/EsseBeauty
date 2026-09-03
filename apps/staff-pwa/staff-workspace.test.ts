@@ -16,9 +16,15 @@ describe("staff mobile workspace", () => {
     expect(source).toContain("Ritira richiesta");
   });
 
-  it("uses icon CTAs for appointment state transitions", () => {
+  it("uses icon CTAs for appointment state transitions, with no manual complete action", () => {
     expect(source).toContain("UserCheck");
-    expect(source).toContain("CircleCheckBig");
     expect(source).toContain("UserX");
+    expect(source).toContain("Undo2");
+    expect(source).not.toContain("CircleCheckBig");
+  });
+
+  it("splits the availability request form and the request list into distinct screens", () => {
+    expect(source).toContain("requestModalOpen");
+    expect(source).toContain("showRequestsList");
   });
 });

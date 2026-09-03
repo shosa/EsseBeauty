@@ -24,6 +24,8 @@
 
 html {
   background: #f6f2f4;
+  /* disable pinch-to-zoom (viewport meta alone is not honored everywhere, e.g. installed PWA/homescreen contexts) */
+  touch-action: pan-x pan-y;
 }
 
 body {
@@ -85,6 +87,8 @@ textarea {
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
+  /* iOS Safari auto-zooms on focus when an input's font-size is below 16px */
+  font-size: 16px;
 }
 
 textarea {
