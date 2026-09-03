@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Pacchetti — Restyle Enterprise</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2d1d27; --mulberry:#792f59; --berry:#b85888; --petal:#faf3f7; --champagne:#f4d8a8;
+  --line:#e8dfe4; --panel-head:#faf7f9; --canvas:#f4f0f2;
+  --stone-50:#fafaf9; --stone-100:#f5f5f4; --stone-400:#a8a29e; --stone-500:#78716c; --stone-600:#57534e; --stone-800:#292524; --stone-900:#1c1917;
+  --blue:#287fb8; --teal:#4a9b8f;
+  --good:#1c7a5c; --good-bg:#e5f3ec;
+  --warn:#a3690b; --warn-bg:#fbf0dd;
+  --bad:#b23a2e; --bad-bg:#faeae8;
+  --off:#57534e; --off-bg:#f0eeec;
+  --chart-1:#792f59; --chart-2:#b8578a; --chart-3:#c98a3f; --chart-4:#3f7d6f; --chart-5:#7a4fa0; --chart-6:#57534e;
+  color-scheme: light;
+}
+*{box-sizing:border-box;}
+body{ margin:0; background:var(--canvas); color:var(--stone-900); font-family:"Manrope",ui-sans-serif,system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+.tnum{ font-variant-numeric: tabular-nums; }
+h1,.font-display{ font-family:"Fraunces","Manrope",serif; font-optical-sizing:auto; }
+.shell{ max-width:1600px; margin:0 auto; padding:28px 32px 64px; }
+
+.proposal-banner{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; background:linear-gradient(90deg,#2d1d27,#4a2a3e); color:#f6ecf1; border-radius:14px; padding:12px 18px; margin-bottom:22px; font-size:12.5px; font-weight:700; }
+.proposal-banner .tag{ background:rgba(255,255,255,.14); border-radius:999px; padding:3px 10px; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; }
+.proposal-banner span.dim{ color:#d9c3ce; font-weight:600; }
+
+.topbar{ display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px; border-bottom:1px solid var(--line); padding-bottom:16px; }
+.eyebrow{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.18em; color:var(--mulberry); }
+.page-title{ margin:4px 0 0; font-size:26px; font-weight:600; letter-spacing:-.02em; color:var(--stone-900); text-wrap:balance; }
+.page-subtitle{ margin:5px 0 0; font-size:13px; color:var(--stone-500); max-width:60ch; }
+.topbar-controls{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.search-field{ position:relative; min-width:230px; }
+.search-field svg{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--stone-400); pointer-events:none; }
+.search-field input{ width:100%; height:36px; border:1px solid var(--line); border-radius:10px; padding:0 12px 0 34px; font:inherit; font-size:12.5px; background:#fff; }
+.select-field select{ height:36px; border:1px solid var(--line); border-radius:10px; padding:0 10px; font:inherit; font-size:12.5px; background:#fff; color:var(--stone-800); }
+.icon-btn{ display:grid; place-items:center; width:36px; height:36px; border-radius:12px; border:1px solid var(--line); background:#fff; color:var(--stone-600); cursor:pointer; transition:.15s; }
+.icon-btn:hover{ border-color:var(--mulberry); color:var(--mulberry); }
+.btn-primary{ display:inline-flex; align-items:center; gap:8px; height:36px; border-radius:10px; padding:0 16px; border:none; background:var(--mulberry); color:#fff; font-weight:800; font-size:12.5px; cursor:pointer; }
+.btn-primary:hover{ background:#6b2a4f; }
+
+.module-tabs{ display:flex; gap:4px; padding:14px 0 0; border-bottom:1px solid var(--line); overflow-x:auto; }
+.module-tab{ position:relative; padding:9px 16px 13px; font-size:13px; font-weight:700; color:var(--stone-500); background:none; border:none; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+.module-tab[aria-selected="true"]{ color:var(--mulberry); }
+.module-tab[aria-selected="true"]::after{ content:""; position:absolute; left:10px; right:10px; bottom:-1px; height:2px; background:var(--mulberry); border-radius:2px 2px 0 0; }
+.module-tab .new-dot{ width:6px; height:6px; border-radius:50%; background:var(--berry); }
+
+.panel{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 10px 30px rgb(45 29 39/.055); }
+.panel-head{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
+.panel-head h2{ margin:0; font-size:14.5px; font-weight:800; color:var(--stone-900); }
+.panel-head p{ margin:3px 0 0; font-size:12px; color:var(--stone-500); }
+.panel-body{ padding:16px; }
+.grid{ display:grid; gap:14px; }
+@media (min-width:1100px){ .grid-catalog{ grid-template-columns:340px 1fr; } .grid-2{ grid-template-columns:1.4fr .9fr; } .grid-3{ grid-template-columns:repeat(3,1fr); } .grid-4{ grid-template-columns:repeat(4,1fr); } }
+
+.kpi-strip{ display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:16px; overflow:hidden; margin:18px 0 14px; }
+@media (min-width:640px){ .kpi-strip{ grid-template-columns:repeat(4,1fr); } }
+.kpi-cell{ background:#fff; padding:14px 16px; }
+.kpi-cell .label{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:var(--stone-500); }
+.kpi-cell strong{ display:block; margin-top:5px; font-size:21px; font-weight:800; color:var(--stone-900); }
+.kpi-cell .foot{ display:block; margin-top:5px; font-size:11px; font-weight:600; color:var(--stone-400); }
+
+.badge-new{ display:inline-flex; align-items:center; gap:4px; background:var(--petal); color:var(--mulberry); border:1px solid rgba(121,47,89,.18); border-radius:999px; padding:2px 8px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em; }
+.status-pill{ display:inline-flex; align-items:center; border-radius:999px; padding:3px 10px; font-size:10.5px; font-weight:800; }
+.status-pill.active{ background:var(--good-bg); color:var(--good); }
+.status-pill.expiring{ background:var(--warn-bg); color:var(--warn); }
+.status-pill.expired{ background:var(--bad-bg); color:var(--bad); }
+.status-pill.depleted{ background:var(--off-bg); color:var(--off); }
+.status-pill.off{ background:var(--off-bg); color:var(--off); }
+
+table{ width:100%; border-collapse:collapse; text-align:left; font-size:13px; }
+thead th{ background:var(--panel-head); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--stone-500); padding:11px 14px; white-space:nowrap; }
+thead th.sortable{ cursor:pointer; user-select:none; }
+thead th.sortable:hover{ color:var(--mulberry); }
+tbody tr{ border-top:1px solid var(--stone-100); transition:background .12s; cursor:pointer; }
+tbody tr:hover{ background:#fdf8fb; }
+tbody td{ padding:11px 14px; vertical-align:middle; color:var(--stone-800); }
+.name-cell{ font-weight:800; color:var(--stone-900); }
+.right{ text-align:right; }
+.chev{ color:var(--mulberry); opacity:.7; }
+.chip{ display:inline-flex; border-radius:999px; padding:3px 9px; font-size:10.5px; font-weight:700; background:var(--petal); color:var(--mulberry); margin:2px 3px 2px 0; }
+.bar-cell{ min-width:120px; }
+.bar-track{ height:7px; border-radius:4px; background:var(--stone-100); overflow:hidden; }
+.bar-fill{ height:100%; border-radius:4px; background:linear-gradient(90deg,var(--chart-4),#5faf9f); }
+.bar-fill.warn{ background:linear-gradient(90deg,#c98a3f,#e0a75c); }
+.bar-fill.full{ background:linear-gradient(90deg,#57534e,#78716c); }
+.bar-label{ font-size:10.5px; color:var(--stone-500); margin-top:3px; }
+
+/* catalog builder */
+.form-grid{ display:grid; gap:12px; }
+.form-row-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.field label{ display:block; font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--stone-500); margin-bottom:5px; }
+.field input, .field textarea{ width:100%; border:1px solid var(--line); border-radius:10px; padding:8px 11px; font:inherit; font-size:13px; background:#fff; }
+.field textarea{ resize:vertical; min-height:56px; }
+.switch-row{ display:flex; align-items:center; justify-content:space-between; border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-size:12.5px; font-weight:700; color:var(--stone-700); }
+.content-box{ border:1px solid var(--line); border-radius:12px; padding:12px; }
+.content-box h4{ margin:0 0 8px; font-size:12px; font-weight:800; }
+.catalog-pick{ display:flex; justify-content:space-between; align-items:center; width:100%; background:var(--stone-50); border:none; border-radius:9px; padding:8px 10px; font-size:12.5px; font-weight:700; color:var(--stone-700); cursor:pointer; margin-bottom:6px; text-align:left; }
+.catalog-pick:hover{ background:var(--petal); color:var(--mulberry); }
+.picked-item{ display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:8px; border:1px solid rgba(121,47,89,.18); background:var(--petal); border-radius:10px; padding:8px 10px; margin-bottom:6px; font-size:12.5px; }
+.picked-item b{ color:var(--mulberry); }
+
+/* catalog register cards */
+.package-card{ border:1px solid var(--line); border-radius:14px; padding:16px; background:#fff; }
+.package-card + .package-card{ margin-top:10px; }
+.package-card .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.package-card h3{ margin:0; font-size:15.5px; font-weight:800; }
+.package-card .desc{ margin:4px 0 0; font-size:12px; color:var(--stone-500); max-width:48ch; }
+.package-card .foot{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; padding-top:12px; border-top:1px solid var(--stone-100); }
+.package-card .price{ font-size:19px; font-weight:800; color:var(--mulberry); }
+.btn-outline{ display:inline-flex; align-items:center; gap:6px; height:32px; border-radius:9px; padding:0 12px; border:1px solid var(--line); background:#fff; color:var(--stone-700); font-weight:700; font-size:12px; cursor:pointer; }
+.btn-outline:hover{ border-color:var(--mulberry); color:var(--mulberry); }
+
+/* drawer */
+.scrim{ position:fixed; inset:0; background:rgba(45,29,39,.32); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
+.scrim.open{ opacity:1; pointer-events:auto; }
+.drawer{ position:fixed; top:0; right:0; bottom:0; width:min(440px,92vw); background:#fff; z-index:41; box-shadow:-24px 0 60px rgb(45 29 39/.18); transform:translateX(100%); transition:transform .26s cubic-bezier(.2,.85,.25,1); display:flex; flex-direction:column; }
+.drawer.open{ transform:translateX(0); }
+.drawer-head{ padding:20px 22px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.drawer-head h3{ margin:0; font-size:17px; font-weight:800; }
+.drawer-head p{ margin:4px 0 0; font-size:12px; color:var(--stone-500); }
+.drawer-close{ background:none; border:none; cursor:pointer; color:var(--stone-500); font-size:18px; line-height:1; padding:4px; }
+.drawer-body{ padding:18px 22px; overflow-y:auto; flex:1; }
+.mini-row{ display:flex; justify-content:space-between; padding:9px 0; border-top:1px solid var(--stone-100); font-size:12.5px; }
+.mini-row:first-child{ border-top:none; }
+.mini-row b{ color:var(--stone-900); }
+.balance-item{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+.balance-item .top{ display:flex; justify-content:space-between; font-size:12.5px; font-weight:700; margin-bottom:6px; }
+.drawer-actions{ display:flex; gap:8px; margin-top:16px; }
+.drawer-actions button{ flex:1; }
+
+.tabpanel{ display:none; } .tabpanel.active{ display:block; }
+.empty{ text-align:center; padding:40px 20px; color:var(--stone-500); }
+.empty strong{ display:block; color:var(--stone-800); font-size:14px; margin-bottom:4px; }
+@media (max-width:640px){ .shell{ padding:20px 14px 48px; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="proposal-banner">
+    <span class="tag">Proposta</span>
+    Restyle "Pacchetti" allineato allo stile enterprise di <span class="dim">Magazzino</span>, <span class="dim">Contabilità</span> e <span class="dim">Report</span> — mock statico, dati di esempio.
+  </div>
+
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Pacchetti</p>
+      <h1 class="page-title" id="pageTitle">Catalogo</h1>
+      <p class="page-subtitle" id="pageSubtitle">Configura i percorsi cliente, gestisci contenuto, prezzo e validità.</p>
+    </div>
+    <div class="topbar-controls">
+      <button class="icon-btn" title="Aggiorna" type="button">↻</button>
+      <button class="btn-primary" type="button">+ Nuovo pacchetto</button>
+    </div>
+  </header>
+
+  <nav class="module-tabs" id="moduleTabs">
+    <button class="module-tab" data-tab="catalog" aria-selected="true" type="button">Catalogo</button>
+    <button class="module-tab" data-tab="assignments" aria-selected="false" type="button">Assegnazioni<span class="new-dot" title="Nuova sezione"></span></button>
+    <button class="module-tab" data-tab="usage" aria-selected="false" type="button">Utilizzo<span class="new-dot" title="Nuova sezione"></span></button>
+    <button class="module-tab" data-tab="analytics" aria-selected="false" type="button">Analisi<span class="new-dot" title="Nuova sezione"></span></button>
+  </nav>
+
+  <!-- ================= CATALOGO ================= -->
+  <section class="tabpanel active" id="tab-catalog" style="margin-top:16px">
+    <div class="grid grid-catalog">
+      <div class="panel">
+        <div class="panel-head"><div><h2>Configura pacchetto</h2><p>Ogni voce mantiene un residuo autonomo.</p></div></div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <div class="form-row-2">
+              <div class="field"><label>Nome pacchetto</label><input placeholder="Es. Percorso Colore" value=""></div>
+              <div class="field"><label>Prezzo di vendita</label><input placeholder="0,00" value=""></div>
+            </div>
+            <div class="form-row-2">
+              <div class="field"><label>Validità giorni</label><input type="number" value="180"></div>
+              <div class="switch-row"><span>Vendibile</span><input checked style="accent-color:var(--mulberry)" type="checkbox"></div>
+            </div>
+            <div class="field"><label>Descrizione interna</label><textarea placeholder="Note visibili solo allo staff"></textarea></div>
+            <div class="content-box">
+              <h4>Contenuto</h4>
+              <p style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--stone-400);margin:0 0 6px">Servizi</p>
+              <button class="catalog-pick" type="button"><span>Colore & schiariture</span><b>+</b></button>
+              <button class="catalog-pick" type="button"><span>Piega & styling</span><b>+</b></button>
+              <p style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--stone-400);margin:10px 0 6px">Prodotti</p>
+              <button class="catalog-pick" type="button"><span>Shampoo ristrutturante 250ml</span><b>+</b></button>
+              <p style="font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--stone-400);margin:12px 0 6px">Selezionati</p>
+              <div class="picked-item"><span>5× Colore & schiariture</span><b>Servizio</b><span>×</span></div>
+            </div>
+            <button class="btn-primary" style="width:100%;justify-content:center;height:40px" type="button">Salva pacchetto</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>Catalogo pacchetti</h2><p>4 percorsi configurati</p></div>
+          <label class="search-field"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Cerca pacchetto" type="text"></label>
+        </div>
+        <div class="panel-body" id="catalogList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ASSEGNAZIONI ================= -->
+  <section class="tabpanel" id="tab-assignments">
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div><h2>Registro assegnazioni</h2><p>Percorsi attivi per cliente, con residuo e scadenza · clic su una riga per il dettaglio <span class="badge-new">Nuovo</span></p></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px 16px 0">
+        <label class="search-field" style="flex:1"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="assignSearch" placeholder="Cerca cliente o pacchetto" type="text"></label>
+        <div class="select-field"><select id="assignStatusFilter"><option value="all">Tutti gli stati</option><option value="active">Attivo</option><option value="expiring">In scadenza</option><option value="expired">Scaduto</option><option value="depleted">Esaurito</option></select></div>
+      </div>
+      <div style="overflow-x:auto;margin-top:12px">
+        <table style="min-width:820px">
+          <thead><tr><th>Cliente</th><th>Pacchetto</th><th>Iniziato</th><th>Scade</th><th>Stato</th><th>Utilizzo</th><th style="width:24px"></th></tr></thead>
+          <tbody id="assignBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= UTILIZZO ================= -->
+  <section class="tabpanel" id="tab-usage">
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head">
+        <div><h2>Registro utilizzi</h2><p>Ogni consumo registrato dalla cassa o dall'agenda <span class="badge-new">Nuovo</span></p></div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;padding:14px 16px 0">
+        <label class="search-field" style="flex:1"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Cerca cliente o operatore" type="text"></label>
+      </div>
+      <div style="overflow-x:auto;margin-top:12px">
+        <table style="min-width:760px">
+          <thead><tr><th>Data</th><th>Cliente</th><th>Pacchetto</th><th>Voce utilizzata</th><th>Operatore</th><th>Appuntamento</th></tr></thead>
+          <tbody>
+            <tr><td class="tnum">02 set, 10:20</td><td class="name-cell">Giulia Bianchi</td><td>Percorso Colore — 5 sedute</td><td>Colore & schiariture</td><td>Sara Conti</td><td><span class="chip">collegato</span></td></tr>
+            <tr><td class="tnum">01 set, 16:05</td><td class="name-cell">Marco Neri</td><td>Abbonamento Manicure — 10 sedute</td><td>Manicure</td><td>Elena Russo</td><td><span class="chip">collegato</span></td></tr>
+            <tr><td class="tnum">30 ago, 09:40</td><td class="name-cell">Elena Costa</td><td>Pacchetto Relax Viso+Massaggio</td><td>Trattamento viso</td><td>Chiara Greco</td><td><span class="chip">collegato</span></td></tr>
+            <tr><td class="tnum">28 ago, 14:15</td><td class="name-cell">Luca Ferri</td><td>Rituale Sposa</td><td>Piega & styling</td><td>Giulia Ferraro</td><td><span class="chip">collegato</span></td></tr>
+            <tr><td class="tnum">27 ago, 11:00</td><td class="name-cell">Giulia Bianchi</td><td>Percorso Colore — 5 sedute</td><td>Colore & schiariture</td><td>Sara Conti</td><td><span class="chip">collegato</span></td></tr>
+            <tr><td class="tnum">25 ago, 18:30</td><td class="name-cell">Marco Neri</td><td>Abbonamento Manicure — 10 sedute</td><td>Manicure</td><td>Elena Russo</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ANALISI ================= -->
+  <section class="tabpanel" id="tab-analytics">
+    <div class="kpi-strip grid-4">
+      <div class="kpi-cell"><span class="label">Pacchetti attivi venduti</span><strong class="tnum">37</strong><span class="foot">su 46 assegnati nel periodo</span></div>
+      <div class="kpi-cell"><span class="label">Clienti con percorso attivo</span><strong class="tnum">34</strong><span class="foot">alcuni con più pacchetti</span></div>
+      <div class="kpi-cell"><span class="label">Valore venduto</span><strong class="tnum">€ 9.840</strong><span class="foot">nel periodo selezionato</span></div>
+      <div class="kpi-cell"><span class="label">In scadenza entro 30gg</span><strong class="tnum">6</strong><span class="foot">richiedono un promemoria</span></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="panel">
+        <div class="panel-head"><div><h2>Vendite per pacchetto</h2><p>Percorsi assegnati nel periodo.</p></div></div>
+        <div class="panel-body">
+          <svg viewBox="0 0 640 200" style="width:100%">
+            <g stroke="#e8dfe4"><line x1="150" x2="620" y1="20" y2="20"/><line x1="150" x2="620" y1="65" y2="65"/><line x1="150" x2="620" y1="110" y2="110"/><line x1="150" x2="620" y1="155" y2="155"/></g>
+            <g font-size="11.5" font-weight="700" fill="#292524">
+              <text x="140" y="24" text-anchor="end">Manicure 10 sed.</text>
+              <text x="140" y="69" text-anchor="end">Colore 5 sed.</text>
+              <text x="140" y="114" text-anchor="end">Relax Viso+Mass.</text>
+              <text x="140" y="159" text-anchor="end">Rituale Sposa</text>
+            </g>
+            <rect x="150" y="10" width="410" height="20" rx="4" fill="#792f59"/>
+            <rect x="150" y="55" width="240" height="20" rx="4" fill="#b8578a"/>
+            <rect x="150" y="100" width="148" height="20" rx="4" fill="#c98a3f"/>
+            <rect x="150" y="145" width="42" height="20" rx="4" fill="#57534e"/>
+            <g font-size="11" font-weight="800" fill="#402334" font-variant-numeric="tabular-nums">
+              <text x="568" y="24">58</text><text x="398" y="69">34</text><text x="306" y="114">21</text><text x="200" y="159">6</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Tasso di utilizzo medio</h2></div>
+        <div class="panel-body" style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px"><span>Percorso Colore — 5 sedute</span><b class="tnum">64%</b></div>
+            <div class="bar-track"><div class="bar-fill" style="width:64%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px"><span>Abbonamento Manicure — 10 sedute</span><b class="tnum">81%</b></div>
+            <div class="bar-track"><div class="bar-fill" style="width:81%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px"><span>Pacchetto Relax Viso+Massaggio</span><b class="tnum">38%</b></div>
+            <div class="bar-track"><div class="bar-fill warn" style="width:38%"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px"><span>Rituale Sposa</span><b class="tnum">57%</b></div>
+            <div class="bar-track"><div class="bar-fill" style="width:57%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div><h3 id="drawerTitle">—</h3><p id="drawerSub">—</p></div>
+    <button class="drawer-close" id="drawerClose" aria-label="Chiudi">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script>
+const packages = [
+  { name:"Percorso Colore — 5 sedute", desc:"5 sedute di colore o schiariture a scelta.", price:"€ 420,00", validity:180, active:true, sold:34, items:["5× Colore & schiariture"] },
+  { name:"Abbonamento Manicure — 10 sedute", desc:"10 manicure, valido un anno.", price:"€ 180,00", validity:365, active:true, sold:58, items:["10× Manicure"] },
+  { name:"Pacchetto Relax Viso+Massaggio", desc:"Un percorso di benessere in tre incontri.", price:"€ 150,00", validity:90, active:true, sold:21, items:["3× Trattamento viso","2× Massaggio"] },
+  { name:"Rituale Sposa", desc:"Percorso completo pre-matrimonio.", price:"€ 650,00", validity:60, active:false, sold:6, items:["2× Colore & schiariture","3× Piega & styling","1× Manicure","1× Trattamento viso"] },
+];
+document.getElementById('catalogList').innerHTML = packages.map(p => `
+  <div class="package-card">
+    <div class="head">
+      <div><h3>${p.name}</h3><p class="desc">${p.desc}</p></div>
+      <span class="status-pill ${p.active ? 'active':'off'}">${p.active ? 'Attivo':'Spento'}</span>
+    </div>
+    <div style="margin-top:10px">${p.items.map(i=>`<span class="chip">${i}</span>`).join('')}</div>
+    <div class="foot">
+      <div><span class="price">${p.price}</span><span style="font-size:11px;color:var(--stone-500);margin-left:8px">${p.validity} giorni · ${p.sold} venduti</span></div>
+      <button class="btn-outline" type="button">Assegna a cliente</button>
+    </div>
+  </div>`).join('');
+
+const assignments = [
+  { customer:"Giulia Bianchi", pkg:"Percorso Colore — 5 sedute", started:"12 lug 2026", expires:"08 gen 2027", status:"active", used:3, total:5,
+    items:[{name:"Colore & schiariture",used:3,total:5}], history:[{date:"27 ago",item:"Colore & schiariture"},{date:"02 set",item:"Colore & schiariture"}] },
+  { customer:"Marco Neri", pkg:"Abbonamento Manicure — 10 sedute", started:"02 giu 2026", expires:"02 giu 2027", status:"depleted", used:10, total:10,
+    items:[{name:"Manicure",used:10,total:10}], history:[{date:"25 ago",item:"Manicure"},{date:"01 set",item:"Manicure"}] },
+  { customer:"Elena Costa", pkg:"Pacchetto Relax Viso+Massaggio", started:"20 ago 2026", expires:"18 nov 2026", status:"expiring", used:1, total:5,
+    items:[{name:"Trattamento viso",used:1,total:3},{name:"Massaggio",used:0,total:2}], history:[{date:"30 ago",item:"Trattamento viso"}] },
+  { customer:"Luca Ferri", pkg:"Rituale Sposa", started:"01 mar 2026", expires:"30 apr 2026", status:"expired", used:4, total:7,
+    items:[{name:"Colore & schiariture",used:2,total:2},{name:"Piega & styling",used:2,total:3},{name:"Manicure",used:0,total:1},{name:"Trattamento viso",used:0,total:1}], history:[{date:"28 ago",item:"Piega & styling"}] },
+  { customer:"Anna Villa", pkg:"Percorso Colore — 5 sedute", started:"05 ago 2026", expires:"01 feb 2027", status:"active", used:2, total:5,
+    items:[{name:"Colore & schiariture",used:2,total:5}], history:[{date:"20 ago",item:"Colore & schiariture"}] },
+];
+const statusLabel = { active:"Attivo", expiring:"In scadenza", expired:"Scaduto", depleted:"Esaurito" };
+function renderAssignments(){
+  const q = (document.getElementById('assignSearch').value||'').trim().toLocaleLowerCase('it-IT');
+  const status = document.getElementById('assignStatusFilter').value;
+  const rows = assignments.filter(a => (!q || (a.customer+a.pkg).toLocaleLowerCase('it-IT').includes(q)) && (status==='all' || a.status===status));
+  document.getElementById('assignBody').innerHTML = rows.map((a,i) => {
+    const pct = Math.round(a.used/a.total*100);
+    const barClass = a.status==='expired' ? 'warn' : (a.used>=a.total ? 'full' : '');
+    return `<tr data-idx="${assignments.indexOf(a)}">
+      <td class="name-cell">${a.customer}</td>
+      <td>${a.pkg}</td>
+      <td class="tnum">${a.started}</td>
+      <td class="tnum">${a.expires}</td>
+      <td><span class="status-pill ${a.status}">${statusLabel[a.status]}</span></td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill ${barClass}" style="width:${pct}%"></div></div><div class="bar-label tnum">${a.used}/${a.total} usate</div></td>
+      <td class="chev">›</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7"><div class="empty"><strong>Nessuna assegnazione</strong>Modifica la ricerca o il filtro selezionato.</div></td></tr>`;
+}
+document.getElementById('assignSearch').addEventListener('input', renderAssignments);
+document.getElementById('assignStatusFilter').addEventListener('change', renderAssignments);
+document.getElementById('assignBody').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-idx]'); if(!tr) return; openAssignmentDrawer(assignments[+tr.dataset.idx]); });
+renderAssignments();
+
+const scrim = document.getElementById('scrim'), drawer = document.getElementById('drawer');
+function openDrawer(){ scrim.classList.add('open'); drawer.classList.add('open'); }
+function closeDrawer(){ scrim.classList.remove('open'); drawer.classList.remove('open'); }
+scrim.addEventListener('click', closeDrawer);
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+
+function openAssignmentDrawer(a){
+  document.getElementById('drawerTitle').textContent = a.customer;
+  document.getElementById('drawerSub').textContent = a.pkg + ' · dal ' + a.started;
+  document.getElementById('drawerBody').innerHTML = `
+    <p style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin-bottom:8px">Residuo per voce</p>
+    ${a.items.map(it => { const pct = Math.round(it.used/it.total*100); return `
+      <div class="balance-item">
+        <div class="top"><span>${it.name}</span><span class="tnum">${it.used}/${it.total}</span></div>
+        <div class="bar-track"><div class="bar-fill ${it.used>=it.total?'full':''}" style="width:${pct}%"></div></div>
+      </div>`; }).join('')}
+    <p style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin:18px 0 8px">Utilizzi recenti</p>
+    ${a.history.map(h => `<div class="mini-row"><span>${h.item}</span><b>${h.date}</b></div>`).join('') || '<p style="font-size:12.5px;color:var(--stone-500)">Nessun utilizzo registrato.</p>'}
+    <div class="drawer-actions">
+      <button class="btn-outline" type="button">Registra utilizzo</button>
+      <button class="btn-primary" type="button">Rinnova</button>
+    </div>
+  `;
+  openDrawer();
+}
+
+document.getElementById('moduleTabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.module-tab'); if(!btn) return;
+  document.querySelectorAll('.module-tab').forEach(b=>b.setAttribute('aria-selected', b===btn?'true':'false'));
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  const titles = { catalog:['Catalogo','Configura i percorsi cliente, gestisci contenuto, prezzo e validità.'],
+    assignments:['Assegnazioni','Percorsi assegnati ai clienti, con residuo, scadenza e stato.'],
+    usage:['Utilizzo','Ogni consumo di un pacchetto, collegato ad appuntamento e operatore.'],
+    analytics:['Analisi','Vendite, valore e tasso di utilizzo dei percorsi cliente.'] };
+  document.getElementById('pageTitle').textContent = titles[btn.dataset.tab][0];
+  document.getElementById('pageSubtitle').textContent = titles[btn.dataset.tab][1];
+});
+</script>
+</body>
+</html>

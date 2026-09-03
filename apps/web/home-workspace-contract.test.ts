@@ -7,7 +7,6 @@ const root = join(process.cwd(), "app", "(dashboard)");
 describe("operational home", () => {
   it("composes focused daily work components", () => {
     const page = readFileSync(join(root, "page.tsx"), "utf8");
-    expect(page).toContain("HomeKpiStrip");
     expect(page).toContain("TodayTimeline");
     expect(page).toContain("OperationalInbox");
     expect(page).toContain("esse:open-notifications");

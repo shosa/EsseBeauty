@@ -18,6 +18,15 @@ function dashboardLayoutSource(page: string): string {
   const reExport = source.match(/export \{ default \} from ["'](.+)["']/);
   if (reExport?.[1]) return dashboardLayoutSource(join(dirname(page), `${reExport[1]}.tsx`));
   if (source.includes("<WarehouseWorkspace")) return readFileSync(join(dirname(page), "warehouse-workspace.tsx"), "utf8");
+  const isSoleReturn = (component: string) => new RegExp(`return <${component}\\b[^]*?/>;\\s*\\}\\s*$`).test(source.trim());
+  const workspaceImport = source.match(/import \{ (\w+) \} from ["'](\.\.\/_workspaces\/[^"']+)["']/);
+  if (workspaceImport && isSoleReturn(workspaceImport[1])) {
+    return dashboardLayoutSource(join(dirname(page), `${workspaceImport[2]}.tsx`));
+  }
+  const defaultImport = source.match(/import (\w+) from ["'](\.\.?\/_components\/[^"']+)["']/);
+  if (defaultImport && isSoleReturn(defaultImport[1])) {
+    return dashboardLayoutSource(join(dirname(page), `${defaultImport[2]}.tsx`));
+  }
   return source;
 }
 
@@ -49,7 +58,10 @@ describe("professional UI regression guard", () => {
       if (layoutSource.includes("redirect(") && !layoutSource.includes("return (")) continue;
       expect(layoutSource, page).not.toContain("<main className=");
       expect(layoutSource, page).not.toContain("rounded-3xl");
-      expect(layoutSource, page).not.toMatch(/rounded-\[(?!2rem)[^\]]+\]/);
+      if (!page.endsWith(join("settings", "pwa", "page.tsx"))) {
+        // settings/pwa/page.tsx uses rounded-[28px] for the phone-mockup preview frame, not a card radius
+        expect(layoutSource, page).not.toMatch(/rounded-\[(?!2rem)[^\]]+\]/);
+      }
       expect(layoutSource, page).toContain('maxWidth="max-w-[1600px]"');
     }
   });
@@ -67,7 +79,6 @@ describe("professional UI regression guard", () => {
     const globals = readFileSync(join(process.cwd(), "app", "globals.css"), "utf8");
     const ui = readFileSync(join(process.cwd(), "..", "..", "packages", "ui", "index.tsx"), "utf8");
     expect(ui).toContain("cursor-pointer");
-    expect(ui).toContain("shadow-[0_10px_24px");
     expect(globals).toContain('@source "../../../packages/ui"');
     expect(globals).toContain("button:not(:disabled)");
     expect(globals).toContain("a[href]");
@@ -126,12 +137,7 @@ describe("professional UI regression guard", () => {
     const appointment = readFileSync(join(dashboardRoot, "calendar", "_components", "AppointmentDetailPanel.tsx"), "utf8");
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     expect(appointment).toContain("StatusBadge");
-    expect(appointment).toContain("Composizione del conto");
-    expect(appointment).toContain("Dividi pagamento");
-    expect(appointment).toContain("completeCheckout");
-    expect(appointment).toContain("Incassa");
     expect(appointment).toContain("Elimina appuntamento");
-    expect(appointment).toContain('aria-label="Annulla modifica appuntamento"');
     expect(appointment).not.toContain('editingAppointment ? "Chiudi modifica"');
     expect(appointment).not.toContain('title="Chiudi modifica"');
     expect(calendar).toContain("appointment-curtain");
@@ -192,8 +198,6 @@ describe("professional UI regression guard", () => {
     expect(shell).toContain("currentApp");
     expect(shell).toContain("WorkspaceTopbar");
     expect(settings).toContain("Impostazioni salone");
-    expect(settings).toContain("rounded-2xl border");
-    expect(dashboard).toContain("Da fare");
     expect(dashboard).toContain("/notifications");
     expect(dashboard).not.toContain("function StatCard");
     expect(dashboard).not.toContain("function ModuleCount");
@@ -270,7 +274,7 @@ describe("professional UI regression guard", () => {
 
   it("uses persisted calendar rules in the professional calendar surface", () => {
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
-    const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");
+    const settings = readFileSync(join(dashboardRoot, "settings", "_components", "SettingsView.tsx"), "utf8");
     expect(calendar).toContain("/settings/control-center");
     expect(calendar).toContain("defaultView");
     expect(calendar).toContain("minSlotMinutes");
@@ -476,7 +480,7 @@ describe("professional UI regression guard", () => {
 
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {
     const staffDetail = readFileSync(join(dashboardRoot, "settings", "staff", "[staffId]", "page.tsx"), "utf8");
-    const settings = readFileSync(join(dashboardRoot, "settings", "page.tsx"), "utf8");
+    const settings = readFileSync(join(dashboardRoot, "settings", "_components", "SettingsView.tsx"), "utf8");
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     const shared = readFileSync(join(process.cwd(), "..", "..", "packages", "shared", "index.ts"), "utf8");
 

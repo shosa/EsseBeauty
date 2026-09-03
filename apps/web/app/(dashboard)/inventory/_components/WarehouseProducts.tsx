@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronRight, MoreHorizontal, PackagePlus, SlidersHorizontal } from "lucide-react";
-import { Button, EmptyState } from "@esse-beauty/ui";
+import { Button, EmptyState, Switch } from "@esse-beauty/ui";
 import { Card } from "./EnterpriseCard";
 import type { WarehouseItemType, WarehouseProduct } from "../warehouse-types";
 
@@ -23,7 +23,7 @@ export function WarehouseProducts({ items, query, lowOnly, itemType, selected, o
           <option value="all">Tutti i tipi</option>
           {Object.entries(types).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
         </select>
-        <label className="flex h-10 items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3 text-[12.5px] font-bold text-stone-600"><input checked={lowOnly} className="accent-[#792f59]" onChange={(event) => onLowOnly(event.target.checked)} type="checkbox" />Solo scorte basse</label>
+        <label className="flex h-10 items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3 text-[12.5px] font-bold text-stone-600"><Switch checked={lowOnly} onCheckedChange={onLowOnly} />Solo scorte basse</label>
         <Button className="ml-auto" onClick={() => onOpenOperation("adjustment")} size="sm" variant="outline"><SlidersHorizontal className="size-3.5" />Azione manuale</Button>
       </div>
       {selected.length > 0 && (

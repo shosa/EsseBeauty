@@ -2,7 +2,7 @@
 
 import { ArchiveX, PackagePlus, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppPage, Button, EmptyState, InlineError } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, InlineError, PageHeader } from "@esse-beauty/ui";
 import { useAuth } from "../../../../lib/auth-context";
 import { Card } from "../_components/EnterpriseCard";
 import { AssetDisposalDialog } from "../_components/AssetDisposalDialog";
@@ -73,18 +73,19 @@ export function AssetWorkspace() {
   }, [items]);
 
   return (
-    <AppPage maxWidth="max-w-[1400px]">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e8dfe4] pb-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#792f59]">Magazzino</p>
-          <h1 className="mt-1 text-[26px] font-bold tracking-[-.02em] text-stone-950">Attrezzature</h1>
-          <p className="mt-1 text-[13px] text-stone-500">Acquisti, posizione, garanzia e dismissione dei beni durevoli in dotazione al salone.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button aria-label="Aggiorna attrezzature" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59] disabled:opacity-50" disabled={loading} onClick={() => void load()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
-          <Button onClick={() => setPurchaseOpen(true)} variant="primary"><PackagePlus className="size-4" />Inserisci attrezzatura</Button>
-        </div>
-      </header>
+    <AppPage maxWidth="max-w-[1600px]">
+      <PageHeader
+        actionsAlign="right"
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button aria-label="Aggiorna attrezzature" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59] disabled:opacity-50" disabled={loading} onClick={() => void load()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
+            <Button onClick={() => setPurchaseOpen(true)} variant="primary"><PackagePlus className="size-4" />Inserisci attrezzatura</Button>
+          </div>
+        }
+        eyebrow="Magazzino"
+        subtitle="Acquisti, posizione, garanzia e dismissione dei beni durevoli in dotazione al salone."
+        title="Attrezzature"
+      />
 
       <div className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] sm:grid-cols-3">
         <div className="bg-white px-4 py-3.5"><span className="text-[10px] font-black uppercase tracking-wider text-stone-500">Attrezzature attive</span><strong className="mt-1 block text-xl font-bold tnum text-stone-950">{stats.active}</strong><span className="text-[11px] font-medium text-stone-400">{stats.disposed} dismesse</span></div>

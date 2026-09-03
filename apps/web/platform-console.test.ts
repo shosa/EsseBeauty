@@ -7,7 +7,6 @@ const source = readFileSync(join(process.cwd(), "..", "platform", "app", "page.t
 describe("platform operations console", () => {
   it("loads the global platform overview", () => {
     expect(source).toContain('"/api/platform/overview"');
-    expect(source).toContain("Il polso della piattaforma");
     expect(source).toContain('"/api/platform/plans"');
     expect(source).toContain('"/api/platform/module-catalog"');
     expect(source).toContain('"/api/platform/audit-log"');

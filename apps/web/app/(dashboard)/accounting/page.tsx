@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, FileText, RefreshCw, Search, Undo2 } from "lucide-react";
-import { AppPage, Button, DateField, Dialog, Drawer, EmptyState, InlineError } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, Dialog, Drawer, EmptyState, InlineError, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -510,7 +510,7 @@ export default function AccountingPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <label className="flex h-9 items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3 text-[12.5px] font-bold text-stone-600">
-            <input checked={compareEnabled} className="accent-[#792f59]" onChange={(event) => setCompareEnabled(event.target.checked)} type="checkbox" />
+            <Switch checked={compareEnabled} onCheckedChange={setCompareEnabled} />
             Confronta periodo precedente
           </label>
           <div className="inline-flex gap-0.5 rounded-xl border border-[#e8dfe4] bg-[#faf7f9] p-1">

@@ -35,7 +35,7 @@ describe("inventory workspace routes", () => {
       const source = readFileSync(workspacePath, "utf8");
       expect(source).toContain(`export function ${component}()`);
       expect(source).toContain("PageHeader");
-      expect(source).toMatch(/EmptyState|WarehouseDocuments|WarehouseCounts|WarehouseAnalytics/);
+      expect(source).toMatch(/EmptyState|WarehouseDocuments|WarehouseCounts|WarehouseAnalytics|WarehouseSuppliers/);
     }
   });
 

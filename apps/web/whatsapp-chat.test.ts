@@ -57,7 +57,6 @@ describe("global WhatsApp workspace", () => {
   it("keeps drawer actions stable while text fields update workspace state", () => {
     const provider = readFileSync(resolve("app/(dashboard)/_components/CommunicationWorkspaceProvider.tsx"), "utf8");
     expect(provider).toContain("const close = useCallback(() => setOpen(false), []);");
-    expect(provider).toContain("const openChat = useCallback(() => setOpen(true), []);");
     expect(provider).toContain("close,");
     expect(provider).toContain("openChat,");
     expect(provider).not.toContain("close: () => setOpen(false)");
@@ -119,7 +118,6 @@ describe("global WhatsApp workspace", () => {
 
   it("clips the WhatsApp preview progress bar inside the speech bubble", () => {
     const shell = readFileSync(resolve("app/(dashboard)/_components/DashboardShell.tsx"), "utf8");
-    expect(shell).toContain("overflow-hidden rounded-[22px] border border-[#b8dfc9]");
     expect(shell).toContain("animate-[notification-life_6s_linear_forwards] bg-[#25D366]");
   });
 

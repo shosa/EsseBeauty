@@ -78,6 +78,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
   const [calendar, setCalendar] = useState<CalendarControl>({});
   const [closures, setClosures] = useState<SalonClosure[]>([]);
   const [closureDate, setClosureDate] = useState("");
+  const [recurringYearly, setRecurringYearly] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState<SavingSection>();
@@ -246,6 +247,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
     }), "Impossibile salvare il giorno di chiusura. Riprova.");
     if (response?.ok) {
       setClosureDate("");
+      setRecurringYearly(false);
       await reloadClosures();
     }
   }
@@ -383,9 +385,10 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
           <form action={addClosure} className="grid gap-4 md:grid-cols-2">
             <FormField label="Data chiusura" required><DateField aria-label="Data chiusura" name="date" onChange={setClosureDate} required value={closureDate} /></FormField>
             <FormField label="Motivo"><input className="w-full" name="reason" placeholder="Ferie, festività, formazione…" /></FormField>
-            <label className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 px-4 text-sm font-bold">
-              <input name="recurring_yearly" type="checkbox" />
+            <label className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-stone-200 px-4 text-sm font-bold">
               Ripeti ogni anno
+              <input name="recurring_yearly" type="hidden" value={recurringYearly ? "on" : ""} />
+              <Switch checked={recurringYearly} onCheckedChange={setRecurringYearly} />
             </label>
             <div className="flex items-center justify-end"><SaveActionButton busy={saving === "closure"} disabled={!closureDate || Boolean(saving && saving !== "closure")} idleLabel="Aggiungi chiusura" saved={saved === "closure"} type="submit" /></div>
           </form>

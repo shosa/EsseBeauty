@@ -57,6 +57,54 @@ function validColor(value: string, fallback: string): string {
   return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
+const bookingNoticeOptions = [1, 2, 4, 6, 12, 24, 48];
+const bookingWindowOptions = [7, 14, 30, 60, 90, 180];
+const cancellationOptions = [0, 2, 4, 6, 12, 24, 48, 72];
+
+function HoursField({
+  disabled,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  disabled?: boolean;
+  label: string;
+  onChange(value: number): void;
+  options: number[];
+  value: number;
+}) {
+  return (
+    <FormField label={label}>
+      <select disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} value={value}>
+        {!options.includes(value) && <option value={value}>{value} ore — valore attuale</option>}
+        {options.map((option) => <option key={option} value={option}>{option === 0 ? "Nessun anticipo" : `${option} ${option === 1 ? "ora" : "ore"}`}</option>)}
+      </select>
+    </FormField>
+  );
+}
+
+function DaysField({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange(value: number): void;
+  options: number[];
+  value: number;
+}) {
+  return (
+    <FormField label={label}>
+      <select onChange={(event) => onChange(Number(event.target.value))} value={value}>
+        {!options.includes(value) && <option value={value}>{value} giorni — valore attuale</option>}
+        {options.map((option) => <option key={option} value={option}>{option} giorni</option>)}
+      </select>
+    </FormField>
+  );
+}
+
 function ColorField({
   fallback,
   label,
@@ -211,8 +259,8 @@ export default function AppClientiSettingsPage() {
               </select>
             </FormField>
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField label="Anticipo minimo (ore)"><input min={0} onChange={(event) => setSettings({ ...settings, minBookingNoticeHours: Number(event.target.value) })} type="number" value={settings.minBookingNoticeHours} /></FormField>
-              <FormField label="Prenotabile fino a (giorni)"><input min={1} onChange={(event) => setSettings({ ...settings, maxAdvanceDays: Number(event.target.value) })} type="number" value={settings.maxAdvanceDays} /></FormField>
+              <HoursField label="Anticipo minimo" onChange={(minBookingNoticeHours) => setSettings({ ...settings, minBookingNoticeHours })} options={bookingNoticeOptions} value={settings.minBookingNoticeHours} />
+              <DaysField label="Prenotabile fino a" onChange={(maxAdvanceDays) => setSettings({ ...settings, maxAdvanceDays })} options={bookingWindowOptions} value={settings.maxAdvanceDays} />
             </div>
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold">Permetti preferenza collaboratore<Switch aria-label="Preferenza collaboratore" checked={settings.allowStaffPreference} onCheckedChange={(allowStaffPreference) => setSettings({ ...settings, allowStaffPreference })} /></label>
             <div className="flex justify-end border-t border-stone-100 pt-4"><SaveActionButton busy={saving === "booking"} disabled={Boolean(saving && saving !== "booking")} idleLabel="Salva prenotazioni" onClick={() => void save("booking")} saved={saved === "booking"} /></div>
@@ -222,7 +270,7 @@ export default function AppClientiSettingsPage() {
         <SectionCard title="Autonomia cliente" subtitle="Regole applicate nella sezione I miei appuntamenti.">
           <div className="grid gap-4">
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold">Cancellazione autonoma<Switch aria-label="Cancellazione autonoma" checked={settings.allowCancellation} onCheckedChange={(allowCancellation) => setSettings({ ...settings, allowCancellation })} /></label>
-            <FormField label="Cancellazione consentita fino a ore prima"><input disabled={!settings.allowCancellation} min={0} onChange={(event) => setSettings({ ...settings, cancellationPolicyHours: Number(event.target.value) })} type="number" value={settings.cancellationPolicyHours} /></FormField>
+            <HoursField disabled={!settings.allowCancellation} label="Cancellazione consentita fino a" onChange={(cancellationPolicyHours) => setSettings({ ...settings, cancellationPolicyHours })} options={cancellationOptions} value={settings.cancellationPolicyHours} />
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold">Richiesta cambio orario<Switch aria-label="Richiesta cambio orario" checked={settings.allowReschedule} onCheckedChange={(allowReschedule) => setSettings({ ...settings, allowReschedule })} /></label>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl bg-stone-50 p-4 text-sm font-semibold">Email obbligatoria<Switch aria-label="Email obbligatoria" checked={settings.requireEmail} onCheckedChange={(requireEmail) => setSettings({ ...settings, requireEmail })} /></label>

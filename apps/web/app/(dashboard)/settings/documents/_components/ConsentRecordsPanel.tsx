@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { Button, DateTimeField, Dialog, EmptyState, FormField, InlineError, StatusBadge } from "@esse-beauty/ui";
+import { Button, DateTimeField, Dialog, EmptyState, FormField, InlineError, StatusBadge, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 import {
@@ -330,7 +330,7 @@ export function ConsentRecordsPanel({
       >
         <div className="grid gap-4">
           <FormField label="Nome e cognome del firmatario"><input autoComplete="name" onChange={(event) => dispatchDialog({ field: "signerName", type: "change", value: event.target.value })} value={dialog.signerName} /></FormField>
-          <label className="flex items-start gap-3 rounded-xl bg-stone-50 p-4 text-sm font-semibold"><input checked={dialog.accepted} className="mt-1 size-4" onChange={(event) => dispatchDialog({ field: "accepted", type: "change", value: event.target.checked })} type="checkbox" /><span>Il firmatario dichiara di aver letto e accettato il documento.</span></label>
+          <label className="flex items-start gap-3 rounded-xl bg-stone-50 p-4 text-sm font-semibold"><Switch checked={dialog.accepted} className="mt-0.5 shrink-0" onCheckedChange={(value) => dispatchDialog({ field: "accepted", type: "change", value })} /><span>Il firmatario dichiara di aver letto e accettato il documento.</span></label>
           {dialog.error && <InlineError>{dialog.error}</InlineError>}
         </div>
       </Dialog>

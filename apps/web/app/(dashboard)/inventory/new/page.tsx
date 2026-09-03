@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, InlineError, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -18,6 +18,9 @@ export default function NewInventoryProductPage() {
   const { salon } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
+  const [trackStock, setTrackStock] = useState(true);
+  const [sellable, setSellable] = useState(true);
+  const [internallyConsumable, setInternallyConsumable] = useState(false);
 
   async function create(data: FormData) {
     if (!salon) return;
@@ -104,9 +107,9 @@ export default function NewInventoryProductPage() {
         ))}
         </section>
         <section className="grid gap-3 md:col-span-2 md:grid-cols-3">
-          <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="trackStock" type="checkbox" defaultChecked />Gestisci scorta</label>
-          <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="sellable" type="checkbox" defaultChecked />Vendibile al cliente</label>
-          <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="internallyConsumable" type="checkbox" />Usabile nei trattamenti</label>
+          <label className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold">Gestisci scorta<input name="trackStock" type="hidden" value={trackStock ? "on" : ""} /><Switch checked={trackStock} onCheckedChange={setTrackStock} /></label>
+          <label className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold">Vendibile al cliente<input name="sellable" type="hidden" value={sellable ? "on" : ""} /><Switch checked={sellable} onCheckedChange={setSellable} /></label>
+          <label className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold">Usabile nei trattamenti<input name="internallyConsumable" type="hidden" value={internallyConsumable ? "on" : ""} /><Switch checked={internallyConsumable} onCheckedChange={setInternallyConsumable} /></label>
         </section>
         <label className="text-sm font-semibold md:col-span-2">Note interne<textarea name="notes" rows={3} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2" /></label>
         <div className="flex justify-end gap-3 md:col-span-2">

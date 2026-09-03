@@ -3,7 +3,7 @@
 import { ChevronDown, FileUp, Plus, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AppPage, Button, EmptyState } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, PageHeader } from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 import { Card } from "./_components/EnterpriseCard";
 import { WarehouseDocumentViewer } from "./_components/WarehouseDocumentViewer";
@@ -230,19 +230,20 @@ export function WarehouseWorkspace() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e8dfe4] pb-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#792f59]">Magazzino</p>
-          <h1 className="mt-1 text-[26px] font-bold tracking-[-.02em] text-stone-950">Magazzino</h1>
-          <p className="mt-1 text-[13px] text-stone-500">Catalogo articoli, giacenze, costi e margini in un&apos;unica vista operativa.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button aria-label="Aggiorna magazzino" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => void load()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#e8dfe4] bg-white px-3.5 text-[12.5px] font-bold text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => { void openOperation("purchase"); setImportMode(true); }} type="button"><FileUp size={14} />Importa</button>
-          <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-white px-3.5 text-[12.5px] font-bold text-[#792f59] transition hover:bg-[#f7eef3]" onClick={() => router.push("/inventory/new")} type="button">+ Articolo</button>
-          <NewMovementMenu onSelect={(mode) => void openOperation(mode)} />
-        </div>
-      </header>
+      <PageHeader
+        actionsAlign="right"
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button aria-label="Aggiorna magazzino" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => void load()} title="Aggiorna" type="button"><RefreshCw size={15} /></button>
+            <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#e8dfe4] bg-white px-3.5 text-[12.5px] font-bold text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => { void openOperation("purchase"); setImportMode(true); }} type="button"><FileUp size={14} />Importa</button>
+            <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-white px-3.5 text-[12.5px] font-bold text-[#792f59] transition hover:bg-[#f7eef3]" onClick={() => router.push("/inventory/new")} type="button">+ Articolo</button>
+            <NewMovementMenu onSelect={(mode) => void openOperation(mode)} />
+          </div>
+        }
+        eyebrow="Magazzino"
+        subtitle="Catalogo articoli, giacenze, costi e margini in un'unica vista operativa."
+        title="Magazzino"
+      />
 
       <nav className="inline-flex flex-wrap gap-0.5 rounded-xl border border-[#e8dfe4] bg-[#faf7f9] p-1" role="tablist" aria-label="Aree del magazzino">
         {warehouseTabs.map((tab) => {

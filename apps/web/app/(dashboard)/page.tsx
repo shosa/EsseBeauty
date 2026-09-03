@@ -5,7 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, EmptyState, InboxItem, InlineError, PageSkeleton, SectionCard } from "@esse-beauty/ui";
+import { AppPage, EmptyState, InboxItem, InlineError, PageHeader, PageSkeleton, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../lib/auth-context";
 import { OperationalInbox } from "./_components/OperationalInbox";
@@ -97,19 +97,18 @@ export default function DashboardPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <header className="mb-5 border-b border-stone-200 pb-5">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold capitalize text-[#8f3a68]">{todayLabel}</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-[-.03em] text-[#2d1d27] md:text-4xl">Buongiorno, {firstName}</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Agenda, priorità e carico dei prossimi giorni per {salon.name}.</p>
-          </div>
+      <PageHeader
+        actionsAlign="right"
+        actions={
           <div className="flex flex-wrap gap-2">
             <Link className="inline-flex min-h-11 items-center rounded-xl border border-[#792f59] bg-[#792f59] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href="/calendar/appointments/new">Nuovo appuntamento</Link>
             <Link className="inline-flex min-h-11 items-center rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 transition-colors hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href="/calendar">Apri agenda</Link>
           </div>
-        </div>
-      </header>
+        }
+        eyebrow={todayLabel}
+        subtitle={`Agenda, priorità e carico dei prossimi giorni per ${salon.name}.`}
+        title={`Buongiorno, ${firstName}`}
+      />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)]">
         <TodayTimeline action={<Link className="text-sm font-bold text-[#792f59] hover:underline" href="/calendar">Apri calendario</Link>}>

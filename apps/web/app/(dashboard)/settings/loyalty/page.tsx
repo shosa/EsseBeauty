@@ -17,6 +17,7 @@ import {
   StatCard,
   StatGrid,
   StatusBadge,
+  Switch,
 } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -312,7 +313,7 @@ export default function LoyaltySettingsPage() {
            </div>
            <div className="mt-4 grid gap-3 border-t border-stone-200 pt-4 md:grid-cols-2">
              <FormField label="Scadenza punti"><div className="flex items-center gap-2"><input className="w-32" min={1} onChange={(event) => setSettings((current) => current ? { ...current, pointsExpireAfterDays: event.target.value ? Number(event.target.value) : null } : current)} placeholder="Mai" type="number" value={settings?.pointsExpireAfterDays ?? ""} /><span className="text-sm text-stone-500">giorni; vuoto = nessuna scadenza</span></div></FormField>
-             <label className="flex min-h-11 items-center gap-3 rounded-xl border border-stone-200 px-3 text-sm"><input checked={settings?.allowNegativeBalance ?? false} onChange={(event) => setSettings((current) => current ? { ...current, allowNegativeBalance: event.target.checked } : current)} type="checkbox" /><span><b className="block">Correzioni sotto zero</b><span className="text-xs text-stone-500">Consenti solo se la tua procedura lo richiede.</span></span></label>
+             <label className="flex min-h-11 items-center gap-3 rounded-xl border border-stone-200 px-3 text-sm"><Switch checked={settings?.allowNegativeBalance ?? false} onCheckedChange={(allowNegativeBalance) => setSettings((current) => current ? { ...current, allowNegativeBalance } : current)} /><span><b className="block">Correzioni sotto zero</b><span className="text-xs text-stone-500">Consenti solo se la tua procedura lo richiede.</span></span></label>
            </div>
            <div className="mt-4 flex justify-end"><Button onClick={() => void saveRules()}>Salva regole</Button></div>
         </SectionCard>

@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Report — Restyle Enterprise</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2d1d27;
+  --mulberry:#792f59;
+  --berry:#b85888;
+  --petal:#faf3f7;
+  --champagne:#f4d8a8;
+  --line:#e8dfe4;
+  --panel-head:#faf7f9;
+  --canvas:#f4f0f2;
+  --stone-50:#fafaf9;
+  --stone-100:#f5f5f4;
+  --stone-400:#a8a29e;
+  --stone-500:#78716c;
+  --stone-600:#57534e;
+  --stone-800:#292524;
+  --stone-900:#1c1917;
+  --blue:#287fb8;
+  --blue-soft:#a9c7df;
+  --amber:#f0a23b;
+  --sage:#b9d7a8;
+  --good:#1c7a5c; --good-bg:#e5f3ec;
+  --bad:#b23a2e;  --bad-bg:#faeae8;
+  --chart-1:#792f59; --chart-2:#b8578a; --chart-3:#c98a3f; --chart-4:#3f7d6f; --chart-5:#7a4fa0; --chart-6:#57534e;
+  color-scheme: light;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--canvas); color:var(--stone-900);
+  font-family:"Manrope", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.tnum{ font-variant-numeric: tabular-nums; }
+h1,.font-display{ font-family:"Fraunces","Manrope",serif; font-optical-sizing:auto; }
+
+/* ---------- shell ---------- */
+.shell{ max-width:1600px; margin:0 auto; padding:28px 32px 64px; }
+
+/* proposal banner */
+.proposal-banner{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:linear-gradient(90deg,#2d1d27,#4a2a3e);
+  color:#f6ecf1; border-radius:14px; padding:12px 18px; margin-bottom:22px;
+  font-size:12.5px; font-weight:700;
+}
+.proposal-banner .tag{
+  background:rgba(255,255,255,.14); border-radius:999px; padding:3px 10px;
+  font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+}
+.proposal-banner span.dim{ color:#d9c3ce; font-weight:600; }
+
+/* topbar */
+.topbar{
+  display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between;
+  gap:16px; border-bottom:1px solid var(--line); padding-bottom:16px;
+}
+.eyebrow{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.18em; color:var(--mulberry); }
+.page-title{ margin:4px 0 0; font-size:26px; font-weight:600; letter-spacing:-.02em; color:var(--stone-900); text-wrap:balance; }
+.page-subtitle{ margin:5px 0 0; font-size:13px; color:var(--stone-500); max-width:56ch; }
+
+.topbar-controls{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.check-pill{
+  display:flex; align-items:center; gap:8px; height:36px; border:1px solid var(--line);
+  background:#fff; border-radius:12px; padding:0 12px; font-size:12.5px; font-weight:700; color:var(--stone-600);
+  cursor:pointer; user-select:none;
+}
+.check-pill input{ accent-color:var(--mulberry); }
+.segmented{ display:inline-flex; gap:2px; border:1px solid var(--line); background:var(--panel-head); border-radius:12px; padding:4px; }
+.segmented button{
+  height:32px; border-radius:8px; padding:0 12px; font-size:12px; font-weight:700; border:none; background:transparent;
+  color:var(--stone-500); cursor:pointer; transition:.15s;
+}
+.segmented button[aria-pressed="true"]{ background:#fff; color:var(--mulberry); box-shadow:0 1px 2px rgb(45 29 39/.1); }
+.icon-btn{
+  display:grid; place-items:center; width:36px; height:36px; border-radius:12px; border:1px solid var(--line);
+  background:#fff; color:var(--stone-600); cursor:pointer; transition:.15s;
+}
+.icon-btn:hover{ border-color:var(--mulberry); color:var(--mulberry); }
+
+/* module tabs (matches app-registry sidebar tabs) */
+.module-tabs{ display:flex; gap:4px; padding:14px 0 0; border-bottom:1px solid var(--line); overflow-x:auto; }
+.module-tab{
+  position:relative; padding:9px 16px 13px; font-size:13px; font-weight:700; color:var(--stone-500);
+  background:none; border:none; cursor:pointer; white-space:nowrap; display:flex; align-items:center; gap:7px;
+}
+.module-tab[aria-selected="true"]{ color:var(--mulberry); }
+.module-tab[aria-selected="true"]::after{
+  content:""; position:absolute; left:10px; right:10px; bottom:-1px; height:2px; background:var(--mulberry); border-radius:2px 2px 0 0;
+}
+.module-tab .new-dot{ width:6px; height:6px; border-radius:50%; background:var(--berry); }
+
+/* subrange bar */
+.subbar{ display:flex; flex-wrap:wrap; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding:12px 0; font-size:12.5px; }
+.subbar input[type="date"]{
+  height:34px; border:1px solid var(--line); border-radius:10px; padding:0 10px; font:inherit; font-size:12.5px; color:var(--stone-800); background:#fff;
+}
+.subbar .arrow{ color:var(--stone-400); font-weight:700; }
+.subbar .compare-note{ color:var(--stone-400); font-weight:600; }
+
+/* panels */
+.panel{
+  background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden;
+  box-shadow:0 10px 30px rgb(45 29 39/.055);
+}
+.panel-head{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line); }
+.panel-head h2{ margin:0; font-size:14.5px; font-weight:800; color:var(--stone-900); }
+.panel-head p{ margin:3px 0 0; font-size:12px; color:var(--stone-500); }
+.panel-body{ padding:16px; }
+
+.grid{ display:grid; gap:14px; }
+@media (min-width:1180px){ .grid-kpi-detail{ grid-template-columns:1.5fr .8fr; } .grid-3{ grid-template-columns:repeat(3,1fr); } }
+
+/* kpi hairline strip */
+.kpi-strip{
+  display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--line);
+  border:1px solid var(--line); border-radius:16px; overflow:hidden; margin:18px 0 14px;
+}
+@media (min-width:640px){ .kpi-strip{ grid-template-columns:repeat(3,1fr); } }
+@media (min-width:1180px){ .kpi-strip{ grid-template-columns:repeat(6,1fr); } }
+.kpi-cell{ background:#fff; padding:14px 16px; }
+.kpi-cell .label{ font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.09em; color:var(--stone-500); }
+.kpi-cell strong{ display:block; margin-top:5px; font-size:21px; font-weight:800; color:var(--stone-900); }
+.kpi-cell .foot{ display:block; margin-top:5px; font-size:11px; font-weight:600; color:var(--stone-400); }
+.delta{ display:inline-flex; align-items:center; gap:4px; margin-top:6px; border-radius:999px; padding:2px 8px; font-size:10.5px; font-weight:800; }
+.delta.up{ background:var(--good-bg); color:var(--good); }
+.delta.down{ background:var(--bad-bg); color:var(--bad); }
+.delta .suffix{ font-weight:600; color:var(--stone-400); margin-left:2px; }
+
+/* legend / donut */
+.legend-row{ display:grid; grid-template-columns:10px 1fr auto; align-items:center; gap:9px; font-size:12.5px; }
+.legend-dot{ width:9px; height:9px; border-radius:3px; }
+.donut-wrap{ display:grid; grid-template-columns:140px 1fr; align-items:center; gap:18px; }
+.donut{ position:relative; aspect-ratio:1; border-radius:50%; }
+.donut .hole{ position:absolute; inset:27%; border-radius:50%; background:#fff; box-shadow:inset 0 0 0 1px var(--line); display:grid; place-items:center; text-align:center; }
+.donut .hole strong{ font-size:19px; font-weight:800; }
+.donut .hole span{ font-size:9px; color:var(--stone-500); font-weight:700; }
+
+/* register toolbar */
+.reg-toolbar{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:14px 16px 0; }
+.search-field{ position:relative; flex:1; min-width:220px; }
+.search-field svg{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--stone-400); pointer-events:none; }
+.search-field input{
+  width:100%; height:36px; border:1px solid var(--line); border-radius:10px; padding:0 12px 0 34px; font:inherit; font-size:12.5px; background:#fff;
+}
+.select-field select{
+  height:36px; border:1px solid var(--line); border-radius:10px; padding:0 10px; font:inherit; font-size:12.5px; background:#fff; color:var(--stone-800);
+}
+.badge-new{
+  display:inline-flex; align-items:center; gap:4px; background:var(--petal); color:var(--mulberry);
+  border:1px solid rgba(121,47,89,.18); border-radius:999px; padding:2px 8px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+}
+
+/* table */
+table{ width:100%; border-collapse:collapse; text-align:left; font-size:13px; }
+thead th{ background:var(--panel-head); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--stone-500); padding:11px 14px; white-space:nowrap; }
+thead th.sortable{ cursor:pointer; user-select:none; }
+thead th.sortable:hover{ color:var(--mulberry); }
+thead th .sort-arrow{ margin-left:4px; font-size:9px; }
+tbody tr{ border-top:1px solid var(--stone-100); transition:background .12s; cursor:pointer; }
+tbody tr:hover{ background:#fdf8fb; }
+tbody td{ padding:11px 14px; vertical-align:middle; color:var(--stone-800); }
+.rank{ display:grid; place-items:center; width:24px; height:24px; border-radius:50%; background:var(--petal); color:var(--mulberry); font-size:11px; font-weight:800; }
+.name-cell{ font-weight:800; color:var(--stone-900); }
+.rate{ font-weight:800; color:var(--blue); }
+.right{ text-align:right; }
+.chip{ display:inline-flex; border-radius:999px; padding:3px 9px; font-size:10.5px; font-weight:700; background:var(--petal); color:var(--mulberry); }
+.bar-cell{ width:110px; }
+.bar-track{ height:7px; border-radius:4px; background:var(--stone-100); overflow:hidden; }
+.bar-fill{ height:100%; background:linear-gradient(90deg,var(--chart-4),#5faf9f); border-radius:4px; }
+.chev{ color:var(--mulberry); opacity:.7; }
+
+/* charts */
+.chart-legend{ display:flex; gap:16px; font-size:11px; color:var(--stone-500); margin-top:8px; }
+.chart-legend i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:-1px; }
+
+/* drawer */
+.scrim{ position:fixed; inset:0; background:rgba(45,29,39,.32); opacity:0; pointer-events:none; transition:opacity .2s; z-index:40; }
+.scrim.open{ opacity:1; pointer-events:auto; }
+.drawer{
+  position:fixed; top:0; right:0; bottom:0; width:min(420px,92vw); background:#fff; z-index:41;
+  box-shadow:-24px 0 60px rgb(45 29 39/.18); transform:translateX(100%); transition:transform .26s cubic-bezier(.2,.85,.25,1);
+  display:flex; flex-direction:column;
+}
+.drawer.open{ transform:translateX(0); }
+.drawer-head{ padding:20px 22px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.drawer-head h3{ margin:0; font-size:17px; font-weight:800; }
+.drawer-head p{ margin:4px 0 0; font-size:12px; color:var(--stone-500); }
+.drawer-close{ background:none; border:none; cursor:pointer; color:var(--stone-500); font-size:18px; line-height:1; padding:4px; }
+.drawer-body{ padding:18px 22px; overflow-y:auto; flex:1; }
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+.stat-tile{ border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+.stat-tile .l{ font-size:9.5px; font-weight:800; text-transform:uppercase; color:var(--stone-500); letter-spacing:.07em; }
+.stat-tile strong{ display:block; margin-top:4px; font-size:16px; font-weight:800; }
+.mini-row{ display:flex; justify-content:space-between; padding:9px 0; border-top:1px solid var(--stone-100); font-size:12.5px; }
+.mini-row:first-child{ border-top:none; }
+.mini-row b{ color:var(--stone-900); }
+
+/* tab panels */
+.tabpanel{ display:none; }
+.tabpanel.active{ display:block; }
+
+/* export tab */
+.export-grid{ display:grid; gap:16px; }
+@media (min-width:960px){ .export-grid{ grid-template-columns:340px 1fr; } }
+.option-list{ display:flex; flex-direction:column; gap:8px; }
+.option{
+  display:flex; align-items:center; justify-content:space-between; border:1px solid var(--line); border-radius:12px;
+  padding:11px 14px; cursor:pointer; font-size:13px; font-weight:700; color:var(--stone-700);
+}
+.option.active{ border-color:var(--mulberry); background:var(--petal); color:var(--mulberry); }
+.option small{ display:block; font-weight:600; color:var(--stone-500); margin-top:2px; }
+.option.active small{ color:#a4577f; }
+.format-toggle{ display:flex; gap:8px; }
+.format-toggle button{
+  flex:1; height:44px; border-radius:12px; border:1px solid var(--line); background:#fff; font-weight:800; font-size:13px; color:var(--stone-600); cursor:pointer;
+}
+.format-toggle button[aria-pressed="true"]{ background:var(--mulberry); border-color:var(--mulberry); color:#fff; }
+.preview-doc{ border:1px solid var(--line); border-radius:14px; background:#fdfcfb; padding:26px 30px; font-size:12px; color:var(--stone-700); min-height:380px; }
+.preview-doc h4{ font-family:"Fraunces",serif; font-size:19px; margin:0 0 2px; color:var(--ink); }
+.preview-doc .sub{ color:var(--stone-500); margin-bottom:18px; }
+.preview-doc table{ font-size:11.5px; }
+.preview-doc thead th{ background:transparent; border-bottom:1px solid var(--stone-800); color:var(--stone-700); }
+.preview-doc tbody td{ padding:7px 10px; }
+.btn-primary{
+  display:inline-flex; align-items:center; gap:8px; height:40px; border-radius:11px; padding:0 18px; border:none;
+  background:var(--mulberry); color:#fff; font-weight:800; font-size:13px; cursor:pointer;
+}
+.btn-primary:hover{ background:#6b2a4f; }
+
+/* empty */
+.empty{ text-align:center; padding:40px 20px; color:var(--stone-500); }
+.empty strong{ display:block; color:var(--stone-800); font-size:14px; margin-bottom:4px; }
+
+@media (max-width:640px){ .shell{ padding:20px 14px 48px; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="proposal-banner">
+    <span class="tag">Proposta</span>
+    Restyle "Report" allineato allo stile enterprise di <span class="dim">Magazzino</span> e <span class="dim">Contabilità</span> — mock statico, dati di esempio.
+  </div>
+
+  <!-- topbar -->
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Report</p>
+      <h1 class="page-title">Panoramica operativa</h1>
+      <p class="page-subtitle">Volumi, qualità e rendimento del salone in un'unica vista, con confronto sul periodo precedente.</p>
+    </div>
+    <div class="topbar-controls">
+      <label class="check-pill"><input type="checkbox" checked> Confronta periodo precedente</label>
+      <div class="segmented" role="group" aria-label="Preset periodo">
+        <button aria-pressed="false" type="button">Oggi</button>
+        <button aria-pressed="false" type="button">Settimana</button>
+        <button aria-pressed="true" type="button">Mese</button>
+        <button aria-pressed="false" type="button">Mese scorso</button>
+      </div>
+      <button class="icon-btn" title="Aggiorna" type="button">↻</button>
+    </div>
+  </header>
+
+  <!-- module tabs -->
+  <nav class="module-tabs" id="moduleTabs">
+    <button class="module-tab" data-tab="overview" aria-selected="true" type="button">Panoramica</button>
+    <button class="module-tab" data-tab="staff" aria-selected="false" type="button">Operatori</button>
+    <button class="module-tab" data-tab="services" aria-selected="false" type="button">Servizi</button>
+    <button class="module-tab" data-tab="trends" aria-selected="false" type="button">Andamento &amp; confronti<span class="new-dot" title="Nuova sezione"></span></button>
+    <button class="module-tab" data-tab="export" aria-selected="false" type="button">Esporta<span class="new-dot" title="Nuova sezione"></span></button>
+  </nav>
+
+  <!-- date subbar -->
+  <div class="subbar">
+    <input type="date" value="2026-09-01" aria-label="Data iniziale">
+    <span class="arrow">→</span>
+    <input type="date" value="2026-09-30" aria-label="Data finale">
+    <span class="compare-note">Confronto con 1 – 31 ago 2026</span>
+  </div>
+
+  <!-- ================= OVERVIEW ================= -->
+  <section class="tabpanel active" id="tab-overview">
+    <div class="kpi-strip">
+      <div class="kpi-cell"><span class="label">Appuntamenti</span><strong class="tnum">486</strong><span class="delta up tnum">▲ 8.2%<span class="suffix">vs periodo prec.</span></span></div>
+      <div class="kpi-cell"><span class="label">Completati</span><strong class="tnum">411</strong><span class="delta up tnum">▲ 6.1%<span class="suffix">vs periodo prec.</span></span></div>
+      <div class="kpi-cell"><span class="label">Clienti unici</span><strong class="tnum">298</strong><span class="delta up tnum">▲ 3.4%<span class="suffix">vs periodo prec.</span></span></div>
+      <div class="kpi-cell"><span class="label">No-show</span><strong class="tnum">27</strong><span class="delta down tnum">▼ 12.9%<span class="suffix">vs periodo prec.</span></span></div>
+      <div class="kpi-cell"><span class="label">Cancellati</span><strong class="tnum">33</strong><span class="delta down tnum">▼ 4.0%<span class="suffix">vs periodo prec.</span></span></div>
+      <div class="kpi-cell"><span class="label">Da gestire</span><strong class="tnum">15</strong><span class="foot">futuri o confermati</span></div>
+    </div>
+
+    <div class="grid grid-kpi-detail">
+      <div class="panel">
+        <div class="panel-head"><div><h2>Andamento appuntamenti</h2><p>Totale giornaliero, periodo corrente vs precedente.</p></div></div>
+        <div class="panel-body">
+          <svg viewBox="0 0 640 220" style="width:100%">
+            <g stroke="#e8dfe4">
+              <line x1="40" x2="630" y1="16" y2="16"/><line x1="40" x2="630" y1="62" y2="62"/><line x1="40" x2="630" y1="108" y2="108"/><line x1="40" x2="630" y1="154" y2="154"/><line x1="40" x2="630" y1="200" y2="200"/>
+            </g>
+            <g fill="#a8a29e" font-size="9.5">
+              <text text-anchor="end" x="34" y="19">24</text><text text-anchor="end" x="34" y="65">18</text><text text-anchor="end" x="34" y="111">12</text><text text-anchor="end" x="34" y="157">6</text><text text-anchor="end" x="34" y="203">0</text>
+            </g>
+            <!-- bars: current + previous overlay, 14 sample days -->
+            <g id="trendBars"></g>
+          </svg>
+          <div class="chart-legend">
+            <span><i style="background:#792f59"></i>Periodo corrente</span>
+            <span><i style="background:#a8a29e;opacity:.5"></i>Periodo precedente</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h2>Distribuzione stati</h2></div></div>
+        <div class="panel-body">
+          <div class="donut-wrap">
+            <div class="donut" style="background:conic-gradient(#287fb8 0 84.6%, #f0a23b 84.6% 90.2%, #d76969 90.2% 97%, #b9d7a8 97% 100%)">
+              <div class="hole"><strong class="tnum">486</strong><span>totali</span></div>
+            </div>
+            <div>
+              <div class="legend-row" style="margin-bottom:8px"><span class="legend-dot" style="background:#287fb8"></span><span>Completati</span><strong class="tnum">411</strong></div>
+              <div class="legend-row" style="margin-bottom:8px"><span class="legend-dot" style="background:#f0a23b"></span><span>No-show</span><strong class="tnum">27</strong></div>
+              <div class="legend-row" style="margin-bottom:8px"><span class="legend-dot" style="background:#d76969"></span><span>Cancellati</span><strong class="tnum">33</strong></div>
+              <div class="legend-row"><span class="legend-dot" style="background:#b9d7a8"></span><span>Da gestire</span><strong class="tnum">15</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-3" style="margin-top:14px">
+      <div class="panel">
+        <div class="panel-head"><h2>Top operatori</h2></div>
+        <table>
+          <thead><tr><th>#</th><th>Operatore</th><th class="right">Completati</th></tr></thead>
+          <tbody>
+            <tr><td><span class="rank">1</span></td><td class="name-cell">Giulia Ferraro</td><td class="right tnum">98</td></tr>
+            <tr><td><span class="rank">2</span></td><td class="name-cell">Marco Bellini</td><td class="right tnum">84</td></tr>
+            <tr><td><span class="rank">3</span></td><td class="name-cell">Sara Conti</td><td class="right tnum">76</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Servizi più richiesti</h2></div>
+        <table>
+          <thead><tr><th>#</th><th>Servizio</th><th class="right">App.</th></tr></thead>
+          <tbody>
+            <tr><td><span class="rank">1</span></td><td class="name-cell">Colore &amp; schiariture</td><td class="right tnum">142</td></tr>
+            <tr><td><span class="rank">2</span></td><td class="name-cell">Taglio donna</td><td class="right tnum">118</td></tr>
+            <tr><td><span class="rank">3</span></td><td class="name-cell">Piega &amp; styling</td><td class="right tnum">97</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Fasce orarie <span class="badge-new">Nuovo</span></h2></div>
+        <table>
+          <thead><tr><th>Fascia</th><th class="right">App.</th></tr></thead>
+          <tbody>
+            <tr><td class="name-cell">Mattina</td><td class="right tnum">162</td></tr>
+            <tr><td class="name-cell">Pomeriggio</td><td class="right tnum">211</td></tr>
+            <tr><td class="name-cell">Sera</td><td class="right tnum">113</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= STAFF REGISTER ================= -->
+  <section class="tabpanel" id="tab-staff">
+    <div class="panel">
+      <div class="panel-head">
+        <div><h2>Registro rendimento operatori</h2><p>9 collaboratori nel periodo selezionato · clic su una riga per il dettaglio <span class="badge-new">Nuovo</span></p></div>
+      </div>
+      <div class="reg-toolbar">
+        <label class="search-field">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="staffSearch" placeholder="Cerca operatore" type="text">
+        </label>
+        <div class="select-field"><select aria-label="Filtra per servizio top">
+          <option>Tutti i servizi top</option><option>Colore &amp; schiariture</option><option>Taglio donna</option><option>Manicure</option>
+        </select></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="staffTable" style="min-width:760px">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th class="sortable" data-key="name">Operatore</th>
+              <th class="sortable tnum" data-key="appts">App.<span class="sort-arrow"></span></th>
+              <th class="sortable tnum" data-key="completed">Completati<span class="sort-arrow">▾</span></th>
+              <th class="tnum">Tasso</th>
+              <th class="tnum">No-show</th>
+              <th class="tnum">Clienti</th>
+              <th>Servizio top</th>
+              <th style="width:24px"></th>
+            </tr>
+          </thead>
+          <tbody id="staffBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SERVICES REGISTER ================= -->
+  <section class="tabpanel" id="tab-services">
+    <div class="panel">
+      <div class="panel-head">
+        <div><h2>Registro analisi servizi</h2><p>12 servizi nel periodo selezionato · clic su una riga per il dettaglio <span class="badge-new">Nuovo</span></p></div>
+      </div>
+      <div class="reg-toolbar">
+        <label class="search-field">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="serviceSearch" placeholder="Cerca servizio" type="text">
+        </label>
+        <div class="select-field"><select aria-label="Filtra per categoria">
+          <option>Tutte le categorie</option><option>Capelli</option><option>Mani &amp; piedi</option><option>Viso</option>
+        </select></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="serviceTable" style="min-width:720px">
+          <thead>
+            <tr>
+              <th>#</th><th class="sortable" data-key="name">Servizio</th>
+              <th class="sortable tnum" data-key="appts">App.<span class="sort-arrow">▾</span></th>
+              <th class="tnum">Completati</th><th class="tnum">Tasso</th><th class="tnum">Clienti</th><th class="tnum">No-show</th><th>Incidenza</th><th style="width:24px"></th>
+            </tr>
+          </thead>
+          <tbody id="serviceBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TRENDS ================= -->
+  <section class="tabpanel" id="tab-trends">
+    <div class="grid grid-kpi-detail">
+      <div class="panel">
+        <div class="panel-head"><div><h2>Margine di completamento nel tempo <span class="badge-new">Nuovo</span></h2><p>Quota appuntamenti completati sul totale, giorno per giorno.</p></div></div>
+        <div class="panel-body">
+          <svg viewBox="0 0 640 190" style="width:100%">
+            <g stroke="#e8dfe4"><line x1="30" x2="630" y1="10" y2="10"/><line x1="30" x2="630" y1="60" y2="60"/><line x1="30" x2="630" y1="110" y2="110"/><line x1="30" x2="630" y1="160" y2="160"/></g>
+            <defs><linearGradient id="mFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#792f59" stop-opacity="0.28"/><stop offset="100%" stop-color="#792f59" stop-opacity="0"/></linearGradient></defs>
+            <path d="M30,120 L75,108 L120,96 L165,101 L210,80 L255,88 L300,64 L345,70 L390,50 L435,58 L480,40 L525,46 L570,32 L615,28 L615,160 L30,160 Z" fill="url(#mFill)"/>
+            <path d="M30,120 L75,108 L120,96 L165,101 L210,80 L255,88 L300,64 L345,70 L390,50 L435,58 L480,40 L525,46 L570,32 L615,28" fill="none" stroke="#792f59" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="615" cy="28" r="4.5" fill="#792f59"/>
+            <g fill="#a8a29e" font-size="9"><text x="30" y="180">01 set</text><text x="300" y="180">15 set</text><text x="590" y="180">30 set</text></g>
+          </svg>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Confronto rapido</h2></div>
+        <div class="panel-body">
+          <div class="mini-row"><span>Tasso completamento</span><b class="tnum">84.6% <span class="delta up tnum" style="margin-top:0">▲ 1.8pt</span></b></div>
+          <div class="mini-row"><span>Tasso no-show</span><b class="tnum">5.6% <span class="delta down tnum" style="margin-top:0">▼ 0.9pt</span></b></div>
+          <div class="mini-row"><span>Clienti nuovi</span><b class="tnum">41 <span class="delta up tnum" style="margin-top:0">▲ 14%</span></b></div>
+          <div class="mini-row"><span>Scontrino medio servizio</span><b class="tnum">€ 46 <span class="delta up tnum" style="margin-top:0">▲ 3%</span></b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-head"><div><h2>Crescita per operatore <span class="badge-new">Nuovo</span></h2><p>Completati nel periodo corrente vs precedente.</p></div></div>
+      <table>
+        <thead><tr><th>Operatore</th><th class="right tnum">Periodo prec.</th><th class="right tnum">Periodo corrente</th><th class="right">Variazione</th></tr></thead>
+        <tbody>
+          <tr><td class="name-cell">Giulia Ferraro</td><td class="right tnum">81</td><td class="right tnum">98</td><td class="right"><span class="delta up tnum">▲ 21.0%</span></td></tr>
+          <tr><td class="name-cell">Marco Bellini</td><td class="right tnum">88</td><td class="right tnum">84</td><td class="right"><span class="delta down tnum">▼ 4.5%</span></td></tr>
+          <tr><td class="name-cell">Sara Conti</td><td class="right tnum">64</td><td class="right tnum">76</td><td class="right"><span class="delta up tnum">▲ 18.8%</span></td></tr>
+          <tr><td class="name-cell">Elena Russo</td><td class="right tnum">70</td><td class="right tnum">69</td><td class="right"><span class="delta down tnum">▼ 1.4%</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= EXPORT ================= -->
+  <section class="tabpanel" id="tab-export">
+    <div class="export-grid">
+      <div class="panel">
+        <div class="panel-head"><div><h2>Genera report</h2><p>Configura il tipo di rapporto, poi controlla l'anteprima. <span class="badge-new">Nuovo</span></p></div></div>
+        <div class="panel-body">
+          <div class="option-list" id="reportTypeList">
+            <div class="option active" data-type="staff">Rendimento operatori<small>Ranking completo per collaboratore</small></div>
+            <div class="option" data-type="services">Analisi servizi<small>Domanda e incidenza per servizio</small></div>
+            <div class="option" data-type="monthly">Riepilogo mensile<small>KPI di sintesi del mese</small></div>
+            <div class="option" data-type="custom">Periodo personalizzato<small>Usa l'intervallo di date selezionato</small></div>
+          </div>
+          <p style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin:18px 0 8px">Formato</p>
+          <div class="format-toggle" id="formatToggle">
+            <button aria-pressed="true" data-fmt="pdf" type="button">PDF</button>
+            <button aria-pressed="false" data-fmt="excel" type="button">Excel</button>
+          </div>
+          <button class="btn-primary" style="width:100%;justify-content:center;margin-top:18px" type="button">↓ Scarica report</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Anteprima</h2></div>
+        <div class="panel-body">
+          <div class="preview-doc" id="previewDoc">
+            <h4>Rendimento operatori</h4>
+            <div class="sub">1 – 30 settembre 2026 · Salone Essenza, Via Roma 12</div>
+            <table style="width:100%">
+              <thead><tr><th>Operatore</th><th class="right">App.</th><th class="right">Completati</th><th class="right">Tasso</th><th class="right">Clienti</th></tr></thead>
+              <tbody>
+                <tr><td>Giulia Ferraro</td><td class="right tnum">104</td><td class="right tnum">98</td><td class="right tnum">94%</td><td class="right tnum">72</td></tr>
+                <tr><td>Marco Bellini</td><td class="right tnum">92</td><td class="right tnum">84</td><td class="right tnum">91%</td><td class="right tnum">61</td></tr>
+                <tr><td>Sara Conti</td><td class="right tnum">86</td><td class="right tnum">76</td><td class="right tnum">88%</td><td class="right tnum">58</td></tr>
+                <tr><td>Elena Russo</td><td class="right tnum">73</td><td class="right tnum">69</td><td class="right tnum">95%</td><td class="right tnum">49</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div><h3 id="drawerTitle">—</h3><p id="drawerSub">—</p></div>
+    <button class="drawer-close" id="drawerClose" aria-label="Chiudi">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script>
+// ---------- mock data ----------
+const staff = [
+  {name:"Giulia Ferraro",appts:104,completed:98,noshow:3,customers:72,top:"Colore & schiariture"},
+  {name:"Marco Bellini",appts:92,completed:84,noshow:5,customers:61,top:"Taglio uomo"},
+  {name:"Sara Conti",appts:86,completed:76,noshow:6,customers:58,top:"Piega & styling"},
+  {name:"Elena Russo",appts:73,completed:69,noshow:2,customers:49,top:"Manicure"},
+  {name:"Davide Moretti",appts:61,completed:52,noshow:5,customers:38,top:"Barba"},
+  {name:"Chiara Greco",appts:54,completed:48,noshow:2,customers:34,top:"Trattamento viso"},
+  {name:"Luca Fontana",appts:48,completed:40,noshow:4,customers:29,top:"Taglio uomo"},
+  {name:"Anna Villa",appts:39,completed:33,noshow:1,customers:24,top:"Pedicure"},
+  {name:"Paolo Sanna",appts:29,completed:21,noshow:3,customers:18,top:"Colore & schiariture"},
+];
+const services = [
+  {name:"Colore & schiariture",cat:"Capelli",appts:142,completed:131,customers:98,noshow:6},
+  {name:"Taglio donna",cat:"Capelli",appts:118,completed:109,customers:87,noshow:5},
+  {name:"Piega & styling",cat:"Capelli",appts:97,completed:92,customers:74,noshow:3},
+  {name:"Taglio uomo",cat:"Capelli",appts:81,completed:75,customers:60,noshow:4},
+  {name:"Manicure",cat:"Mani & piedi",appts:64,completed:60,customers:47,noshow:2},
+  {name:"Trattamento viso",cat:"Viso",appts:52,completed:47,customers:38,noshow:3},
+  {name:"Pedicure",cat:"Mani & piedi",appts:41,completed:39,customers:30,noshow:1},
+  {name:"Barba",cat:"Capelli",appts:38,completed:34,customers:27,noshow:2},
+  {name:"Massaggio viso",cat:"Viso",appts:26,completed:22,customers:19,noshow:1},
+  {name:"Semipermanente",cat:"Mani & piedi",appts:22,completed:20,customers:16,noshow:0},
+  {name:"Ricostruzione unghie",cat:"Mani & piedi",appts:18,completed:15,customers:12,noshow:1},
+  {name:"Depilazione",cat:"Viso",appts:14,completed:13,customers:10,noshow:0},
+];
+const rate = (c,a)=> a? Math.round(c/a*100):0;
+const totalServiceAppts = services.reduce((s,x)=>s+x.appts,0);
+
+// ---------- tabs ----------
+document.getElementById('moduleTabs').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.module-tab'); if(!btn) return;
+  document.querySelectorAll('.module-tab').forEach(b=>b.setAttribute('aria-selected', b===btn ? 'true':'false'));
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+});
+
+// ---------- preset segmented (visual only) ----------
+document.querySelectorAll('.segmented button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    btn.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed','false'));
+    btn.setAttribute('aria-pressed','true');
+  });
+});
+
+// ---------- trend bars (SVG, generated) ----------
+(function(){
+  const days = 14, maxV = 24;
+  const cur = [11,13,10,15,14,17,12,16,18,15,19,17,20,16];
+  const prev = [9,10,9,12,11,13,10,12,14,12,15,13,16,13];
+  const x0=40, chartW=590, groupW=chartW/days, barW=Math.min(16, groupW*0.34), baseY=200, chartH=184;
+  let svg='';
+  cur.forEach((v,i)=>{
+    const x = x0 + i*groupW;
+    const ph = prev[i]/maxV*chartH, ch = v/maxV*chartH;
+    svg += `<rect x="${x+groupW/2-barW-2}" y="${baseY-ph}" width="${barW}" height="${ph}" fill="#a89ba0" opacity="0.45" rx="2"/>`;
+    svg += `<rect x="${x+groupW/2+2}" y="${baseY-ch}" width="${barW}" height="${ch}" fill="#792f59" rx="2"/>`;
+  });
+  document.getElementById('trendBars').innerHTML = svg;
+})();
+
+// ---------- staff table ----------
+let staffSort = {key:'completed', dir:-1};
+function renderStaff(){
+  const q = document.getElementById('staffSearch').value.trim().toLocaleLowerCase('it-IT');
+  const rows = staff.filter(s=>!q || s.name.toLocaleLowerCase('it-IT').includes(q))
+    .sort((a,b)=> staffSort.dir * ((a[staffSort.key]>b[staffSort.key])?1:(a[staffSort.key]<b[staffSort.key]?-1:0)));
+  document.getElementById('staffBody').innerHTML = rows.map((s,i)=>`
+    <tr data-idx="${staff.indexOf(s)}">
+      <td><span class="rank">${i+1}</span></td>
+      <td class="name-cell">${s.name}</td>
+      <td class="tnum">${s.appts}</td>
+      <td class="tnum">${s.completed}</td>
+      <td class="rate tnum">${rate(s.completed,s.appts)}%</td>
+      <td class="tnum">${s.noshow}</td>
+      <td class="tnum">${s.customers}</td>
+      <td>${s.top}</td>
+      <td class="chev">›</td>
+    </tr>`).join('') || `<tr><td colspan="9"><div class="empty"><strong>Nessun operatore</strong>Modifica la ricerca o il periodo selezionato.</div></td></tr>`;
+}
+document.getElementById('staffSearch').addEventListener('input', renderStaff);
+document.querySelectorAll('#staffTable thead th.sortable').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    staffSort.dir = staffSort.key===key ? -staffSort.dir : -1;
+    staffSort.key = key;
+    document.querySelectorAll('#staffTable thead .sort-arrow').forEach(s=>s.textContent='');
+    th.querySelector('.sort-arrow').textContent = staffSort.dir===1 ? '▴':'▾';
+    renderStaff();
+  });
+});
+document.getElementById('staffBody').addEventListener('click', (e)=>{
+  const tr = e.target.closest('tr[data-idx]'); if(!tr) return;
+  openStaffDrawer(staff[+tr.dataset.idx]);
+});
+renderStaff();
+
+// ---------- service table ----------
+let serviceSort = {key:'appts', dir:-1};
+function renderServices(){
+  const q = document.getElementById('serviceSearch').value.trim().toLocaleLowerCase('it-IT');
+  const rows = services.filter(s=>!q || s.name.toLocaleLowerCase('it-IT').includes(q))
+    .sort((a,b)=> serviceSort.dir * ((a[serviceSort.key]>b[serviceSort.key])?1:(a[serviceSort.key]<b[serviceSort.key]?-1:0)));
+  document.getElementById('serviceBody').innerHTML = rows.map((s,i)=>`
+    <tr data-idx="${services.indexOf(s)}">
+      <td><span class="rank">${i+1}</span></td>
+      <td class="name-cell">${s.name}</td>
+      <td class="tnum">${s.appts}</td>
+      <td class="tnum">${s.completed}</td>
+      <td class="rate tnum">${rate(s.completed,s.appts)}%</td>
+      <td class="tnum">${s.customers}</td>
+      <td class="tnum">${s.noshow}</td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:${Math.round(s.appts/totalServiceAppts*100)}%"></div></div></td>
+      <td class="chev">›</td>
+    </tr>`).join('') || `<tr><td colspan="9"><div class="empty"><strong>Nessun servizio</strong>Modifica la ricerca o il periodo selezionato.</div></td></tr>`;
+}
+document.getElementById('serviceSearch').addEventListener('input', renderServices);
+document.querySelectorAll('#serviceTable thead th.sortable').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.dataset.key;
+    serviceSort.dir = serviceSort.key===key ? -serviceSort.dir : -1;
+    serviceSort.key = key;
+    document.querySelectorAll('#serviceTable thead .sort-arrow').forEach(s=>s.textContent='');
+    th.querySelector('.sort-arrow').textContent = serviceSort.dir===1 ? '▴':'▾';
+    renderServices();
+  });
+});
+document.getElementById('serviceBody').addEventListener('click', (e)=>{
+  const tr = e.target.closest('tr[data-idx]'); if(!tr) return;
+  openServiceDrawer(services[+tr.dataset.idx]);
+});
+renderServices();
+
+// ---------- drawer ----------
+const scrim = document.getElementById('scrim'), drawer = document.getElementById('drawer');
+function openDrawer(){ scrim.classList.add('open'); drawer.classList.add('open'); }
+function closeDrawer(){ scrim.classList.remove('open'); drawer.classList.remove('open'); }
+scrim.addEventListener('click', closeDrawer);
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+
+function openStaffDrawer(s){
+  document.getElementById('drawerTitle').textContent = s.name;
+  document.getElementById('drawerSub').textContent = 'Dettaglio rendimento · periodo selezionato';
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-tile"><span class="l">Appuntamenti</span><strong class="tnum">${s.appts}</strong></div>
+      <div class="stat-tile"><span class="l">Tasso completamento</span><strong class="tnum">${rate(s.completed,s.appts)}%</strong></div>
+      <div class="stat-tile"><span class="l">Clienti unici</span><strong class="tnum">${s.customers}</strong></div>
+      <div class="stat-tile"><span class="l">No-show</span><strong class="tnum">${s.noshow}</strong></div>
+    </div>
+    <p style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin-bottom:6px">Servizi principali</p>
+    <div class="mini-row"><span>${s.top}</span><b class="tnum">${Math.round(s.completed*0.42)}</b></div>
+    <div class="mini-row"><span>Piega &amp; styling</span><b class="tnum">${Math.round(s.completed*0.24)}</b></div>
+    <div class="mini-row"><span>Manicure</span><b class="tnum">${Math.round(s.completed*0.14)}</b></div>
+    <p style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin:18px 0 6px">Clienti ricorrenti</p>
+    <div class="mini-row"><span>Clienti con 2+ visite</span><b class="tnum">${Math.round(s.customers*0.58)}</b></div>
+    <div class="mini-row"><span>Prima visita nel periodo</span><b class="tnum">${Math.round(s.customers*0.22)}</b></div>
+  `;
+  openDrawer();
+}
+function openServiceDrawer(s){
+  document.getElementById('drawerTitle').textContent = s.name;
+  document.getElementById('drawerSub').textContent = s.cat + ' · periodo selezionato';
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-tile"><span class="l">Appuntamenti</span><strong class="tnum">${s.appts}</strong></div>
+      <div class="stat-tile"><span class="l">Tasso completamento</span><strong class="tnum">${rate(s.completed,s.appts)}%</strong></div>
+      <div class="stat-tile"><span class="l">Clienti unici</span><strong class="tnum">${s.customers}</strong></div>
+      <div class="stat-tile"><span class="l">Incidenza</span><strong class="tnum">${Math.round(s.appts/totalServiceAppts*100)}%</strong></div>
+    </div>
+    <p style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin-bottom:6px">Operatori che lo eseguono</p>
+    <div class="mini-row"><span>Giulia Ferraro</span><b class="tnum">${Math.round(s.completed*0.36)}</b></div>
+    <div class="mini-row"><span>Marco Bellini</span><b class="tnum">${Math.round(s.completed*0.27)}</b></div>
+    <div class="mini-row"><span>Sara Conti</span><b class="tnum">${Math.round(s.completed*0.19)}</b></div>
+  `;
+  openDrawer();
+}
+
+// ---------- export tab ----------
+const previews = {
+  staff: {title:"Rendimento operatori", body:document.getElementById('previewDoc').innerHTML},
+  services: {title:"Analisi servizi", body:`<h4>Analisi servizi</h4><div class="sub">1 – 30 settembre 2026 · Salone Essenza, Via Roma 12</div>
+    <table style="width:100%"><thead><tr><th>Servizio</th><th class="right">App.</th><th class="right">Completati</th><th class="right">Incidenza</th></tr></thead><tbody>
+    <tr><td>Colore & schiariture</td><td class="right tnum">142</td><td class="right tnum">131</td><td class="right tnum">23%</td></tr>
+    <tr><td>Taglio donna</td><td class="right tnum">118</td><td class="right tnum">109</td><td class="right tnum">19%</td></tr>
+    <tr><td>Piega & styling</td><td class="right tnum">97</td><td class="right tnum">92</td><td class="right tnum">16%</td></tr>
+    </tbody></table>`},
+  monthly: {title:"Riepilogo mensile", body:`<h4>Riepilogo mensile</h4><div class="sub">Settembre 2026 · Salone Essenza, Via Roma 12</div>
+    <table style="width:100%"><thead><tr><th>Indicatore</th><th class="right">Valore</th></tr></thead><tbody>
+    <tr><td>Appuntamenti totali</td><td class="right tnum">486</td></tr>
+    <tr><td>Tasso di completamento</td><td class="right tnum">84.6%</td></tr>
+    <tr><td>Clienti unici</td><td class="right tnum">298</td></tr>
+    </tbody></table>`},
+  custom: {title:"Periodo personalizzato", body:`<h4>Periodo personalizzato</h4><div class="sub">1 – 30 settembre 2026 · Salone Essenza, Via Roma 12</div><p>Anteprima generata in base all'intervallo di date selezionato in alto.</p>`},
+};
+document.getElementById('reportTypeList').addEventListener('click', (e)=>{
+  const opt = e.target.closest('.option'); if(!opt) return;
+  document.querySelectorAll('#reportTypeList .option').forEach(o=>o.classList.remove('active'));
+  opt.classList.add('active');
+  document.getElementById('previewDoc').innerHTML = previews[opt.dataset.type].body;
+});
+document.getElementById('formatToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#formatToggle button').forEach(b=>b.setAttribute('aria-pressed','false'));
+  btn.setAttribute('aria-pressed','true');
+});
+</script>
+</body>
+</html>

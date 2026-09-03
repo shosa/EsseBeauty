@@ -342,6 +342,13 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     moduleKey: MODULE_KEYS.STAFF_PERF,
     paths: ["/reports"],
     permissions: [PERMISSION_KEYS.REPORTS_VIEW_OWN, PERMISSION_KEYS.REPORTS_VIEW_ALL],
+    tabs: [
+      { href: "/reports", label: "Panoramica" },
+      { href: "/reports/staff", label: "Operatori", permissions: [PERMISSION_KEYS.REPORTS_VIEW_ALL] },
+      { href: "/reports/services", label: "Servizi", permissions: [PERMISSION_KEYS.REPORTS_VIEW_ALL] },
+      { href: "/reports/trends", label: "Andamento & confronti", permissions: [PERMISSION_KEYS.REPORTS_VIEW_ALL] },
+      { href: "/reports/export", label: "Esporta", permissions: [PERMISSION_KEYS.REPORTS_EXPORT] },
+    ],
   },
   {
     accent: "#7e22ce",
@@ -358,6 +365,10 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       PERMISSION_KEYS.CLIENTS_EDIT,
       PERMISSION_KEYS.SETTINGS_SERVICES,
       PERMISSION_KEYS.CALENDAR_MANAGE_OWN,
+    ],
+    tabs: [
+      { href: "/packages", label: "Catalogo" },
+      { href: "/packages/assignments", label: "Assegnazioni" },
     ],
   },
   {

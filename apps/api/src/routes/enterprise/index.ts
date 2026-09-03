@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import {
   activityLog,
@@ -805,9 +805,33 @@ export async function registerEnterpriseModuleRoutes(
     },
   );
 
+  app.patch<{
+    Body: { active: boolean };
+    Params: { id: string; packageId: string };
+  }>(
+    "/api/salons/:id/service-packages/:packageId",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SERVICES),
+        requireModule(MODULE_KEYS.PACKAGES),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      const rows = await app.db.update(servicePackages)
+        .set({ active: request.body.active })
+        .where(and(eq(servicePackages.id, request.params.packageId), eq(servicePackages.salonId, request.salonId)))
+        .returning();
+      if (!rows[0]) return reply.code(404).send({ error: "SERVICE_PACKAGE_NOT_FOUND" });
+      return rows[0];
+    },
+  );
+
   app.get<{
     Params: { id: string };
-    Querystring: { customer_id: string };
+    Querystring: { customer_id?: string };
   }>(
     "/api/salons/:id/customer-service-packages",
     {
@@ -823,19 +847,29 @@ export async function registerEnterpriseModuleRoutes(
       const packages = await app.db.select({
         active: customerServicePackages.active,
         customerId: customerServicePackages.customerId,
+        customerName: customers.fullName,
         expiresAt: customerServicePackages.expiresAt,
         id: customerServicePackages.id,
         name: servicePackages.name,
         packageId: customerServicePackages.packageId,
+        priceCents: servicePackages.priceCents,
         startsAt: customerServicePackages.startsAt,
+        totalSessions: customerServicePackages.totalSessions,
+        usedSessions: customerServicePackages.usedSessions,
       }).from(customerServicePackages)
         .innerJoin(servicePackages, eq(servicePackages.id, customerServicePackages.packageId))
+        .innerJoin(customers, eq(customers.id, customerServicePackages.customerId))
         .where(and(
           eq(customerServicePackages.salonId, request.salonId),
-          eq(customerServicePackages.customerId, request.query.customer_id),
-          eq(customerServicePackages.active, true),
-          sql`(${customerServicePackages.expiresAt} is null or ${customerServicePackages.expiresAt} > now())`,
-        ));
+          ...(request.query.customer_id
+            ? [
+              eq(customerServicePackages.customerId, request.query.customer_id),
+              eq(customerServicePackages.active, true),
+              sql`(${customerServicePackages.expiresAt} is null or ${customerServicePackages.expiresAt} > now())`,
+            ]
+            : []),
+        ))
+        .orderBy(desc(customerServicePackages.createdAt));
       const balances = await app.db.select({
         customerPackageId: customerPackageItemBalances.customerPackageId,
         itemType: servicePackageItems.itemType,
@@ -855,6 +889,49 @@ export async function registerEnterpriseModuleRoutes(
         ...item,
         items: balances.filter((balance) => balance.customerPackageId === item.id),
       }));
+    },
+  );
+
+  app.get<{
+    Params: { id: string };
+    Querystring: { customer_package_id?: string; from?: string; to?: string };
+  }>(
+    "/api/salons/:id/service-package-usages",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.CLIENTS_VIEW),
+        requireModule(MODULE_KEYS.PACKAGES),
+      ],
+    },
+    async (request, reply) => {
+      const denied = ensureSalon(request, reply);
+      if (denied) return denied;
+      const conditions = [
+        eq(servicePackageUsages.salonId, request.salonId),
+        ...(request.query.from ? [gte(servicePackageUsages.createdAt, new Date(request.query.from))] : []),
+        ...(request.query.to ? [lte(servicePackageUsages.createdAt, new Date(request.query.to))] : []),
+        ...(request.query.customer_package_id ? [eq(servicePackageUsages.customerPackageId, request.query.customer_package_id)] : []),
+      ];
+      return app.db.select({
+        appointmentId: servicePackageUsages.appointmentId,
+        createdAt: servicePackageUsages.createdAt,
+        customerName: customers.fullName,
+        id: servicePackageUsages.id,
+        itemName: sql<string | null>`coalesce(${services.name}, ${inventoryProducts.name})`,
+        operatorName: users.fullName,
+        packageName: servicePackages.name,
+        quantityUsed: servicePackageUsages.quantityUsed,
+      }).from(servicePackageUsages)
+        .innerJoin(customerServicePackages, eq(customerServicePackages.id, servicePackageUsages.customerPackageId))
+        .innerJoin(customers, eq(customers.id, customerServicePackages.customerId))
+        .innerJoin(servicePackages, eq(servicePackages.id, customerServicePackages.packageId))
+        .leftJoin(servicePackageItems, eq(servicePackageItems.id, servicePackageUsages.packageItemId))
+        .leftJoin(services, eq(services.id, servicePackageItems.serviceId))
+        .leftJoin(inventoryProducts, eq(inventoryProducts.id, servicePackageItems.productId))
+        .leftJoin(users, eq(users.id, servicePackageUsages.createdByUserId))
+        .where(and(...conditions))
+        .orderBy(desc(servicePackageUsages.createdAt));
     },
   );
 

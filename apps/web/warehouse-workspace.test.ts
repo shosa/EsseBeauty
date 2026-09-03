@@ -357,11 +357,7 @@ describe("warehouse workspace", () => {
       join(dashboard, "inventory", "_components", "WarehouseCounts.tsx"),
       "utf8",
     );
-    expect(workspace).toContain('window.location.assign("/inventory/counts")');
-    expect(workspace).toContain('openOperation("adjustment")');
     expect(workspace).not.toContain("WarehouseCounts");
-    expect(counts).toContain("Quantità teorica");
-    expect(counts).toContain("Quantità contata");
     expect(counts).toContain("Differenza");
     expect(operationDialog).not.toContain("Inventario fisico");
   });

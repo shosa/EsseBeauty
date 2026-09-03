@@ -596,12 +596,14 @@ export function PageTransition({ children, className = "" }: { children: ReactNo
 
 export function PageHeader({
   actions,
+  actionsAlign = "below",
   eyebrow,
   meta,
   subtitle,
   title,
 }: {
   actions?: ReactNode;
+  actionsAlign?: "below" | "right";
   eyebrow?: string;
   meta?: ReactNode;
   subtitle?: ReactNode;
@@ -615,8 +617,9 @@ export function PageHeader({
           <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
           {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
           {meta && <div className="mt-3 flex flex-wrap gap-2">{meta}</div>}
-          {actions && <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
+          {actions && actionsAlign === "below" && <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
+        {actions && actionsAlign === "right" && <div className="flex flex-wrap items-center gap-2 self-end">{actions}</div>}
       </div>
     </header>
   );
@@ -1091,6 +1094,7 @@ export function Dialog({
   footer,
   onClose,
   open,
+  size = "md",
   title,
 }: {
   children: ReactNode;
@@ -1098,6 +1102,7 @@ export function Dialog({
   footer?: ReactNode;
   onClose(): void;
   open: boolean;
+  size?: "md" | "xl";
   title: string;
 }) {
   const titleId = useId();
@@ -1137,7 +1142,7 @@ export function Dialog({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             aria-labelledby={titleId}
             aria-modal="true"
-            className="my-auto max-h-full w-full max-w-lg overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)]"
+            className={`my-auto max-h-full w-full overflow-y-auto rounded-xl border border-stone-200 bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)] ${size === "xl" ? "max-w-3xl" : "max-w-lg"}`}
             exit={{ opacity: 0, scale: 0.98, y: 8 }}
             initial={{ opacity: 0, scale: 0.98, y: 8 }}
             onMouseDown={(event: MouseEvent<HTMLElement>) => event.stopPropagation()}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -60,6 +60,9 @@ export default function InventoryProductPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [trackStock, setTrackStock] = useState(true);
+  const [sellable, setSellable] = useState(true);
+  const [internallyConsumable, setInternallyConsumable] = useState(false);
 
   async function load() {
     if (!salon) return;
@@ -80,6 +83,12 @@ export default function InventoryProductPage() {
   }
 
   useEffect(() => { void load(); }, [salon?.id, productId]);
+  useEffect(() => {
+    if (!product) return;
+    setTrackStock(product.trackStock ?? true);
+    setSellable(product.sellable ?? true);
+    setInternallyConsumable(product.internallyConsumable ?? false);
+  }, [product]);
 
   async function save(data: FormData) {
     if (!salon) return;
@@ -169,9 +178,9 @@ export default function InventoryProductPage() {
                 <label className="text-sm font-semibold md:col-span-3">Fornitore<input name="supplier" defaultValue={product.supplier ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
               </section>
               <section className="grid gap-3 md:col-span-2 md:grid-cols-3">
-                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="trackStock" type="checkbox" defaultChecked={product.trackStock ?? true} />Gestisci scorta</label>
-                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="sellable" type="checkbox" defaultChecked={product.sellable ?? true} />Vendibile al cliente</label>
-                <label className="flex min-h-12 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold"><input name="internallyConsumable" type="checkbox" defaultChecked={product.internallyConsumable ?? false} />Usabile nei trattamenti</label>
+                <label className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold">Gestisci scorta<input name="trackStock" type="hidden" value={trackStock ? "on" : ""} /><Switch checked={trackStock} onCheckedChange={setTrackStock} /></label>
+                <label className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold">Vendibile al cliente<input name="sellable" type="hidden" value={sellable ? "on" : ""} /><Switch checked={sellable} onCheckedChange={setSellable} /></label>
+                <label className="flex min-h-12 items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 text-sm font-semibold">Usabile nei trattamenti<input name="internallyConsumable" type="hidden" value={internallyConsumable ? "on" : ""} /><Switch checked={internallyConsumable} onCheckedChange={setInternallyConsumable} /></label>
               </section>
               <label className="text-sm font-semibold md:col-span-2">Note interne<textarea name="notes" rows={3} defaultValue={product.notes ?? ""} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2" /></label>
               <div className="flex justify-end gap-3 md:col-span-2">

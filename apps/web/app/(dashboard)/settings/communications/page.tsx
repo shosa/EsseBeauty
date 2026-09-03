@@ -11,6 +11,7 @@ import {
   SaveActionButton,
   SaveToast,
   SectionCard,
+  Switch,
 } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -164,7 +165,7 @@ export default function CommunicationsSettingsPage() {
               </FormField>
               <label className="flex min-h-11 items-center justify-between rounded-xl border border-stone-200 px-4 text-sm font-bold">
                 <span>Abilita il provider</span>
-                <input aria-label="Abilita il provider WhatsApp" checked={form.enabled} className="size-5 accent-[#792f59]" onChange={(event) => setForm((value) => ({ ...value, enabled: event.target.checked }))} type="checkbox" />
+                <Switch aria-label="Abilita il provider WhatsApp" checked={form.enabled} onCheckedChange={(enabled) => setForm((value) => ({ ...value, enabled }))} />
               </label>
             </div>
 

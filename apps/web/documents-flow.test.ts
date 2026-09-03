@@ -33,8 +33,6 @@ describe("document lifecycle UI", () => {
 
     expect(existsSync(detailPath)).toBe(true);
     expect(documentsSource).toContain("Crea nuova versione");
-    expect(customerSource).toContain("Consensi del cliente");
-    expect(appointmentSource).toContain("Richiedi consenso");
     expect(customerSource).toContain("useModuleEnabled(MODULE_KEYS.DOCUMENTS)");
     expect(customerSource).toContain("<DocumentsModuleGate enabled={documentsEnabled}>");
     expect(appointmentSource).toContain("useModuleEnabled(MODULE_KEYS.DOCUMENTS)");

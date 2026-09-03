@@ -35,7 +35,7 @@ export async function registerReportRoutes(app: FastifyInstance) {
     },
     async (request) => {
       const conditions = [eq(appointments.salonId, request.salonId), ...range(request.query.from, request.query.to)];
-      const [summaryRows, daily] = await Promise.all([
+      const [summaryRows, daily, dayParts] = await Promise.all([
         app.db.select({
           appointment_count: sql<number>`count(*)::int`,
           cancellation_count: sql<number>`count(*) filter (where ${appointments.status} = 'cancelled')::int`,
@@ -50,8 +50,14 @@ export async function registerReportRoutes(app: FastifyInstance) {
         }).from(appointments).where(and(...conditions))
           .groupBy(sql`date_trunc('day', ${appointments.startsAt})`)
           .orderBy(sql`date_trunc('day', ${appointments.startsAt})`),
+        app.db.select({
+          appointment_count: sql<number>`count(*)::int`,
+          completed_count: sql<number>`count(*) filter (where ${appointments.status} = 'completed')::int`,
+          part: sql<"morning" | "afternoon" | "evening">`case when extract(hour from ${appointments.startsAt}) < 12 then 'morning' when extract(hour from ${appointments.startsAt}) < 18 then 'afternoon' else 'evening' end`,
+        }).from(appointments).where(and(...conditions))
+          .groupBy(sql`case when extract(hour from ${appointments.startsAt}) < 12 then 'morning' when extract(hour from ${appointments.startsAt}) < 18 then 'afternoon' else 'evening' end`),
       ]);
-      return { daily, summary: summaryRows[0] ?? { appointment_count: 0, cancellation_count: 0, completed_count: 0, no_show_count: 0, unique_customers: 0 } };
+      return { daily, dayParts, summary: summaryRows[0] ?? { appointment_count: 0, cancellation_count: 0, completed_count: 0, no_show_count: 0, unique_customers: 0 } };
     },
   );
 
