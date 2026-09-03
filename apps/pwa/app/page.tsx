@@ -74,7 +74,7 @@ export default function CustomerEntry() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#f4d8a855,transparent_24rem),linear-gradient(180deg,#fffafd,#f3edf1)] px-4 py-8">
       <div className="mx-auto max-w-3xl">
         <header className="text-center">
-          <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#402334] text-2xl font-black text-white">E</span>
+          <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[#402334]"><img alt="EsseBeauty" className="h-7 w-auto" src="/esse-logo.svg" /></span>
           <p className="mt-5 text-xs font-black uppercase tracking-[.24em] text-[#8f3a68]">EsseBeauty</p>
           <h1 className="mt-2 text-4xl font-bold text-[#2d1d27] sm:text-5xl">Trova il salone più vicino a te</h1>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-stone-600">Cerca per nome, città, CAP o indirizzo e accedi subito ai servizi e alle prenotazioni.</p>

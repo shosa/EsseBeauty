@@ -408,7 +408,7 @@ export default function StaffPwaHome() {
       <main className="grid min-h-[100dvh] place-items-end overflow-hidden p-4 sm:place-items-center">
         <div aria-hidden="true" className="fixed -right-20 -top-20 size-72 rounded-full bg-[#e8bfd4]/55 blur-3xl" />
         <section className="relative w-full max-w-sm rounded-[2.25rem] border border-white/80 bg-white/90 p-7 shadow-[0_30px_90px_rgb(45_29_39_/_0.18)] backdrop-blur">
-          <div className="grid size-14 place-items-center rounded-2xl bg-[linear-gradient(135deg,#402334,#8f3a68)] text-xl font-black text-white shadow-[0_16px_34px_rgb(121_47_89_/_0.28)]">E</div>
+          <div className="grid size-14 place-items-center rounded-2xl bg-[linear-gradient(135deg,#402334,#8f3a68)] shadow-[0_16px_34px_rgb(121_47_89_/_0.28)]"><img alt="EsseBeauty" className="h-7 w-auto" src="/esse-logo.svg" /></div>
           <p className="mt-8 text-[11px] font-black uppercase tracking-[.22em] text-[#8f3a68]">EsseBeauty Staff</p>
           <h1 className="staff-page-title mt-2 text-4xl font-bold leading-tight tracking-[-.025em] text-[#2d1d27]">Il tuo lavoro,<br />senza rumore.</h1>
           <p className="mt-3 text-sm leading-6 text-stone-500">Agenda, clienti e richieste in un’app pensata per la giornata in salone.</p>
