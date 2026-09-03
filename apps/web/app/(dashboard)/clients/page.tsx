@@ -15,6 +15,7 @@ interface Customer {
   email: string | null;
   first_name: string;
   full_name: string;
+  has_account: boolean;
   id: string;
   last_name: string;
   last_visit: string | null;
@@ -273,7 +274,13 @@ export default function ClientsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <span className="grid size-10 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ background: avatarColor(customer.id) }}>{initials(customerName(customer))}</span>
-                          <span className="min-w-0"><strong className="block truncate text-stone-950 group-hover:text-[#792f59]">{customerName(customer)}</strong>{customer.blocked && <span className="mt-1 inline-block"><StatusBadge status="cancelled">Bloccato</StatusBadge></span>}</span>
+                          <span className="min-w-0">
+                            <strong className="block truncate text-stone-950 group-hover:text-[#792f59]">{customerName(customer)}</strong>
+                            <span className="mt-1 flex flex-wrap gap-1.5">
+                              {customer.has_account && <StatusBadge status="active">App</StatusBadge>}
+                              {customer.blocked && <StatusBadge status="cancelled">Bloccato</StatusBadge>}
+                            </span>
+                          </span>
                         </div>
                       </td>
                       <td className="max-w-64 text-stone-600">

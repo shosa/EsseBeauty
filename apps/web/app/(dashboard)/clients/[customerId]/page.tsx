@@ -46,6 +46,7 @@ interface Customer {
   email: string | null;
   firstName: string;
   fullName: string;
+  hasAccount: boolean;
   id: string;
   lastName: string;
   loyalty: { balance: number; history: LoyaltyItem[] } | null;
@@ -235,7 +236,10 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
           <div className="flex min-w-0 items-center gap-4">
             <span className="grid size-16 shrink-0 place-items-center rounded-full text-lg font-black text-white" style={{ background: avatarColor(customer.id) }}>{initials(name)}</span>
             <div className="min-w-0">
-              <h1 className="text-2xl font-bold text-stone-950">{name}</h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold text-stone-950">{name}</h1>
+                {customer.hasAccount && <StatusBadge status="active">App</StatusBadge>}
+              </div>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-stone-600">
                 <span className="flex items-center gap-1.5"><Mail aria-hidden="true" className="size-3.5 text-stone-400" />{customer.email ?? "Nessuna email"}</span>
                 <span className="flex items-center gap-1.5"><Phone aria-hidden="true" className="size-3.5 text-stone-400" />{customer.phone ?? "Nessun telefono"}</span>

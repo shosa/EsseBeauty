@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { formatPrice } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
+import { DateField } from "../../_components/DateField";
 import { ServiceCategoryIcon } from "../../_components/ServiceCategoryIcon";
+import { CompleteRegistrationCard } from "../_components/CompleteRegistrationCard";
+import { useCustomerAuth } from "../_components/CustomerAuthProvider";
 
 interface Branding {
   accentColor?: string;
@@ -100,11 +104,16 @@ function saveCalendar(item: Booking) {
   URL.revokeObjectURL(url);
 }
 
+type BookingSection = "category" | "service" | "staff";
+
 export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
+  const { customer, status: customerAuthStatus } = useCustomerAuth();
+  const continueRef = useRef<HTMLDivElement>(null);
   const [profile, setProfile] = useState<Profile>();
   const [step, setStep] = useState(1);
+  const [openSection, setOpenSection] = useState<BookingSection | null>("category");
   const [category, setCategory] = useState(searchParams.get("category") ?? "");
   const [serviceId, setServiceId] = useState(searchParams.get("serviceId") ?? "");
   const [staffId, setStaffId] = useState(searchParams.get("staffId") ?? "");
@@ -112,6 +121,8 @@ export default function BookingPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [startsAt, setStartsAt] = useState("");
   const [booking, setBooking] = useState<Booking>();
+  const [bookedCustomer, setBookedCustomer] = useState<{ email?: string; first_name: string; last_name: string; phone: string }>();
+  const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -147,6 +158,7 @@ export default function BookingPage() {
     () => profile?.staff.filter((member) => !serviceId || !member.serviceIds?.length || member.serviceIds.includes(serviceId)) ?? [],
     [profile, serviceId],
   );
+  const selectedStaffName = staffId ? qualifiedStaff.find((member) => member.id === staffId)?.displayName : "Nessuna preferenza";
 
   useEffect(() => {
     if (staffId && !qualifiedStaff.some((member) => member.id === staffId)) setStaffId("");
@@ -155,37 +167,61 @@ export default function BookingPage() {
   const primary = brand?.primaryColor || "#402334";
   const accent = brand?.accentColor || "#f4d8a8";
 
-  async function next() {
+  function sectionHeader(key: BookingSection, title: string, summary: string | undefined) {
+    const isOpen = openSection === key;
+    return (
+      <button className="flex w-full items-center justify-between text-left" onClick={() => setOpenSection(isOpen ? null : key)} type="button">
+        <span>
+          <span className="block text-sm font-black text-stone-800">{title}</span>
+          {summary && !isOpen && <span className="mt-0.5 block text-xs font-bold" style={{ color: primary }}>{summary}</span>}
+        </span>
+        <ChevronDown className={`size-4 shrink-0 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+    );
+  }
+
+  useEffect(() => {
+    if (step !== 2 || !serviceId) return;
+    let cancelled = false;
     setLoadingSlots(true);
     setError("");
     const query = new URLSearchParams({ date, serviceId });
     if (staffId) query.set("staffId", staffId);
-    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/slots?${query}`);
-    setLoadingSlots(false);
-    if (response.status === 503) {
-      setUnavailable(true);
-      return;
-    }
-    if (!response.ok) {
-      setError("Impossibile caricare gli orari disponibili.");
-      return;
-    }
-    const result = await response.json() as { slots?: Slot[] };
-    setSlots(result.slots ?? []);
-    setStartsAt("");
-    setStep(2);
+    void fetch(`${apiBaseUrl()}/api/public/${slug}/slots?${query}`).then(async (response) => {
+      if (cancelled) return;
+      setLoadingSlots(false);
+      if (response.status === 503) {
+        setUnavailable(true);
+        return;
+      }
+      if (!response.ok) {
+        setError("Impossibile caricare gli orari disponibili.");
+        return;
+      }
+      const result = await response.json() as { slots?: Slot[] };
+      setSlots(result.slots ?? []);
+      setStartsAt("");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [date, serviceId, slug, staffId, step]);
+
+  function pickSlot(startsAtValue: string) {
+    setStartsAt(startsAtValue);
+    requestAnimationFrame(() => continueRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }));
   }
 
-  async function submit(data: FormData) {
+  async function performBooking(payload: { email?: string; first_name: string; last_name: string; phone?: string }) {
     setError("");
     const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/book`, {
       body: JSON.stringify({
         customer: {
-          email: data.get("email"),
-          first_name: data.get("first_name"),
-          full_name: fullName(data),
-          last_name: data.get("last_name"),
-          phone: data.get("phone"),
+          email: payload.email || undefined,
+          first_name: payload.first_name,
+          full_name: [payload.first_name, payload.last_name].filter(Boolean).join(" "),
+          last_name: payload.last_name,
+          phone: payload.phone || undefined,
         },
         service_id: serviceId,
         staff_id: staffId || undefined,
@@ -196,12 +232,35 @@ export default function BookingPage() {
     });
     if (response.ok) {
       setBooking(await response.json());
+      if (payload.phone) {
+        setBookedCustomer({ email: payload.email || undefined, first_name: payload.first_name, last_name: payload.last_name, phone: payload.phone });
+        if (customerAuthStatus !== "authenticated") setShowRegisterPrompt(true);
+      }
       return;
     }
     const result = (await response.json().catch(() => ({}))) as { error?: string };
     if (response.status === 503) setUnavailable(true);
     else if (response.status === 403 && result.error === "CUSTOMER_BLOCKED") setError("Non è possibile prenotare online con questi dati. Contatta il salone.");
     else setError("Prenotazione non riuscita. Verifica i dati e riprova.");
+  }
+
+  async function submit(data: FormData) {
+    await performBooking({
+      email: String(data.get("email") ?? "").trim(),
+      first_name: String(data.get("first_name") ?? "").trim(),
+      last_name: String(data.get("last_name") ?? "").trim(),
+      phone: String(data.get("phone") ?? "").trim(),
+    });
+  }
+
+  async function submitAuthenticated() {
+    if (!customer) return;
+    await performBooking({
+      email: customer.email ?? undefined,
+      first_name: customer.first_name,
+      last_name: customer.last_name,
+      phone: customer.phone ?? undefined,
+    });
   }
 
   async function submitWaitlist(data: FormData) {
@@ -238,7 +297,7 @@ export default function BookingPage() {
   if (booking) {
     return (
       <main className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top, ${accent}55, transparent 20rem), #f6f2f4` }}>
-        <section className="mx-auto max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
+        <section className="animate-slide-up mx-auto max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
           <h1 className="mt-5 text-3xl font-bold">{booking.status === "confirmed" ? "Prenotazione confermata" : "Richiesta inviata"}</h1>
           <p className="mt-2 text-sm text-stone-500">{brand?.bookingSuccessText || (booking.status === "confirmed" ? "Il tuo appuntamento è confermato." : "Il salone deve ancora confermare la richiesta.")}</p>
@@ -247,6 +306,9 @@ export default function BookingPage() {
           <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}>Aggiungi al calendario</button>
           <Link className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-stone-100 font-black text-stone-700" href={`/${slug}`}>Torna alla home</Link>
         </section>
+        {bookedCustomer && showRegisterPrompt && (
+          <div className="mx-auto max-w-md"><CompleteRegistrationCard prefill={bookedCustomer} primary={primary} /></div>
+        )}
       </main>
     );
   }
@@ -254,7 +316,7 @@ export default function BookingPage() {
   if (waitlistSent) {
     return (
       <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5">
-        <section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl">
+        <section className="animate-slide-up max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
           <h1 className="mt-5 text-3xl font-bold">Richiesta in lista d’attesa</h1>
           <p className="mt-3 text-stone-600">Ti contatteremo se si libera un orario compatibile. La richiesta non garantisce né riserva un appuntamento.</p>
@@ -275,126 +337,175 @@ export default function BookingPage() {
           <p className="mt-2 text-sm text-white/75">{selectedService ? selectedService.name : "Parti dalla categoria, scegli il trattamento e trova il tuo orario."}</p>
         </header>
 
-        {error && <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
+        {error && <p className="animate-reveal mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
 
         <div className="my-5 grid grid-cols-3 gap-2">
-          {["Trattamento", "Orario", "Dati"].map((label, index) => (
-            <span key={label} className={`rounded-2xl py-3 text-center text-xs font-black ${step >= index + 1 ? "text-white" : "bg-white text-stone-400"}`} style={step >= index + 1 ? { background: primary } : undefined}>
+          {["Trattamento", "Orario", customerAuthStatus === "authenticated" ? "Conferma" : "Dati"].map((label, index) => (
+            <span key={label} className={`rounded-2xl py-3 text-center text-xs font-black transition-colors duration-300 ${step >= index + 1 ? "text-white" : "bg-white text-stone-400"}`} style={step >= index + 1 ? { background: primary } : undefined}>
               {label}
             </span>
           ))}
         </div>
 
         {step === 1 && (
-          <section className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
-            <div>
-              <p className="text-sm font-black text-stone-800">Categoria</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {categories.map((item) => (
-                  <button
-                    className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black transition ${category === item.name ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
-                    key={item.id}
-                    onClick={() => {
-                      setCategory(item.name);
-                      setServiceId("");
-                      setStartsAt("");
-                    }}
-                    style={category === item.name ? { background: primary, borderColor: primary } : undefined}
-                    type="button"
-                  >
-                    <ServiceCategoryIcon className="size-6" name={item.icon} />
-                    <span>{item.name}</span>
-                  </button>
-                ))}
-              </div>
+          <section className="animate-reveal space-y-3 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+            <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
+              {sectionHeader("category", "Categoria", category || undefined)}
+              {openSection === "category" && (
+                <div className="animate-reveal mt-3 grid grid-cols-2 gap-2">
+                  {categories.map((item) => (
+                    <button
+                      className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black transition ${category === item.name ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
+                      key={item.id}
+                      onClick={() => {
+                        setCategory(item.name);
+                        setServiceId("");
+                        setStartsAt("");
+                        setOpenSection("service");
+                      }}
+                      style={category === item.name ? { background: primary, borderColor: primary } : undefined}
+                      type="button"
+                    >
+                      <ServiceCategoryIcon className="size-6" name={item.icon} />
+                      <span>{item.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {category && (
-              <div>
-                <p className="text-sm font-black text-stone-800">Trattamento</p>
-                <div className="mt-2 space-y-2">
-                  {filteredServices.map((service) => (
-                    <button key={service.id} onClick={() => setServiceId(service.id)} type="button" className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7] shadow-sm" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}>
-                      <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
-                      <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
-                    </button>
-                  ))}
-                  {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
-                </div>
+              <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
+                {sectionHeader("service", "Trattamento", selectedService?.name)}
+                {openSection === "service" && (
+                  <div className="animate-reveal mt-3 space-y-2">
+                    {filteredServices.map((service) => (
+                      <button
+                        className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7] shadow-sm" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}
+                        key={service.id}
+                        onClick={() => {
+                          setServiceId(service.id);
+                          if (profile.pwa?.allowStaffPreference !== false) setOpenSection("staff");
+                          else setStep(2);
+                        }}
+                        type="button"
+                      >
+                        <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
+                        <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
+                      </button>
+                    ))}
+                    {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
+                  </div>
+                )}
               </div>
             )}
 
-            {profile.pwa?.allowStaffPreference !== false && <div>
-              <p className="text-sm font-black text-stone-800">Preferenza staff</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setStaffId("")} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
-                {qualifiedStaff.map((member) => (
-                  <button
-                    className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
-                    key={member.id}
-                    onClick={() => setStaffId(member.id)}
-                    style={staffId === member.id ? { background: primary, borderColor: primary } : undefined}
-                    type="button"
-                  >
-                    {firstName(member.displayName)}
-                  </button>
-                ))}
+            {profile.pwa?.allowStaffPreference !== false && serviceId && (
+              <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
+                {sectionHeader("staff", "Preferenza staff", selectedStaffName)}
+                {openSection === "staff" && (
+                  <div className="animate-reveal mt-3 flex flex-wrap gap-2">
+                    <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => { setStaffId(""); setStep(2); }} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
+                    {qualifiedStaff.map((member) => (
+                      <button
+                        className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                        key={member.id}
+                        onClick={() => { setStaffId(member.id); setStep(2); }}
+                        style={staffId === member.id ? { background: primary, borderColor: primary } : undefined}
+                        type="button"
+                      >
+                        {firstName(member.displayName)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>}
-            <label className="block text-sm font-black text-stone-800" htmlFor="booking-date">Data</label>
-            <input id="booking-date" max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)} min={new Date().toISOString().slice(0, 10)} type="date" value={date} onChange={(event) => setDate(event.target.value)} className="w-full" />
-            <button disabled={!serviceId || loadingSlots} onClick={() => void next()} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>{loadingSlots ? "Cerco orari..." : "Mostra orari"}</button>
+            )}
+
+            <button disabled={!serviceId} onClick={() => setStep(2)} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>
           </section>
         )}
 
         {step === 2 && (
-          <section className="rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+          <section className="animate-reveal rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
             <button className="mb-4 text-sm font-black text-[#792f59]" onClick={() => setStep(1)}>← Cambia servizio</button>
-            <div className="grid grid-cols-3 gap-2">
-              {slots.map((slot) => (
-                <button key={slot.starts_at} disabled={!slot.available} onClick={() => setStartsAt(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-100 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary } : undefined}>
-                  {new Date(slot.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                </button>
-              ))}
-            </div>
-            {!slots.some((slot) => slot.available) && (
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                <p className="font-black text-stone-900">Questa giornata è al completo</p>
-                <p className="mt-1 text-sm text-stone-600">Puoi lasciare una richiesta e il salone ti contatterà se si libera un posto.</p>
-                {profile.capabilities?.waitlist && <button className="mt-4 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setWaitlistMode(true)} style={{ background: primary }}>Entra in lista d’attesa</button>}
+            <label className="mb-4 block text-sm font-black text-stone-800" htmlFor="booking-date">
+              Data
+              <div className="mt-2">
+                <DateField
+                  id="booking-date"
+                  max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={setDate}
+                  primary={primary}
+                  value={date}
+                />
+              </div>
+            </label>
+            {loadingSlots ? (
+              <p className="rounded-2xl bg-stone-50 p-4 text-center text-sm font-bold text-stone-500">Cerco orari...</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {slots.map((slot) => (
+                  <button key={slot.starts_at} disabled={!slot.available} onClick={() => pickSlot(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-100 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary } : undefined}>
+                    {new Date(slot.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
+                  </button>
+                ))}
               </div>
             )}
-            {waitlistMode ? (
-              <form action={submitWaitlist} className="mt-5 space-y-4 border-t border-stone-100 pt-5">
-                <fieldset>
-                  <legend className="text-sm font-black text-stone-800">Quando sei disponibile?</legend>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
-                  </div>
-                </fieldset>
-                {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
-                <button disabled={submittingWaitlist} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" style={{ background: primary }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</button>
-              </form>
-            ) : <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>}
+            <div className="scroll-mb-24" ref={continueRef}>
+              {!loadingSlots && !slots.some((slot) => slot.available) && (
+                <div className="animate-reveal mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                  <p className="font-black text-stone-900">Questa giornata è al completo</p>
+                  <p className="mt-1 text-sm text-stone-600">Puoi lasciare una richiesta e il salone ti contatterà se si libera un posto.</p>
+                  {profile.capabilities?.waitlist && <button className="mt-4 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setWaitlistMode(true)} style={{ background: primary }}>Entra in lista d’attesa</button>}
+                </div>
+              )}
+              {waitlistMode ? (
+                <form action={submitWaitlist} className="animate-reveal mt-5 space-y-4 border-t border-stone-100 pt-5">
+                  <fieldset>
+                    <legend className="text-sm font-black text-stone-800">Quando sei disponibile?</legend>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
+                    </div>
+                  </fieldset>
+                  {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
+                  <button disabled={submittingWaitlist} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" style={{ background: primary }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</button>
+                </form>
+              ) : <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>}
+            </div>
           </section>
         )}
 
         {step === 3 && (
-          <form action={submit} className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+          <div className="animate-reveal space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
             <button type="button" className="text-sm font-black text-[#792f59]" onClick={() => setStep(2)}>← Cambia orario</button>
-            {[
-              ["first_name", "Nome", "text"],
-              ["last_name", "Cognome", "text"],
-              ["email", "Email", "email"],
-              ["phone", "Telefono", "tel"],
-            ].map(([name, label, type]) => (
-              <label key={name} className="block text-sm font-black text-stone-800">
-                {label}
-                <input name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} className="mt-2 w-full" />
-              </label>
-            ))}
-            <button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>
-          </form>
+            {customerAuthStatus === "authenticated" && customer ? (
+              <>
+                <div className="rounded-2xl bg-stone-50 p-4">
+                  <p className="text-xs font-black uppercase tracking-[.12em] text-stone-500">Prenoti come</p>
+                  <p className="mt-1 text-lg font-black text-stone-900">{customer.full_name}</p>
+                  <p className="text-sm text-stone-500">{customer.phone}{customer.email ? ` · ${customer.email}` : ""}</p>
+                </div>
+                <button onClick={() => void submitAuthenticated()} className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>
+              </>
+            ) : (
+              <form action={submit} className="space-y-4">
+                {[
+                  ["first_name", "Nome", "text"],
+                  ["last_name", "Cognome", "text"],
+                  ["email", "Email", "email"],
+                  ["phone", "Telefono", "tel"],
+                ].map(([name, label, type]) => (
+                  <label key={name} className="block text-sm font-black text-stone-800">
+                    {label}
+                    <input name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} className="mt-2 w-full" />
+                  </label>
+                ))}
+                <button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>
+              </form>
+            )}
+          </div>
         )}
       </div>
     </main>

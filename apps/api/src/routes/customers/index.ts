@@ -4,6 +4,7 @@ import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import {
   appointments,
   communicationConsents,
+  customerCredentials,
   customers,
   loyaltyPoints,
   services,
@@ -86,7 +87,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
         .where(and(...conditions)),
     ]);
     const customerIds = rows.map((row) => row.id);
-    const [appointmentCounters, loyaltyCounters] = customerIds.length
+    const [appointmentCounters, loyaltyCounters, accountRows] = customerIds.length
       ? await Promise.all([
           app.db
             .select({
@@ -114,13 +115,19 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
               sql`${loyaltyPoints.expiredAt} is null`,
             ))
             .groupBy(loyaltyPoints.customerId),
+          app.db
+            .select({ customer_id: customerCredentials.customerId })
+            .from(customerCredentials)
+            .where(inArray(customerCredentials.customerId, customerIds)),
         ])
-      : [[], []];
+      : [[], [], []];
     const appointmentByCustomer = new Map(appointmentCounters.map((row) => [row.customer_id, row]));
     const loyaltyByCustomer = new Map(loyaltyCounters.map((row) => [row.customer_id, row]));
+    const accountCustomerIds = new Set(accountRows.map((row) => row.customer_id));
     return {
       items: rows.map((row) => ({
         ...row,
+        has_account: accountCustomerIds.has(row.id),
         last_visit: appointmentByCustomer.get(row.id)?.last_visit ?? null,
         loyalty_points: Number(loyaltyByCustomer.get(row.id)?.loyalty_points ?? 0),
         total_appointments: Number(appointmentByCustomer.get(row.id)?.total_appointments ?? 0),
@@ -185,9 +192,14 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
             .where(eq(loyaltyPoints.customerId, customer.id))
             .orderBy(desc(loyaltyPoints.createdAt))
         : [];
+      const account = (await app.db
+        .select({ id: customerCredentials.id })
+        .from(customerCredentials)
+        .where(eq(customerCredentials.customerId, customer.id)))[0];
       return {
         ...customer,
         appointments: history,
+        hasAccount: Boolean(account),
         loyalty: loyaltyEnabled
           ? {
               balance: points.reduce((sum, item) => sum + item.delta, 0),

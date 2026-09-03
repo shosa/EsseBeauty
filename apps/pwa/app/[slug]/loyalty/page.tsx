@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiBaseUrl } from "../../../lib/api";
+import { CustomerAuthOverlay } from "../_components/CustomerAuthOverlay";
+import { useCustomerAuth } from "../_components/CustomerAuthProvider";
 
 interface Branding { accentColor?: string; primaryColor?: string; }
-interface Profile { branding?: Branding | null; salon: { name: string }; }
+interface Profile { branding?: Branding | null; pwa?: { requireEmail?: boolean }; salon: { name: string }; }
 interface Loyalty {
   balance: number;
   current_tier: { minPoints: number; name: string } | null;
@@ -18,7 +20,7 @@ interface Loyalty {
 
 export default function LoyaltyPage() {
   const { slug } = useParams<{ slug: string }>();
-  const [email, setEmail] = useState("");
+  const { status: authStatus } = useCustomerAuth();
   const [data, setData] = useState<Loyalty>();
   const [missing, setMissing] = useState(false);
   const [profile, setProfile] = useState<Profile>();
@@ -31,11 +33,13 @@ export default function LoyaltyPage() {
     });
   }, [slug]);
 
-  async function search() {
-    const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/loyalty?email=${encodeURIComponent(email)}`);
-    setMissing(!response.ok);
-    setData(response.ok ? await response.json() : undefined);
-  }
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    void fetch(`${apiBaseUrl()}/api/public/${slug}/loyalty`, { credentials: "include" }).then(async (response) => {
+      setMissing(!response.ok);
+      setData(response.ok ? await response.json() : undefined);
+    });
+  }, [authStatus, slug]);
 
   return (
     <main className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top left, ${accent}55, transparent 18rem), linear-gradient(180deg,#fffafd,#f6f2f4)` }}>
@@ -43,31 +47,25 @@ export default function LoyaltyPage() {
         <header className="rounded-[2.2rem] p-6 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>{profile?.salon.name ?? "Programma fedeltà"}</p>
           <h1 className="mt-3 text-4xl font-bold">I tuoi punti</h1>
-          <p className="mt-2 text-sm text-white/75">Consulta saldo, premi e movimenti collegati alla tua email.</p>
+          <p className="mt-2 text-sm text-white/75">Consulta saldo, premi e movimenti del tuo account.</p>
         </header>
-        <div className="mt-6 rounded-[2rem] border border-white/80 bg-white/86 p-3 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
-          <div className="flex gap-2">
-            <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="La tua email" className="min-w-0 flex-1" />
-            <button disabled={!email.trim()} onClick={() => void search()} className="rounded-2xl px-5 font-black text-white disabled:opacity-40" style={{ background: primary }}>Mostra</button>
-          </div>
-        </div>
-        {missing && <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">Nessun profilo fedeltà trovato per questa email.</p>}
+        {missing && <p className="animate-reveal mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">Nessun profilo fedeltà trovato per il tuo account.</p>}
         {data && (
-          <div className="mt-6 space-y-5">
+          <div className="animate-reveal mt-6 space-y-5">
             <article className="rounded-[2rem] p-7 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
               <p className="text-sm" style={{ color: accent }}>{data.customer.name}</p>
               <strong className="mt-2 block text-6xl tracking-[-.06em]">{data.balance}</strong>
               <span className="text-sm text-white/70">punti disponibili</span>
               <div className="mt-5 border-t border-white/15 pt-4">
                 <div className="flex items-center justify-between gap-4 text-sm"><b>{data.current_tier?.name ?? "Livello base"}</b>{data.next_tier && <span className="text-white/70">{data.next_tier.pointsRemaining} pt a {data.next_tier.name}</span>}</div>
-                {data.next_tier && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full" style={{ background: accent, width: `${Math.min(100, data.balance / data.next_tier.minPoints * 100)}%` }} /></div>}
+                {data.next_tier && <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full transition-[width] duration-700 ease-out" style={{ background: accent, width: `${Math.min(100, data.balance / data.next_tier.minPoints * 100)}%` }} /></div>}
               </div>
             </article>
             <section className="rounded-[2rem] border border-white/80 bg-white/86 p-6 shadow-sm">
               <h2 className="text-xl font-black">Premi disponibili</h2>
               <div className="mt-4 space-y-3">
-                {data.rewards.map((reward) => (
-                  <article key={reward.id} className={`flex justify-between gap-4 rounded-2xl border border-stone-100 bg-white p-4 ${reward.available ? "" : "opacity-55"}`}>
+                {data.rewards.map((reward, index) => (
+                  <article className={`animate-reveal flex justify-between gap-4 rounded-2xl border border-stone-100 bg-white p-4 ${reward.available ? "" : "opacity-55"}`} key={reward.id} style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
                     <div><b>{reward.name}</b><p className="text-sm text-stone-500">{reward.description}</p><span className="mt-2 inline-block text-xs font-bold" style={{ color: reward.available ? "#047857" : "#78716c" }}>{reward.available ? "Disponibile in salone" : `Mancano ${reward.pointsRequired - data.balance} punti`}</span></div>
                     <strong className="whitespace-nowrap" style={{ color: primary }}>{reward.pointsRequired} pt</strong>
                   </article>
@@ -92,6 +90,9 @@ export default function LoyaltyPage() {
           </div>
         )}
       </section>
+      {authStatus === "anonymous" && (
+        <CustomerAuthOverlay accent={accent} primary={primary} requireEmail={profile?.pwa?.requireEmail !== false} salonName={profile?.salon.name} subtitle="Accedi per consultare i tuoi punti fedeltà, oppure registrati se non hai ancora un account." />
+      )}
     </main>
   );
 }

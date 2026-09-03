@@ -55,7 +55,7 @@ export function InstallAppButton({
 
   return (
     <section
-      className="mt-5 rounded-3xl border p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)]"
+      className="animate-reveal mt-5 rounded-3xl border p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)]"
       style={{ background: `${accent}30`, borderColor: `${primary}24` }}
     >
       <p className="text-xs font-black uppercase tracking-[.18em]" style={{ color: primary }}>App Clienti</p>

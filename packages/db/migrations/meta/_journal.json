@@ -316,6 +316,20 @@
       "when": 1788355462299,
       "tag": "0044_inventory_movements_sale_link",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788444767894,
+      "tag": "0045_familiar_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1788456581194,
+      "tag": "0046_dry_tyrannus",
+      "breakpoints": true
     }
   ]
 }

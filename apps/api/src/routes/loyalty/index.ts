@@ -16,6 +16,7 @@ import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/featur
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { ensureLoyaltyRules, LOYALTY_RULE_DEFAULTS, type LoyaltyRuleAction } from "../../lib/loyalty-engine.js";
+import { resolveCustomerId } from "../public/customer-auth.js";
 import {
   activeLoyaltyBalanceSql,
   adjustLoyaltyBalance,
@@ -275,11 +276,15 @@ export async function registerLoyaltyRoutes(app: FastifyInstance) {
     } catch (error) { return operationError(reply, error); }
   });
 
-  app.get<{ Params: { slug: string }; Querystring: { email: string } }>("/api/public/:slug/loyalty", async (request, reply) => {
+  app.get<{ Params: { slug: string }; Querystring: { email?: string } }>("/api/public/:slug/loyalty", async (request, reply) => {
     const salon = (await app.db.select().from(salons).where(eq(salons.slug, request.params.slug)))[0];
     if (!salon || !(await isModuleEnabled(salon.id, MODULE_KEYS.LOYALTY, app.db))) return reply.code(404).send({ error: "NOT_FOUND" });
-    if (!request.query.email?.trim()) return reply.code(400).send({ error: "INVALID_REQUEST" });
-    const customer = (await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), ilike(customers.email, request.query.email.trim()))))[0];
+    const customerId = request.query.email?.trim() ? undefined : await resolveCustomerId(app, request, salon.id);
+    if (!request.query.email?.trim() && !customerId) return reply.code(400).send({ error: "INVALID_REQUEST" });
+    const customer = (await app.db.select().from(customers).where(and(
+      eq(customers.salonId, salon.id),
+      customerId ? eq(customers.id, customerId) : ilike(customers.email, request.query.email!.trim()),
+    )))[0];
     if (!customer) return reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
     const [history, rewards, tiers] = await Promise.all([
       app.db.select().from(loyaltyPoints).where(and(eq(loyaltyPoints.salonId, salon.id), eq(loyaltyPoints.customerId, customer.id))).orderBy(desc(loyaltyPoints.createdAt)),

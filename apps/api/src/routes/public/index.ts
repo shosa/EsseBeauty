@@ -7,6 +7,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureOnlineBookingNotifications } from "../../jobs/staff-request-notifications.js";
 import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
+import { resolveCustomerId } from "./customer-auth.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {
   const rows = await app.db.select().from(salons).where(and(eq(salons.slug, slug), eq(salons.active, true)));
@@ -72,6 +73,12 @@ function distanceKm(latitude: number, longitude: number, targetLatitude: number,
     + Math.cos(latitude * Math.PI / 180) * Math.cos(targetLatitude * Math.PI / 180)
     * Math.sin(longitudeDelta / 2) ** 2;
   return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+async function resolveCustomerMatch(app: FastifyInstance, request: Parameters<typeof resolveCustomerId>[1], salonId: string, email?: string) {
+  if (email?.trim()) return ilike(customers.email, email.trim());
+  const customerId = await resolveCustomerId(app, request, salonId);
+  return customerId ? eq(customers.id, customerId) : undefined;
 }
 
 function customerNameParts(input: { first_name?: string; full_name?: string; last_name?: string }) {
@@ -314,9 +321,11 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       return reply.code(201).send({ ...appointment, staff_name: selected.displayName, service_name: service.name, salon_name: salon.name });
     });
 
-  app.get<{ Params: { slug: string }; Querystring: { email: string } }>("/api/public/:slug/appointments", async (request, reply) => {
+  app.get<{ Params: { slug: string }; Querystring: { email?: string } }>("/api/public/:slug/appointments", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
     if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const customerMatch = await resolveCustomerMatch(app, request, salon.id, request.query.email);
+    if (!customerMatch) return reply.code(400).send({ error: "CUSTOMER_IDENTIFICATION_REQUIRED" });
     return app.db.select({
       id: appointments.id, starts_at: appointments.startsAt, ends_at: appointments.endsAt, status: appointments.status,
       service_name: services.name, staff_name: staff.displayName,
@@ -324,19 +333,21 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
       .innerJoin(staff, eq(staff.id, appointments.staffId))
-      .where(and(eq(appointments.salonId, salon.id), ilike(customers.email, request.query.email),
+      .where(and(eq(appointments.salonId, salon.id), customerMatch,
         gt(appointments.endsAt, new Date()), ne(appointments.status, "cancelled")))
       .orderBy(asc(appointments.startsAt));
   });
 
   app.post<{
-    Body: { email: string; reason?: string };
+    Body: { email?: string; reason?: string };
     Params: { appointmentId: string; slug: string };
   }>("/api/public/:slug/appointments/:appointmentId/cancel", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
     if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
     const pwa = await getPwaOptions(app, salon.id);
     if (!pwa.allowCancellation) return reply.code(403).send({ error: "CANCELLATION_DISABLED" });
+    const customerMatch = await resolveCustomerMatch(app, request, salon.id, request.body.email);
+    if (!customerMatch) return reply.code(400).send({ error: "CUSTOMER_IDENTIFICATION_REQUIRED" });
     const rows = await app.db
       .select({ id: appointments.id, startsAt: appointments.startsAt })
       .from(appointments)
@@ -344,7 +355,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       .where(and(
         eq(appointments.id, request.params.appointmentId),
         eq(appointments.salonId, salon.id),
-        ilike(customers.email, request.body.email),
+        customerMatch,
         ne(appointments.status, "cancelled"),
         gt(appointments.startsAt, new Date()),
       ));
@@ -366,7 +377,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
   });
 
   app.post<{
-    Body: { email: string; reason?: string; requested_starts_at: string };
+    Body: { email?: string; reason?: string; requested_starts_at: string };
     Params: { appointmentId: string; slug: string };
   }>("/api/public/:slug/appointments/:appointmentId/reschedule-requests", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
@@ -374,7 +385,8 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     const pwa = await getPwaOptions(app, salon.id);
     if (!pwa.allowReschedule) return reply.code(403).send({ error: "RESCHEDULE_DISABLED" });
     const requestedStartsAt = new Date(request.body.requested_starts_at);
-    if (!request.body.email || Number.isNaN(requestedStartsAt.getTime())) {
+    const customerMatch = await resolveCustomerMatch(app, request, salon.id, request.body.email);
+    if (!customerMatch || Number.isNaN(requestedStartsAt.getTime())) {
       return reply.code(400).send({ error: "INVALID_RESCHEDULE_REQUEST" });
     }
     const rows = await app.db
@@ -384,7 +396,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       .where(and(
         eq(appointments.id, request.params.appointmentId),
         eq(appointments.salonId, salon.id),
-        ilike(customers.email, request.body.email),
+        customerMatch,
         ne(appointments.status, "cancelled"),
         gt(appointments.startsAt, new Date()),
       ));
