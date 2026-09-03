@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button, DateField } from "@esse-beauty/ui";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { mapWarehouseLineErrors, WarehouseApiError } from "../warehouse-api";
 import type {
   EditableWarehouseLine,
@@ -542,7 +543,7 @@ export function WarehouseOperationDialog({
           : mode === "revaluation"
             ? "Applica rivalutazione"
             : "Applica rettifica";
-  return (
+  const dialog = (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-[#2d1d27]/45 p-5 backdrop-blur-sm"
       onMouseDown={onClose}
@@ -1209,4 +1210,5 @@ export function WarehouseOperationDialog({
       </section>
     </div>
   );
+  return typeof document !== "undefined" ? createPortal(dialog, document.body) : dialog;
 }

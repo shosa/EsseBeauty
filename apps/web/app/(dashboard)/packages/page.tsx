@@ -303,7 +303,7 @@ export default function PackagesPage() {
       )}
 
       {/* ============ MODALE: CREA PACCHETTO ============ */}
-      <Dialog footer={<Button disabled={!form.name.trim() || form.items.length === 0} onClick={() => void save()} variant="primary">Salva pacchetto</Button>} onClose={() => setBuilderOpen(false)} open={builderOpen} size="xl" title="Crea pacchetto">
+      <Dialog footer={<Button disabled={!form.name.trim() || form.items.length === 0} onClick={() => void save()} variant="primary">Salva pacchetto</Button>} onClose={() => setBuilderOpen(false)} open={builderOpen} size="2xl" title="Crea pacchetto">
         <p className="-mt-2 mb-4 text-xs text-stone-500">Ogni voce mantiene un residuo autonomo: si scala quando il cliente la utilizza.</p>
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="grid gap-3">
@@ -332,7 +332,7 @@ export default function PackagesPage() {
           <div className="rounded-xl border border-[#e8dfe4] p-3">
             <h3 className="mb-2 text-xs font-black text-stone-800">Contenuto</h3>
             <p className="mb-1.5 text-[10px] font-black uppercase text-stone-400">Servizi per categoria</p>
-            <div className="max-h-64 divide-y divide-[#e8dfe4] overflow-y-auto rounded-lg border border-[#e8dfe4]">
+            <div className="max-h-[28rem] divide-y divide-[#e8dfe4] overflow-y-auto rounded-lg border border-[#e8dfe4]">
               {servicesByCategory.map(([category, items]) => {
                 const expanded = expandedCategories.has(category);
                 return (
@@ -351,7 +351,7 @@ export default function PackagesPage() {
               })}
             </div>
             <p className="mb-1.5 mt-3 text-[10px] font-black uppercase text-stone-400">Prodotti</p>
-            <div className="max-h-40 space-y-1.5 overflow-y-auto">
+            <div className="max-h-56 space-y-1.5 overflow-y-auto">
               {posCatalog.products.map((item) => <button className="flex w-full justify-between rounded-lg bg-stone-50 px-3 py-2 text-left text-xs font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" key={item.id} onClick={() => addItem("product", item)} type="button"><span>{item.name}</span><b>+</b></button>)}
             </div>
           </div>

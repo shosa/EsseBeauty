@@ -1,12 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Archive, FolderPlus, Pencil, Plus, SquareArrowOutUpRight } from "lucide-react";
+import { Archive, ChevronRight, FolderPlus, Pencil, Plus } from "lucide-react";
 
 import { formatPrice } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, EmptyState, ExpandableAction, FormField, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { SERVICE_CATEGORY_ICONS, ServiceCategoryIcon } from "../../services/ServiceCategoryIcon";
@@ -143,9 +142,9 @@ export default function SettingsServicesPage() {
       <PageTransition>
         <PageHeader
           actions={
-            <div className="flex flex-wrap gap-2">
-              <ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />
-              <ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => router.push(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} tone="fuchsia" />
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#e8dfe4] bg-white px-3.5 text-[12.5px] font-bold text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={14} />Nuova categoria</button>
+              <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-[#792f59] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[#5f2447]" onClick={() => router.push(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} type="button"><Plus size={14} />Nuovo servizio</button>
             </div>
           }
           eyebrow="Core"
@@ -158,7 +157,7 @@ export default function SettingsServicesPage() {
 
         {categories.length === 0 ? (
           <EmptyState
-            action={<ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />}
+            action={<button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-[#792f59] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[#5f2447]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={14} />Nuova categoria</button>}
             description="Prima crea una categoria, poi inserisci i servizi che le appartengono."
             title="Il catalogo parte dalle categorie"
           />
@@ -170,7 +169,7 @@ export default function SettingsServicesPage() {
                   <h2 className="font-bold text-stone-950">Categorie</h2>
                   <p className="text-xs text-stone-500">Seleziona per vedere i servizi.</p>
                 </div>
-                <ExpandableAction icon={FolderPlus} label="Nuova categoria" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} tone="violet" />
+                <button aria-label="Nuova categoria" className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={15} /></button>
               </div>
               <div className="space-y-1">
                 {categories.map((category) => (
@@ -206,31 +205,37 @@ export default function SettingsServicesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <ExpandableAction icon={Pencil} label="Modifica categoria" onClick={() => setCategoryDraft({ icon: selectedCategory.icon, id: selectedCategory.id, name: selectedCategory.name })} tone="amber" />
+                      <button aria-label="Modifica categoria" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => setCategoryDraft({ icon: selectedCategory.icon, id: selectedCategory.id, name: selectedCategory.name })} type="button"><Pencil size={15} /></button>
                       <Switch checked={selectedCategory.active} onCheckedChange={() => void toggleCategory(selectedCategory)} />
                     </div>
                   </header>
 
                   {visibleServices.length === 0 ? (
                     <EmptyState
-                      action={<ExpandableAction icon={Plus} label="Nuovo servizio" onClick={() => router.push(`/services/new?category=${selectedCategory.id}`)} tone="fuchsia" />}
+                      action={<button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-[#792f59] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[#5f2447]" onClick={() => router.push(`/services/new?category=${selectedCategory.id}`)} type="button"><Plus size={14} />Nuovo servizio</button>}
                       description={`Non ci sono ancora servizi nella categoria ${selectedCategory.name}.`}
                       title="Categoria vuota"
                     />
                   ) : (
                     <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
                       {visibleServices.map((item) => (
-                        <article className={`grid gap-4 border-b border-stone-100 p-4 last:border-0 md:grid-cols-[minmax(0,1fr)_120px_120px_auto] md:items-center ${item.active ? "" : "opacity-55"}`} key={item.id}>
+                        <article
+                          className={`group grid cursor-pointer gap-4 border-b border-stone-100 p-4 outline-none transition last:border-0 hover:bg-[#fffafd] focus-visible:bg-[#fffafd] md:grid-cols-[minmax(0,1fr)_120px_120px_auto] md:items-center ${item.active ? "" : "opacity-55"}`}
+                          key={item.id}
+                          onClick={() => router.push(`/services/${item.id}`)}
+                          onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/services/${item.id}`); } }}
+                          tabIndex={0}
+                        >
                           <div className="min-w-0">
-                            <Link href={`/services/${item.id}`} className="font-bold text-stone-950 hover:text-[#792f59]">{item.name}</Link>
+                            <p className="font-bold text-stone-950 group-hover:text-[#792f59]">{item.name}</p>
                             {item.description && <p className="mt-1 truncate text-sm text-stone-500">{item.description}</p>}
                           </div>
                           <span className="text-sm font-semibold text-stone-600">{item.durationMinutes} min</span>
                           <strong className="text-sm">{formatPrice(item.priceCents, "it-IT")}</strong>
-                          <div className="flex items-center justify-end gap-3">
+                          <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                             <Switch checked={item.active} onCheckedChange={() => void toggle(item)} />
-                            <ExpandableAction icon={SquareArrowOutUpRight} label={`Apri servizio ${item.name}`} onClick={() => router.push(`/services/${item.id}`)} tone="sky" />
-                            <ExpandableAction icon={Archive} label={`Archivia servizio ${item.name}`} onClick={() => setConfirmDelete(item)} tone="rose" />
+                            <button aria-label={`Archivia servizio ${item.name}`} className="grid size-8 place-items-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-700" onClick={() => setConfirmDelete(item)} type="button"><Archive className="size-4" /></button>
+                            <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-[#792f59]" />
                           </div>
                         </article>
                       ))}

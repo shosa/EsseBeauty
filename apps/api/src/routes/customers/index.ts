@@ -6,6 +6,7 @@ import {
   communicationConsents,
   customerCredentials,
   customers,
+  customerSessions,
   loyaltyPoints,
   services,
   staff,
@@ -15,6 +16,7 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
+import { hashPassword } from "../auth/local-auth.js";
 
 const viewGuard = [
   authenticate,
@@ -501,6 +503,34 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
         )
         .returning();
       return rows[0] ?? reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+    },
+  );
+
+  app.post<{
+    Params: { id: string; customerId: string };
+    Body: { new_password?: string };
+  }>(
+    "/api/salons/:id/customers/:customerId/reset-password",
+    { preHandler: editGuard },
+    async (request, reply) => {
+      const password = request.body.new_password ?? "";
+      if (password.length < 8) return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
+      const customer = (await app.db.select({ id: customers.id }).from(customers)
+        .where(and(eq(customers.id, request.params.customerId), eq(customers.salonId, request.salonId))))[0];
+      if (!customer) return reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+      const account = (await app.db.select({ id: customerCredentials.id }).from(customerCredentials)
+        .where(eq(customerCredentials.customerId, customer.id)))[0];
+      if (!account) return reply.code(409).send({ error: "CUSTOMER_HAS_NO_ACCOUNT" });
+      const hashed = await hashPassword(password);
+      await app.db.transaction(async (tx) => {
+        await tx.update(customerCredentials).set({
+          passwordHash: hashed.hash,
+          passwordSalt: hashed.salt,
+          updatedAt: new Date(),
+        }).where(eq(customerCredentials.customerId, customer.id));
+        await tx.delete(customerSessions).where(eq(customerSessions.customerId, customer.id));
+      });
+      return { changed: true };
     },
   );
 

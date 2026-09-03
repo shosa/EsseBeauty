@@ -2,10 +2,10 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, CalendarClock, CalendarPlus, Gift, Layers, Mail, Phone, ShieldCheck, Sparkles, Tag, Trash2, User } from "lucide-react";
+import { Ban, CalendarClock, CalendarPlus, Gift, KeyRound, Layers, Mail, Phone, ShieldCheck, Sparkles, Tag, Trash2, User } from "lucide-react";
 import { appointmentStatusLabel, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
-import { AppPage, Breadcrumbs, Button, ConfirmDialog, FormField, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, Dialog, FormField, InlineError, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
@@ -95,6 +95,9 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
   const [newTag, setNewTag] = useState("");
   const [tab, setTab] = useState<TabKey>("overview");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loyaltyTier, setLoyaltyTier] = useState<LoyaltyTierProgress | null>();
@@ -198,6 +201,28 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     setMessage(customer.blocked ? "Cliente sbloccato." : "Cliente bloccato.");
   }
 
+  async function resetCustomerPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!salon || resettingPassword) return;
+    const password = String(new FormData(event.currentTarget).get("new_password") ?? "");
+    setResettingPassword(true);
+    setResetPasswordError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/customers/${customerId}/reset-password`, {
+      body: JSON.stringify({ new_password: password }),
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    setResettingPassword(false);
+    if (!response.ok) {
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+      setResetPasswordError(result.error === "PASSWORD_TOO_SHORT" ? "La password deve contenere almeno 8 caratteri." : "Impossibile reimpostare la password.");
+      return;
+    }
+    setResetPasswordOpen(false);
+    setMessage("Password del cliente reimpostata.");
+  }
+
   async function removeCustomer() {
     if (!salon || !customer) return;
     setError("");
@@ -248,6 +273,11 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {customer.hasAccount && (
+              <Button onClick={() => { setResetPasswordError(""); setResetPasswordOpen(true); }} variant="outline">
+                <KeyRound aria-hidden="true" className="size-4" />Reimposta password
+              </Button>
+            )}
             <Button onClick={() => void toggleBlocked()} variant="outline">
               {customer.blocked ? <ShieldCheck aria-hidden="true" className="size-4" /> : <Ban aria-hidden="true" className="size-4" />}
               {customer.blocked ? "Sblocca" : "Blocca"}
@@ -444,6 +474,20 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
         open={confirmDelete}
         title={`Eliminare ${name}?`}
       />
+
+      <Dialog onClose={() => setResetPasswordOpen(false)} open={resetPasswordOpen} title="Reimposta password">
+        <form className="grid gap-4" onSubmit={(event) => void resetCustomerPassword(event)}>
+          <p className="text-sm text-stone-600">Imposta una nuova password per l&apos;account app di {name}. Le sessioni attive verranno disconnesse.</p>
+          <FormField label="Nuova password" required>
+            <input autoFocus className="w-full" minLength={8} name="new_password" required type="password" />
+          </FormField>
+          {resetPasswordError && <InlineError>{resetPasswordError}</InlineError>}
+          <div className="flex justify-end gap-3 border-t border-stone-100 pt-4">
+            <Button disabled={resettingPassword} onClick={() => setResetPasswordOpen(false)} type="button" variant="ghost">Annulla</Button>
+            <Button disabled={resettingPassword} type="submit" variant="primary">{resettingPassword ? "Salvataggio…" : "Reimposta password"}</Button>
+          </div>
+        </form>
+      </Dialog>
     </AppPage>
   );
 }

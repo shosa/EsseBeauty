@@ -249,18 +249,17 @@ describe("professional UI regression guard", () => {
     expect(existsSync(join(dashboardRoot, "settings", "staff", "new", "page.tsx"))).toBe(false);
   });
 
-  it("uses the consolidated header and icon CTA pattern in service management", () => {
+  it("uses the consolidated header and workspace CTA pattern (inventory-style) in service management", () => {
     const services = readFileSync(join(dashboardRoot, "settings", "services", "page.tsx"), "utf8");
     const ui = readFileSync(sharedUi, "utf8");
     expect(services).toContain("PageHeader");
-    expect(services).toContain("ExpandableAction");
-    expect(services).toContain('label="Nuova categoria"');
-    expect(services).toContain('label="Nuovo servizio"');
-    expect(services).toContain('label="Modifica categoria"');
-    expect(services).toContain('label={`Apri servizio ${item.name}`}');
-    expect(services).toContain('label={`Archivia servizio ${item.name}`}');
-    expect(services).not.toMatch(/>\s*Modifica categoria\s*<\/button>/);
-    expect(services).not.toMatch(/>\s*Apri\s*<\/Link>/);
+    expect(services).toContain("Nuova categoria");
+    expect(services).toContain("Nuovo servizio");
+    expect(services).toContain('aria-label="Modifica categoria"');
+    expect(services).toContain('aria-label={`Archivia servizio ${item.name}`}');
+    expect(services).toContain("router.push(`/services/${item.id}`)");
+    expect(services).not.toContain("ExpandableAction");
+    expect(services).not.toContain("Apri servizio");
     expect(ui).toContain("const strongMatches = items");
     expect(ui).toContain("right.href.length - left.href.length");
   });
