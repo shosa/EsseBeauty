@@ -55,7 +55,10 @@ export async function sendCustomerPush(
     eq(customerPushSubscriptions.salonId, salonId),
     eq(customerPushSubscriptions.customerId, customerId),
   ));
-  if (subscriptions.length === 0) return;
+  if (subscriptions.length === 0) {
+    console.warn(`[customer-push] No push subscriptions for customer ${customerId} — nothing to deliver "${payload.title}" to.`);
+    return;
+  }
 
   const body = JSON.stringify(payload);
   await Promise.all(subscriptions.map(async (subscription) => {
@@ -64,10 +67,12 @@ export async function sendCustomerPush(
         endpoint: subscription.endpoint,
         keys: { auth: subscription.auth, p256dh: subscription.p256dh },
       }, body);
+      console.info(`[customer-push] Delivered "${payload.title}" to subscription ${subscription.id}.`);
     } catch (error) {
       const statusCode = (error as { statusCode?: number }).statusCode;
       if (statusCode === 404 || statusCode === 410) {
         await db.delete(customerPushSubscriptions).where(eq(customerPushSubscriptions.id, subscription.id));
+        console.warn(`[customer-push] Subscription ${subscription.id} is gone (status ${statusCode}) — removed.`);
       } else {
         console.error(`[customer-push] Failed to deliver push to subscription ${subscription.id}:`, error);
       }
