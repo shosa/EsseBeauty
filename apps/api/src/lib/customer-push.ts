@@ -12,12 +12,19 @@ export interface CustomerPushPayload {
 }
 
 let vapidConfigured = false;
+let vapidMissingWarned = false;
 
 function ensureVapidConfigured(): boolean {
   if (vapidConfigured) return true;
   const publicKey = process.env.PUSH_VAPID_PUBLIC_KEY;
   const privateKey = process.env.PUSH_VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) return false;
+  if (!publicKey || !privateKey) {
+    if (!vapidMissingWarned) {
+      vapidMissingWarned = true;
+      console.warn("[customer-push] PUSH_VAPID_PUBLIC_KEY/PUSH_VAPID_PRIVATE_KEY not set — customer push notifications are disabled.");
+    }
+    return false;
+  }
   webpush.setVapidDetails(
     process.env.PUSH_VAPID_SUBJECT ?? "mailto:support@essebeauty.app",
     publicKey,
@@ -61,6 +68,8 @@ export async function sendCustomerPush(
       const statusCode = (error as { statusCode?: number }).statusCode;
       if (statusCode === 404 || statusCode === 410) {
         await db.delete(customerPushSubscriptions).where(eq(customerPushSubscriptions.id, subscription.id));
+      } else {
+        console.error(`[customer-push] Failed to deliver push to subscription ${subscription.id}:`, error);
       }
     }
   }));
