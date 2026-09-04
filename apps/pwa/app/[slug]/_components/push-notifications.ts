@@ -28,12 +28,18 @@ export async function subscribeToPush(apiBase: string, slug: string, vapidPublic
     userVisibleOnly: true,
   });
   const json = subscription.toJSON();
-  await fetch(`${apiBase}/api/public/${slug}/push-subscriptions`, {
+  const response = await fetch(`${apiBase}/api/public/${slug}/push-subscriptions`, {
     body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
     credentials: "include",
     headers: { "content-type": "application/json" },
     method: "POST",
   });
+  if (!response.ok) {
+    // Don't leave a browser-side subscription the server never saved — it would report
+    // as "subscribed" locally while silently never receiving anything.
+    await subscription.unsubscribe();
+    throw new Error(`Failed to save push subscription: HTTP ${response.status}`);
+  }
   return subscription;
 }
 
