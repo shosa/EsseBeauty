@@ -4,6 +4,7 @@ import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 import type { DrizzleDB } from "@esse-beauty/db";
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, notifications, salonClosures, salonResources, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
 import { canTransitionAppointmentStatus, computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { sendCustomerPush } from "../../lib/customer-push.js";
 import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
 import { authenticate } from "../../middleware/auth.js";
 
@@ -33,6 +34,35 @@ async function archiveResolvedActionNotification(
     eq(notifications.type, notificationType),
     eq(notifications.entityId, entityId),
   ));
+}
+
+/**
+ * Pushes a Web Push notification to the customer's PWA when a staff-driven edit
+ * confirms the appointment, moves it, or hands it to a different staff member —
+ * the changes a customer can't otherwise find out about without opening the app.
+ */
+async function notifyCustomerOfAppointmentUpdate(
+  db: DrizzleDB,
+  salonId: string,
+  before: typeof appointments.$inferSelect,
+  after: typeof appointments.$inferSelect,
+  staffName: string,
+): Promise<void> {
+  const changes: string[] = [];
+  if (before.status !== "confirmed" && after.status === "confirmed") changes.push("è stato confermato");
+  if (before.startsAt.getTime() !== after.startsAt.getTime()) {
+    changes.push(`è stato spostato al ${after.startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}`);
+  }
+  if (before.staffId !== after.staffId) changes.push(`ora è affidato a ${staffName}`);
+  if (changes.length === 0) return;
+
+  const serviceRow = (await db.select({ name: services.name }).from(services).where(eq(services.id, after.serviceId)))[0];
+  await sendCustomerPush(db, salonId, after.customerId, {
+    body: `Il tuo appuntamento per ${serviceRow?.name ?? "il servizio prenotato"} ${changes.join(" e ")}.`,
+    href: "/appointments",
+    tag: `appointment-${after.id}`,
+    title: "Aggiornamento appuntamento",
+  });
 }
 
 async function canManage(request: any, staffId: string): Promise<boolean> {
@@ -511,6 +541,7 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       if (item.status === "pending" && request.body.status && request.body.status !== "pending") {
         await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment", "online_booking_received", item.id);
       }
+      await notifyCustomerOfAppointmentUpdate(request.server.db, request.salonId, item, updated[0]!, targetStaff.displayName);
       return updated[0];
     });
 
@@ -563,6 +594,13 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
         return updatedRows[0];
       });
       await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment_reschedule_request", "reschedule_request", reschedule.id);
+      const serviceRow = (await request.server.db.select({ name: services.name }).from(services).where(eq(services.id, item.serviceId)))[0];
+      await sendCustomerPush(request.server.db, request.salonId, item.customerId, {
+        body: `${serviceRow?.name ?? "Il tuo appuntamento"} è confermato per il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}.`,
+        href: "/appointments",
+        tag: `appointment-${item.id}`,
+        title: "Richiesta di cambio orario accettata",
+      });
       return updated;
     },
   );

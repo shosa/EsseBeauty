@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq, gt, ilike, inArray, lt, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, ilike, inArray, lt, ne, or } from "drizzle-orm";
 
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, salonClosures, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureCustomerCancellationNotification, ensureOnlineBookingNotifications, ensureRescheduleRequestNotifications } from "../../jobs/staff-request-notifications.js";
+import { pushPublicKey } from "../../lib/customer-push.js";
 import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { resolveCustomerId } from "./customer-auth.js";
@@ -29,6 +30,7 @@ async function getPwaOptions(app: FastifyInstance, salonId: string) {
     cancellationPolicyHours: calendarRows[0]?.cancellationPolicyHours ?? 24,
     maxAdvanceDays: Number(settings.maxAdvanceDays ?? 90),
     minBookingNoticeHours: calendarRows[0]?.minBookingNoticeHours ?? 2,
+    pushPublicKey: pushPublicKey(),
     requireEmail: settings.requireEmail ?? true,
     requirePhone: settings.requirePhone ?? false,
   };
@@ -338,9 +340,9 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
       .innerJoin(staff, eq(staff.id, appointments.staffId))
-      .where(and(eq(appointments.salonId, salon.id), customerMatch,
-        gt(appointments.endsAt, new Date()), ne(appointments.status, "cancelled")))
-      .orderBy(asc(appointments.startsAt));
+      .where(and(eq(appointments.salonId, salon.id), customerMatch, ne(appointments.status, "cancelled")))
+      .orderBy(desc(appointments.startsAt))
+      .limit(200);
     if (items.length === 0) return items;
     const pendingRows = await app.db.select({
       appointmentId: appointmentRescheduleRequests.appointmentId,

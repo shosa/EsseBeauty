@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { CalendarClock, ChevronDown, Lock, RefreshCw, Trash2, UserRound } from "lucide-react";
+import { Bell, BellOff, CalendarClock, ChevronDown, Lock, RefreshCw, Trash2, UserRound } from "lucide-react";
 import { appointmentStatusLabel } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
@@ -11,16 +11,18 @@ import type { SalonClosure } from "../../../lib/salon-closures";
 import { NoticeModal } from "../../_components/NoticeModal";
 import { CustomerAuthOverlay } from "../_components/CustomerAuthOverlay";
 import { useCustomerAuth } from "../_components/CustomerAuthProvider";
+import { getExistingPushSubscription, isPushSupported, subscribeToPush, unsubscribeFromPush } from "../_components/push-notifications";
 import { RescheduleWizard } from "../_components/RescheduleWizard";
 
 interface Branding { accentColor?: string; primaryColor?: string; }
 interface Profile {
   branding?: Branding | null;
   closures?: SalonClosure[];
-  pwa?: { allowCancellation?: boolean; allowReschedule?: boolean; maxAdvanceDays?: number; requireEmail?: boolean };
+  pwa?: { allowCancellation?: boolean; allowReschedule?: boolean; maxAdvanceDays?: number; pushPublicKey?: string | null; requireEmail?: boolean };
   salon: { name: string };
 }
 interface Item {
+  ends_at: string;
   id: string;
   pending_reschedule_requested_starts_at?: string | null;
   service_id: string;
@@ -31,19 +33,28 @@ interface Item {
   status: string;
 }
 
+function isPastAppointment(item: Item): boolean {
+  return item.status === "completed" || item.status === "no_show" || new Date(item.ends_at) <= new Date();
+}
+
 export default function AppointmentsPage() {
   const { slug } = useParams<{ slug: string }>();
   const { status: authStatus } = useCustomerAuth();
   const reduceMotion = useReducedMotion();
   const [items, setItems] = useState<Item[]>([]);
+  const [tab, setTab] = useState<"past" | "upcoming">("upcoming");
   const [profile, setProfile] = useState<Profile>();
   const [openItemId, setOpenItemId] = useState<string>();
   const [rescheduleTarget, setRescheduleTarget] = useState<Item>();
   const [loadedItems, setLoadedItems] = useState(false);
   const [toast, setToast] = useState("");
   const [showAuthOverlay, setShowAuthOverlay] = useState(true);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const primary = profile?.branding?.primaryColor || "#402334";
   const accent = profile?.branding?.accentColor || "#f4d8a8";
+  const pushPublicKey = profile?.pwa?.pushPublicKey;
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -61,6 +72,43 @@ export default function AppointmentsPage() {
     if (authStatus === "authenticated") void search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, slug]);
+
+  useEffect(() => {
+    const supported = isPushSupported();
+    setPushSupported(supported);
+    if (authStatus !== "authenticated" || !supported) return;
+    void getExistingPushSubscription().then((subscription) => setPushSubscribed(Boolean(subscription)));
+  }, [authStatus]);
+
+  async function togglePush() {
+    if (!pushPublicKey || pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushSubscribed) {
+        await unsubscribeFromPush(apiBaseUrl(), slug);
+        setPushSubscribed(false);
+        setToast("Notifiche push disattivate.");
+      } else {
+        const subscription = await subscribeToPush(apiBaseUrl(), slug, pushPublicKey);
+        setPushSubscribed(Boolean(subscription));
+        setToast(subscription ? "Notifiche push attivate." : "Attiva le notifiche dalle impostazioni del browser per riceverle.");
+      }
+    } catch {
+      setToast("Impossibile aggiornare le notifiche push.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  const upcomingItems = useMemo(
+    () => items.filter((item) => !isPastAppointment(item)),
+    [items],
+  );
+  const pastItems = useMemo(
+    () => items.filter(isPastAppointment).sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime()),
+    [items],
+  );
+  const visibleItems = tab === "upcoming" ? upcomingItems : pastItems;
 
   async function cancel(appointmentId: string) {
     if (!window.confirm("Vuoi annullare questo appuntamento?")) return;
@@ -96,10 +144,33 @@ export default function AppointmentsPage() {
           <h1 className="mt-3 text-4xl font-bold">I miei appuntamenti</h1>
           <p className="mt-2 text-sm text-white/75">Consulta le prossime prenotazioni del tuo account.</p>
         </header>
+        {authStatus === "authenticated" && pushSupported && pushPublicKey && (
+          <button
+            className="animate-reveal mt-5 flex w-full items-center gap-3 rounded-2xl border border-white/80 bg-white/86 p-4 text-left shadow-sm disabled:opacity-60"
+            disabled={pushBusy}
+            onClick={() => void togglePush()}
+            type="button"
+          >
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: primary }}>
+              {pushSubscribed ? <Bell className="size-5" /> : <BellOff className="size-5" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-black text-stone-950">{pushSubscribed ? "Notifiche push attive" : "Attiva le notifiche push"}</span>
+              <span className="mt-0.5 block text-xs text-stone-500">{pushSubscribed ? "Ricevi un avviso quando il salone conferma o modifica un appuntamento." : "Sii avvisato subito su conferme, spostamenti e cambi di operatore."}</span>
+            </span>
+          </button>
+        )}
         {authStatus === "authenticated" && (
-          <div className="mt-5 space-y-3">
-            {items.map((item, index) => {
+          <div className="mt-5 flex gap-2" role="tablist">
+            <button aria-selected={tab === "upcoming"} className={`min-h-11 flex-1 rounded-full border px-4 text-sm font-bold ${tab === "upcoming" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setTab("upcoming")} role="tab" style={tab === "upcoming" ? { background: primary, borderColor: primary } : undefined} type="button">Prossimi ({upcomingItems.length})</button>
+            <button aria-selected={tab === "past"} className={`min-h-11 flex-1 rounded-full border px-4 text-sm font-bold ${tab === "past" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setTab("past")} role="tab" style={tab === "past" ? { background: primary, borderColor: primary } : undefined} type="button">Passati ({pastItems.length})</button>
+          </div>
+        )}
+        {authStatus === "authenticated" && (
+          <div className="mt-3 space-y-3">
+            {visibleItems.map((item, index) => {
               const isOpen = openItemId === item.id;
+              const isPast = isPastAppointment(item);
               const startDate = new Date(item.starts_at);
               return (
                 <article className="animate-reveal overflow-hidden rounded-[1.7rem] border border-white/80 bg-white/86 shadow-sm" key={item.id} style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
@@ -126,7 +197,7 @@ export default function AppointmentsPage() {
                           {item.pending_reschedule_requested_starts_at && (
                             <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">Hai richiesto di spostare l’appuntamento a {new Date(item.pending_reschedule_requested_starts_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}. Il salone deve ancora confermarlo.</p>
                           )}
-                          {(profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && (
+                          {!isPast && (profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && (
                             <div className="mt-4 grid grid-cols-2 gap-2">
                               {profile?.pwa?.allowReschedule !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 text-xs font-black text-stone-700 transition-colors hover:bg-stone-100" onClick={() => setRescheduleTarget(item)} type="button"><RefreshCw className="size-4" />Riprogramma</button>}
                               {profile?.pwa?.allowCancellation !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700 transition-colors hover:bg-red-100" onClick={() => void cancel(item.id)} type="button"><Trash2 className="size-4" />Annulla</button>}
@@ -139,7 +210,11 @@ export default function AppointmentsPage() {
                 </article>
               );
             })}
-            {loadedItems && items.length === 0 && <p className="animate-reveal rounded-[1.7rem] bg-white/86 p-5 text-sm font-semibold text-stone-600 shadow-sm">Nessun appuntamento futuro trovato per il tuo account.</p>}
+            {loadedItems && visibleItems.length === 0 && (
+              <p className="animate-reveal rounded-[1.7rem] bg-white/86 p-5 text-sm font-semibold text-stone-600 shadow-sm">
+                {tab === "upcoming" ? "Nessun appuntamento futuro trovato per il tuo account." : "Nessun appuntamento passato trovato per il tuo account."}
+              </p>
+            )}
           </div>
         )}
         {authStatus === "anonymous" && (

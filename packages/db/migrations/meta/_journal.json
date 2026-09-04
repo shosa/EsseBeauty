@@ -330,6 +330,13 @@
       "when": 1788456581194,
       "tag": "0046_dry_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1788524067143,
+      "tag": "0047_shallow_obadiah_stane",
+      "breakpoints": true
     }
   ]
 }

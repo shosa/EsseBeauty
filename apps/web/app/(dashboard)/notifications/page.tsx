@@ -42,7 +42,7 @@ interface NotificationRow {
   type: string;
 }
 
-interface Summary { archived: number; high_priority: number; total: number; unread: number }
+interface Summary { archived: number; high_priority: number; mandatory: number; total: number; unread: number }
 
 function formatWhen(iso: string) {
   const date = new Date(iso);
@@ -63,7 +63,8 @@ function groupLabel(iso: string) {
 export default function NotificationsPage() {
   const { salon } = useAuth();
   const [items, setItems] = useState<NotificationRow[]>([]);
-  const [summary, setSummary] = useState<Summary>({ archived: 0, high_priority: 0, total: 0, unread: 0 });
+  const [mandatoryItems, setMandatoryItems] = useState<NotificationRow[]>([]);
+  const [summary, setSummary] = useState<Summary>({ archived: 0, high_priority: 0, mandatory: 0, total: 0, unread: 0 });
   const [status, setStatus] = useState<StatusFilter>("all");
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
@@ -96,11 +97,22 @@ export default function NotificationsPage() {
     finally { setLoading(false); }
   }, [category, query, salon, status]);
 
+  const loadMandatory = useCallback(async () => {
+    if (!salon) return;
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/notifications?limit=50&required=true&status=all`, { credentials: "include" });
+      if (!response.ok) throw new Error();
+      const data = await response.json() as { items: NotificationRow[] };
+      setMandatoryItems(data.items);
+    } catch { /* the dedicated section is a convenience view — a failed refresh here isn't blocking */ }
+  }, [salon]);
+
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadSummary(); }, [loadSummary]);
+  useEffect(() => { void loadMandatory(); }, [loadMandatory]);
 
   async function refreshAll() {
-    await Promise.all([load(), loadSummary()]);
+    await Promise.all([load(), loadSummary(), loadMandatory()]);
   }
 
   async function markRead(item: NotificationRow) {
@@ -197,8 +209,43 @@ export default function NotificationsPage() {
       <StatCard label="Totali" value={summary.total} />
       <StatCard label="Non lette" value={summary.unread} />
       <StatCard detail="da leggere" label="Alta priorità" value={summary.high_priority} />
+      <StatCard detail="richiedono una risposta" label="Obbligatorie" value={summary.mandatory} />
       <StatCard label="Archiviate" value={summary.archived} />
     </StatGrid>
+
+    {mandatoryItems.length > 0 && (
+      <SectionCard
+        className="mb-5 border-[#eab676] bg-[#fff8ef]"
+        subtitle="Implicano una scelta (confermare un appuntamento, uno spostamento, una richiesta…). Restano qui finché non le risolvi: si archiviano da sole appena l'azione è completata."
+        title="Obbligatorie"
+      >
+        <div className="space-y-2">
+          {mandatoryItems.map((item) => {
+            const Icon = categoryIcons[item.category] ?? BellIcon;
+            return (
+              <article className="flex items-start gap-3 rounded-xl border border-[#eab676] bg-white p-4" key={item.id}>
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#fbe6cc] text-[#96591c]"><Icon className="size-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-bold text-stone-950">{item.title}</h3>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <StatusBadge status="pending">Da completare</StatusBadge>
+                      <time className="text-xs text-stone-400" dateTime={item.created_at}>{formatWhen(item.created_at)}</time>
+                    </div>
+                  </div>
+                  {item.body && <p className="mt-1 text-sm text-stone-500">{item.body}</p>}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-[.08em] text-stone-400">{categoryLabels[item.category] ?? item.category}</span>
+                    {item.href && <Link className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" href={item.href}>Apri</Link>}
+                    {!item.read_at && <Button onClick={() => void markRead(item)} size="sm" variant="outline">Segna letta</Button>}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </SectionCard>
+    )}
 
     <SectionCard>
       <div className="mb-4 flex flex-wrap items-center gap-3">

@@ -28,6 +28,7 @@ import { registerOnboardingRoutes } from "./routes/onboarding/index.js";
 import { registerPlatformRoutes } from "./routes/platform/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerPublicCustomerAuthRoutes } from "./routes/public/customer-auth.js";
+import { registerPublicPushSubscriptionRoutes } from "./routes/public/push-subscriptions.js";
 import { registerReminderRoutes } from "./routes/reminders/index.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
 import { registerReviewRoutes } from "./routes/reviews/index.js";
@@ -151,6 +152,7 @@ export function createApp({
   void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);
   void registerPublicCustomerAuthRoutes(app, { providers: authProviders });
+  void registerPublicPushSubscriptionRoutes(app);
   void registerReminderRoutes(app);
   void registerReviewRoutes(app, { reviewQueue });
   void registerWaitlistRoutes(app);

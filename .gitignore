@@ -12,6 +12,7 @@ pnpm-debug.log*
 .pnpm-store/
 apps/pwa/public/sw.js
 apps/pwa/public/workbox-*.js
+apps/pwa/public/worker-*.js
 apps/staff-pwa/public/sw.js
 apps/staff-pwa/public/workbox-*.js
 .superpowers/

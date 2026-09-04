@@ -1575,6 +1575,28 @@ export const notificationPreferences = pgTable(
   ],
 );
 
+export const customerPushSubscriptions = pgTable(
+  "customer_push_subscriptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("customer_push_subscriptions_endpoint_unique").on(table.endpoint),
+  ],
+);
+
 export const salonClosures = pgTable(
   "salon_closures",
   {
