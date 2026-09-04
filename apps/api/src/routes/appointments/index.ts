@@ -56,10 +56,14 @@ async function notifyCustomerOfAppointmentUpdate(
   if (before.staffId !== after.staffId) changes.push(`ora è affidato a ${staffName}`);
   if (changes.length === 0) return;
 
-  const serviceRow = (await db.select({ name: services.name }).from(services).where(eq(services.id, after.serviceId)))[0];
+  const [serviceRow, salonRow] = await Promise.all([
+    db.select({ name: services.name }).from(services).where(eq(services.id, after.serviceId)).then((rows) => rows[0]),
+    db.select({ slug: salons.slug }).from(salons).where(eq(salons.id, salonId)).then((rows) => rows[0]),
+  ]);
+  if (!salonRow) return;
   await sendCustomerPush(db, salonId, after.customerId, {
     body: `Il tuo appuntamento per ${serviceRow?.name ?? "il servizio prenotato"} ${changes.join(" e ")}.`,
-    href: "/appointments",
+    href: `/${salonRow.slug}/appointments`,
     tag: `appointment-${after.id}`,
     title: "Aggiornamento appuntamento",
   });
@@ -594,10 +598,13 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
         return updatedRows[0];
       });
       await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment_reschedule_request", "reschedule_request", reschedule.id);
-      const serviceRow = (await request.server.db.select({ name: services.name }).from(services).where(eq(services.id, item.serviceId)))[0];
+      const [serviceRow, salonRow] = await Promise.all([
+        request.server.db.select({ name: services.name }).from(services).where(eq(services.id, item.serviceId)).then((rows) => rows[0]),
+        request.server.db.select({ slug: salons.slug }).from(salons).where(eq(salons.id, request.salonId)).then((rows) => rows[0]),
+      ]);
       await sendCustomerPush(request.server.db, request.salonId, item.customerId, {
         body: `${serviceRow?.name ?? "Il tuo appuntamento"} è confermato per il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}.`,
-        href: "/appointments",
+        href: salonRow ? `/${salonRow.slug}/appointments` : undefined,
         tag: `appointment-${item.id}`,
         title: "Richiesta di cambio orario accettata",
       });
