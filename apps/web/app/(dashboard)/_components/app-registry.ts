@@ -6,6 +6,7 @@ import { PERMISSION_KEYS, type PermissionKey } from "@esse-beauty/shared";
 import {
   AccountingIcon,
   AuditIcon,
+  BellIcon,
   CalendarIcon,
   ClientsIcon,
   DashboardIcon,
@@ -72,6 +73,16 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     key: "home",
     label: "Home",
     paths: ["/"],
+  },
+  {
+    accent: "#dc2626",
+    description: "Tutte le notifiche del salone in un posto",
+    domain: "day",
+    href: "/notifications",
+    icon: BellIcon,
+    key: "notifications",
+    label: "Centro notifiche",
+    paths: ["/notifications"],
   },
   {
     accent: "#7c3aed",

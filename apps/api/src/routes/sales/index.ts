@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 import {
+  appointmentRescheduleRequests,
   appointments,
   customerPackageItemBalances,
   customerServicePackages,
@@ -706,6 +707,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
       const appointmentRows = await app.db
         .select({
+          cancellation_reason: appointments.cancellationReason,
           customer_email: customers.email,
           customer_id: appointments.customerId,
           customer_name: customers.fullName,
@@ -731,10 +733,20 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "PERMISSION_DENIED" });
       }
 
-      const saleRows = await app.db.select().from(sales).where(and(
-        eq(sales.salonId, request.salonId),
-        eq(sales.appointmentId, appointment.id),
-      ));
+      const [saleRows, pendingRescheduleRows] = await Promise.all([
+        app.db.select().from(sales).where(and(
+          eq(sales.salonId, request.salonId),
+          eq(sales.appointmentId, appointment.id),
+        )),
+        app.db.select({
+          id: appointmentRescheduleRequests.id,
+          reason: appointmentRescheduleRequests.reason,
+          requested_starts_at: appointmentRescheduleRequests.requestedStartsAt,
+        }).from(appointmentRescheduleRequests).where(and(
+          eq(appointmentRescheduleRequests.appointmentId, appointment.id),
+          eq(appointmentRescheduleRequests.status, "pending"),
+        )).orderBy(desc(appointmentRescheduleRequests.createdAt)),
+      ]);
       const sale = saleRows[0];
       const [items, payments, serviceCatalog, productCatalog] = await Promise.all([
         sale ? app.db.select().from(saleItems).where(eq(saleItems.saleId, sale.id)) : Promise.resolve([]),
@@ -755,6 +767,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       return {
         appointment,
         catalog: { products: productCatalog, services: serviceCatalog },
+        pending_reschedule_request: pendingRescheduleRows[0] ?? null,
         sale: sale ? { ...sale, items, payments } : null,
       };
     },

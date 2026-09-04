@@ -47,6 +47,7 @@ function StatusActionIcon({ status }: { status: AppointmentStatus }) {
 }
 
 interface Appointment {
+  cancellation_reason?: string | null;
   customer_email?: string | null;
   customer_id: string;
   customer_name: string;
@@ -61,6 +62,12 @@ interface Appointment {
   staff_name: string;
   starts_at: string;
   status: AppointmentStatus;
+}
+
+interface PendingRescheduleRequest {
+  id: string;
+  reason?: string | null;
+  requested_starts_at: string;
 }
 
 interface AppointmentOverlap {
@@ -78,6 +85,7 @@ interface StaffOption {
 
 interface CheckoutResponse {
   appointment: Appointment;
+  pending_reschedule_request: PendingRescheduleRequest | null;
   sale: null | { status: string };
 }
 
@@ -91,6 +99,27 @@ function formatTime(value: string) {
 
 function minutesBetween(from: string, to: string) {
   return Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60000));
+}
+
+const AGENDA_PREVIEW_START_HOUR = 8;
+const AGENDA_PREVIEW_END_HOUR = 20;
+
+function DayPositionPreview({ color, endsAt, label, startsAt }: { color: string; endsAt: string; label: string; startsAt: string }) {
+  const totalMinutes = (AGENDA_PREVIEW_END_HOUR - AGENDA_PREVIEW_START_HOUR) * 60;
+  const start = new Date(startsAt);
+  const startMinutes = start.getHours() * 60 + start.getMinutes() - AGENDA_PREVIEW_START_HOUR * 60;
+  const durationMinutes = minutesBetween(startsAt, endsAt);
+  const leftPct = Math.min(100, Math.max(0, (startMinutes / totalMinutes) * 100));
+  const widthPct = Math.min(100 - leftPct, Math.max(4, (durationMinutes / totalMinutes) * 100));
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[.1em] text-stone-400"><span>{label}</span><span>{formatDate(startsAt)} · {formatTime(startsAt)}</span></div>
+      <div className="relative mt-1.5 h-3 overflow-hidden rounded-full bg-stone-100">
+        <div className="absolute inset-y-0 rounded-full" style={{ background: color, left: `${leftPct}%`, width: `${widthPct}%` }} />
+      </div>
+      <div className="mt-0.5 flex justify-between text-[9px] font-bold text-stone-300"><span>{AGENDA_PREVIEW_START_HOUR}:00</span><span>{AGENDA_PREVIEW_END_HOUR}:00</span></div>
+    </div>
+  );
 }
 
 function initials(value: string) {
@@ -133,6 +162,8 @@ export default function AppointmentDetailPanel({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
   const [pendingUpdate, setPendingUpdate] = useState<Record<string, unknown>>();
+  const [resolvingReschedule, setResolvingReschedule] = useState(false);
+  const [reviewingRescheduleId, setReviewingRescheduleId] = useState<string>();
 
   async function load() {
     if (!salon) return;
@@ -165,6 +196,11 @@ export default function AppointmentDetailPanel({
   }
 
   useEffect(() => { void load(); }, [salon?.id, appointmentId]);
+
+  useEffect(() => {
+    setReviewingRescheduleId(data?.pending_reschedule_request?.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reopen automatically when a *different* pending request id shows up (or clear it once resolved)
+  }, [data?.pending_reschedule_request?.id]);
 
   const isClosed = data?.sale?.status === "paid";
   const checkoutEnabled = !isClosed && data?.appointment.status === "confirmed";
@@ -297,6 +333,27 @@ export default function AppointmentDetailPanel({
     onClose();
   }
 
+  async function resolveReschedule(requestId: string, action: "approve" | "decline") {
+    if (!salon) return;
+    setResolvingReschedule(true);
+    setError("");
+    const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${appointmentId}/reschedule-requests/${requestId}/${action}`, {
+      credentials: "include",
+      method: "POST",
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      setError(body.error === "APPOINTMENT_CONFLICT" || body.error === "SALON_CLOSED"
+        ? "Il nuovo orario richiesto non è più disponibile."
+        : "Richiesta non aggiornata.");
+      setResolvingReschedule(false);
+      return;
+    }
+    await load();
+    onChanged?.();
+    setResolvingReschedule(false);
+  }
+
   if (loading) return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white"><div className="flex shrink-0 items-center justify-between border-b border-stone-200 px-5 py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p><p className="mt-1 text-sm font-bold text-stone-600">Caricamento dettagli…</p></div><button aria-label="Chiudi gestione appuntamento" className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-100" data-appointment-close onClick={onClose} type="button"><X aria-hidden="true" className="size-5" /></button></div><div className="min-h-0 flex-1 overflow-hidden p-6"><PageSkeleton /></div></div>;
   const appointment = data?.appointment;
 
@@ -350,6 +407,48 @@ export default function AppointmentDetailPanel({
           <label className="text-xs font-bold text-stone-600 sm:col-span-2">Note<textarea className="mt-2 min-h-24 w-full resize-y" onChange={(event) => setAppointmentNotes(event.target.value)} value={appointmentNotes} /></label>
         </div>
       </Dialog>
+      <Dialog
+        footer={data?.pending_reschedule_request && (
+          <>
+            <Button disabled={resolvingReschedule} onClick={() => void resolveReschedule(data.pending_reschedule_request!.id, "decline")} variant="outline">Annulla richiesta</Button>
+            <Button disabled={resolvingReschedule} onClick={() => void resolveReschedule(data.pending_reschedule_request!.id, "approve")} variant="primary">{resolvingReschedule ? "Applicazione…" : "Conferma nuovo orario"}</Button>
+          </>
+        )}
+        onClose={() => setReviewingRescheduleId(undefined)}
+        open={Boolean(reviewingRescheduleId && data?.pending_reschedule_request)}
+        title="Richiesta cambio orario"
+      >
+        {appointment && data?.pending_reschedule_request && (
+          <>
+            <p className="text-sm leading-6 text-stone-600">{appointment.customer_name} propone di spostare <strong>{appointment.service_name}</strong>. Rivedi il confronto prima di decidere.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="min-w-0 rounded-xl border-l-4 border-stone-300 bg-stone-50 p-3">
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-stone-500">Prima</p>
+                <p className="mt-1 text-sm font-bold text-stone-900">{formatDate(appointment.starts_at)}</p>
+                <p className="text-sm text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-[#fffafd] p-3">
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Dopo</p>
+                <p className="mt-1 text-sm font-bold text-stone-900">{formatDate(data.pending_reschedule_request.requested_starts_at)}</p>
+                <p className="text-sm text-stone-600">{formatTime(data.pending_reschedule_request.requested_starts_at)}–{formatTime(new Date(new Date(data.pending_reschedule_request.requested_starts_at).getTime() + minutesBetween(appointment.starts_at, appointment.ends_at) * 60000).toISOString())}</p>
+              </div>
+            </div>
+            {data.pending_reschedule_request.reason && <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-sm leading-6 text-stone-600"><strong className="text-stone-800">Motivo:</strong> {data.pending_reschedule_request.reason}</p>}
+            <div className="mt-5 rounded-xl border border-stone-100 bg-white p-4">
+              <p className="mb-3 text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Posizione in agenda</p>
+              <div className="space-y-3">
+                <DayPositionPreview color="#a8a29e" endsAt={appointment.ends_at} label="Prima" startsAt={appointment.starts_at} />
+                <DayPositionPreview
+                  color="#792f59"
+                  endsAt={new Date(new Date(data.pending_reschedule_request.requested_starts_at).getTime() + minutesBetween(appointment.starts_at, appointment.ends_at) * 60000).toISOString()}
+                  label="Dopo"
+                  startsAt={data.pending_reschedule_request.requested_starts_at}
+                />
+              </div>
+            </div>
+          </>
+        )}
+      </Dialog>
       <header className="z-30 shrink-0 border-b border-stone-200 bg-white px-4 py-4 sm:px-6 lg:px-7">
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
           <Link aria-label={appointment ? `Apri anagrafica di ${appointment.customer_name}` : "Appuntamento"} className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-sm font-black text-[#792f59]" href={appointment ? `/clients/${appointment.customer_id}` : "/clients"}>{appointment ? initials(appointment.customer_name) : "—"}</Link>
@@ -377,6 +476,15 @@ export default function AppointmentDetailPanel({
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
             <main className="mx-auto w-full max-w-6xl space-y-4 p-4 sm:p-5 lg:p-6">
               {error && <InlineError>{error}</InlineError>}
+              {data?.pending_reschedule_request && (
+                <section className="flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50 p-4 sm:p-5">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-amber-800">Richiesta cambio orario da confermare</p>
+                    <p className="mt-2 text-sm font-bold text-amber-950">Il cliente propone {formatDate(data.pending_reschedule_request.requested_starts_at)} alle {formatTime(data.pending_reschedule_request.requested_starts_at)}.</p>
+                  </div>
+                  <Button onClick={() => setReviewingRescheduleId(data.pending_reschedule_request!.id)} size="sm" variant="primary">Rivedi richiesta</Button>
+                </section>
+              )}
               <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                 <div className="grid divide-y divide-stone-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                   <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[#792f59]"><CalendarDays aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Quando</p></div><p className="mt-2 font-black text-stone-950">{formatDate(appointment.starts_at)}</p><p className="mt-1 text-sm font-semibold text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)} · {minutesBetween(appointment.starts_at, appointment.ends_at)} min</p></div>
@@ -408,6 +516,7 @@ export default function AppointmentDetailPanel({
                   <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Cliente</p><Link className="mt-1 inline-block text-lg font-black text-stone-950 hover:text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>{appointment.customer_name}</Link></div><Link className="text-sm font-bold text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>Apri anagrafica</Link></div>
                   <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><span className="flex min-w-0 items-center gap-2 text-stone-600"><Phone aria-hidden="true" className="size-4 shrink-0 text-stone-400" /><span className="truncate">{appointment.customer_phone || "Telefono non disponibile"}</span></span><span className="flex min-w-0 items-center gap-2 text-stone-600"><Mail aria-hidden="true" className="size-4 shrink-0 text-stone-400" /><span className="truncate">{appointment.customer_email || "Email non disponibile"}</span></span></div>
                   {appointment.notes && <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-sm leading-6 text-stone-600"><strong className="text-stone-800">Nota:</strong> {appointment.notes}</p>}
+                  {appointment.status === "cancelled" && appointment.cancellation_reason && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm leading-6 text-red-800"><strong>Annullato:</strong> {appointment.cancellation_reason}</p>}
                 </div>
               </section>
 

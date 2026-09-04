@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { and, desc, eq, ilike, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
 import {
+  appointmentRescheduleRequests,
   appointments,
   customers,
   inventoryProducts,
@@ -105,7 +106,7 @@ export function buildSearchResponse(results: SearchResult[]): SearchResponse {
   return response;
 }
 
-export function notificationToDto(row: NotificationRow) {
+export function notificationToDto(row: NotificationRow & { actionPending?: boolean }) {
   const href = typeof row.payload.href === "string" ? row.payload.href : null;
 
   return {
@@ -122,7 +123,52 @@ export function notificationToDto(row: NotificationRow) {
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
     unread: !row.readAt,
+    action_pending: Boolean(row.actionPending),
   };
+}
+
+/**
+ * Notification types whose linked record can still require action (a pending staff
+ * request, an unconfirmed online booking, an unreviewed reschedule request). Those
+ * can't be archived until the linked record is resolved elsewhere in the app.
+ */
+const ACTION_PENDING_TABLES = {
+  online_booking_received: appointments,
+  reschedule_request: appointmentRescheduleRequests,
+  staff_availability_request: staffAvailabilityRequests,
+} as const;
+
+async function computeActionPending(
+  app: FastifyInstance,
+  rows: ReadonlyArray<{ id: string; type: string; entityId: string | null }>,
+): Promise<Map<string, boolean>> {
+  const idsByType = new Map<keyof typeof ACTION_PENDING_TABLES, string[]>();
+  for (const row of rows) {
+    if (!row.entityId || !(row.type in ACTION_PENDING_TABLES)) continue;
+    const type = row.type as keyof typeof ACTION_PENDING_TABLES;
+    const ids = idsByType.get(type) ?? [];
+    ids.push(row.entityId);
+    idsByType.set(type, ids);
+  }
+
+  const pendingIdsByType = new Map<keyof typeof ACTION_PENDING_TABLES, Set<string>>();
+  await Promise.all(Array.from(idsByType.entries()).map(async ([type, ids]) => {
+    const table = ACTION_PENDING_TABLES[type];
+    const pending = await app.db.select({ id: table.id }).from(table).where(and(inArray(table.id, ids), eq(table.status, "pending")));
+    pendingIdsByType.set(type, new Set(pending.map((item) => item.id)));
+  }));
+
+  const map = new Map<string, boolean>();
+  for (const row of rows) {
+    const type = row.type as keyof typeof ACTION_PENDING_TABLES;
+    map.set(row.id, Boolean(row.entityId && pendingIdsByType.get(type)?.has(row.entityId)));
+  }
+  return map;
+}
+
+function page(value: string | undefined, fallback: number, maximum: number): number {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(parsed, maximum)) : fallback;
 }
 
 export function normalizeShellPreferences(
@@ -148,25 +194,6 @@ export function visibleNotification(
   );
 }
 
-async function hasPendingStaffTask(
-  app: FastifyInstance,
-  request: Pick<FastifyRequest, "user">,
-  salonId: string,
-  notificationId: string,
-) {
-  const rows = await app.db
-    .select({ status: staffAvailabilityRequests.status })
-    .from(notifications)
-    .innerJoin(staffAvailabilityRequests, eq(staffAvailabilityRequests.id, notifications.entityId))
-    .where(and(
-      eq(notifications.id, notificationId),
-      eq(notifications.salonId, salonId),
-      visibleNotification(request, notifications),
-      eq(notifications.entityType, "staff_availability_request"),
-      eq(staffAvailabilityRequests.status, "pending"),
-    ));
-  return Boolean(rows[0]);
-}
 
 function like(query: string): string {
   return `%${query}%`;
@@ -493,13 +520,34 @@ export async function registerShellRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get<{ Params: { id: string } }>(
+  const notificationStatuses = ["all", "unread", "read", "archived"] as const;
+  type NotificationStatusFilter = (typeof notificationStatuses)[number];
+
+  app.get<{
+    Params: { id: string };
+    Querystring: { category?: string; limit?: string; offset?: string; q?: string; required?: string; status?: string };
+  }>(
     "/api/salons/:id/notifications",
     { preHandler: [authenticate] },
     async (request, reply) => {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
+      const statusFilter: NotificationStatusFilter = notificationStatuses.includes(request.query.status as NotificationStatusFilter)
+        ? request.query.status as NotificationStatusFilter
+        : "all";
+      const search = request.query.q?.trim().slice(0, 64);
+
+      const filters = [
+        eq(notifications.salonId, request.salonId),
+        visibleNotification(request, notifications),
+        statusFilter === "archived" ? isNotNull(notifications.archivedAt) : isNull(notifications.archivedAt),
+      ];
+      if (statusFilter === "unread") filters.push(isNull(notifications.readAt));
+      if (statusFilter === "read") filters.push(isNotNull(notifications.readAt));
+      if (request.query.category) filters.push(eq(notifications.category, request.query.category));
+      if (search) filters.push(or(ilike(notifications.title, like(search)), ilike(notifications.body, like(search)))!);
+
       const rows = await app.db
         .select({
           id: notifications.id,
@@ -516,19 +564,55 @@ export async function registerShellRoutes(app: FastifyInstance) {
           createdAt: notifications.createdAt,
         })
         .from(notifications)
-        .where(
-          and(
+        .where(and(...filters))
+        .orderBy(desc(notifications.createdAt))
+        .limit(page(request.query.limit, 30, 100))
+        .offset(page(request.query.offset, 0, 10_000));
+
+      const actionPending = await computeActionPending(app, rows);
+      const scopedRows = request.query.required === "true" ? rows.filter((row) => actionPending.get(row.id)) : rows;
+
+      return {
+        unread_count: scopedRows.filter((row) => !row.readAt).length,
+        items: scopedRows.map((row) => notificationToDto({ ...row, actionPending: actionPending.get(row.id) })),
+      };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/notifications-summary",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const [rows, guardedRows] = await Promise.all([
+        app.db.select({
+          archived: sql<number>`count(*) filter (where ${notifications.archivedAt} is not null)::int`,
+          highPriority: sql<number>`count(*) filter (where ${notifications.archivedAt} is null and ${notifications.readAt} is null and ${notifications.priority} in ('high', 'critical'))::int`,
+          total: sql<number>`count(*) filter (where ${notifications.archivedAt} is null)::int`,
+          unread: sql<number>`count(*) filter (where ${notifications.archivedAt} is null and ${notifications.readAt} is null)::int`,
+        }).from(notifications).where(and(
+          eq(notifications.salonId, request.salonId),
+          visibleNotification(request, notifications),
+        )),
+        app.db.select({ entityId: notifications.entityId, id: notifications.id, type: notifications.type })
+          .from(notifications)
+          .where(and(
             eq(notifications.salonId, request.salonId),
             isNull(notifications.archivedAt),
             visibleNotification(request, notifications),
-          ),
-        )
-        .orderBy(desc(notifications.createdAt))
-        .limit(30);
-
+            inArray(notifications.type, Object.keys(ACTION_PENDING_TABLES)),
+          )),
+      ]);
+      const actionPending = await computeActionPending(app, guardedRows);
+      const row = rows[0];
       return {
-        unread_count: rows.filter((row) => !row.readAt).length,
-        items: rows.map(notificationToDto),
+        archived: row?.archived ?? 0,
+        high_priority: row?.highPriority ?? 0,
+        mandatory: guardedRows.filter((item) => actionPending.get(item.id)).length,
+        total: row?.total ?? 0,
+        unread: row?.unread ?? 0,
       };
     },
   );
@@ -556,6 +640,78 @@ export async function registerShellRoutes(app: FastifyInstance) {
     },
   );
 
+  app.patch<{ Params: { id: string } }>(
+    "/api/salons/:id/notifications/read-all",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const rows = await app.db
+        .update(notifications)
+        .set({ readAt: new Date() })
+        .where(and(
+          eq(notifications.salonId, request.salonId),
+          isNull(notifications.archivedAt),
+          isNull(notifications.readAt),
+          visibleNotification(request, notifications),
+        ))
+        .returning({ id: notifications.id });
+
+      return { updated: rows.length };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/api/salons/:id/notifications/archive-read",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const readRows = await app.db
+        .select({ entityId: notifications.entityId, id: notifications.id, type: notifications.type })
+        .from(notifications)
+        .where(and(
+          eq(notifications.salonId, request.salonId),
+          isNull(notifications.archivedAt),
+          isNotNull(notifications.readAt),
+          visibleNotification(request, notifications),
+        ));
+      const actionPending = await computeActionPending(app, readRows);
+      const archivableIds = readRows.filter((row) => !actionPending.get(row.id)).map((row) => row.id);
+
+      if (archivableIds.length === 0) {
+        return { archived: 0, skipped: readRows.length };
+      }
+      await app.db.update(notifications).set({ archivedAt: new Date() }).where(inArray(notifications.id, archivableIds));
+      return { archived: archivableIds.length, skipped: readRows.length - archivableIds.length };
+    },
+  );
+
+  app.patch<{ Params: { id: string; notificationId: string } }>(
+    "/api/salons/:id/notifications/:notificationId/restore",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const rows = await app.db
+        .update(notifications)
+        .set({ archivedAt: null })
+        .where(
+          and(
+            eq(notifications.id, request.params.notificationId),
+            eq(notifications.salonId, request.salonId),
+            visibleNotification(request, notifications),
+          ),
+        )
+        .returning();
+
+      return rows[0] ?? reply.code(404).send({ error: "NOTIFICATION_NOT_FOUND" });
+    },
+  );
+
   app.delete<{ Params: { id: string; notificationId: string } }>(
     "/api/salons/:id/notifications/:notificationId",
     { preHandler: [authenticate] },
@@ -563,8 +719,21 @@ export async function registerShellRoutes(app: FastifyInstance) {
       if (request.params.id !== request.salonId) {
         return reply.code(403).send({ error: "FORBIDDEN" });
       }
-      if (await hasPendingStaffTask(app, request, request.salonId, request.params.notificationId)) {
-        return reply.code(409).send({ error: "TASK_STILL_PENDING" });
+
+      const notificationRows = await app.db
+        .select({ entityId: notifications.entityId, id: notifications.id, type: notifications.type })
+        .from(notifications)
+        .where(and(
+          eq(notifications.id, request.params.notificationId),
+          eq(notifications.salonId, request.salonId),
+          visibleNotification(request, notifications),
+        ));
+      const notification = notificationRows[0];
+      if (!notification) return reply.code(404).send({ error: "NOTIFICATION_NOT_FOUND" });
+
+      const actionPending = await computeActionPending(app, [notification]);
+      if (actionPending.get(notification.id)) {
+        return reply.code(409).send({ error: "ACTION_PENDING" });
       }
 
       const rows = await app.db

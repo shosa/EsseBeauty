@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, eq, gt, inArray } from "drizzle-orm";
 
 import {
+  appointmentRescheduleRequests,
   appointments,
   customers,
   notifications,
@@ -115,5 +116,87 @@ export async function ensureOnlineBookingNotifications(
         type: "online_booking_received",
       }).onConflictDoNothing();
     }
+  }
+}
+
+export async function ensureRescheduleRequestNotifications(
+  app: FastifyInstance,
+  salonId: string,
+  requestId: string,
+  applied: boolean,
+): Promise<void> {
+  const rows = await app.db
+    .select({
+      appointmentId: appointmentRescheduleRequests.appointmentId,
+      customerName: customers.fullName,
+      id: appointmentRescheduleRequests.id,
+      requestedStartsAt: appointmentRescheduleRequests.requestedStartsAt,
+      serviceName: services.name,
+      staffName: staff.displayName,
+    })
+    .from(appointmentRescheduleRequests)
+    .innerJoin(appointments, eq(appointments.id, appointmentRescheduleRequests.appointmentId))
+    .innerJoin(customers, eq(customers.id, appointments.customerId))
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(staff, eq(staff.id, appointments.staffId))
+    .where(and(
+      eq(appointmentRescheduleRequests.id, requestId),
+      eq(appointmentRescheduleRequests.salonId, salonId),
+    ));
+  const item = rows[0];
+  if (!item) return;
+
+  for (const role of REVIEW_ROLES) {
+    await app.db.insert(notifications).values({
+      body: applied
+        ? `${item.customerName} ha spostato ${item.serviceName} con ${item.staffName} al ${item.requestedStartsAt.toLocaleString("it-IT")}. Il nuovo orario è già confermato.`
+        : `${item.customerName} richiede di spostare ${item.serviceName} con ${item.staffName} al ${item.requestedStartsAt.toLocaleString("it-IT")}.`,
+      category: "calendar",
+      entityId: item.id,
+      entityType: "appointment_reschedule_request",
+      payload: { href: `/calendar/appointments/${item.appointmentId}` },
+      priority: applied ? "normal" : "high",
+      salonId,
+      targetRole: role,
+      title: applied ? "Cliente ha spostato l’appuntamento" : "Richiesta cambio orario da confermare",
+      type: "reschedule_request",
+    }).onConflictDoNothing();
+  }
+}
+
+export async function ensureCustomerCancellationNotification(
+  app: FastifyInstance,
+  salonId: string,
+  appointmentId: string,
+): Promise<void> {
+  const rows = await app.db
+    .select({
+      customerName: customers.fullName,
+      id: appointments.id,
+      serviceName: services.name,
+      staffName: staff.displayName,
+      startsAt: appointments.startsAt,
+    })
+    .from(appointments)
+    .innerJoin(customers, eq(customers.id, appointments.customerId))
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .innerJoin(staff, eq(staff.id, appointments.staffId))
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.salonId, salonId)));
+  const item = rows[0];
+  if (!item) return;
+
+  for (const role of REVIEW_ROLES) {
+    await app.db.insert(notifications).values({
+      body: `${item.customerName} ha annullato ${item.serviceName} con ${item.staffName} del ${item.startsAt.toLocaleString("it-IT")}.`,
+      category: "calendar",
+      entityId: item.id,
+      entityType: "appointment",
+      payload: { href: `/calendar/appointments/${item.id}` },
+      priority: "normal",
+      salonId,
+      targetRole: role,
+      title: "Il cliente ha annullato un appuntamento",
+      type: "customer_cancelled_appointment",
+    }).onConflictDoNothing();
   }
 }

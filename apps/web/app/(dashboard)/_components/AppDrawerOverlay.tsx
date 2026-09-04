@@ -8,7 +8,7 @@ import { EmptyState } from "@esse-beauty/ui";
 
 import { APP_DOMAINS, drawerApps, type AppDefinition } from "./app-registry";
 
-export function AppDrawerOverlay({ apps, onClose, open }: { apps: readonly AppDefinition[]; onClose(): void; open: boolean }) {
+export function AppDrawerOverlay({ apps, badgeCounts, onClose, open }: { apps: readonly AppDefinition[]; badgeCounts?: Record<string, number>; onClose(): void; open: boolean }) {
   const drawerRef = useRef<HTMLElement>(null);
   const [query, setQuery] = useState("");
   const availableApps = useMemo(() => drawerApps(apps), [apps]);
@@ -60,7 +60,8 @@ export function AppDrawerOverlay({ apps, onClose, open }: { apps: readonly AppDe
           if (domainApps.length === 0) return null;
           return <section key={domain.key}><div className="mb-3 flex items-center gap-3 border-b border-white/10 pb-2"><h2 className="text-[10px] font-black uppercase tracking-[.18em] text-white/60">{domain.label}</h2><span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white/55">{domainApps.length}</span></div><div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">{domainApps.map((app) => {
             const animationIndex = filtered.findIndex((candidate) => candidate.key === app.key);
-            return <Link className="esse-app-drawer-item group flex aspect-square min-h-28 flex-col items-center justify-center gap-3 rounded-2xl border border-transparent px-2 text-center transition hover:-translate-y-1 hover:border-white/15 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/25" href={app.href} key={app.key} onClick={onClose} style={{ "--app-delay": `${Math.max(0, animationIndex) * 34}ms` } as CSSProperties} title={app.description}><span className="grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_26px_rgb(24_12_19_/_0.3)] transition group-hover:scale-105 sm:size-16" style={{ backgroundColor: app.accent }}><app.icon className="size-6 sm:size-7" /></span><strong className="line-clamp-2 text-xs font-bold leading-4 text-white sm:text-sm">{app.label}</strong></Link>;
+            const badge = badgeCounts?.[app.key] ?? 0;
+            return <Link className="esse-app-drawer-item group relative flex aspect-square min-h-28 flex-col items-center justify-center gap-3 rounded-2xl border border-transparent px-2 text-center transition hover:-translate-y-1 hover:border-white/15 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/25" href={app.href} key={app.key} onClick={onClose} style={{ "--app-delay": `${Math.max(0, animationIndex) * 34}ms` } as CSSProperties} title={app.description}><span className="relative grid size-14 place-items-center rounded-2xl text-white shadow-[0_12px_26px_rgb(24_12_19_/_0.3)] transition group-hover:scale-105 sm:size-16" style={{ backgroundColor: app.accent }}><app.icon className="size-6 sm:size-7" />{badge > 0 && <span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full border-2 border-[#402334] bg-red-600 text-xs font-black leading-none text-white">{Math.min(badge, 99)}</span>}</span><strong className="line-clamp-2 text-xs font-bold leading-4 text-white sm:text-sm">{app.label}</strong></Link>;
           })}</div></section>;
         })}</div>}
       </section>

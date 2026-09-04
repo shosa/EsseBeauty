@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 
-import { appointments, availabilityBlocks, calendarSettings, customers, salonClosures, salonResources, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
+import type { DrizzleDB } from "@esse-beauty/db";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, notifications, salonClosures, salonResources, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
 import { canTransitionAppointmentStatus, computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
 import { authenticate } from "../../middleware/auth.js";
@@ -11,6 +12,27 @@ async function ownStaffId(request: any): Promise<string | undefined> {
     eq(staff.userId, request.user.id), eq(staff.salonId, request.salonId),
   ));
   return rows[0]?.id;
+}
+
+/**
+ * "Mandatory" notifications (an unconfirmed online booking, a pending reschedule
+ * request) can't be archived by the user until the linked record is resolved — this
+ * is what resolves them automatically the moment that happens, instead of leaving
+ * a stale notification the user has to remember to clean up.
+ */
+async function archiveResolvedActionNotification(
+  db: DrizzleDB,
+  salonId: string,
+  entityType: string,
+  notificationType: string,
+  entityId: string,
+): Promise<void> {
+  await db.update(notifications).set({ archivedAt: new Date(), readAt: new Date() }).where(and(
+    eq(notifications.salonId, salonId),
+    eq(notifications.entityType, entityType),
+    eq(notifications.type, notificationType),
+    eq(notifications.entityId, entityId),
+  ));
 }
 
 async function canManage(request: any, staffId: string): Promise<boolean> {
@@ -486,6 +508,9 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
         ...(request.body.notes !== undefined && { internalNotes: request.body.notes }),
         resourceId: nextResourceId,
       }).where(eq(appointments.id, item.id)).returning();
+      if (item.status === "pending" && request.body.status && request.body.status !== "pending") {
+        await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment", "online_booking_received", item.id);
+      }
       return updated[0];
     });
 
@@ -498,6 +523,72 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     const rows = await request.server.db.delete(appointments).where(and(
       eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId),
     )).returning();
+    if (rows[0]) await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment", "online_booking_received", rows[0].id);
     return rows[0] ?? reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
   });
+
+  app.post<{ Params: { appointmentId: string; id: string; requestId: string } }>(
+    "/api/salons/:id/appointments/:appointmentId/reschedule-requests/:requestId/approve",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const appointmentRows = await request.server.db.select().from(appointments).where(and(
+        eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId),
+      ));
+      const item = appointmentRows[0];
+      if (!item) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+      if (!(await canManage(request, item.staffId))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const requestRows = await request.server.db.select().from(appointmentRescheduleRequests).where(and(
+        eq(appointmentRescheduleRequests.id, request.params.requestId),
+        eq(appointmentRescheduleRequests.appointmentId, item.id),
+        eq(appointmentRescheduleRequests.salonId, request.salonId),
+        eq(appointmentRescheduleRequests.status, "pending"),
+      ));
+      const reschedule = requestRows[0];
+      if (!reschedule) return reply.code(404).send({ error: "RESCHEDULE_REQUEST_NOT_FOUND" });
+      const durationMinutes = Math.round((item.endsAt.getTime() - item.startsAt.getTime()) / 60_000);
+      const startsAt = reschedule.requestedStartsAt;
+      const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+      if (await isSalonClosed(request.server.db, request.salonId, startsAt.toISOString().slice(0, 10))) {
+        return reply.code(409).send({ error: "SALON_CLOSED" });
+      }
+      if (await hasAppointmentConflict(request.server.db, request.salonId, item.staffId, startsAt, endsAt, item.id)) {
+        return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      }
+      const updated = await request.server.db.transaction(async (tx) => {
+        const updatedRows = await tx.update(appointments).set({ endsAt, startsAt, updatedAt: new Date() }).where(eq(appointments.id, item.id)).returning();
+        await tx.update(appointmentRescheduleRequests).set({
+          resolvedAt: new Date(), resolvedByUserId: request.user.id, status: "approved",
+        }).where(eq(appointmentRescheduleRequests.id, reschedule.id));
+        return updatedRows[0];
+      });
+      await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment_reschedule_request", "reschedule_request", reschedule.id);
+      return updated;
+    },
+  );
+
+  app.post<{ Params: { appointmentId: string; id: string; requestId: string } }>(
+    "/api/salons/:id/appointments/:appointmentId/reschedule-requests/:requestId/decline",
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+      const appointmentRows = await request.server.db.select().from(appointments).where(and(
+        eq(appointments.id, request.params.appointmentId), eq(appointments.salonId, request.salonId),
+      ));
+      const item = appointmentRows[0];
+      if (!item) return reply.code(404).send({ error: "APPOINTMENT_NOT_FOUND" });
+      if (!(await canManage(request, item.staffId))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
+      const updated = await request.server.db.update(appointmentRescheduleRequests).set({
+        resolvedAt: new Date(), resolvedByUserId: request.user.id, status: "declined",
+      }).where(and(
+        eq(appointmentRescheduleRequests.id, request.params.requestId),
+        eq(appointmentRescheduleRequests.appointmentId, item.id),
+        eq(appointmentRescheduleRequests.salonId, request.salonId),
+        eq(appointmentRescheduleRequests.status, "pending"),
+      )).returning();
+      if (!updated[0]) return reply.code(404).send({ error: "RESCHEDULE_REQUEST_NOT_FOUND" });
+      await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment_reschedule_request", "reschedule_request", updated[0].id);
+      return updated[0];
+    },
+  );
 }

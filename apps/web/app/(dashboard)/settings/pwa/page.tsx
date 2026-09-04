@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { AppPage, FormField, PageHeader, SaveActionButton, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -14,6 +16,7 @@ interface AppClientiSettings {
   allowCancellation: boolean;
   allowReschedule: boolean;
   allowStaffPreference: boolean;
+  allowWaitlist: boolean;
   bookingDefaultStatus: "confirmed" | "pending";
   bookingSuccessText: string;
   cancellationPolicyHours: number;
@@ -37,6 +40,7 @@ const defaults: AppClientiSettings = {
   allowCancellation: true,
   allowReschedule: true,
   allowStaffPreference: true,
+  allowWaitlist: true,
   bookingDefaultStatus: "pending",
   bookingSuccessText: "Prenotazione ricevuta. Ti aspettiamo.",
   cancellationPolicyHours: 24,
@@ -141,6 +145,7 @@ function ColorField({
 
 export default function AppClientiSettingsPage() {
   const { salon } = useAuth();
+  const waitlistModuleEnabled = useModuleEnabled(MODULE_KEYS.WAITLIST);
   const [settings, setSettings] = useState<AppClientiSettings>(defaults);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -203,6 +208,7 @@ export default function AppClientiSettingsPage() {
           allow_cancellation: settings.allowCancellation,
           allow_reschedule: settings.allowReschedule,
           allow_staff_preference: settings.allowStaffPreference,
+          allow_waitlist: settings.allowWaitlist,
           booking_default_status: settings.bookingDefaultStatus,
           booking_success_text: settings.bookingSuccessText.trim(),
           cancellation_policy_hours: settings.cancellationPolicyHours,
@@ -257,10 +263,22 @@ export default function AppClientiSettingsPage() {
                 <option value="pending">In attesa di conferma</option>
                 <option value="confirmed">Confermato direttamente</option>
               </select>
+              <p className="mt-2 text-xs leading-5 text-stone-500">
+                {settings.bookingDefaultStatus === "confirmed"
+                  ? "Le nuove prenotazioni e le richieste di cambio orario del cliente vengono applicate subito, senza bisogno della tua conferma. L’annullamento da parte del cliente resta sempre immediato."
+                  : "Le nuove prenotazioni e i cambi orario richiesti dal cliente restano in attesa: dovrai accettarli o rifiutarli tu dal pannello dell’appuntamento. L’annullamento da parte del cliente resta sempre immediato."}
+              </p>
             </FormField>
             <HoursField label="Anticipo minimo" onChange={(minBookingNoticeHours) => setSettings({ ...settings, minBookingNoticeHours })} options={bookingNoticeOptions} value={settings.minBookingNoticeHours} />
             <DaysField label="Prenotabile fino a" onChange={(maxAdvanceDays) => setSettings({ ...settings, maxAdvanceDays })} options={bookingWindowOptions} value={settings.maxAdvanceDays} />
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold md:col-span-2">Permetti preferenza collaboratore<Switch aria-label="Preferenza collaboratore" checked={settings.allowStaffPreference} onCheckedChange={(allowStaffPreference) => setSettings({ ...settings, allowStaffPreference })} /></label>
+            <div className="rounded-xl border border-stone-200 p-4 md:col-span-2">
+              <label className="flex min-h-12 items-center justify-between gap-4 text-sm font-semibold">
+                Lista d’attesa per giornate piene
+                <Switch aria-label="Lista d’attesa per giornate piene" checked={settings.allowWaitlist && waitlistModuleEnabled} disabled={!waitlistModuleEnabled} onCheckedChange={(allowWaitlist) => setSettings({ ...settings, allowWaitlist })} />
+              </label>
+              {!waitlistModuleEnabled && <p className="mt-2 text-xs leading-5 text-stone-500">Il modulo <strong>Lista d’attesa</strong> non è attivo per questo salone. <Link className="font-semibold text-[#792f59] underline-offset-2 hover:underline" href="/apps">Attivalo dalla pagina App e moduli</Link> per poterlo abilitare qui.</p>}
+            </div>
             <div className="flex justify-end border-t border-stone-100 pt-4 md:col-span-2"><SaveActionButton busy={saving === "booking"} disabled={Boolean(saving && saving !== "booking")} idleLabel="Salva prenotazioni" onClick={() => void save("booking")} saved={saved === "booking"} /></div>
           </div>
         </SectionCard>

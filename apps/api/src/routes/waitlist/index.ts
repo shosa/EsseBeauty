@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { customers, salons, salonSettings, services, staff, waitlistEntries } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -30,6 +30,8 @@ export async function registerWaitlistRoutes(app: FastifyInstance) {
   app.post<{ Params: { slug: string }; Body: { service_id: string; staff_id?: string; requested_date: string; time_preference?: TimePreference; customer: { first_name?: string; full_name?: string; last_name?: string; email?: string; phone?: string } } }>("/api/public/:slug/waitlist", async (request, reply) => {
     const salon = (await app.db.select().from(salons).where(and(eq(salons.slug, request.params.slug), eq(salons.active, true))))[0];
     if (!salon || !salon.onlineBookingEnabled || !(await isModuleEnabled(salon.id, MODULE_KEYS.WAITLIST, app.db))) return reply.code(404).send({ error: "NOT_FOUND" });
+    const pwa = (await app.db.select().from(salonSettings).where(and(eq(salonSettings.salonId, salon.id), eq(salonSettings.category, "pwa"))))[0]?.settings ?? {};
+    if (pwa.allowWaitlist === false) return reply.code(404).send({ error: "NOT_FOUND" });
     const day = parseDay(request.body.requested_date);
     const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
     const preference = request.body.time_preference ?? "any";
@@ -45,7 +47,6 @@ export async function registerWaitlistRoutes(app: FastifyInstance) {
     const email = request.body.customer.email?.trim().toLowerCase();
     const phone = request.body.customer.phone?.trim();
     const phoneNormalized = normalizePhoneE164(phone);
-    const pwa = (await app.db.select().from(salonSettings).where(and(eq(salonSettings.salonId, salon.id), eq(salonSettings.category, "pwa"))))[0]?.settings ?? {};
     if (!name.firstName || !name.lastName || (!email && !phone) || (pwa.requireEmail !== false && !email) || (pwa.requirePhone === true && !phone)) return reply.code(400).send({ error: "CONTACT_REQUIRED" });
     const contactMatch = phoneNormalized && email ? or(eq(customers.phoneNormalized, phoneNormalized), eq(customers.email, email)) : phoneNormalized ? eq(customers.phoneNormalized, phoneNormalized) : eq(customers.email, email!);
     let customer = (await app.db.select().from(customers).where(and(eq(customers.salonId, salon.id), contactMatch)))[0];
@@ -55,6 +56,14 @@ export async function registerWaitlistRoutes(app: FastifyInstance) {
     if (duplicate) return reply.code(409).send({ error: "WAITLIST_DUPLICATE" });
     const row = (await app.db.insert(waitlistEntries).values({ salonId: salon.id, serviceId: service.id, staffId: request.body.staff_id, customerId: customer.id, requestedDate: day, timePreference: preference }).returning())[0]!;
     return reply.code(201).send({ id: row.id, requested_date: row.requestedDate, status: row.status, time_preference: row.timePreference });
+  });
+
+  app.get<{ Params: { id: string } }>("/api/salons/:id/waitlist-summary", { preHandler: guard }, async (request, reply) => {
+    if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
+    const rows = await app.db.select({
+      pending_count: sql<number>`count(*) filter (where ${waitlistEntries.status} != 'booked')::int`,
+    }).from(waitlistEntries).where(eq(waitlistEntries.salonId, request.salonId));
+    return { pending_count: rows[0]?.pending_count ?? 0 };
   });
 
   app.get<{ Params: { id: string }; Querystring: { status?: string; date?: string; serviceId?: string } }>("/api/salons/:id/waitlist", { preHandler: guard }, async (request, reply) => {

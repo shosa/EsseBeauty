@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, CalendarDays, CalendarPlus, LogOut, Sparkles, UserRound } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -130,7 +131,9 @@ export default function SalonLanding() {
           </div>
         </section>
       </div>
-      {showAuthOverlay && <CustomerAuthOverlay accent={accent} onClose={() => setShowAuthOverlay(false)} primary={primary} salonName={profile?.salon.name} />}
+      <AnimatePresence>
+        {showAuthOverlay && <CustomerAuthOverlay accent={accent} onClose={() => setShowAuthOverlay(false)} primary={primary} salonName={profile?.salon.name} />}
+      </AnimatePresence>
     </main>
   );
 }

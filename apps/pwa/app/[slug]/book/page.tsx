@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { formatPrice } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
+import { isDateClosed, type SalonClosure } from "../../../lib/salon-closures";
 import { DateField } from "../../_components/DateField";
 import { ServiceCategoryIcon } from "../../_components/ServiceCategoryIcon";
 import { CompleteRegistrationCard } from "../_components/CompleteRegistrationCard";
@@ -45,6 +47,7 @@ interface Profile {
   branding?: Branding | null;
   capabilities?: { waitlist?: boolean };
   categories: Category[];
+  closures?: SalonClosure[];
   pwa?: {
     allowStaffPreference?: boolean;
     bookingDefaultStatus?: "confirmed" | "pending";
@@ -72,6 +75,14 @@ function ics(value: string) {
 
 function firstName(value: string) {
   return value.trim().split(/\s+/)[0] || value;
+}
+
+function formatDateSummary(value: string) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", weekday: "long" });
+}
+
+function formatTimeSummary(value: string) {
+  return new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
 
 function fullName(data: FormData) {
@@ -106,6 +117,12 @@ function saveCalendar(item: Booking) {
 
 type BookingSection = "category" | "service" | "staff";
 
+const stepVariants = {
+  center: { opacity: 1, x: 0 },
+  enter: (direction: number) => ({ opacity: 0, x: direction >= 0 ? 24 : -24 }),
+  exit: (direction: number) => ({ opacity: 0, x: direction >= 0 ? -24 : 24 }),
+};
+
 export default function BookingPage() {
   const { slug } = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
@@ -114,11 +131,13 @@ export default function BookingPage() {
   const [profile, setProfile] = useState<Profile>();
   const [step, setStep] = useState(1);
   const [openSection, setOpenSection] = useState<BookingSection | null>("category");
+  const [openDateSection, setOpenDateSection] = useState<"date" | "time" | null>("date");
   const [category, setCategory] = useState(searchParams.get("category") ?? "");
   const [serviceId, setServiceId] = useState(searchParams.get("serviceId") ?? "");
   const [staffId, setStaffId] = useState(searchParams.get("staffId") ?? "");
   const [date, setDate] = useState(() => searchParams.get("date") ?? new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [dayClosed, setDayClosed] = useState(false);
   const [startsAt, setStartsAt] = useState("");
   const [booking, setBooking] = useState<Booking>();
   const [bookedCustomer, setBookedCustomer] = useState<{ email?: string; first_name: string; last_name: string; phone: string }>();
@@ -130,6 +149,14 @@ export default function BookingPage() {
   const [waitlistSent, setWaitlistSent] = useState(false);
   const [timePreference, setTimePreference] = useState("any");
   const [submittingWaitlist, setSubmittingWaitlist] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const prevStepRef = useRef(step);
+  const [stepDirection, setStepDirection] = useState(0);
+
+  useEffect(() => {
+    setStepDirection(step > prevStepRef.current ? 1 : step < prevStepRef.current ? -1 : 0);
+    prevStepRef.current = step;
+  }, [step]);
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -180,6 +207,19 @@ export default function BookingPage() {
     );
   }
 
+  function dateSectionHeader(key: "date" | "time", title: string, summary: string | undefined) {
+    const isOpen = openDateSection === key;
+    return (
+      <button className="flex w-full items-center justify-between text-left" onClick={() => setOpenDateSection(isOpen ? null : key)} type="button">
+        <span>
+          <span className="block text-sm font-black text-stone-800">{title}</span>
+          {summary && !isOpen && <span className="mt-0.5 block text-xs font-bold" style={{ color: primary }}>{summary}</span>}
+        </span>
+        <ChevronDown className={`size-4 shrink-0 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+    );
+  }
+
   useEffect(() => {
     if (step !== 2 || !serviceId) return;
     let cancelled = false;
@@ -198,8 +238,9 @@ export default function BookingPage() {
         setError("Impossibile caricare gli orari disponibili.");
         return;
       }
-      const result = await response.json() as { slots?: Slot[] };
+      const result = await response.json() as { closed?: boolean; slots?: Slot[] };
       setSlots(result.slots ?? []);
+      setDayClosed(Boolean(result.closed));
       setStartsAt("");
     });
     return () => {
@@ -347,138 +388,231 @@ export default function BookingPage() {
           ))}
         </div>
 
+        <AnimatePresence custom={stepDirection} initial={false} mode="wait">
         {step === 1 && (
-          <section className="animate-reveal space-y-3 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+          <motion.section
+            animate="center"
+            className="space-y-3 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]"
+            custom={stepDirection}
+            exit="exit"
+            initial="enter"
+            key="step-1"
+            transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
+            variants={stepVariants}
+          >
             <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
               {sectionHeader("category", "Categoria", category || undefined)}
-              {openSection === "category" && (
-                <div className="animate-reveal mt-3 grid grid-cols-2 gap-2">
-                  {categories.map((item) => (
-                    <button
-                      className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black transition ${category === item.name ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
-                      key={item.id}
-                      onClick={() => {
-                        setCategory(item.name);
-                        setServiceId("");
-                        setStartsAt("");
-                        setOpenSection("service");
-                      }}
-                      style={category === item.name ? { background: primary, borderColor: primary } : undefined}
-                      type="button"
-                    >
-                      <ServiceCategoryIcon className="size-6" name={item.icon} />
-                      <span>{item.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {openSection === "category" && (
+                  <motion.div
+                    animate={{ height: "auto", opacity: 1 }}
+                    className="overflow-hidden"
+                    exit={{ height: 0, opacity: 0 }}
+                    initial={{ height: 0, opacity: 0 }}
+                    transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
+                  >
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {categories.map((item) => (
+                        <button
+                          className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black transition ${category === item.name ? "text-white shadow-md" : "border-stone-100 bg-white text-stone-700 hover:border-[#d99aba]"}`}
+                          key={item.id}
+                          onClick={() => {
+                            setCategory(item.name);
+                            setServiceId("");
+                            setStartsAt("");
+                            setOpenSection("service");
+                          }}
+                          style={category === item.name ? { background: primary, borderColor: primary } : undefined}
+                          type="button"
+                        >
+                          <ServiceCategoryIcon className="size-6" name={item.icon} />
+                          <span>{item.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {category && (
               <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
                 {sectionHeader("service", "Trattamento", selectedService?.name)}
-                {openSection === "service" && (
-                  <div className="animate-reveal mt-3 space-y-2">
-                    {filteredServices.map((service) => (
-                      <button
-                        className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7] shadow-sm" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}
-                        key={service.id}
-                        onClick={() => {
-                          setServiceId(service.id);
-                          if (profile.pwa?.allowStaffPreference !== false) setOpenSection("staff");
-                          else setStep(2);
-                        }}
-                        type="button"
-                      >
-                        <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
-                        <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
-                      </button>
-                    ))}
-                    {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {openSection === "service" && (
+                    <motion.div
+                      animate={{ height: "auto", opacity: 1 }}
+                      className="overflow-hidden"
+                      exit={{ height: 0, opacity: 0 }}
+                      initial={{ height: 0, opacity: 0 }}
+                      transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
+                    >
+                      <div className="mt-3 space-y-2">
+                        {filteredServices.map((service) => (
+                          <button
+                            className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-3 text-left transition ${serviceId === service.id ? "border-[#792f59] bg-[#faf3f7] shadow-sm" : "border-stone-100 bg-white hover:border-[#d99aba]"}`}
+                            key={service.id}
+                            onClick={() => {
+                              setServiceId(service.id);
+                              if (profile.pwa?.allowStaffPreference !== false) setOpenSection("staff");
+                              else setStep(2);
+                            }}
+                            type="button"
+                          >
+                            <span><b className="block">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
+                            <b style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
+                          </button>
+                        ))}
+                        {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
             {profile.pwa?.allowStaffPreference !== false && serviceId && (
               <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
                 {sectionHeader("staff", "Preferenza staff", selectedStaffName)}
-                {openSection === "staff" && (
-                  <div className="animate-reveal mt-3 flex flex-wrap gap-2">
-                    <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => { setStaffId(""); setStep(2); }} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
-                    {qualifiedStaff.map((member) => (
-                      <button
-                        className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
-                        key={member.id}
-                        onClick={() => { setStaffId(member.id); setStep(2); }}
-                        style={staffId === member.id ? { background: primary, borderColor: primary } : undefined}
-                        type="button"
-                      >
-                        {firstName(member.displayName)}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <AnimatePresence initial={false}>
+                  {openSection === "staff" && (
+                    <motion.div
+                      animate={{ height: "auto", opacity: 1 }}
+                      className="overflow-hidden"
+                      exit={{ height: 0, opacity: 0 }}
+                      initial={{ height: 0, opacity: 0 }}
+                      transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
+                    >
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => { setStaffId(""); setStep(2); }} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
+                        {qualifiedStaff.map((member) => (
+                          <button
+                            className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                            key={member.id}
+                            onClick={() => { setStaffId(member.id); setStep(2); }}
+                            style={staffId === member.id ? { background: primary, borderColor: primary } : undefined}
+                            type="button"
+                          >
+                            {firstName(member.displayName)}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
-            <button disabled={!serviceId} onClick={() => setStep(2)} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>
-          </section>
+            <motion.button className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" disabled={!serviceId} onClick={() => setStep(2)} style={{ background: primary }} whileTap={{ scale: 0.97 }}>Continua</motion.button>
+          </motion.section>
         )}
 
         {step === 2 && (
-          <section className="animate-reveal rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+          <motion.section
+            animate="center"
+            className="rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]"
+            custom={stepDirection}
+            exit="exit"
+            initial="enter"
+            key="step-2"
+            transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
+            variants={stepVariants}
+          >
             <button className="mb-4 text-sm font-black text-[#792f59]" onClick={() => setStep(1)}>← Cambia servizio</button>
-            <label className="mb-4 block text-sm font-black text-stone-800" htmlFor="booking-date">
-              Data
-              <div className="mt-2">
-                <DateField
-                  id="booking-date"
-                  max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)}
-                  min={new Date().toISOString().slice(0, 10)}
-                  onChange={setDate}
-                  primary={primary}
-                  value={date}
-                />
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
+                {dateSectionHeader("date", "Data", formatDateSummary(date))}
+                <AnimatePresence initial={false}>
+                  {openDateSection === "date" && (
+                    <motion.div
+                      animate={{ height: "auto", opacity: 1 }}
+                      className="overflow-hidden"
+                      exit={{ height: 0, opacity: 0 }}
+                      initial={{ height: 0, opacity: 0 }}
+                      transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
+                    >
+                      <div className="mt-3">
+                        <DateField
+                          id="booking-date"
+                          isDateDisabled={(day) => isDateClosed(day, profile.closures)}
+                          max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)}
+                          min={new Date().toISOString().slice(0, 10)}
+                          onChange={(nextValue) => { setDate(nextValue); setOpenDateSection("time"); }}
+                          primary={primary}
+                          value={date}
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </label>
-            {loadingSlots ? (
-              <p className="rounded-2xl bg-stone-50 p-4 text-center text-sm font-bold text-stone-500">Cerco orari...</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {slots.map((slot) => (
-                  <button key={slot.starts_at} disabled={!slot.available} onClick={() => pickSlot(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-100 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary } : undefined}>
-                    {new Date(slot.starts_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                  </button>
-                ))}
+
+              <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
+                {dateSectionHeader("time", "Orario", startsAt ? formatTimeSummary(startsAt) : undefined)}
+                <AnimatePresence initial={false}>
+                  {openDateSection === "time" && (
+                    <motion.div
+                      animate={{ height: "auto", opacity: 1 }}
+                      className="overflow-hidden"
+                      exit={{ height: 0, opacity: 0 }}
+                      initial={{ height: 0, opacity: 0 }}
+                      transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
+                    >
+                      <div className="mt-3">
+                        {loadingSlots ? (
+                          <p className="rounded-2xl bg-stone-50 p-4 text-center text-sm font-bold text-stone-500">Cerco orari...</p>
+                        ) : dayClosed ? (
+                          <p className="animate-reveal rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Il salone è chiuso in questa data. Scegli un altro giorno.</p>
+                        ) : (
+                          <div className="grid grid-cols-3 gap-2">
+                            {slots.map((slot) => (
+                              <button key={slot.starts_at} disabled={!slot.available} onClick={() => pickSlot(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-100 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary } : undefined}>
+                                {formatTimeSummary(slot.starts_at)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="scroll-mb-24" ref={continueRef}>
+                          {!loadingSlots && !dayClosed && !slots.some((slot) => slot.available) && (
+                            <div className="animate-reveal mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-5">
+                              <p className="font-black text-stone-900">Questa giornata è al completo</p>
+                              <p className="mt-1 text-sm text-stone-600">Puoi lasciare una richiesta e il salone ti contatterà se si libera un posto.</p>
+                              {profile.capabilities?.waitlist && <button className="mt-4 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setWaitlistMode(true)} style={{ background: primary }}>Entra in lista d’attesa</button>}
+                            </div>
+                          )}
+                          {waitlistMode ? (
+                            <form action={submitWaitlist} className="animate-reveal mt-5 space-y-4 border-t border-stone-100 pt-5">
+                              <fieldset>
+                                <legend className="text-sm font-black text-stone-800">Quando sei disponibile?</legend>
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                  {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
+                                </div>
+                              </fieldset>
+                              {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
+                              <motion.button className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" disabled={submittingWaitlist} style={{ background: primary }} whileTap={{ scale: 0.97 }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</motion.button>
+                            </form>
+                          ) : <motion.button className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" disabled={!startsAt} onClick={() => setStep(3)} whileTap={{ scale: 0.97 }} style={{ background: primary }}>Continua</motion.button>}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            )}
-            <div className="scroll-mb-24" ref={continueRef}>
-              {!loadingSlots && !slots.some((slot) => slot.available) && (
-                <div className="animate-reveal mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                  <p className="font-black text-stone-900">Questa giornata è al completo</p>
-                  <p className="mt-1 text-sm text-stone-600">Puoi lasciare una richiesta e il salone ti contatterà se si libera un posto.</p>
-                  {profile.capabilities?.waitlist && <button className="mt-4 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setWaitlistMode(true)} style={{ background: primary }}>Entra in lista d’attesa</button>}
-                </div>
-              )}
-              {waitlistMode ? (
-                <form action={submitWaitlist} className="animate-reveal mt-5 space-y-4 border-t border-stone-100 pt-5">
-                  <fieldset>
-                    <legend className="text-sm font-black text-stone-800">Quando sei disponibile?</legend>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
-                    </div>
-                  </fieldset>
-                  {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
-                  <button disabled={submittingWaitlist} className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" style={{ background: primary }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</button>
-                </form>
-              ) : <button disabled={!startsAt} onClick={() => setStep(3)} className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" style={{ background: primary }}>Continua</button>}
             </div>
-          </section>
+          </motion.section>
         )}
 
         {step === 3 && (
-          <div className="animate-reveal space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]">
+          <motion.div
+            animate="center"
+            className="space-y-4 rounded-[2rem] border border-white/80 bg-white/86 p-5 shadow-[0_18px_44px_rgb(45_29_39_/_0.09)]"
+            custom={stepDirection}
+            exit="exit"
+            initial="enter"
+            key="step-3"
+            transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
+            variants={stepVariants}
+          >
             <button type="button" className="text-sm font-black text-[#792f59]" onClick={() => setStep(2)}>← Cambia orario</button>
             {customerAuthStatus === "authenticated" && customer ? (
               <>
@@ -487,7 +621,7 @@ export default function BookingPage() {
                   <p className="mt-1 text-lg font-black text-stone-900">{customer.full_name}</p>
                   <p className="text-sm text-stone-500">{customer.phone}{customer.email ? ` · ${customer.email}` : ""}</p>
                 </div>
-                <button onClick={() => void submitAuthenticated()} className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>
+                <motion.button className="min-h-12 w-full rounded-2xl font-black text-white" onClick={() => void submitAuthenticated()} style={{ background: primary }} whileTap={{ scale: 0.97 }}>Conferma prenotazione</motion.button>
               </>
             ) : (
               <form action={submit} className="space-y-4">
@@ -502,11 +636,12 @@ export default function BookingPage() {
                     <input name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} className="mt-2 w-full" />
                   </label>
                 ))}
-                <button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }}>Conferma prenotazione</button>
+                <motion.button className="min-h-12 w-full rounded-2xl font-black text-white" style={{ background: primary }} whileTap={{ scale: 0.97 }}>Conferma prenotazione</motion.button>
               </form>
             )}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
     </main>
   );

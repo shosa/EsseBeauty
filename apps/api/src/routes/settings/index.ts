@@ -135,6 +135,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         allowCancellation: options.allowCancellation ?? true,
         allowReschedule: options.allowReschedule ?? true,
         allowStaffPreference: options.allowStaffPreference ?? true,
+        allowWaitlist: options.allowWaitlist ?? true,
         bookingDefaultStatus: options.bookingDefaultStatus ?? "pending",
         branding: brandingRows[0] ?? null,
         cancellationPolicyHours: calendar?.cancellationPolicyHours ?? salon?.cancellationPolicyHours ?? 24,
@@ -153,6 +154,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
       allow_cancellation: boolean;
       allow_reschedule: boolean;
       allow_staff_preference: boolean;
+      allow_waitlist: boolean;
       booking_default_status: "confirmed" | "pending";
       booking_success_text?: string;
       cancellation_policy_hours: number;
@@ -234,6 +236,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
             allowCancellation: request.body.allow_cancellation,
             allowReschedule: request.body.allow_reschedule,
             allowStaffPreference: request.body.allow_staff_preference,
+            allowWaitlist: request.body.allow_waitlist,
             bookingDefaultStatus: request.body.booking_default_status,
             maxAdvanceDays: request.body.max_advance_days,
             requireEmail: request.body.require_email,
@@ -247,6 +250,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
               allowCancellation: request.body.allow_cancellation,
               allowReschedule: request.body.allow_reschedule,
               allowStaffPreference: request.body.allow_staff_preference,
+              allowWaitlist: request.body.allow_waitlist,
               bookingDefaultStatus: request.body.booking_default_status,
               maxAdvanceDays: request.body.max_advance_days,
               requireEmail: request.body.require_email,

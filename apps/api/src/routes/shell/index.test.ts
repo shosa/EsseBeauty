@@ -5,6 +5,7 @@ import type { SQL } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DrizzleDB } from "@esse-beauty/db";
+import { notifications } from "@esse-beauty/db/schema";
 
 import {
   buildSearchResponse,
@@ -20,7 +21,7 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
-function notificationMutationApp({ accessible = false, pending = false } = {}) {
+function notificationMutationApp({ accessible = false, notificationType = "inventory_low_stock", pending = false } = {}) {
   const employee = {
     active: true,
     id: "employee-id",
@@ -32,14 +33,18 @@ function notificationMutationApp({ accessible = false, pending = false } = {}) {
   const db = {
     select(selection: Record<string, unknown>) {
       return {
-        from() {
+        from(table: unknown) {
           return {
             innerJoin() {
               return {
-                where: async () => "sessionId" in selection
-                  ? [employee]
-                  : "status" in selection && pending ? [{ status: "pending" }] : [],
+                where: async () => "sessionId" in selection ? [employee] : [],
               };
+            },
+            where: async () => {
+              if (table === notifications) {
+                return accessible ? [{ entityId: "entity-1", id: "visible-notification", type: notificationType }] : [];
+              }
+              return pending ? [{ id: "entity-1" }] : [];
             },
           };
         },
@@ -113,6 +118,7 @@ describe("shell route helpers", () => {
         createdAt: new Date("2026-06-16T08:00:00Z"),
       }),
     ).toEqual({
+      action_pending: false,
       category: "inventory",
       channel: "in_app",
       entity_id: "p1",
@@ -175,5 +181,29 @@ describe("shell route helpers", () => {
     });
 
     expect(response.statusCode, response.body).toBe(200);
+  });
+
+  it("archives a notification whose linked task is already resolved", async () => {
+    const employee = notificationMutationApp({ accessible: true, notificationType: "staff_availability_request", pending: false });
+
+    const response = await employee.inject({
+      headers: { cookie: "esse-session=employee-session" },
+      method: "DELETE",
+      url: "/api/salons/salon-id/notifications/visible-notification",
+    });
+
+    expect(response.statusCode, response.body).toBe(200);
+  });
+
+  it("refuses to archive a notification whose linked task is still pending", async () => {
+    const employee = notificationMutationApp({ accessible: true, notificationType: "staff_availability_request", pending: true });
+
+    const response = await employee.inject({
+      headers: { cookie: "esse-session=employee-session" },
+      method: "DELETE",
+      url: "/api/salons/salon-id/notifications/visible-notification",
+    });
+
+    expect(response.statusCode, response.body).toBe(409);
   });
 });

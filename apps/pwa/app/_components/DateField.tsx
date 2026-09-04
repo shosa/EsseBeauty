@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+
+const POPOVER_WIDTH = 288;
 
 function toISODate(date: Date): string {
   return new Intl.DateTimeFormat("en-CA").format(date);
@@ -21,6 +24,7 @@ const WEEKDAY_LABELS = ["L", "M", "M", "G", "V", "S", "D"];
 interface DateFieldProps {
   disabled?: boolean;
   id?: string;
+  isDateDisabled?: (date: Date) => boolean;
   label?: string;
   max?: string;
   min?: string;
@@ -29,18 +33,45 @@ interface DateFieldProps {
   value: string;
 }
 
-export function DateField({ disabled, id, label, max, min, onChange, primary, value }: DateFieldProps) {
+export function DateField({ disabled, id, isDateDisabled, label, max, min, onChange, primary, value }: DateFieldProps) {
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(() => startOfMonth(value ? parseISODate(value) : new Date()));
+  const [position, setPosition] = useState<{ left: number; top: number }>();
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setPortalNode(document.body), []);
 
   useEffect(() => {
     function onOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onOutsideClick);
     return () => document.removeEventListener("mousedown", onOutsideClick);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function updatePosition() {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPosition({
+        left: Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 12),
+        top: rect.bottom + 8,
+      });
+    }
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open]);
 
   const selected = value ? parseISODate(value) : undefined;
   const minDate = min ? parseISODate(min) : undefined;
@@ -67,14 +98,19 @@ export function DateField({ disabled, id, label, max, min, onChange, primary, va
         disabled={disabled}
         id={id}
         onClick={() => setOpen((state) => !state)}
+        ref={buttonRef}
         type="button"
       >
         <CalendarDays className="size-4 shrink-0" style={{ color: primary }} />
         {selected ? selected.toLocaleDateString("it-IT", { day: "numeric", month: "long", weekday: "short", year: "numeric" }) : label || "Seleziona data"}
       </button>
 
-      {open && (
-        <div className="animate-pop absolute left-0 top-[calc(100%+8px)] z-20 w-72 origin-top rounded-2xl border border-stone-100 bg-white p-4 shadow-[0_18px_44px_rgb(45_29_39_/_0.18)]">
+      {open && position && portalNode && createPortal(
+        <div
+          className="animate-pop fixed z-50 rounded-2xl border border-stone-100 bg-white p-4 shadow-[0_18px_44px_rgb(45_29_39_/_0.18)]"
+          ref={popoverRef}
+          style={{ left: position.left, top: position.top, width: POPOVER_WIDTH }}
+        >
           <div className="flex items-center justify-between">
             <button className="grid size-8 place-items-center rounded-full text-stone-500 hover:bg-stone-100" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))} type="button"><ChevronLeft className="size-4" /></button>
             <p className="text-sm font-black capitalize text-stone-800">{cursor.toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</p>
@@ -89,7 +125,7 @@ export function DateField({ disabled, id, label, max, min, onChange, primary, va
               const iso = toISODate(day);
               const isSelected = selected && toISODate(selected) === iso;
               const isToday = toISODate(today) === iso;
-              const isDisabled = (minDate && day < minDate) || (maxDate && day > maxDate);
+              const isDisabled = (minDate && day < minDate) || (maxDate && day > maxDate) || Boolean(isDateDisabled?.(day));
               return (
                 <button
                   className={`grid size-9 place-items-center rounded-full text-sm font-bold transition ${isSelected ? "text-white" : isDisabled ? "text-stone-300" : "text-stone-700 hover:bg-stone-100"}`}
@@ -104,7 +140,8 @@ export function DateField({ disabled, id, label, max, min, onChange, primary, va
               );
             })}
           </div>
-        </div>
+        </div>,
+        portalNode,
       )}
     </div>
   );

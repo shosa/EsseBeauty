@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Lock, Mail, Phone, X } from "lucide-react";
 
 import { customerLogin, customerRegister, customerRequestPasswordReset, type CustomerProfile } from "../../../lib/customer-auth";
@@ -34,6 +35,7 @@ interface Props {
 export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = true, salonName, subtitle }: Props) {
   const { slug } = useParams<{ slug: string }>();
   const { setCustomer } = useCustomerAuth();
+  const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<"login" | "register" | "reset">("login");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -80,12 +82,25 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
   }
 
   return (
-    <div className="animate-fade-in fixed inset-0 z-40 grid place-items-end bg-[#2d1d27]/55 p-3 backdrop-blur-sm sm:place-items-center">
-      <section className="animate-slide-up relative w-full max-w-md rounded-t-[2.2rem] p-6 shadow-[0_-24px_70px_rgb(45_29_39_/_0.25)] sm:rounded-[2.2rem] sm:shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]" style={{ background: `radial-gradient(circle at top left, ${accent}35, transparent 14rem), #fff` }}>
+    <motion.div
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-40 grid place-items-end bg-[#2d1d27]/55 p-3 backdrop-blur-sm sm:place-items-center"
+      exit={{ opacity: 0 }}
+      initial={{ opacity: 0 }}
+      transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: "easeOut" }}
+    >
+      <motion.section
+        animate={{ opacity: 1, y: 0 }}
+        className="relative w-full max-w-md rounded-t-[2.2rem] p-6 shadow-[0_-24px_70px_rgb(45_29_39_/_0.25)] sm:rounded-[2.2rem] sm:shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
+        exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 40 }}
+        initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 40 }}
+        style={{ background: `radial-gradient(circle at top left, ${accent}35, transparent 14rem), #fff` }}
+        transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
+      >
         {onClose && (
-          <button aria-label="Chiudi" className="absolute right-5 top-5 grid size-9 place-items-center rounded-full bg-stone-100 text-stone-500" onClick={onClose} type="button">
+          <motion.button aria-label="Chiudi" className="absolute right-5 top-5 grid size-9 place-items-center rounded-full bg-stone-100 text-stone-500" onClick={onClose} type="button" whileTap={{ scale: 0.9 }}>
             <X className="size-4" />
-          </button>
+          </motion.button>
         )}
         <span className="grid size-12 place-items-center rounded-2xl text-white" style={{ background: primary }}><Lock className="size-5" /></span>
         <h1 className="mt-4 text-2xl font-bold text-stone-950">{mode === "login" ? "Accedi" : mode === "register" ? "Crea il tuo account" : "Recupera la password"}</h1>
@@ -97,59 +112,90 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
               : "Registrati con il tuo numero di telefono: se hai già prenotato, troveremo subito i tuoi dati.")}
         </p>
 
-        {error && <p className="animate-reveal mt-4 rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
+        <AnimatePresence>
+          {error && (
+            <motion.p
+              animate={{ height: "auto", marginTop: 16, opacity: 1 }}
+              className="overflow-hidden rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700"
+              exit={{ height: 0, marginTop: 0, opacity: 0 }}
+              initial={{ height: 0, marginTop: 0, opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0.12 : 0.2, ease: [0.22, 0.9, 0.28, 1] }}
+            >
+              {error}
+            </motion.p>
+          )}
+        </AnimatePresence>
 
-        {mode === "reset" && resetSent ? (
-          <p className="animate-reveal mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">Se l&apos;indirizzo è registrato, riceverai a breve un&apos;email con il link per reimpostare la password.</p>
-        ) : (
-          <form action={submit} className="animate-reveal mt-5 space-y-3" key={mode}>
-            {mode === "register" && (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-sm font-black text-stone-800">Nome<input className="mt-2 w-full" name="first_name" required type="text" /></label>
-                <label className="block text-sm font-black text-stone-800">Cognome<input className="mt-2 w-full" name="last_name" required type="text" /></label>
-              </div>
-            )}
-            {mode === "reset" ? (
-              <label className="block text-sm font-black text-stone-800">
-                Email
-                <div className="relative mt-2">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
-                  <input className="w-full pl-9" name="email" required type="email" />
+        <AnimatePresence mode="wait">
+          {mode === "reset" && resetSent ? (
+            <motion.p
+              animate={{ opacity: 1, x: 0 }}
+              className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"
+              exit={{ opacity: 0 }}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 12 }}
+              key="reset-sent"
+              transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: [0.22, 0.9, 0.28, 1] }}
+            >
+              Se l&apos;indirizzo è registrato, riceverai a breve un&apos;email con il link per reimpostare la password.
+            </motion.p>
+          ) : (
+            <motion.form
+              action={submit}
+              animate={{ opacity: 1, x: 0 }}
+              className="mt-5 space-y-3"
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -12 }}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 12 }}
+              key={mode}
+              transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: [0.22, 0.9, 0.28, 1] }}
+            >
+              {mode === "register" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-sm font-black text-stone-800">Nome<input className="mt-2 w-full" name="first_name" required type="text" /></label>
+                  <label className="block text-sm font-black text-stone-800">Cognome<input className="mt-2 w-full" name="last_name" required type="text" /></label>
                 </div>
-              </label>
-            ) : (
-              <>
+              )}
+              {mode === "reset" ? (
                 <label className="block text-sm font-black text-stone-800">
-                  Telefono
+                  Email
                   <div className="relative mt-2">
-                    <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
-                    <input className="w-full pl-9" inputMode="tel" name="phone" required type="tel" />
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+                    <input className="w-full pl-9" name="email" required type="email" />
                   </div>
                 </label>
-                {mode === "register" && (
-                  <label className="block text-sm font-black text-stone-800">Email{requireEmail ? "" : " (opzionale)"}<input className="mt-2 w-full" name="email" required={requireEmail} type="email" /></label>
-                )}
-                <label className="block text-sm font-black text-stone-800">
-                  Password
-                  <div className="relative mt-2">
-                    <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
-                    <input className="w-full pl-9" minLength={mode === "register" ? 8 : undefined} name="password" required type="password" />
-                  </div>
-                </label>
-              </>
-            )}
-            <button className="mt-2 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" disabled={submitting} style={{ background: primary }} type="submit">
-              {submitting ? "Un momento..." : mode === "login" ? "Accedi" : mode === "register" ? "Registrati" : "Invia link di recupero"}
-            </button>
-          </form>
-        )}
+              ) : (
+                <>
+                  <label className="block text-sm font-black text-stone-800">
+                    Telefono
+                    <div className="relative mt-2">
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+                      <input className="w-full pl-9" inputMode="tel" name="phone" required type="tel" />
+                    </div>
+                  </label>
+                  {mode === "register" && (
+                    <label className="block text-sm font-black text-stone-800">Email{requireEmail ? "" : " (opzionale)"}<input className="mt-2 w-full" name="email" required={requireEmail} type="email" /></label>
+                  )}
+                  <label className="block text-sm font-black text-stone-800">
+                    Password
+                    <div className="relative mt-2">
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+                      <input className="w-full pl-9" minLength={mode === "register" ? 8 : undefined} name="password" required type="password" />
+                    </div>
+                  </label>
+                </>
+              )}
+              <motion.button className="mt-2 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" disabled={submitting} style={{ background: primary }} type="submit" whileTap={{ scale: 0.97 }}>
+                {submitting ? "Un momento..." : mode === "login" ? "Accedi" : mode === "register" ? "Registrati" : "Invia link di recupero"}
+              </motion.button>
+            </motion.form>
+          )}
+        </AnimatePresence>
 
         {mode === "login" && <button className="mt-3 w-full text-center text-xs font-bold text-stone-500" onClick={() => switchMode("reset")} type="button">Password dimenticata?</button>}
 
         <button className="mt-3 w-full text-center text-sm font-bold" onClick={() => switchMode(mode === "register" ? "login" : mode === "reset" ? "login" : "register")} style={{ color: primary }} type="button">
           {mode === "login" ? "Non hai un account? Registrati" : mode === "register" ? "Hai già un account? Accedi" : "← Torna al login"}
         </button>
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }

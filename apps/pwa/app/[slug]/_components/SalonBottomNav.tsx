@@ -3,6 +3,7 @@
 import { CalendarDays, CalendarPlus, Gift, Home } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
 
 const items = [
   { icon: Home, label: "Home", suffix: "" },
@@ -18,7 +19,25 @@ export function SalonBottomNav({ slug }: { slug: string }) {
       {items.map(({ icon: Icon, label, suffix }) => {
         const href = `/${slug}${suffix}`;
         const active = suffix ? pathname.startsWith(href) : pathname === href;
-        return <Link aria-current={active ? "page" : undefined} className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-black transition ${active ? "bg-[#402334] text-white shadow-sm" : "text-stone-500 hover:bg-[#faf3f7] hover:text-[#792f59]"}`} href={href} key={suffix || "home"}><Icon className="size-[19px]" strokeWidth={active ? 2.6 : 2} /><span className="max-w-full truncate">{label}</span></Link>;
+        return (
+          <Link
+            aria-current={active ? "page" : undefined}
+            className={`relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-black transition-colors active:scale-90 ${active ? "text-white" : "text-stone-500 hover:bg-[#faf3f7] hover:text-[#792f59]"}`}
+            href={href}
+            key={suffix || "home"}
+          >
+            {active && (
+              <motion.span
+                aria-hidden="true"
+                className="absolute inset-0 rounded-2xl bg-[#402334] shadow-sm"
+                layoutId="salon-nav-active-pill"
+                transition={{ damping: 32, stiffness: 420, type: "spring" }}
+              />
+            )}
+            <Icon className="relative size-[19px]" strokeWidth={active ? 2.6 : 2} />
+            <span className="relative max-w-full truncate">{label}</span>
+          </Link>
+        );
       })}
     </nav>
   );

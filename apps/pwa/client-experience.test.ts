@@ -10,10 +10,10 @@ describe("client PWA experience", () => {
     expect(source).toContain('aria-current');
   });
 
-  it("keeps reschedule input scoped to each appointment", () => {
+  it("opens a dedicated reschedule wizard scoped to the selected appointment", () => {
     const source = readFileSync(join(process.cwd(), "app", "[slug]", "appointments", "page.tsx"), "utf8");
-    expect(source).toContain("Record<string, string>");
-    expect(source).toContain("requestedStartsAt[item.id]");
+    expect(source).toContain("setRescheduleTarget(item)");
+    expect(source).toContain("RescheduleWizard");
   });
 
   it("uses library icons instead of text glyph CTAs on the customer home", () => {

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { AnimatePresence } from "motion/react";
+import { Lock } from "lucide-react";
 
 import { apiBaseUrl } from "../../../lib/api";
 import { CustomerAuthOverlay } from "../_components/CustomerAuthOverlay";
@@ -24,6 +26,7 @@ export default function LoyaltyPage() {
   const [data, setData] = useState<Loyalty>();
   const [missing, setMissing] = useState(false);
   const [profile, setProfile] = useState<Profile>();
+  const [showAuthOverlay, setShowAuthOverlay] = useState(true);
   const primary = profile?.branding?.primaryColor || "#402334";
   const accent = profile?.branding?.accentColor || "#f4d8a8";
 
@@ -89,10 +92,20 @@ export default function LoyaltyPage() {
             </section>
           </div>
         )}
+        {authStatus === "anonymous" && (
+          <div className="animate-reveal mt-6 rounded-[1.7rem] border border-white/80 bg-white/86 p-6 text-center shadow-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-2xl text-white" style={{ background: primary }}><Lock className="size-5" /></span>
+            <h2 className="mt-4 text-lg font-black text-stone-950">Accedi per vedere i tuoi punti fedeltà</h2>
+            <p className="mt-1 text-sm leading-5 text-stone-500">Accedi con il tuo numero di telefono, oppure registrati se non hai ancora un account.</p>
+            <button className="mt-5 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setShowAuthOverlay(true)} style={{ background: primary }} type="button">Accedi o registrati</button>
+          </div>
+        )}
       </section>
-      {authStatus === "anonymous" && (
-        <CustomerAuthOverlay accent={accent} primary={primary} requireEmail={profile?.pwa?.requireEmail !== false} salonName={profile?.salon.name} subtitle="Accedi per consultare i tuoi punti fedeltà, oppure registrati se non hai ancora un account." />
-      )}
+      <AnimatePresence>
+        {authStatus === "anonymous" && showAuthOverlay && (
+          <CustomerAuthOverlay accent={accent} onClose={() => setShowAuthOverlay(false)} primary={primary} requireEmail={profile?.pwa?.requireEmail !== false} salonName={profile?.salon.name} subtitle="Accedi per consultare i tuoi punti fedeltà, oppure registrati se non hai ancora un account." />
+        )}
+      </AnimatePresence>
     </main>
   );
 }

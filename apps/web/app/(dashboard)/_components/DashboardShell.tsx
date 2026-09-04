@@ -114,6 +114,7 @@ interface SearchResult {
 }
 
 interface NotificationItem extends ShellNotification {
+  action_pending?: boolean;
   body?: string;
   category?: string;
   channel?: string;
@@ -239,13 +240,25 @@ function CommandPalette({ actions, onClose, open, salonId }: { actions: Readonly
   );
 }
 
-function NotificationCenter({ error, items, onArchive, onClose, onMarkAllRead, onMarkRead, onOpenItem, open }: { error: string; items: NotificationItem[]; onArchive(item: NotificationItem): void; onClose(): void; onMarkAllRead(): void; onMarkRead(item: NotificationItem): void; onOpenItem(item: NotificationItem): void; open: boolean }) {
+function NotificationCenter({ error, items, notice, onArchive, onArchiveRead, onClose, onMarkAllRead, onMarkRead, onOpenItem, open }: { error: string; items: NotificationItem[]; notice: string; onArchive(item: NotificationItem): void; onArchiveRead(): void; onClose(): void; onMarkAllRead(): void; onMarkRead(item: NotificationItem): void; onOpenItem(item: NotificationItem): void; open: boolean }) {
   return (
-    <Drawer onClose={onClose} open={open} title="Notifiche">
-      {items.some((item) => !item.read_at) && <div className="mb-4 flex justify-end"><Button onClick={onMarkAllRead} size="sm" variant="outline">Segna tutte come lette</Button></div>}
-      {error && <InlineError>{error}</InlineError>}
+    <Drawer
+      footer={<Link className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white hover:bg-[#66264b]" href="/notifications" onClick={onClose}>Apri centro notifiche</Link>}
+      onClose={onClose}
+      open={open}
+      title="Notifiche"
+    >
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-stone-500">Valgono per tutte le notifiche del salone, non solo per quelle qui sotto.</p>
+        <div className="flex shrink-0 gap-2">
+          <Button disabled={!items.some((item) => !item.read_at)} onClick={onMarkAllRead} size="sm" variant="outline">Segna tutte lette</Button>
+          <Button disabled={!items.some((item) => item.read_at)} onClick={onArchiveRead} size="sm" variant="outline">Archivia lette</Button>
+        </div>
+      </div>
+      {notice && <p className="mb-4 mt-3 rounded-xl bg-stone-100 p-3 text-xs font-semibold text-stone-600" role="status">{notice}</p>}
+      {error && <InlineError className="mt-3">{error}</InlineError>}
       {!error && items.length === 0 && <EmptyState description="Appuntamenti, recensioni, scorte e richieste appariranno qui." title="Nessuna notifica" />}
-      <div className="space-y-3">
+      <div className="mt-3 space-y-3">
         {items.map((item) => (
           <article className={`rounded-xl border p-4 ${item.read_at ? "border-stone-100 bg-white" : "border-[#d7a6c1] bg-[#fffafd]"}`} key={item.id}>
             <div className="flex items-start justify-between gap-3">
@@ -258,9 +271,9 @@ function NotificationCenter({ error, items, onArchive, onClose, onMarkAllRead, o
             {item.body && <p className="mt-2 text-sm leading-6 text-stone-500">{item.body}</p>}
             <div className="mt-4 flex flex-wrap gap-2">
               {item.href && <button className="rounded-xl bg-[#402334] px-3 py-2 text-xs font-bold text-white" onClick={() => onOpenItem(item)} type="button">Apri</button>}
-              {item.entity_type === "staff_availability_request" && <StatusBadge status="pending">Da completare</StatusBadge>}
+              {item.action_pending && <StatusBadge status="pending">Da completare</StatusBadge>}
               {!item.read_at && <Button onClick={() => onMarkRead(item)} size="sm" variant="outline">Letta</Button>}
-              <Button onClick={() => onArchive(item)} size="sm" variant="tableAction">Archivia</Button>
+              {!item.action_pending && <Button onClick={() => onArchive(item)} size="sm" variant="tableAction">Archivia</Button>}
             </div>
           </article>
         ))}
@@ -411,9 +424,11 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [staffRequestCount, setStaffRequestCount] = useState(0);
+  const [waitlistPendingCount, setWaitlistPendingCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationItems, setNotificationItems] = useState<NotificationItem[]>([]);
   const [notificationError, setNotificationError] = useState("");
+  const [notificationNotice, setNotificationNotice] = useState("");
   const [notificationPreviews, setNotificationPreviews] = useState<NotificationItem[]>([]);
   const [whatsappPreviews, setWhatsappPreviews] = useState<Array<{ body: string; conversationId: string; id: string; title: string }>>([]);
   const notificationItemsRef = useRef<NotificationItem[]>([]);
@@ -554,6 +569,34 @@ function ShellContent({ children }: { children: ReactNode }) {
     }
   }
 
+  async function markAllNotificationsRead() {
+    if (!salon?.id) return;
+    setNotificationNotice("");
+    notificationMutationCountRef.current += 1;
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/notifications/read-all`, { credentials: "include", method: "PATCH" });
+      if (!response.ok) { setNotificationError("Impossibile segnare le notifiche come lette."); return; }
+    } finally {
+      notificationMutationCountRef.current -= 1;
+    }
+    await loadNotifications();
+  }
+
+  async function archiveReadNotifications() {
+    if (!salon?.id) return;
+    setNotificationNotice("");
+    notificationMutationCountRef.current += 1;
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/notifications/archive-read`, { credentials: "include", method: "PATCH" });
+      if (!response.ok) { setNotificationError("Impossibile archiviare le notifiche lette."); return; }
+      const data = await response.json() as { archived?: number; skipped?: number };
+      if (data.skipped) setNotificationNotice(`${data.skipped} notifiche non archiviate perché richiedono ancora un'azione.`);
+    } finally {
+      notificationMutationCountRef.current -= 1;
+    }
+    await loadNotifications();
+  }
+
   function openNotification(item: NotificationItem) {
     setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id));
     void markRead(item);
@@ -577,16 +620,26 @@ function ShellContent({ children }: { children: ReactNode }) {
       });
   }
 
+  function loadWaitlistPendingCount() {
+    if (!salon?.id) return;
+    void fetch(`${api}/api/salons/${salon.id}/waitlist-summary`, { credentials: "include" })
+      .then((response) => response.ok ? response.json() : { pending_count: 0 })
+      .then((data: { pending_count?: number }) => setWaitlistPendingCount(data.pending_count ?? 0));
+  }
+
   useEffect(() => {
     void loadNotifications();
     loadStaffRequestCount();
+    loadWaitlistPendingCount();
     const notificationInterval = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadNotifications();
     }, 3_000);
     const staffInterval = window.setInterval(loadStaffRequestCount, 30_000);
+    const waitlistInterval = window.setInterval(loadWaitlistPendingCount, 30_000);
     function refresh() {
       void loadNotifications();
       loadStaffRequestCount();
+      loadWaitlistPendingCount();
     }
     function visibility() {
       if (document.visibilityState === "visible") void loadNotifications();
@@ -597,6 +650,7 @@ function ShellContent({ children }: { children: ReactNode }) {
     return () => {
       window.clearInterval(notificationInterval);
       window.clearInterval(staffInterval);
+      window.clearInterval(waitlistInterval);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("esse:staff-requests-updated", refresh);
@@ -645,15 +699,17 @@ function ShellContent({ children }: { children: ReactNode }) {
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}
       />
-      <AppDrawerOverlay apps={apps} onClose={() => setLauncherOpen(false)} open={launcherOpen} />
+      <AppDrawerOverlay apps={apps} badgeCounts={{ waitlist: waitlistPendingCount }} onClose={() => setLauncherOpen(false)} open={launcherOpen} />
       <WorkspaceTopbar actions={currentQuickActions} app={currentApp} canViewWhatsApp={communications.canView} onAppsOpen={() => setLauncherOpen(true)} onNotificationsOpen={() => setNotificationsOpen(true)} onSearchOpen={() => setSearchOpen(true)} onWhatsAppOpen={communications.openChat} pathname={pathname} tabs={topbarTabs} unreadCount={unreadCount} whatsappUnreadCount={communications.unreadCount} />
       <CommandPalette actions={quickActions} onClose={() => setSearchOpen(false)} open={searchOpen} salonId={salon?.id} />
       <NotificationCenter
         error={notificationError}
         items={notificationItems}
+        notice={notificationNotice}
         onArchive={(item) => void archiveNotification(item)}
+        onArchiveRead={() => void archiveReadNotifications()}
         onClose={() => setNotificationsOpen(false)}
-        onMarkAllRead={() => void Promise.all(notificationItems.filter((item) => !item.read_at).map(markRead))}
+        onMarkAllRead={() => void markAllNotificationsRead()}
         onMarkRead={(item) => void markRead(item)}
         onOpenItem={openNotification}
         open={notificationsOpen}
