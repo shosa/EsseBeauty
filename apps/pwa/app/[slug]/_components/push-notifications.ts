@@ -17,16 +17,26 @@ export async function getExistingPushSubscription(): Promise<PushSubscription | 
   return registration ? registration.pushManager.getSubscription() : null;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${label}`)), ms);
+    promise.then((value) => { clearTimeout(timer); resolve(value); }, (error: unknown) => { clearTimeout(timer); reject(error); });
+  });
+}
+
 export async function subscribeToPush(apiBase: string, slug: string, vapidPublicKey: string): Promise<PushSubscription | null> {
   if (!isPushSupported()) return null;
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return null;
 
-  const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.subscribe({
+  // iOS Safari can leave pushManager.subscribe() hanging forever instead of
+  // rejecting when the service worker isn't fully ready to accept it yet — a
+  // timeout turns that into a visible error instead of a silently stuck button.
+  const registration = await withTimeout(navigator.serviceWorker.ready, 10_000, "service worker");
+  const subscription = await withTimeout(registration.pushManager.subscribe({
     applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
     userVisibleOnly: true,
-  });
+  }), 10_000, "push subscription");
   const json = subscription.toJSON();
   const response = await fetch(`${apiBase}/api/public/${slug}/push-subscriptions`, {
     body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
