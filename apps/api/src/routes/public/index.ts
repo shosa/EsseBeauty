@@ -340,7 +340,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       .innerJoin(customers, eq(customers.id, appointments.customerId))
       .innerJoin(services, eq(services.id, appointments.serviceId))
       .innerJoin(staff, eq(staff.id, appointments.staffId))
-      .where(and(eq(appointments.salonId, salon.id), customerMatch, ne(appointments.status, "cancelled")))
+      .where(and(eq(appointments.salonId, salon.id), customerMatch))
       .orderBy(desc(appointments.startsAt))
       .limit(200);
     if (items.length === 0) return items;

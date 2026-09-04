@@ -341,7 +341,11 @@ export default function BookingPage() {
         <section className="animate-slide-up mx-auto max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl text-2xl font-black text-white" style={{ background: primary }}>✓</span>
           <h1 className="mt-5 text-3xl font-bold">{booking.status === "confirmed" ? "Prenotazione confermata" : "Richiesta inviata"}</h1>
-          <p className="mt-2 text-sm text-stone-500">{brand?.bookingSuccessText || (booking.status === "confirmed" ? "Il tuo appuntamento è confermato." : "Il salone deve ancora confermare la richiesta.")}</p>
+          <p className="mt-2 text-sm text-stone-500">
+            {booking.status === "confirmed"
+              ? (brand?.bookingSuccessText || "Il tuo appuntamento è confermato.")
+              : "Il salone deve ancora confermare la richiesta: riceverai un avviso appena verrà accettata."}
+          </p>
           <p className="mt-3 text-stone-600">{booking.service_name} con {firstName(booking.staff_name)}</p>
           <p className="mt-1 text-sm font-bold text-[#792f59]">{new Date(booking.startsAt).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</p>
           <button onClick={() => saveCalendar(booking)} className="mt-7 min-h-12 w-full rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}>Aggiungi al calendario</button>

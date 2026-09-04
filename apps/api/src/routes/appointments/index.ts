@@ -48,19 +48,34 @@ async function notifyCustomerOfAppointmentUpdate(
   after: typeof appointments.$inferSelect,
   staffName: string,
 ): Promise<void> {
-  const changes: string[] = [];
-  if (before.status !== "confirmed" && after.status === "confirmed") changes.push("è stato confermato");
-  if (before.startsAt.getTime() !== after.startsAt.getTime()) {
-    changes.push(`è stato spostato al ${after.startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}`);
-  }
-  if (before.staffId !== after.staffId) changes.push(`ora è affidato a ${staffName}`);
-  if (changes.length === 0) return;
+  const hasScheduleChange = before.startsAt.getTime() !== after.startsAt.getTime();
+  const hasStaffChange = before.staffId !== after.staffId;
+  const hasStatusChange = before.status !== "confirmed" && after.status === "confirmed";
+  const hasCancellation = before.status !== "cancelled" && after.status === "cancelled";
+  if (!hasScheduleChange && !hasStaffChange && !hasStatusChange && !hasCancellation) return;
 
   const [serviceRow, salonRow] = await Promise.all([
     db.select({ name: services.name }).from(services).where(eq(services.id, after.serviceId)).then((rows) => rows[0]),
-    db.select({ slug: salons.slug }).from(salons).where(eq(salons.id, salonId)).then((rows) => rows[0]),
+    db.select({ slug: salons.slug, timezone: salons.timezone }).from(salons).where(eq(salons.id, salonId)).then((rows) => rows[0]),
   ]);
   if (!salonRow) return;
+
+  if (hasCancellation) {
+    await sendCustomerPush(db, salonId, after.customerId, {
+      body: `Il salone ha annullato il tuo appuntamento per ${serviceRow?.name ?? "il servizio prenotato"} del ${after.startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow.timezone })}.`,
+      href: `/${salonRow.slug}/appointments`,
+      tag: `appointment-${after.id}`,
+      title: "Appuntamento annullato",
+    });
+    return;
+  }
+
+  const changes: string[] = [];
+  if (hasStatusChange) changes.push("è stato confermato");
+  if (hasScheduleChange) {
+    changes.push(`è stato spostato al ${after.startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow.timezone })}`);
+  }
+  if (hasStaffChange) changes.push(`ora è affidato a ${staffName}`);
   await sendCustomerPush(db, salonId, after.customerId, {
     body: `Il tuo appuntamento per ${serviceRow?.name ?? "il servizio prenotato"} ${changes.join(" e ")}.`,
     href: `/${salonRow.slug}/appointments`,
@@ -600,10 +615,10 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       await archiveResolvedActionNotification(request.server.db, request.salonId, "appointment_reschedule_request", "reschedule_request", reschedule.id);
       const [serviceRow, salonRow] = await Promise.all([
         request.server.db.select({ name: services.name }).from(services).where(eq(services.id, item.serviceId)).then((rows) => rows[0]),
-        request.server.db.select({ slug: salons.slug }).from(salons).where(eq(salons.id, request.salonId)).then((rows) => rows[0]),
+        request.server.db.select({ slug: salons.slug, timezone: salons.timezone }).from(salons).where(eq(salons.id, request.salonId)).then((rows) => rows[0]),
       ]);
       await sendCustomerPush(request.server.db, request.salonId, item.customerId, {
-        body: `${serviceRow?.name ?? "Il tuo appuntamento"} è confermato per il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}.`,
+        body: `${serviceRow?.name ?? "Il tuo appuntamento"} è confermato per il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow?.timezone })}.`,
         href: salonRow ? `/${salonRow.slug}/appointments` : undefined,
         tag: `appointment-${item.id}`,
         title: "Richiesta di cambio orario accettata",

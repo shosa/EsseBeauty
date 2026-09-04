@@ -84,16 +84,16 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
   return (
     <motion.div
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-40 grid place-items-end bg-[#2d1d27]/55 p-3 backdrop-blur-sm sm:place-items-center"
+      className="fixed inset-0 z-40 grid place-items-center bg-[#2d1d27]/55 p-3 backdrop-blur-sm"
       exit={{ opacity: 0 }}
       initial={{ opacity: 0 }}
       transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: "easeOut" }}
     >
       <motion.section
         animate={{ opacity: 1, y: 0 }}
-        className="relative w-full max-w-md rounded-t-[2.2rem] p-6 shadow-[0_-24px_70px_rgb(45_29_39_/_0.25)] sm:rounded-[2.2rem] sm:shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
-        exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 40 }}
-        initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 40 }}
+        className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2.2rem] p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
+        exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
+        initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
         style={{ background: `radial-gradient(circle at top left, ${accent}35, transparent 14rem), #fff` }}
         transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
       >

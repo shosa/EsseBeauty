@@ -82,7 +82,7 @@ export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, on
   return (
     <motion.div
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-40 grid place-items-end bg-[#2d1d27]/55 p-3 backdrop-blur-sm sm:place-items-center"
+      className="fixed inset-0 z-40 grid place-items-center bg-[#2d1d27]/55 p-3 backdrop-blur-sm"
       exit={{ opacity: 0 }}
       initial={{ opacity: 0 }}
       onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}
@@ -90,33 +90,34 @@ export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, on
     >
       <motion.section
         animate={{ opacity: 1, y: 0 }}
-        className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-[2.2rem] p-6 shadow-[0_-24px_70px_rgb(45_29_39_/_0.25)] sm:rounded-[2.2rem] sm:shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
-        exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 40 }}
-        initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 40 }}
+        className="relative flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-[2.2rem] shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
+        exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
+        initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
         style={{ background: `radial-gradient(circle at top left, ${accent}35, transparent 14rem), #fff` }}
         transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
       >
-        <button aria-label="Chiudi" className="absolute right-5 top-5 grid size-9 place-items-center rounded-full bg-stone-100 text-stone-500" onClick={onClose} type="button">
+        <button aria-label="Chiudi" className="absolute right-5 top-5 z-10 grid size-9 place-items-center rounded-full bg-stone-100 text-stone-500" onClick={onClose} type="button">
           <X className="size-4" />
         </button>
-        <h1 className="text-2xl font-bold text-stone-950">Riprogramma appuntamento</h1>
-        <p className="mt-1 text-sm text-stone-500">{serviceName} · scegli nuova data e orario in base alla disponibilità.</p>
+        <div className="overflow-y-auto p-6 pb-4">
+          <h1 className="text-2xl font-bold text-stone-950">Riprogramma appuntamento</h1>
+          <p className="mt-1 text-sm text-stone-500">{serviceName} · scegli nuova data e orario in base alla disponibilità.</p>
 
-        <AnimatePresence>
-          {error && (
-            <motion.p
-              animate={{ height: "auto", marginTop: 16, opacity: 1 }}
-              className="overflow-hidden rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700"
-              exit={{ height: 0, marginTop: 0, opacity: 0 }}
-              initial={{ height: 0, marginTop: 0, opacity: 0 }}
-              transition={{ duration: reduceMotion ? 0.12 : 0.2, ease: [0.22, 0.9, 0.28, 1] }}
-            >
-              {error}
-            </motion.p>
-          )}
-        </AnimatePresence>
+          <AnimatePresence>
+            {error && (
+              <motion.p
+                animate={{ height: "auto", marginTop: 16, opacity: 1 }}
+                className="overflow-hidden rounded-2xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700"
+                exit={{ height: 0, marginTop: 0, opacity: 0 }}
+                initial={{ height: 0, marginTop: 0, opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0.12 : 0.2, ease: [0.22, 0.9, 0.28, 1] }}
+              >
+                {error}
+              </motion.p>
+            )}
+          </AnimatePresence>
 
-        <div className="mt-5 space-y-3">
+          <div className="mt-5 space-y-3">
           <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
             <button className="flex w-full items-center justify-between text-left" onClick={() => setOpenSection(openSection === "date" ? "time" : "date")} type="button">
               <span>
@@ -188,10 +189,13 @@ export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, on
             </AnimatePresence>
           </div>
         </div>
+        </div>
 
-        <motion.button className="mt-5 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" disabled={!startsAt || submitting} onClick={() => void confirm()} style={{ background: primary }} type="button" whileTap={{ scale: 0.97 }}>
-          {submitting ? "Invio richiesta..." : "Invia richiesta di cambio orario"}
-        </motion.button>
+        <div className="border-t border-stone-100 p-6 pt-4">
+          <motion.button className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" disabled={!startsAt || submitting} onClick={() => void confirm()} style={{ background: primary }} type="button" whileTap={{ scale: 0.97 }}>
+            {submitting ? "Invio richiesta..." : "Invia richiesta di cambio orario"}
+          </motion.button>
+        </div>
       </motion.section>
     </motion.div>
   );

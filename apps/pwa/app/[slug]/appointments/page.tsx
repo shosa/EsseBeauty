@@ -34,7 +34,7 @@ interface Item {
 }
 
 function isPastAppointment(item: Item): boolean {
-  return item.status === "completed" || item.status === "no_show" || new Date(item.ends_at) <= new Date();
+  return item.status === "completed" || item.status === "no_show" || item.status === "cancelled" || new Date(item.ends_at) <= new Date();
 }
 
 export default function AppointmentsPage() {
@@ -172,6 +172,8 @@ export default function AppointmentsPage() {
             {visibleItems.map((item, index) => {
               const isOpen = openItemId === item.id;
               const isPast = isPastAppointment(item);
+              const isPending = item.status === "pending";
+              const isCancelled = item.status === "cancelled";
               const startDate = new Date(item.starts_at);
               return (
                 <article className="animate-reveal overflow-hidden rounded-[1.7rem] border border-white/80 bg-white/86 shadow-sm" key={item.id} style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
@@ -179,6 +181,8 @@ export default function AppointmentsPage() {
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 text-sm font-black" style={{ color: primary }}><CalendarClock className="size-4 shrink-0" />{startDate.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</span>
                       <span className="mt-1 block truncate text-sm font-bold text-stone-600">{item.service_name}</span>
+                      {isPending && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-800">Da confermare</span>}
+                      {isCancelled && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-black text-red-700">Annullato</span>}
                       {item.pending_reschedule_requested_starts_at && <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-black text-amber-800">In attesa di conferma nuovo orario</span>}
                     </span>
                     <ChevronDown className={`size-4 shrink-0 text-stone-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
@@ -195,10 +199,13 @@ export default function AppointmentsPage() {
                         <div className="border-t border-stone-100 px-5 pb-5 pt-4">
                           <h2 className="text-xl font-black text-stone-950">{item.service_name}</h2>
                           <p className="mt-1 flex items-center gap-1.5 text-sm text-stone-500"><UserRound className="size-4" />con {item.staff_name} · {appointmentStatusLabel(item.status)}</p>
+                          {isPending && (
+                            <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">Il salone deve ancora confermare questo appuntamento. Finché è in attesa non puoi modificarlo: riceverai un avviso appena verrà confermato.</p>
+                          )}
                           {item.pending_reschedule_requested_starts_at && (
                             <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">Hai richiesto di spostare l’appuntamento a {new Date(item.pending_reschedule_requested_starts_at).toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}. Il salone deve ancora confermarlo.</p>
                           )}
-                          {!isPast && (profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && (
+                          {!isPast && !isPending && (profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && (
                             <div className="mt-4 grid grid-cols-2 gap-2">
                               {profile?.pwa?.allowReschedule !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 text-xs font-black text-stone-700 transition-colors hover:bg-stone-100" onClick={() => setRescheduleTarget(item)} type="button"><RefreshCw className="size-4" />Riprogramma</button>}
                               {profile?.pwa?.allowCancellation !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700 transition-colors hover:bg-red-100" onClick={() => void cancel(item.id)} type="button"><Trash2 className="size-4" />Annulla</button>}
