@@ -17,6 +17,11 @@ const workspaceRoot = path.resolve(
 const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
+  // next-pwa 5.6.0 predates app-build-manifest.json (an App Router build artifact) and
+  // doesn't know to exclude it from precaching. It's a build-time-only file that isn't
+  // copied into the standalone runtime image, so precaching it 404s and fails the whole
+  // service worker install — silently, since nothing here ever surfaced that failure.
+  buildExcludes: [/app-build-manifest\.json$/],
   runtimeCaching: [
     consentNetworkOnly,
     reviewNetworkOnly,
