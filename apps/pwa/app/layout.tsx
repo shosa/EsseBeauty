@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 
+import { ServiceWorkerRegistration } from "./_components/ServiceWorkerRegistration";
+
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-sans",
@@ -37,7 +39,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html className={`${manrope.variable} ${fraunces.variable}`} lang="it">
-      <body>{children}</body>
+      <body><ServiceWorkerRegistration />{children}</body>
     </html>
   );
 }

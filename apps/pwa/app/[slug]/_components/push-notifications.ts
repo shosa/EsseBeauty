@@ -29,6 +29,14 @@ export async function subscribeToPush(apiBase: string, slug: string, vapidPublic
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return null;
 
+  // Belt-and-suspenders: the root layout registers the service worker on mount, but
+  // register() is idempotent, so calling it again here guarantees one is in flight
+  // even if that effect hasn't run yet (or didn't for some reason) — without it,
+  // "ready" below has nothing to ever resolve against.
+  if (!(await navigator.serviceWorker.getRegistration())) {
+    await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  }
+
   // iOS Safari can leave pushManager.subscribe() hanging forever instead of
   // rejecting when the service worker isn't fully ready to accept it yet — a
   // timeout turns that into a visible error instead of a silently stuck button.
