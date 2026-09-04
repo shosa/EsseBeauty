@@ -93,8 +93,9 @@ export default function AppointmentsPage() {
         setPushSubscribed(Boolean(subscription));
         setToast(subscription ? "Notifiche push attivate." : "Attiva le notifiche dalle impostazioni del browser per riceverle.");
       }
-    } catch {
-      setToast("Impossibile aggiornare le notifiche push.");
+    } catch (error) {
+      const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      setToast(`Impossibile aggiornare le notifiche push. (${detail})`);
     } finally {
       setPushBusy(false);
     }
