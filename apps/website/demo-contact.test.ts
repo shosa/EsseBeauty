@@ -11,9 +11,9 @@ describe("demo contact email handoff", () => {
       name: "Sofia Moretti",
       phone: "+39 333 123 4567",
       teamSize: "2–5 persone",
-    }, "demo@essebeauty.it");
+    }, "stefano@shosa.me");
 
-    expect(decodeURIComponent(result)).toBe("mailto:demo@essebeauty.it?subject=Richiesta demo EsseBeauty — Luce & Bellezza&body=Buongiorno,\n\nVorrei richiedere una demo di EsseBeauty.\n\nNome: Sofia Moretti\nCentro: Luce & Bellezza\nEmail: sofia@example.it\nTelefono: +39 333 123 4567\nTeam: 2–5 persone\n\nMessaggio:\nVorrei vedere agenda e magazzino.");
+    expect(decodeURIComponent(result)).toBe("mailto:stefano@shosa.me?subject=Richiesta demo EsseBeauty — Luce & Bellezza&body=Buongiorno,\n\nVorrei richiedere una demo di EsseBeauty.\n\nNome: Sofia Moretti\nCentro: Luce & Bellezza\nEmail: sofia@example.it\nTelefono: +39 333 123 4567\nTeam: 2–5 persone\n\nMessaggio:\nVorrei vedere agenda e magazzino.");
   });
 
   it("omits empty optional fields without leaving empty labels", () => {
