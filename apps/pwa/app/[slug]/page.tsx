@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, CalendarPlus, LogOut, Sparkles, Star, UserRound } from "lucide-react";
+import { ArrowRight, Bell, CalendarDays, CalendarPlus, LogOut, Sparkles, Star, UserRound } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -22,6 +22,7 @@ interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: st
 interface Profile { branding?: Branding | null; categories: Category[]; salon: { name: string }; services: Service[]; }
 interface PublicReview { comment: string | null; created_at: string; customer_name: string; id: string; rating: number; reply: string | null; }
 interface PublicReviews { average_rating: number | null; items: PublicReview[]; total: number; }
+interface AppMessage { body: string; created_at: string; href?: string | null; id: string; read_at: string | null; title: string; }
 
 function displayName(value: string): string {
   const first = value.trim().split(/\s+/)[0];
@@ -38,6 +39,9 @@ export default function SalonLanding() {
   const [activeTab, setActiveTab] = useState<"overview" | "reviews">("overview");
   const [reviews, setReviews] = useState<PublicReviews>();
   const [reviewsStatus, setReviewsStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [messages, setMessages] = useState<AppMessage[]>([]);
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messagesStatus, setMessagesStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -60,12 +64,25 @@ export default function SalonLanding() {
       .catch(() => setReviewsStatus("failed"));
   }, [activeTab, reviewsStatus, slug]);
 
+  useEffect(() => {
+    if (authStatus !== "authenticated" || messagesStatus !== "idle") return;
+    setMessagesStatus("loading");
+    void fetch(`${apiBaseUrl()}/api/public/${slug}/messages`, { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("MESSAGES_UNAVAILABLE");
+        setMessages(await response.json() as AppMessage[]);
+        setMessagesStatus("ready");
+      })
+      .catch(() => setMessagesStatus("failed"));
+  }, [authStatus, messagesStatus, slug]);
+
   const categories = useMemo(() => profile?.categories.filter((category) =>
     profile.services.some((service) => service.category === category.name),
   ) ?? [], [profile]);
   const brand = profile?.branding;
   const primary = brand?.primaryColor || "#402334";
   const accent = brand?.accentColor || "#f4d8a8";
+  const unreadMessages = messages.filter((message) => !message.read_at).length;
 
   if (status === "loading") return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] text-sm font-bold text-[#792f59]">Preparazione salone...</main>;
   if (status === "unavailable") return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5"><section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#792f59]">Prenotazioni online</p><h1 className="mt-3 text-3xl font-bold">Servizio momentaneamente non disponibile</h1><p className="mt-3 text-stone-600">Contatta direttamente il salone per fissare un appuntamento.</p></section></main>;
@@ -76,7 +93,20 @@ export default function SalonLanding() {
       <div className="animate-reveal mx-auto max-w-md">
         <div className="flex items-center justify-between rounded-2xl p-2.5 text-white shadow-[0_10px_28px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
           {brand?.logoUrl ? <img alt="Logo salone" className="size-10 rounded-xl bg-white object-cover p-1" src={brand.logoUrl} /> : <span className="grid size-10 place-items-center rounded-xl bg-white/15 text-base font-black">E</span>}
-          <div className="relative">
+          <div className="flex items-center gap-2">
+            {authStatus === "authenticated" && (
+              <button
+                aria-label="Apri notifiche"
+                aria-pressed={messagesOpen}
+                className="relative grid size-11 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+                onClick={() => setMessagesOpen((state) => !state)}
+                type="button"
+              >
+                <Bell className="size-5" />
+                {unreadMessages > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-5 place-items-center rounded-full bg-[#f4d8a8] px-1 text-[10px] font-black text-[#402334]">{Math.min(unreadMessages, 9)}</span>}
+              </button>
+            )}
+            <div className="relative">
             <button
               aria-label={authStatus === "authenticated" ? "Il tuo account" : "Accedi"}
               className="flex items-center gap-2 rounded-full bg-white/15 py-1 pl-3 pr-1 text-sm font-bold transition hover:bg-white/25"
@@ -104,6 +134,7 @@ export default function SalonLanding() {
                 </button>
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -111,11 +142,35 @@ export default function SalonLanding() {
           {authStatus === "authenticated" && customer && <p className="text-base font-black" style={{ color: primary }}>Ciao, {customer.first_name}</p>}
           <h1 className={`text-[1.7rem] font-bold leading-tight text-stone-950 ${authStatus === "authenticated" && customer ? "mt-0.5" : ""}`}>{brand?.heroTitle || profile?.salon.name || "Esse Beauty"}</h1>
           <p className="mt-2 text-sm leading-6 text-stone-500">{brand?.heroSubtitle || "Il tuo spazio per prenderti cura di te, con la libertà di prenotare quando vuoi."}</p>
-          <Link href={`/${slug}/book`} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl font-black text-white shadow-lg" style={{ background: primary }}><CalendarPlus className="size-5" />Prenota ora</Link>
         </div>
 
         {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-white/80 bg-white/82 p-5 text-sm leading-6 text-stone-600 shadow-sm">{brand.welcomeText}</p>}
         <InstallAppButton accent={accent} enabled={brand?.installPromptEnabled !== false} primary={primary} />
+        {messagesOpen && (
+          <section className="animate-pop mt-4 rounded-[1.6rem] border border-white/80 bg-white/92 p-4 shadow-[0_18px_44px_rgb(45_29_39_/_0.12)]">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-black text-stone-950">Notifiche</h2>
+              <span className="text-xs font-bold text-stone-400">{unreadMessages} nuove</span>
+            </div>
+            {messagesStatus === "loading" && <p className="mt-3 text-sm font-semibold text-stone-500">Caricamento...</p>}
+            {messagesStatus === "failed" && <p className="mt-3 text-sm font-semibold text-rose-700">Notifiche non disponibili.</p>}
+            {messagesStatus === "ready" && messages.length === 0 && <p className="mt-3 text-sm font-semibold text-stone-500">Nessuna notifica ricevuta.</p>}
+            {messagesStatus === "ready" && messages.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {messages.map((message) => (
+                  <Link className="flex items-start gap-3 rounded-2xl bg-stone-50 p-3 transition hover:bg-stone-100" href={`/${slug}/messages/${message.id}`} key={message.id}>
+                    <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-white" style={{ background: message.read_at ? "#a8a29e" : primary }}><Bell className="size-4" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black text-stone-950">{message.title}</span>
+                      <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-stone-500">{message.body}</span>
+                      <span className="mt-1 block text-[11px] font-bold text-stone-400">{new Date(message.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <nav className="mt-6 grid grid-cols-2 rounded-2xl bg-white/70 p-1 text-sm font-black shadow-sm">
           {[
@@ -128,15 +183,15 @@ export default function SalonLanding() {
 
         {activeTab === "overview" && <>
           <section className="mt-5 grid grid-cols-2 gap-3">
-            <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/appointments`}>
-              <span className="grid size-11 place-items-center rounded-2xl text-white" style={{ background: primary }}><CalendarDays className="size-5" /></span>
-              <h2 className="mt-4 text-lg font-bold text-stone-950">I miei appuntamenti</h2>
-              <p className="mt-1 text-sm leading-5 text-stone-500">Consulta le prenotazioni già effettuate.</p>
+            <Link className="group rounded-[1.6rem] border border-white/80 bg-white/92 p-4 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/appointments`}>
+              <span className="grid size-12 place-items-center rounded-full text-white shadow-[0_10px_24px_rgb(45_29_39_/_0.18)]" style={{ background: primary }}><CalendarDays className="size-5" /></span>
+              <h2 className="mt-4 text-base font-black leading-tight text-stone-950">I miei appuntamenti</h2>
+              <ArrowRight className="mt-3 size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
             </Link>
-            <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/book`}>
-              <span className="grid size-11 place-items-center rounded-2xl" style={{ background: accent, color: primary }}><CalendarPlus className="size-5" /></span>
-              <h2 className="mt-4 text-lg font-bold text-stone-950">Nuova prenotazione</h2>
-              <p className="mt-1 text-sm leading-5 text-stone-500">Trova il trattamento e l’orario giusto.</p>
+            <Link className="group rounded-[1.6rem] border border-white/80 p-4 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/book`} style={{ background: `linear-gradient(135deg, ${accent}, #fff)` }}>
+              <span className="grid size-12 place-items-center rounded-full bg-white shadow-[0_10px_24px_rgb(45_29_39_/_0.12)]" style={{ color: primary }}><CalendarPlus className="size-5" /></span>
+              <h2 className="mt-4 text-base font-black leading-tight text-stone-950">Nuova prenotazione</h2>
+              <ArrowRight className="mt-3 size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
             </Link>
           </section>
 

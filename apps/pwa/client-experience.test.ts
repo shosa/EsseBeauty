@@ -20,7 +20,18 @@ describe("client PWA experience", () => {
     const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
     expect(source).toContain("CalendarDays");
     expect(source).toContain("CalendarPlus");
+    expect(source).toContain("Bell");
     expect(source).not.toContain(">⌁<");
+  });
+
+  it("keeps the customer home light with notifications and compact booking actions", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
+    expect(source).toContain("/api/public/${slug}/messages");
+    expect(source).toContain('aria-label="Apri notifiche"');
+    expect(source).toContain("Nessuna notifica ricevuta.");
+    expect(source).not.toContain(">Prenota ora</Link>");
+    expect(source).not.toContain("Consulta le prenotazioni già effettuate.");
+    expect(source).not.toContain("Trova il trattamento e l’orario giusto.");
   });
 
   it("shows a salon overview with a public reviews tab", () => {
