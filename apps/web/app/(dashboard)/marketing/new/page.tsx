@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Eye, LayoutTemplate, Mail, MessageCircleMore, Save, Send, UsersRound } from "lucide-react";
+import { Bell, CalendarClock, Eye, LayoutTemplate, Mail, MessageCircleMore, Save, Send, UsersRound } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, InlineError, SectionCard } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-type Channel = "email" | "whatsapp";
+type Channel = "app" | "email" | "whatsapp";
+const CHANNEL_LABELS: Record<Channel, string> = { app: "App", email: "Email", whatsapp: "WhatsApp" };
+const CHANNEL_ICONS: Record<Channel, typeof Mail> = { app: Bell, email: Mail, whatsapp: MessageCircleMore };
 type Segment =
   | { type: "all" }
   | { type: "inactive"; days_since_last_visit: number }
@@ -93,7 +95,7 @@ export default function NewCampaignPage() {
     if (channel === "whatsapp" && !selectedTemplateId) { setError("Seleziona un modello Meta WhatsApp approvato."); return; }
     const response = await fetch(`${api}/api/salons/${salon.id}/campaigns`, {
       method: "POST", credentials: "include", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: data.get("name"), channel, target_segment: segmentConfig(data), ...(channel === "email" && { content }), ...(channel === "whatsapp" && { template_id: selectedTemplateId, whatsapp_template_parameters: templateParameters }), scheduled_at: data.get("scheduled") || undefined }),
+      body: JSON.stringify({ name: data.get("name"), channel, target_segment: segmentConfig(data), ...((channel === "email" || channel === "app") && { content }), ...(channel === "whatsapp" && { template_id: selectedTemplateId, whatsapp_template_parameters: templateParameters }), scheduled_at: data.get("scheduled") || undefined }),
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({})) as { error?: string };
@@ -128,13 +130,14 @@ export default function NewCampaignPage() {
               <label className="font-semibold">Nome<input name="name" required className="mt-2 min-h-12 w-full rounded-xl border px-3" placeholder="Es. Ritorna da noi" /></label>
               <label className="font-semibold">Modello<select defaultValue="" onChange={(event) => applyTemplate(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3"><option value="">Nessun modello</option>{templates.filter((template) => template.channel !== "whatsapp" || template.whatsappApprovalStatus === "approved").map((template) => <option key={template.id} value={template.id}>{template.name} · {template.channel.toUpperCase()}</option>)}</select></label>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {(["email", "whatsapp"] as const).map((value) => {
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {(["email", "whatsapp", "app"] as const).map((value) => {
                 const ready = readiness?.[value] === "ready";
-                const ChannelIcon = value === "email" ? Mail : MessageCircleMore;
-                return <button aria-pressed={channel === value} className={`flex min-h-20 items-center gap-3 rounded-2xl border p-4 text-left transition ${channel === value ? "border-[#792f59] bg-[#f8edf3] ring-2 ring-[#792f59]/10" : "border-stone-200 bg-white hover:bg-stone-50"}`} key={value} onClick={() => { setChannel(value); invalidatePreview(); }} type="button"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${channel === value ? "bg-[#792f59] text-white" : "bg-stone-100 text-stone-500"}`}><ChannelIcon className="size-5" /></span><span><strong className="block text-sm">{value === "whatsapp" ? "WhatsApp" : "Email"}</strong><span className={`mt-1 block text-xs font-semibold ${ready ? "text-emerald-700" : "text-amber-700"}`}>{ready ? "Provider pronto" : "Da configurare"}</span></span></button>;
+                const ChannelIcon = CHANNEL_ICONS[value];
+                return <button aria-pressed={channel === value} className={`flex min-h-20 items-center gap-3 rounded-2xl border p-4 text-left transition ${channel === value ? "border-[#792f59] bg-[#f8edf3] ring-2 ring-[#792f59]/10" : "border-stone-200 bg-white hover:bg-stone-50"}`} key={value} onClick={() => { setChannel(value); invalidatePreview(); }} type="button"><span className={`grid size-10 shrink-0 place-items-center rounded-xl ${channel === value ? "bg-[#792f59] text-white" : "bg-stone-100 text-stone-500"}`}><ChannelIcon className="size-5" /></span><span><strong className="block text-sm">{CHANNEL_LABELS[value]}</strong><span className={`mt-1 block text-xs font-semibold ${ready ? "text-emerald-700" : "text-amber-700"}`}>{ready ? "Provider pronto" : "Da configurare"}</span></span></button>;
               })}
             </div>
+            {channel === "app" && <p className="mt-3 text-xs font-medium text-stone-500">Raggiunge solo i clienti che hanno l'app installata con le notifiche push attive.</p>}
           </SectionCard>
 
           <SectionCard className="xl:col-span-5" title={<span className="flex items-center gap-2"><UsersRound className="size-5 text-[#792f59]" />Pubblico e pianificazione</span>} subtitle="Definisci chi riceverà il messaggio e quando prepararlo.">
@@ -145,20 +148,21 @@ export default function NewCampaignPage() {
             <label className="mt-5 block font-semibold"><span className="flex items-center gap-2"><CalendarClock className="size-4 text-stone-400" />Programma invio <span className="text-xs font-medium text-stone-400">facoltativo</span></span><input name="scheduled" type="datetime-local" className="mt-2 min-h-12 w-full rounded-xl border px-3" /></label>
           </SectionCard>
 
-          <SectionCard className="xl:col-span-8" title="Messaggio" subtitle={channel === "whatsapp" ? "Contenuto derivato dal modello Meta approvato." : "Scrivi il testo che riceveranno i destinatari."}>
+          <SectionCard className="xl:col-span-8" title="Messaggio" subtitle={channel === "whatsapp" ? "Contenuto derivato dal modello Meta approvato." : channel === "app" ? "Titolo e testo della notifica push che riceveranno i destinatari." : "Scrivi il testo che riceveranno i destinatari."}>
             <label className="block font-semibold">Contenuto<textarea required value={content} readOnly={channel === "whatsapp"} onChange={(event) => setContent(event.target.value)} rows={9} className="mt-2 w-full resize-y rounded-xl border p-3" placeholder="Scrivi qui il messaggio della campagna..." /></label>
             {channel === "whatsapp" && <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4"><p className="flex items-center gap-2 text-sm font-semibold text-emerald-900"><MessageCircleMore className="size-4" />WhatsApp usa esclusivamente il modello Meta selezionato e approvato.</p><div className="mt-3 grid gap-3 md:grid-cols-2">{templates.find((template) => template.id === selectedTemplateId)?.variables.map((variable, index) => <label className="font-semibold" key={variable}>{variable}<input required value={templateParameters[index] ?? ""} onChange={(event) => setTemplateParameters((current) => current.map((value, parameterIndex) => parameterIndex === index ? event.target.value : value))} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3" /></label>)}</div></div>}
           </SectionCard>
 
           <SectionCard className="xl:col-span-4" title={<span className="flex items-center gap-2"><Send className="size-5 text-[#792f59]" />Invio di prova</span>} subtitle="Verifica il risultato su un solo recapito, senza creare destinatari.">
-            <div className="rounded-2xl bg-stone-50 p-4"><span className="text-[10px] font-black uppercase tracking-[.14em] text-stone-400">Canale selezionato</span><div className="mt-2 flex items-center gap-2 text-sm font-bold">{channel === "email" ? <Mail className="size-4 text-[#792f59]" /> : <MessageCircleMore className="size-4 text-emerald-700" />}{channel === "email" ? "Email" : "WhatsApp"}</div></div>
+            <div className="rounded-2xl bg-stone-50 p-4"><span className="text-[10px] font-black uppercase tracking-[.14em] text-stone-400">Canale selezionato</span><div className="mt-2 flex items-center gap-2 text-sm font-bold">{(() => { const Icon = CHANNEL_ICONS[channel]; return <Icon className={`size-4 ${channel === "email" ? "text-[#792f59]" : channel === "whatsapp" ? "text-emerald-700" : "text-amber-700"}`} />; })()}{CHANNEL_LABELS[channel]}</div></div>
+            {channel === "app" && <p className="mt-3 text-xs text-stone-500">Cerca il cliente per numero di telefono e gli invia una notifica push reale, se ha l'app attiva.</p>}
             <input aria-label="Destinazione test" value={testDestination} onChange={(event) => setTestDestination(event.target.value)} placeholder={channel === "email" ? "nome@esempio.it" : "+39..."} className="mt-4 min-h-12 w-full rounded-xl border px-3" />
             <Button className="mt-3 w-full" type="button" variant="secondary" disabled={!content || !testDestination || (channel === "whatsapp" && !selectedTemplateId)} onClick={() => void sendTest()}><Send className="mr-2 size-4" />Invia test</Button>
           </SectionCard>
 
           <SectionCard actions={<Button type="button" variant="secondary" onClick={() => void loadPreview()}><Eye className="mr-2 size-4" />Calcola anteprima</Button>} className="xl:col-span-12" title={<span className="flex items-center gap-2"><UsersRound className="size-5 text-[#792f59]" />Anteprima destinatari</span>} subtitle="Obbligatoria prima di salvare: mostra recapiti validi ed esclusioni.">
             {!preview && <div className="grid min-h-28 place-items-center rounded-2xl border border-dashed border-stone-300 bg-stone-50 px-5 text-center"><div><Eye className="mx-auto size-5 text-stone-400" /><p className="mt-2 text-sm font-semibold text-stone-600">Calcola l'audience per verificare chi riceverà la campagna.</p></div></div>}
-            {preview && <div className="grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold">Destinatari validi · {preview.eligible_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.eligible.map((item) => <li key={item.customer_id}>{item.name} · {item.destination}</li>)}</ul></div><div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 className="font-bold">Destinazioni escluse · {preview.excluded_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.excluded.map((item) => <li key={item.customer_id}>{item.name} · {item.reason === "MISSING_EMAIL" ? "email mancante" : item.reason === "MISSING_WHATSAPP_CONSENT" ? "consenso WhatsApp mancante" : "telefono mancante"}</li>)}</ul></div></div>}
+            {preview && <div className="grid gap-4 md:grid-cols-2"><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><h3 className="font-bold">Destinatari validi · {preview.eligible_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.eligible.map((item) => <li key={item.customer_id}>{item.name} · {channel === "app" ? "notifiche push attive" : item.destination}</li>)}</ul></div><div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 className="font-bold">Destinazioni escluse · {preview.excluded_count}</h3><ul className="mt-2 space-y-1 text-sm">{preview.excluded.map((item) => <li key={item.customer_id}>{item.name} · {item.reason === "MISSING_EMAIL" ? "email mancante" : item.reason === "MISSING_WHATSAPP_CONSENT" ? "consenso WhatsApp mancante" : item.reason === "MISSING_PUSH_SUBSCRIPTION" ? "notifiche push non attive" : "telefono mancante"}</li>)}</ul></div></div>}
           </SectionCard>
 
           <div className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between xl:col-span-12"><div><strong className="block text-sm text-stone-950">Pronta per il controllo finale</strong><p className="mt-1 text-xs text-stone-500">{preview?.eligible_count ? `${preview.eligible_count} destinatari validi. La campagna resterà in bozza.` : "Calcola prima l'anteprima destinatari per continuare."}</p></div><Button className="min-h-11 sm:min-w-56" type="submit" disabled={!preview?.eligible_count}><Save className="mr-2 size-4" />Salva bozza e continua</Button></div>

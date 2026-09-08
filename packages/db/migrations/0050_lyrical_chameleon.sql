@@ -1,0 +1,1 @@
+ALTER TYPE "public"."campaign_channel" ADD VALUE 'app';

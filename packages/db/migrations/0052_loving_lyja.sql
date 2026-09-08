@@ -1,0 +1,1 @@
+ALTER TYPE "public"."review_delivery_channel" ADD VALUE 'app';

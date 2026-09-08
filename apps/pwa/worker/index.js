@@ -22,15 +22,19 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const href = event.notification.data?.href || "/";
+  // client.navigate() has patchy cross-browser support (notably on iOS Safari's
+  // push implementation) and can fail silently, leaving the tap looking like it
+  // did nothing. openWindow() is the one API every platform actually implements —
+  // for an installed standalone PWA it focuses the existing app instance rather
+  // than truly opening a second window.
   event.waitUntil(
-    self.clients.matchAll({ includeUncontrolled: true, type: "window" }).then((clientsList) => {
+    self.clients.matchAll({ includeUncontrolled: true, type: "window" }).then(async (clientsList) => {
       const existing = clientsList.find((client) => client.url.includes(href));
-      if (existing && "focus" in existing) return existing.focus();
-      if (clientsList[0] && "focus" in clientsList[0]) {
-        clientsList[0].navigate(href);
-        return clientsList[0].focus();
+      if (existing && "focus" in existing) {
+        await existing.focus();
+        return;
       }
-      if (self.clients.openWindow) return self.clients.openWindow(href);
+      if (self.clients.openWindow) await self.clients.openWindow(href);
     }),
   );
 });

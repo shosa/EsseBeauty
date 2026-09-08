@@ -14,8 +14,9 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
+import { brandedEmailHtml, escapeHtml } from "../lib/email-branding.js";
 import { sendCustomerAppMessage } from "../lib/customer-messages.js";
-import { sendEmail } from "./notifications.js";
+import { sendEmailFromDb } from "./notifications.js";
 import { enqueueCommunication } from "./communications.js";
 import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
@@ -77,7 +78,7 @@ export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
         const scheduledAt = new Date(
           item.startsAt.getTime() - hours * 60 * 60_000,
         );
-        if (scheduledAt > now || now.getTime() - scheduledAt.getTime() > 15 * 60_000) {
+        if (scheduledAt > now || now.getTime() - scheduledAt.getTime() > 10 * 60_000) {
           continue;
         }
         const channels = [
@@ -173,10 +174,20 @@ export async function processReminder(
         to: payload.phone,
       });
     } else if (reminder.channel === "email" && payload.email) {
-      await sendEmail(
+      const pwaUrl = (process.env.PWA_URL ?? "http://localhost:3002").replace(/\/$/, "");
+      await sendEmailFromDb(
+        db,
         payload.email,
         `Promemoria appuntamento - ${payload.salonName}`,
-        `<h1>${payload.salonName}</h1><p>Ciao ${payload.customerName},</p><p>ti ricordiamo ${payload.serviceName} con ${payload.staffName} il ${startsAt.toLocaleString("it-IT")}.</p>`,
+        brandedEmailHtml({
+          bodyHtml: `<p style="margin:0;">Ciao ${escapeHtml(payload.customerName)}, ti ricordiamo <strong style="color:#24161d;">${escapeHtml(payload.serviceName)}</strong> con ${escapeHtml(payload.staffName)} il <strong style="color:#24161d;">${escapeHtml(startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" }))}</strong>.</p>`,
+          ctaLabel: "Vedi i tuoi appuntamenti",
+          ctaUrl: `${pwaUrl}/${payload.salonSlug}/appointments`,
+          eyebrow: payload.salonName,
+          footerNote: `Promemoria automatico inviato tramite EsseBeauty per conto di ${payload.salonName}.`,
+          title: "Il tuo appuntamento si avvicina",
+        }),
+        { idempotencyKey: `appointment-reminder-${reminder.id}-email` },
       );
     } else {
       throw new Error("Missing reminder destination");
@@ -214,9 +225,13 @@ export function startReminderWorker(db: DrizzleDB): Worker<ReminderJob> {
 }
 
 export async function registerReminderSchedule(): Promise<void> {
+  // A reminder only fires once a scan actually runs after its scheduled time —
+  // scanning every 5 minutes (with the 10-minute staleness window above) keeps a
+  // reminder within ~5 minutes of "N hours before" instead of drifting toward the
+  // old 15-minute scan interval's worst case.
   await getQueue(QUEUE_NAMES.REMINDERS).upsertJobScheduler(
     "scan-due-reminders",
-    { every: 15 * 60_000 },
+    { every: 5 * 60_000 },
     { name: "scan" },
   );
 }

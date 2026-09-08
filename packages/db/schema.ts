@@ -65,6 +65,7 @@ export const reviewDeliveryChannelEnum = pgEnum("review_delivery_channel", [
   // Historical SMS compatibility; no active delivery path writes this value.
   "sms",
   "whatsapp",
+  "app",
 ]);
 export const reviewDeliveryStatusEnum = pgEnum("review_delivery_status", [
   "scheduled",
@@ -84,7 +85,7 @@ export const waitlistStatusEnum = pgEnum("waitlist_status", [
   "expired",
 ]);
 // Historical SMS compatibility: old campaigns remain queryable and are never sendable.
-export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "sms", "whatsapp"]);
+export const campaignChannelEnum = pgEnum("campaign_channel", ["email", "whatsapp", "app"]);
 export const campaignStatusEnum = pgEnum("campaign_status", [
   "draft",
   "scheduled",
@@ -1433,14 +1434,14 @@ export const reviewRequestSettings = pgTable(
     salonId: uuid("salon_id").notNull().references(() => salons.id, { onDelete: "cascade" }),
     automaticEnabled: boolean("automatic_enabled").default(false).notNull(),
     delayPreset: text("delay_preset").$type<"immediate" | "one_hour" | "three_hours" | "next_day" | "two_days">().default("one_hour").notNull(),
-    channels: jsonb("channels").$type<Array<"email" | "whatsapp">>().default(["email"]).notNull(),
+    channels: jsonb("channels").$type<Array<"app" | "email" | "whatsapp">>().default(["email"]).notNull(),
     updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("review_request_settings_salon_unique").on(table.salonId),
     check("review_request_settings_delay_check", sql`${table.delayPreset} in ('immediate','one_hour','three_hours','next_day','two_days')`),
-    check("review_request_settings_channels_check", sql`jsonb_array_length(${table.channels}) > 0 and ${table.channels} <@ '["email","whatsapp"]'::jsonb`),
+    check("review_request_settings_channels_check", sql`jsonb_array_length(${table.channels}) > 0 and ${table.channels} <@ '["email","whatsapp","app"]'::jsonb`),
   ],
 );
 
@@ -1465,7 +1466,7 @@ export const reviewInvitationDeliveries = pgTable(
     index("review_invitation_deliveries_schedule_idx").on(table.status, table.scheduledAt),
     check("review_invitation_deliveries_generation_check", sql`${table.generation} >= 0`),
     check("review_invitation_deliveries_attempts_check", sql`${table.attempts} >= 0`),
-    check("review_invitation_deliveries_channel_check", sql`${table.channel} in ('email','whatsapp')`),
+    check("review_invitation_deliveries_channel_check", sql`${table.channel} in ('email','whatsapp','app')`),
   ],
 );
 

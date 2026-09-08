@@ -906,7 +906,7 @@ export function buildDemoScenario(options: DemoSeedOptions): DemoScenario {
   const loyaltyPoints = [...loyaltyPointsFromAppointments, ...loyaltyPointsVipBonus, ...loyaltyPointsRedemptions];
 
   const campaignTemplates = ["Bentornata", "Compleanno", "Novità stagionali"].map((name, index) => ({
-    active: true, channel: index === 1 ? "sms" as const : "email" as const,
+    active: true, channel: index === 1 ? "app" as const : "email" as const,
     content: `Ciao {{nome}}, scopri ${name.toLowerCase()} nel Salone Demo. Messaggio dimostrativo non inviato.`,
     id: random.uuid("campaign-template"), name, salonId, variables: ["nome"],
   }));
@@ -916,7 +916,7 @@ export function buildDemoScenario(options: DemoSeedOptions): DemoScenario {
     targetSegment: { tags: index === 0 ? ["abituale"] : [] }, templateId: template.id,
   }));
   const campaignRecipients = marketingCampaigns.flatMap((campaign, campaignIndex) => customers.slice(campaignIndex * 40, campaignIndex * 40 + 40).map((customer, index) => ({
-    campaignId: campaign.id, customerId: customer.id, deliveryAttempts: 1, destination: customer.email!,
+    campaignId: campaign.id, customerId: customer.id, deliveryAttempts: 1, destination: campaign.channel === "app" ? customer.id : customer.email!,
     id: random.uuid("campaign-recipient"), providerName: "demo-disabled", salonId,
     sentAt: campaign.sentAt, status: index % 13 === 0 ? "failed" : "sent",
     error: index % 13 === 0 ? "Casella demo non raggiungibile" : null,

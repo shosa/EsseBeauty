@@ -2,19 +2,25 @@ import { Worker, type Job, type JobsOptions } from "bullmq";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
-import { campaignRecipients, campaignTemplates, communicationConsents, marketingCampaigns } from "@esse-beauty/db/schema";
+import { campaignRecipients, campaignTemplates, communicationConsents, marketingCampaigns, salons } from "@esse-beauty/db/schema";
 
 import { refreshCampaignStatus } from "./campaign-status.js";
 
 export { aggregateCampaignStatus, type AggregatedCampaignStatus } from "./campaign-status.js";
 
+import { brandedEmailHtml } from "../lib/email-branding.js";
+import { sendCustomerAppMessage } from "../lib/customer-messages.js";
 import {
   createCommunicationProviderRegistry,
   type CommunicationProviderRegistry,
+  type DeliveryReceipt,
   ProviderNotConfiguredError,
 } from "../providers/communications.js";
 import { enqueueCommunication } from "./communications.js";
+import { sendEmailFromDb } from "./notifications.js";
 import { QUEUE_NAMES, redisConnection } from "./queues.js";
+
+type EmailSender = (to: string, subject: string, html: string, options?: { idempotencyKey?: string }) => Promise<DeliveryReceipt>;
 
 export interface CampaignBatchJob {
   campaignId: string;
@@ -31,6 +37,7 @@ export async function processCampaignBatch(
   job: Pick<Job<CampaignBatchJob>, "data">,
   providers: CommunicationProviderRegistry = createCommunicationProviderRegistry(),
   enqueue: typeof enqueueCommunication = enqueueCommunication,
+  emailSender: EmailSender = (to, subject, html, options) => sendEmailFromDb(db, to, subject, html, options),
 ): Promise<void> {
   const campaigns = await db
     .select()
@@ -39,8 +46,8 @@ export async function processCampaignBatch(
   const campaign = campaigns[0];
   if (!campaign || campaign.status === "cancelled") return;
   // Historical campaigns retain their recorded channel and are never repurposed
-  // into a WhatsApp delivery at runtime.
-  if (campaign.channel !== "email" && campaign.channel !== "whatsapp") return;
+  // into a different delivery channel at runtime.
+  if (campaign.channel !== "email" && campaign.channel !== "whatsapp" && campaign.channel !== "app") return;
 
   const claimed = await db.transaction(async (tx) => {
     const started = await tx
@@ -79,8 +86,16 @@ export async function processCampaignBatch(
   });
   if (claimed.length === 0) return;
 
+  const salon = (await db.select({ name: salons.name, slug: salons.slug }).from(salons).where(eq(salons.id, campaign.salonId)))[0];
+  const salonSlug = salon?.slug;
+
   for (const recipient of claimed) {
     try {
+      if (campaign.channel === "app" && (!recipient.customerId || !salonSlug)) {
+        await db.update(campaignRecipients).set({ error: "APP_PUSH_DESTINATION_INVALID", status: "failed", updatedAt: new Date() })
+          .where(eq(campaignRecipients.id, recipient.id));
+        continue;
+      }
       if (campaign.channel === "whatsapp") {
         const consent = recipient.customerId && (await db.select({ id: communicationConsents.id })
           .from(communicationConsents)
@@ -117,13 +132,28 @@ export async function processCampaignBatch(
         }
       }
       const receipt = campaign.channel === "email"
-        ? await providers.send({
-            channel: "email",
-            html: campaign.content,
-            idempotencyKey: `campaign-recipient-${recipient.id}`,
-            subject: campaign.name,
-            to: recipient.destination,
-          })
+        ? await emailSender(
+            recipient.destination,
+            campaign.name,
+            brandedEmailHtml({
+              bodyHtml: campaign.content,
+              eyebrow: salon?.name ?? "EsseBeauty",
+              footerNote: `Comunicazione inviata tramite EsseBeauty per conto di ${salon?.name ?? "il salone"}.`,
+              title: campaign.name,
+            }),
+            { idempotencyKey: `campaign-recipient-${recipient.id}` },
+          )
+        : campaign.channel === "app"
+        ? await sendCustomerAppMessage(db, campaign.salonId, recipient.customerId!, {
+            body: campaign.content,
+            kind: "campaign",
+            slug: salonSlug!,
+            title: campaign.name,
+          }).then(() => ({
+            acceptedAt: new Date(),
+            provider: null,
+            providerMessageId: null,
+          }))
         : await enqueue(db, {
             idempotencyKey: `campaign-recipient-${recipient.id}`,
             kind: "template",

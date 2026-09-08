@@ -6,6 +6,7 @@ import { and, eq, gt, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import type { DrizzleDB } from "@esse-beauty/db";
 import {
   appointments,
+  customerPushSubscriptions,
   customers,
   reviewInvitationDeliveries,
   reviewInvitations,
@@ -13,6 +14,7 @@ import {
   services,
 } from "@esse-beauty/db/schema";
 
+import { sendCustomerAppMessage } from "../lib/customer-messages.js";
 import { issueStablePublicToken } from "../lib/public-tokens.js";
 import { sendEmail, sendEmailFromDb } from "./notifications.js";
 import { enqueueCommunication } from "./communications.js";
@@ -229,7 +231,7 @@ export async function scheduleReviewInvitation(
 export async function scheduleReviewRequest(
   db: DrizzleDB,
   appointmentId: string,
-  input: { channels: Array<"email" | "whatsapp">; scheduledAt: Date; resend?: boolean },
+  input: { channels: Array<"app" | "email" | "whatsapp">; scheduledAt: Date; resend?: boolean },
   queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
 ) {
   const invitation = await ensureReviewInvitation(db, appointmentId);
@@ -523,6 +525,7 @@ async function prepareChannelDelivery(db: DrizzleDB, deliveryId: string) {
       attempts: reviewInvitationDeliveries.attempts,
       channel: reviewInvitationDeliveries.channel,
       consumedAt: reviewInvitations.consumedAt,
+      customerId: customers.id,
       customerName: customers.fullName,
       deliveryId: reviewInvitationDeliveries.id,
       email: customers.email,
@@ -533,6 +536,7 @@ async function prepareChannelDelivery(db: DrizzleDB, deliveryId: string) {
       revokedAt: reviewInvitations.revokedAt,
       salonId: reviewInvitations.salonId,
       salonName: salons.name,
+      salonSlug: salons.slug,
       serviceName: services.name,
       status: reviewInvitationDeliveries.status,
     }).from(reviewInvitationDeliveries)
@@ -544,7 +548,13 @@ async function prepareChannelDelivery(db: DrizzleDB, deliveryId: string) {
       .where(eq(reviewInvitationDeliveries.id, deliveryId)).for("update");
     const delivery = rows[0];
     if (!delivery || delivery.consumedAt || delivery.revokedAt || ["delivered", "sent", "queued", "skipped", "exhausted", "processing"].includes(delivery.status)) return undefined;
-    const destination = delivery.channel === "email" ? delivery.email : delivery.channel === "whatsapp" ? delivery.phone : null;
+    const hasPushSubscription = delivery.channel === "app"
+      ? Boolean((await tx.select({ id: customerPushSubscriptions.id }).from(customerPushSubscriptions).where(eq(customerPushSubscriptions.customerId, delivery.customerId)))[0])
+      : false;
+    const destination = delivery.channel === "email" ? delivery.email
+      : delivery.channel === "whatsapp" ? delivery.phone
+        : delivery.channel === "app" ? (hasPushSubscription ? delivery.customerId : null)
+          : null;
     if (!destination) {
       await tx.update(reviewInvitationDeliveries).set({ failureReason: "missing_contact", status: "skipped" }).where(eq(reviewInvitationDeliveries.id, deliveryId));
       return undefined;
@@ -553,7 +563,7 @@ async function prepareChannelDelivery(db: DrizzleDB, deliveryId: string) {
       await tx.update(reviewInvitationDeliveries).set({ failureReason: "invitation_expired", status: "failed" }).where(eq(reviewInvitationDeliveries.id, deliveryId));
       return undefined;
     }
-    const token = delivery.channel === "email" ? issueStablePublicToken("review", delivery.invitationId, delivery.expiresAt, reviewTokenSecret()) : undefined;
+    const token = (delivery.channel === "email" || delivery.channel === "app") ? issueStablePublicToken("review", delivery.invitationId, delivery.expiresAt, reviewTokenSecret()) : undefined;
     await tx.update(reviewInvitationDeliveries).set({ attempts: sql`${reviewInvitationDeliveries.attempts} + 1`, failureReason: null, lastAttemptAt: new Date(), status: "processing" }).where(eq(reviewInvitationDeliveries.id, deliveryId));
     if (token) await tx.update(reviewInvitations).set({ tokenHash: token.tokenHash, updatedAt: new Date() }).where(eq(reviewInvitations.id, delivery.invitationId));
     return { ...delivery, attemptNumber: delivery.attempts + 1, rawToken: token?.raw };
@@ -570,8 +580,16 @@ export async function processChannelReviewRequest(db: DrizzleDB, job: Job<Review
       await (dependencies.emailSender ?? ((to, subject, html, options) => sendEmailFromDb(db, to, subject, html, options)))(delivery.email, `Come è andato il tuo appuntamento da ${delivery.salonName}?`, reviewInvitationEmailHtml({ customerName: delivery.customerName, reviewUrl: buildReviewInviteUrl(pwaUrl, delivery.rawToken), salonName: delivery.salonName, serviceName: delivery.serviceName }), { idempotencyKey: `review-invitation-${delivery.invitationId}-email-${delivery.generation}` });
     } else if (delivery.channel === "whatsapp" && delivery.phone) {
       await (dependencies.enqueue ?? enqueueCommunication)(db, { idempotencyKey: `review-invitation-${delivery.invitationId}-whatsapp-${delivery.generation}`, kind: "template", salonId: delivery.salonId, sourceId: delivery.invitationId, sourceType: "review_invitation", template: { locale: "it", name: "review_invitation", parameters: [delivery.customerName, delivery.serviceName, "__review_url__"] }, to: delivery.phone });
+    } else if (delivery.channel === "app" && delivery.rawToken) {
+      await sendCustomerAppMessage(db, delivery.salonId, delivery.customerId, {
+        body: `Ciao ${delivery.customerName}, raccontaci com'è andato il trattamento ${delivery.serviceName} da ${delivery.salonName}: bastano pochi secondi.`,
+        href: buildReviewInviteUrl(pwaUrl, delivery.rawToken),
+        kind: "review_request",
+        slug: delivery.salonSlug,
+        title: "Com'è andato il tuo appuntamento?",
+      });
     }
-    await db.update(reviewInvitationDeliveries).set({ deliveredAt: delivery.channel === "email" ? new Date() : null, failureReason: null, status: delivery.channel === "email" ? "delivered" : "queued" }).where(eq(reviewInvitationDeliveries.id, delivery.deliveryId));
+    await db.update(reviewInvitationDeliveries).set({ deliveredAt: delivery.channel === "whatsapp" ? null : new Date(), failureReason: null, status: delivery.channel === "whatsapp" ? "queued" : "delivered" }).where(eq(reviewInvitationDeliveries.id, delivery.deliveryId));
   } catch (error) {
     const exhausted = delivery.attemptNumber >= REVIEW_MAX_DELIVERY_ATTEMPTS;
     await db.update(reviewInvitationDeliveries).set({ failureReason: exhausted ? "attempts_exhausted" : deliveryFailureReason(error, "provider_failure"), status: exhausted ? "exhausted" : "failed" }).where(eq(reviewInvitationDeliveries.id, delivery.deliveryId));

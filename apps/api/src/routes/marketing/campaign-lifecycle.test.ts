@@ -21,6 +21,7 @@ import {
   aggregateCampaignStatus,
   processCampaignBatch,
 } from "../../jobs/marketing.js";
+import { pushPublicKey } from "../../lib/customer-push.js";
 import type {
   CommunicationMessage,
   CommunicationProviderRegistry,
@@ -197,7 +198,11 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
         url: `/api/salons/${data.salonId}/campaigns/readiness`,
       });
       expect(ready.statusCode, ready.body).toBe(200);
-      expect(ready.json()).toEqual({ email: "ready", whatsapp: "not_configured" });
+      expect(ready.json()).toEqual({
+        app: pushPublicKey() ? "ready" : "not_configured",
+        email: "ready",
+        whatsapp: "not_configured",
+      });
 
       const testSend = await app.inject({
         headers: { cookie: `esse-session=${data.ownerToken}` },
@@ -265,7 +270,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       const templateId = createdTemplate.json().id as string;
       const campaign = (
         await db.insert(marketingCampaigns).values({
-          channel: "sms",
+          channel: "whatsapp",
           content: "Vecchio testo",
           name: "Bozza",
           salonId: data.salonId,
@@ -722,20 +727,16 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
           })
           .returning()
       )[0]!;
-      const providers = {
-        require() {
-          throw new ProviderNotConfiguredError("email");
-        },
-        async send() {
-          throw new ProviderNotConfiguredError("email");
-        },
-        status: () => ({ email: "not_configured" }),
-      } as CommunicationProviderRegistry;
+      const emailSender = async () => {
+        throw new ProviderNotConfiguredError("email");
+      };
 
       await processCampaignBatch(
         db,
         { data: { campaignId: campaign.id, recipientIds: [recipient.id] } },
-        providers,
+        undefined,
+        undefined,
+        emailSender,
       );
 
       const storedRecipient = (
