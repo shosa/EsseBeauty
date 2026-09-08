@@ -341,6 +341,7 @@ export default function CalendarPage() {
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
   const [salonClosures, setSalonClosures] = useState<SalonClosure[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffOption[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
   const [view, setView] = useState<CalendarView>("day");
   const [periodOffset, setPeriodOffset] = useState(0);
   const [query, setQuery] = useState("");
@@ -358,6 +359,21 @@ export default function CalendarPage() {
     minSlotMinutes: 15,
     overbookingLimit: 0,
   });
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile && !["day", "agenda"].includes(view)) {
+      setView("day");
+      setPeriodOffset(0);
+    }
+  }, [isMobile, view]);
   const [error, setError] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -567,6 +583,14 @@ export default function CalendarPage() {
     [items, locationFilter, staffMembers],
   );
   const visibleStaff = staffFilter ? staffOptions.filter(([id]) => id === staffFilter) : staffOptions;
+  const selectedMobileStaffIndex = Math.max(0, staffOptions.findIndex(([id]) => id === staffFilter));
+  const renderedStaff = isMobile ? staffOptions.slice(selectedMobileStaffIndex, selectedMobileStaffIndex + 1) : visibleStaff;
+
+  function moveMobileStaff(direction: 1 | -1) {
+    if (staffOptions.length < 2) return;
+    const nextIndex = (selectedMobileStaffIndex + direction + staffOptions.length) % staffOptions.length;
+    setStaffFilter(staffOptions[nextIndex]![0]);
+  }
   const resourceColumns = resources.filter((resource) =>
     !locationFilter || !resource.locationId || resource.locationId === locationFilter,
   );
@@ -1043,7 +1067,7 @@ export default function CalendarPage() {
   const datePickerDays = Array.from({ length: 42 }, (_, index) => addDays(datePickerGridStart, index));
 
   return (
-    <main className="esse-workspace-page flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
+    <main className="esse-workspace-page flex h-[calc(100dvh-4rem)] flex-col overflow-hidden">
       <DndContext
         onDragCancel={() => { suppressClickUntilRef.current = 0; }}
         onDragEnd={handleDragEnd}
@@ -1052,12 +1076,12 @@ export default function CalendarPage() {
       >
         {/* ── Barra strumenti integrata ── */}
         <div className="flex-none border-b border-stone-200 bg-white">
-          <div className="flex items-center gap-2 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 lg:flex-nowrap">
             {/* Sede */}
             {locations.length > 1 && (
               <Select
                 aria-label="Sede"
-                className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20"
+                className="h-10 min-w-0 max-w-[calc(50vw-1.5rem)] rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20 lg:h-9 lg:max-w-none"
                 onChange={(event) => { setLocationFilter(event.target.value); setStaffFilter(""); }}
                 value={locationFilter}
               >
@@ -1069,7 +1093,7 @@ export default function CalendarPage() {
             {/* Staff */}
             <Select
               aria-label="Staff"
-              className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20"
+              className="h-10 min-w-0 max-w-[calc(50vw-1.5rem)] rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20 lg:h-9 lg:max-w-none"
               onChange={(event) => setStaffFilter(event.target.value)}
               value={staffFilter}
             >
@@ -1077,12 +1101,13 @@ export default function CalendarPage() {
               {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             </Select>
 
-            <div className="mx-1 h-5 w-px bg-stone-200" />
+            <div className="mx-1 hidden h-5 w-px bg-stone-200 lg:block" />
 
             {/* Navigazione settimana */}
+            <div className="order-first flex w-full items-center justify-between lg:contents">
             <button
               aria-label={periodNavLabel("prev")}
-              className="grid size-8 shrink-0 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100"
+              className="grid size-10 shrink-0 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100 lg:size-8"
               onClick={() => stepPeriod(-1)}
               type="button"
             >
@@ -1094,7 +1119,7 @@ export default function CalendarPage() {
                 const count = itemsForDay(day).length;
                 return (
                   <button
-                    className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-center transition ${active ? "bg-[#5f2447] text-white" : "text-stone-600 hover:bg-stone-50"}`}
+                    className={`flex min-h-11 flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 text-center transition lg:min-h-0 lg:px-3 ${active ? "bg-[#5f2447] text-white" : "text-stone-600 hover:bg-stone-50"}`}
                     key={day.toISOString()}
                     onClick={() => selectNavigatorDay(day)}
                     type="button"
@@ -1108,14 +1133,15 @@ export default function CalendarPage() {
             </div>
             <button
               aria-label={periodNavLabel("next")}
-              className="grid size-8 shrink-0 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100"
+              className="grid size-10 shrink-0 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100 lg:size-8"
               onClick={() => stepPeriod(1)}
               type="button"
             >
               <ChevronRight aria-hidden="true" className="size-4" />
             </button>
+            </div>
 
-            <div className="mx-1 h-5 w-px bg-stone-200" />
+            <div className="mx-1 hidden h-5 w-px bg-stone-200 lg:block" />
 
             {/* Oggi */}
             {periodOffset !== 0 && (
@@ -1144,7 +1170,7 @@ export default function CalendarPage() {
             <div className="flex-1" />
 
             {/* Ricerca */}
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" />
               <input
                 aria-label="Cerca appuntamenti"
@@ -1185,7 +1211,7 @@ export default function CalendarPage() {
 
             {/* Vista */}
             <div className="flex overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
-              {views.filter((item) => item.key !== "resources" || rules.enableResourceView || resources.length > 0).map((item) => {
+              {views.filter((item) => (!isMobile || item.key === "day" || item.key === "agenda") && (item.key !== "resources" || rules.enableResourceView || resources.length > 0)).map((item) => {
                 const ViewIcon = viewIcons[item.key];
                 return (
                   <button
@@ -1349,19 +1375,21 @@ export default function CalendarPage() {
             </div>
           ) : view === "staff_columns" || view === "day" ? (
             <div className="h-full overflow-x-auto bg-white">
-              <div className="min-h-full min-w-[980px]">
-                <div className="sticky top-0 z-20 grid border-b-2 border-stone-200 bg-white shadow-sm" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
+              <div className="min-h-full min-w-0 lg:min-w-[980px]">
+                <div className="sticky top-0 z-20 grid border-b-2 border-stone-200 bg-white shadow-sm" style={{ gridTemplateColumns: `${isMobile ? 58 : 76}px repeat(${Math.max(renderedStaff.length, 1)}, minmax(${isMobile ? 0 : 220}px, 1fr))` }}>
                   <div className="flex items-end justify-center border-r border-stone-200 pb-3 pt-4 text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Ora</div>
-                  {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId, staffName]) => {
+                  {(renderedStaff.length ? renderedStaff : [["", "Nessuno staff"]]).map(([staffId, staffName]) => {
                     const member = staffMembers.find((item) => item.id === staffId);
                     const displayName = staffName ?? "Nessuno staff";
                     return (
-                      <div className="flex flex-col items-center gap-2 border-r border-stone-100 px-4 pb-3 pt-4 last:border-r-0" key={staffId}>
+                      <div className="relative flex flex-col items-center gap-2 border-r border-stone-100 px-14 pb-3 pt-4 last:border-r-0 lg:px-4" key={staffId}>
+                        <button aria-label="Staff precedente" className="absolute left-2 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm disabled:opacity-30 lg:hidden" disabled={staffOptions.length < 2} onClick={() => moveMobileStaff(-1)} type="button"><ChevronLeft aria-hidden="true" className="size-5" /></button>
                         <span className="grid h-12 w-12 place-items-center rounded-full text-base font-black text-white shadow-md ring-2 ring-white" style={{ background: member?.color || "#792f59" }}>{displayName.slice(0, 1).toUpperCase()}</span>
-                        <div className="text-center">
+                        <div className="min-w-0 text-center">
                           <p className="text-sm font-black text-stone-950">{displayName}</p>
                           <p className="text-[11px] font-semibold text-stone-400">{filteredItems.filter((item) => item.staff_id === staffId).length} appuntamenti</p>
                         </div>
+                        <button aria-label="Staff successivo" className="absolute right-2 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm disabled:opacity-30 lg:hidden" disabled={staffOptions.length < 2} onClick={() => moveMobileStaff(1)} type="button"><ChevronRight aria-hidden="true" className="size-5" /></button>
                       </div>
                     );
                   })}
@@ -1369,7 +1397,7 @@ export default function CalendarPage() {
                 {closuresForDay(range.from).length > 0 && (
                   <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-bold text-red-800">Chiusura salone · {closuresForDay(range.from).map((item) => item.reason || "Giorno non prenotabile").join(", ")}</div>
                 )}
-                <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
+                <div className="grid" style={{ gridTemplateColumns: `${isMobile ? 58 : 76}px repeat(${Math.max(renderedStaff.length, 1)}, minmax(${isMobile ? 0 : 220}px, 1fr))` }}>
                   <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
                     {timelineCompressedGapMarkers.map((gap) => (
                       <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
@@ -1394,7 +1422,7 @@ export default function CalendarPage() {
                       </div>
                     ))}
                   </div>
-                  {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId]) => {
+                  {(renderedStaff.length ? renderedStaff : [["", "Nessuno staff"]]).map(([staffId]) => {
                     const staffAppointments = filteredItems.filter((item) => item.staff_id === staffId);
                     const layouts = collisionLayout(
                       staffAppointments,

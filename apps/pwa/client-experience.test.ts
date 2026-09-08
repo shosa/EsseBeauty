@@ -53,8 +53,7 @@ describe("client PWA experience", () => {
 
   it("uses library icons instead of text glyph CTAs on the customer home", () => {
     const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
-    expect(source).toContain("CalendarDays");
-    expect(source).toContain("CalendarPlus");
+    expect(source).toContain("ArrowRight");
     expect(source).toContain("Bell");
     expect(source).not.toContain(">⌁<");
   });

@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bell, LogOut, Sparkles, Star, UserRound, X } from "lucide-react";
+import { ArrowRight, Bell, BellOff, LogOut, Sparkles, Star, UserRound, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { apiBaseUrl } from "../../lib/api";
+import { NoticeModal } from "../_components/NoticeModal";
 import { ServiceCategoryIcon } from "../_components/ServiceCategoryIcon";
 import { CustomerAuthOverlay } from "./_components/CustomerAuthOverlay";
 import { useCustomerAuth } from "./_components/CustomerAuthProvider";
 import { InstallAppButton } from "./_components/InstallAppButton";
+import { getExistingPushSubscription, isPushSupported, subscribeToPush, unsubscribeFromPush } from "./_components/push-notifications";
 
 function initials(fullNameValue: string): string {
   const parts = fullNameValue.trim().split(/\s+/);
@@ -19,7 +21,7 @@ function initials(fullNameValue: string): string {
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
 interface Category { icon: string; id: string; name: string; }
 interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; installPromptEnabled?: boolean; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
-interface Profile { branding?: Branding | null; categories: Category[]; salon: { name: string }; services: Service[]; }
+interface Profile { branding?: Branding | null; categories: Category[]; pwa?: { pushPublicKey?: string | null } | null; salon: { name: string }; services: Service[]; }
 interface PublicReview { comment: string | null; created_at: string; customer_name: string; id: string; rating: number; reply: string | null; }
 interface PublicReviews { average_rating: number | null; items: PublicReview[]; total: number; }
 interface AppMessage { body: string; created_at: string; href?: string | null; id: string; read_at: string | null; title: string; }
@@ -42,6 +44,11 @@ export default function SalonLanding() {
   const [messages, setMessages] = useState<AppMessage[]>([]);
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messagesStatus, setMessagesStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushPromptDismissed, setPushPromptDismissed] = useState(true);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -53,7 +60,7 @@ export default function SalonLanding() {
   }, [slug]);
 
   useEffect(() => {
-    if (activeTab !== "reviews" || reviewsStatus !== "idle") return;
+    if (reviewsStatus !== "idle") return;
     setReviewsStatus("loading");
     void fetch(`${apiBaseUrl()}/api/public/${slug}/reviews`)
       .then(async (response) => {
@@ -62,7 +69,7 @@ export default function SalonLanding() {
         setReviewsStatus("ready");
       })
       .catch(() => setReviewsStatus("failed"));
-  }, [activeTab, reviewsStatus, slug]);
+  }, [reviewsStatus, slug]);
 
   useEffect(() => {
     if (authStatus !== "authenticated" || messagesStatus !== "idle") return;
@@ -75,6 +82,42 @@ export default function SalonLanding() {
       })
       .catch(() => setMessagesStatus("failed"));
   }, [authStatus, messagesStatus, slug]);
+
+  useEffect(() => {
+    const supported = isPushSupported();
+    setPushSupported(supported);
+    setPushPromptDismissed(window.localStorage.getItem(`esse-push-prompt-dismissed:${slug}`) === "1");
+    if (authStatus !== "authenticated" || !supported) return;
+    void getExistingPushSubscription().then((subscription) => setPushSubscribed(Boolean(subscription)));
+  }, [authStatus, slug]);
+
+  function dismissPushPrompt() {
+    setPushPromptDismissed(true);
+    window.localStorage.setItem(`esse-push-prompt-dismissed:${slug}`, "1");
+  }
+
+  async function togglePush() {
+    const pushPublicKey = profile?.pwa?.pushPublicKey;
+    if (!pushPublicKey || pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushSubscribed) {
+        await unsubscribeFromPush(apiBaseUrl(), slug);
+        setPushSubscribed(false);
+        setToast("Notifiche push disattivate.");
+      } else {
+        const subscription = await subscribeToPush(apiBaseUrl(), slug, pushPublicKey);
+        setPushSubscribed(Boolean(subscription));
+        setToast(subscription ? "Notifiche push attivate." : "Attiva le notifiche dalle impostazioni del browser per riceverle.");
+        if (subscription) dismissPushPrompt();
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+      setToast(`Impossibile aggiornare le notifiche push. (${detail})`);
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   const categories = useMemo(() => profile?.categories.filter((category) =>
     profile.services.some((service) => service.category === category.name),
@@ -117,11 +160,22 @@ export default function SalonLanding() {
               </span>
             </button>
             {accountMenuOpen && customer && (
-              <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-48 origin-top-right rounded-2xl border border-stone-200 bg-white p-3 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">
+              <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-60 origin-top-right rounded-2xl border border-stone-200 bg-white p-3 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">
                 <p className="truncate text-sm font-black text-stone-900">{customer.full_name}</p>
                 <p className="truncate text-xs text-stone-500">{customer.phone}</p>
+                {pushSupported && profile?.pwa?.pushPublicKey && (
+                  <button
+                    className="mt-3 flex w-full items-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-left text-sm font-bold text-stone-700 disabled:opacity-60"
+                    disabled={pushBusy}
+                    onClick={() => void togglePush()}
+                    type="button"
+                  >
+                    {pushSubscribed ? <Bell className="size-4 shrink-0" /> : <BellOff className="size-4 shrink-0" />}
+                    <span className="min-w-0 flex-1 truncate">{pushSubscribed ? "Notifiche push attive" : "Attiva notifiche push"}</span>
+                  </button>
+                )}
                 <button
-                  className="mt-3 flex w-full items-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-sm font-bold text-stone-700"
+                  className="mt-2 flex w-full items-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-sm font-bold text-stone-700"
                   onClick={() => {
                     setAccountMenuOpen(false);
                     void logout();
@@ -139,7 +193,16 @@ export default function SalonLanding() {
           {brand?.logoUrl
             ? <img alt="Logo salone" className="size-12 shrink-0 rounded-2xl border border-stone-200 object-cover" src={brand.logoUrl} />
             : <span className="grid size-12 shrink-0 place-items-center rounded-2xl" style={{ background: primary }}><img alt="EsseBeauty" className="h-9 w-auto brightness-0 invert" src="/esse-logo.svg" /></span>}
-          <p className="truncate text-lg font-bold text-stone-950">{profile?.salon.name}</p>
+          <div className="min-w-0">
+            <p className="truncate text-lg font-bold text-stone-950">{profile?.salon.name}</p>
+            {Boolean(reviews?.average_rating) && (
+              <p className="mt-0.5 flex items-center gap-1 text-sm">
+                <Star className="size-[13px] fill-current" style={{ color: "#b8862e" }} />
+                <span className="font-black text-stone-950">{reviews!.average_rating!.toLocaleString("it-IT")}</span>
+                <span className="text-stone-400">({reviews!.total})</span>
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 px-0.5">
@@ -150,6 +213,20 @@ export default function SalonLanding() {
 
         {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-600">{brand.welcomeText}</p>}
         <InstallAppButton enabled={brand?.installPromptEnabled !== false} primary={primary} />
+
+        {authStatus === "authenticated" && pushSupported && profile?.pwa?.pushPublicKey && !pushSubscribed && !pushPromptDismissed && (
+          <div className="animate-reveal mt-5 flex items-start gap-3 rounded-3xl border border-stone-200 bg-white p-4">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: primary }}><Bell className="size-5" /></span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black text-stone-950">Attiva le notifiche push</p>
+              <p className="mt-0.5 text-xs leading-5 text-stone-500">Sii avvisato subito su conferme, spostamenti e cambi di operatore.</p>
+              <div className="mt-3 flex gap-2">
+                <button className="min-h-9 rounded-full px-4 text-xs font-black text-white disabled:opacity-60" disabled={pushBusy} onClick={() => void togglePush()} style={{ background: primary }} type="button">{pushBusy ? "Un momento..." : "Attiva"}</button>
+                <button className="min-h-9 rounded-full px-4 text-xs font-black text-stone-500" onClick={dismissPushPrompt} type="button">Non ora</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <nav className="mt-6 grid grid-cols-2 rounded-full border border-stone-200 bg-white p-1 text-sm font-black">
           {[
@@ -194,8 +271,8 @@ export default function SalonLanding() {
           <div className="rounded-3xl border border-stone-200 bg-white p-5">
             <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Star className="size-4 fill-current" />Recensioni clienti</p>
             <div className="mt-3 flex items-end justify-between gap-4">
-              <h2 className="text-2xl font-bold text-stone-950">Cosa dicono del salone</h2>
-              {reviews?.average_rating && <span className="rounded-full px-3 py-1.5 text-sm font-black text-white" style={{ background: primary }}>{reviews.average_rating.toLocaleString("it-IT")} ★</span>}
+              <h2 className="min-w-0 text-2xl font-bold text-stone-950">Cosa dicono del salone</h2>
+              {reviews?.average_rating && <span className="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-black text-white" style={{ background: primary }}>{reviews.average_rating.toLocaleString("it-IT")} ★</span>}
             </div>
           </div>
           {reviewsStatus === "loading" && <p className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 text-sm font-bold text-stone-500">Caricamento recensioni...</p>}
@@ -254,6 +331,9 @@ export default function SalonLanding() {
             </div>
           </motion.section>
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {toast && <NoticeModal message={toast} onClose={() => setToast("")} primary={primary} />}
       </AnimatePresence>
     </main>
   );

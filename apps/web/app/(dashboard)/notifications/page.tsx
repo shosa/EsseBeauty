@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import { AppPage, Button, EmptyState, PageHeader, PageTransition, SectionCard, StatGrid, StatCard, StatusBadge, Select} from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 import { BellIcon, CalendarIcon, InventoryIcon, StaffIcon } from "../_components/Icons";
+import { AppointmentRequestModal } from "./_components/AppointmentRequestModal";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -34,6 +35,8 @@ interface NotificationRow {
   body: string | null;
   category: string;
   created_at: string;
+  entity_id: string | null;
+  entity_type: string | null;
   href: string | null;
   id: string;
   priority: string;
@@ -72,6 +75,7 @@ export default function NotificationsPage() {
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
+  const [appointmentRequestId, setAppointmentRequestId] = useState<string>();
 
   const loadSummary = useCallback(async () => {
     if (!salon) return;
@@ -113,6 +117,17 @@ export default function NotificationsPage() {
 
   async function refreshAll() {
     await Promise.all([load(), loadSummary(), loadMandatory()]);
+  }
+
+  function opensAppointmentModal(item: NotificationRow) {
+    return item.type === "online_booking_received" && item.entity_type === "appointment" && Boolean(item.entity_id);
+  }
+
+  function openNotification(item: NotificationRow) {
+    if (opensAppointmentModal(item) && item.entity_id) {
+      setAppointmentRequestId(item.entity_id);
+      void markRead(item);
+    }
   }
 
   async function markRead(item: NotificationRow) {
@@ -236,7 +251,9 @@ export default function NotificationsPage() {
                   {item.body && <p className="mt-1 text-sm text-stone-500">{item.body}</p>}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-[.08em] text-stone-400">{categoryLabels[item.category] ?? item.category}</span>
-                    {item.href && <Link className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" href={item.href}>Apri</Link>}
+                    {opensAppointmentModal(item)
+                      ? <button className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" onClick={() => openNotification(item)} type="button">Gestisci richiesta</button>
+                      : item.href && <Link className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" href={item.href}>Apri</Link>}
                     {!item.read_at && <Button onClick={() => void markRead(item)} size="sm" variant="outline">Segna letta</Button>}
                   </div>
                 </div>
@@ -319,7 +336,9 @@ export default function NotificationsPage() {
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className="text-xs font-bold uppercase tracking-[.08em] text-stone-400">{categoryLabels[item.category] ?? item.category}</span>
                           {item.action_pending && <StatusBadge status="pending">Da completare</StatusBadge>}
-                          {item.href && <Link className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" href={item.href}>Apri</Link>}
+                          {opensAppointmentModal(item)
+                            ? <button className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" onClick={() => openNotification(item)} type="button">Gestisci richiesta</button>
+                            : item.href && <Link className="rounded-lg bg-[#402334] px-3 py-1.5 text-xs font-bold text-white" href={item.href}>Apri</Link>}
                           {status !== "archived" && !item.read_at && <Button onClick={() => void markRead(item)} size="sm" variant="outline">Segna letta</Button>}
                           {status === "archived"
                             ? <Button onClick={() => void restore(item)} size="sm" variant="outline">Ripristina</Button>
@@ -335,5 +354,6 @@ export default function NotificationsPage() {
         </div>
       </>}
     </SectionCard>
+    <AppointmentRequestModal appointmentId={appointmentRequestId ?? null} onChanged={() => void refreshAll()} onClose={() => setAppointmentRequestId(undefined)} />
   </PageTransition></AppPage>;
 }

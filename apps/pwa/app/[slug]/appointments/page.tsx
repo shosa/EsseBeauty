@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { Bell, BellOff, CalendarClock, ChevronDown, Lock, RefreshCw, Trash2, UserRound } from "lucide-react";
+import { CalendarClock, ChevronDown, Lock, RefreshCw, Trash2, UserRound } from "lucide-react";
 import { appointmentStatusLabel } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
@@ -11,14 +11,13 @@ import type { SalonClosure } from "../../../lib/salon-closures";
 import { NoticeModal } from "../../_components/NoticeModal";
 import { CustomerAuthOverlay } from "../_components/CustomerAuthOverlay";
 import { useCustomerAuth } from "../_components/CustomerAuthProvider";
-import { getExistingPushSubscription, isPushSupported, subscribeToPush, unsubscribeFromPush } from "../_components/push-notifications";
 import { RescheduleWizard } from "../_components/RescheduleWizard";
 
 interface Branding { accentColor?: string; primaryColor?: string; }
 interface Profile {
   branding?: Branding | null;
   closures?: SalonClosure[];
-  pwa?: { allowCancellation?: boolean; allowReschedule?: boolean; maxAdvanceDays?: number; pushPublicKey?: string | null; requireEmail?: boolean };
+  pwa?: { allowCancellation?: boolean; allowReschedule?: boolean; maxAdvanceDays?: number; requireEmail?: boolean };
   salon: { name: string };
 }
 interface Item {
@@ -49,12 +48,8 @@ export default function AppointmentsPage() {
   const [loadedItems, setLoadedItems] = useState(false);
   const [toast, setToast] = useState("");
   const [showAuthOverlay, setShowAuthOverlay] = useState(true);
-  const [pushSupported, setPushSupported] = useState(false);
-  const [pushSubscribed, setPushSubscribed] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
   const primary = profile?.branding?.primaryColor || "#15140f";
   const accent = profile?.branding?.accentColor || "#0e7c59";
-  const pushPublicKey = profile?.pwa?.pushPublicKey;
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -72,34 +67,6 @@ export default function AppointmentsPage() {
     if (authStatus === "authenticated") void search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, slug]);
-
-  useEffect(() => {
-    const supported = isPushSupported();
-    setPushSupported(supported);
-    if (authStatus !== "authenticated" || !supported) return;
-    void getExistingPushSubscription().then((subscription) => setPushSubscribed(Boolean(subscription)));
-  }, [authStatus]);
-
-  async function togglePush() {
-    if (!pushPublicKey || pushBusy) return;
-    setPushBusy(true);
-    try {
-      if (pushSubscribed) {
-        await unsubscribeFromPush(apiBaseUrl(), slug);
-        setPushSubscribed(false);
-        setToast("Notifiche push disattivate.");
-      } else {
-        const subscription = await subscribeToPush(apiBaseUrl(), slug, pushPublicKey);
-        setPushSubscribed(Boolean(subscription));
-        setToast(subscription ? "Notifiche push attivate." : "Attiva le notifiche dalle impostazioni del browser per riceverle.");
-      }
-    } catch (error) {
-      const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-      setToast(`Impossibile aggiornare le notifiche push. (${detail})`);
-    } finally {
-      setPushBusy(false);
-    }
-  }
 
   const upcomingItems = useMemo(
     () => items.filter((item) => !isPastAppointment(item)),
@@ -145,22 +112,6 @@ export default function AppointmentsPage() {
           <h1 className="mt-2 text-[1.7rem] font-bold text-stone-950">I tuoi appuntamenti</h1>
           <p className="mt-2 text-sm text-stone-500">Consulta le prossime prenotazioni del tuo account.</p>
         </header>
-        {authStatus === "authenticated" && pushSupported && pushPublicKey && (
-          <button
-            className="animate-reveal mt-5 flex w-full items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4 text-left disabled:opacity-60"
-            disabled={pushBusy}
-            onClick={() => void togglePush()}
-            type="button"
-          >
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: primary }}>
-              {pushSubscribed ? <Bell className="size-5" /> : <BellOff className="size-5" />}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-black text-stone-950">{pushSubscribed ? "Notifiche push attive" : "Attiva le notifiche push"}</span>
-              <span className="mt-0.5 block text-xs text-stone-500">{pushSubscribed ? "Ricevi un avviso quando il salone conferma o modifica un appuntamento." : "Sii avvisato subito su conferme, spostamenti e cambi di operatore."}</span>
-            </span>
-          </button>
-        )}
         {authStatus === "authenticated" && (
           <div className="mt-5 flex gap-2" role="tablist">
             <button aria-selected={tab === "upcoming"} className={`min-h-11 flex-1 rounded-full border px-4 text-sm font-bold ${tab === "upcoming" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setTab("upcoming")} role="tab" style={tab === "upcoming" ? { background: primary, borderColor: primary } : undefined} type="button">Prossimi ({upcomingItems.length})</button>

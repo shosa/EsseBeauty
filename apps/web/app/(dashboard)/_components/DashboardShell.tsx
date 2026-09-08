@@ -33,6 +33,7 @@ import {
 } from "./Icons";
 import { notificationTypeLabels, searchGroups, type SearchGroupKey } from "./shell-config";
 import { AppRail } from "./AppRail";
+import { AppointmentRequestModal } from "../notifications/_components/AppointmentRequestModal";
 import { AppDrawerOverlay } from "./AppDrawerOverlay";
 import { MobileAppNavigation } from "./MobileAppNavigation";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
@@ -422,6 +423,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [appointmentRequestId, setAppointmentRequestId] = useState<string>();
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [staffRequestCount, setStaffRequestCount] = useState(0);
   const [waitlistPendingCount, setWaitlistPendingCount] = useState(0);
@@ -600,6 +602,11 @@ function ShellContent({ children }: { children: ReactNode }) {
   function openNotification(item: NotificationItem) {
     setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id));
     void markRead(item);
+    if (item.type === "online_booking_received" && item.entity_type === "appointment" && item.entity_id) {
+      setNotificationsOpen(false);
+      setAppointmentRequestId(item.entity_id);
+      return;
+    }
     if (item.href) {
       setNotificationsOpen(false);
       router.push(item.href);
@@ -714,6 +721,7 @@ function ShellContent({ children }: { children: ReactNode }) {
         onOpenItem={openNotification}
         open={notificationsOpen}
       />
+      <AppointmentRequestModal appointmentId={appointmentRequestId ?? null} onChanged={() => void loadNotifications()} onClose={() => setAppointmentRequestId(undefined)} />
       <WhatsAppChatDrawer />
       <div className="pointer-events-none fixed right-4 top-20 z-[90] flex flex-col gap-3">
         {whatsappPreviews.map((item) => <NotificationPreviewCard item={item} key={item.id} onDismiss={() => setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => { setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id)); communications.selectConversation(item.conversationId); communications.openChat(); }} />)}
