@@ -28,4 +28,10 @@ describe("active product communication UI", () => {
     expect(source).not.toContain("whatsapp_template_name: templateName");
     expect(source).not.toContain("whatsapp_template_locale: templateLocale");
   });
+
+  it("offers app push as a document consent delivery channel", async () => {
+    const source = await readFile(resolve(import.meta.dirname, "app/(dashboard)/settings/documents/_components/ConsentRecordsPanel.tsx"), "utf8");
+    expect(source).toContain('<option value="push">Notifica push app</option>');
+    expect(source).toContain("cliente ha attivato le notifiche nell'app");
+  });
 });

@@ -379,6 +379,13 @@
       "when": 1788872667142,
       "tag": "0053_friendly_toad_men",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788873200000,
+      "tag": "0054_add_push_consent_delivery_channel",
+      "breakpoints": true
     }
   ]
 }

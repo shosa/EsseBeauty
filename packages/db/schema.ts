@@ -126,6 +126,7 @@ export const consentDeliveryChannelEnum = pgEnum("consent_delivery_channel", [
   "email",
   // Historical SMS compatibility for consent evidence.
   "sms",
+  "push",
   "whatsapp",
   "in_person",
 ]);

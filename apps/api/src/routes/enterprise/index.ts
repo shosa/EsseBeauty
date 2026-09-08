@@ -5,6 +5,7 @@ import {
   activityLog,
   appointmentNotes,
   consentTemplates,
+  customerPushSubscriptions,
   customerPackageItemBalances,
   customerConsents,
   customerServicePackages,
@@ -14,6 +15,7 @@ import {
   servicePackageUsages,
   servicePackages,
   services,
+  salons,
   staffAvailabilityRequests,
   users,
 } from "@esse-beauty/db/schema";
@@ -38,10 +40,11 @@ import {
   type ConsentLifecycleRepository,
   type ConsentRequestRecord,
 } from "../../lib/consent-evidence.js";
+import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
 import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const deliveryChannels = new Set<ConsentDeliveryChannel>(["email", "in_person", "whatsapp"]);
+const deliveryChannels = new Set<ConsentDeliveryChannel>(["email", "in_person", "push", "whatsapp"]);
 const templateTypes = new Set(["anamnesis", "photo_release", "privacy", "treatment"]);
 
 function invalid(fields: Record<string, string[]>) {
@@ -313,6 +316,56 @@ function sendConsentError(reply: FastifyReply, error: unknown) {
   throw error;
 }
 
+async function hasCustomerPushSubscription(
+  app: FastifyInstance,
+  salonId: string,
+  customerId: string,
+): Promise<boolean> {
+  const subscription = (await app.db
+    .select({ id: customerPushSubscriptions.id })
+    .from(customerPushSubscriptions)
+    .where(and(
+      eq(customerPushSubscriptions.salonId, salonId),
+      eq(customerPushSubscriptions.customerId, customerId),
+    )))[0];
+  return Boolean(subscription);
+}
+
+async function deliverConsentPush(
+  app: FastifyInstance,
+  input: {
+    consent: ConsentRequestRecord;
+    rawToken: string;
+  },
+): Promise<"delivered" | "skipped"> {
+  if (input.consent.deliveryChannel !== "push") return "skipped";
+
+  if (!await hasCustomerPushSubscription(app, input.consent.salonId, input.consent.customerId)) {
+    return "skipped";
+  }
+
+  const details = (await app.db
+    .select({
+      salonName: salons.name,
+      salonSlug: salons.slug,
+      templateName: consentTemplates.name,
+    })
+    .from(customerConsents)
+    .innerJoin(salons, eq(salons.id, customerConsents.salonId))
+    .innerJoin(consentTemplates, eq(consentTemplates.id, customerConsents.templateId))
+    .where(eq(customerConsents.id, input.consent.id)))[0];
+  if (!details) return "skipped";
+
+  await sendCustomerAppMessage(app.db, input.consent.salonId, input.consent.customerId, {
+    body: `${details.salonName} ti ha inviato il consenso "${details.templateName}" da leggere e firmare.`,
+    href: `/consents/${encodeURIComponent(input.rawToken)}`,
+    kind: "consent_request",
+    slug: details.salonSlug,
+    title: "Consenso da firmare",
+  });
+  return "delivered";
+}
+
 function ensureSalon(request: { params: { id: string }; salonId: string }, reply: { code(statusCode: number): { send(payload: unknown): unknown } }) {
   if (request.params.id !== request.salonId) {
     return reply.code(403).send({ error: "FORBIDDEN" });
@@ -524,6 +577,9 @@ export async function registerEnterpriseModuleRoutes(
       const body = parseBody(createConsentRequestBodySchema, request, reply);
       if (!body) return;
       try {
+        if (body.delivery_channel === "push" && !await hasCustomerPushSubscription(app, request.salonId, body.customer_id)) {
+          return reply.code(409).send({ error: "APP_PUSH_SUBSCRIPTION_NOT_FOUND" });
+        }
         const created = await createConsentRequest(consentRepository, {
           appointmentId: body.appointment_id,
           customerId: body.customer_id,
@@ -532,6 +588,10 @@ export async function registerEnterpriseModuleRoutes(
           salonId: request.salonId,
           templateId: body.template_id,
         });
+        const pushDelivery = await deliverConsentPush(app, created);
+        if (body.delivery_channel === "push" && pushDelivery !== "delivered") {
+          return reply.code(409).send({ error: "APP_PUSH_SUBSCRIPTION_NOT_FOUND" });
+        }
         return reply.code(201).send({
           consent: consentDto(created.consent),
           signing_url: `/consents/${encodeURIComponent(created.rawToken)}`,
@@ -563,11 +623,27 @@ export async function registerEnterpriseModuleRoutes(
       const body = parseBody(resendConsentBodySchema, request, reply);
       if (!body) return;
       try {
+        if (body.delivery_channel === "push") {
+          const current = (await app.db
+            .select({ customerId: customerConsents.customerId })
+            .from(customerConsents)
+            .where(and(
+              eq(customerConsents.salonId, request.salonId),
+              eq(customerConsents.id, request.params.consentId),
+            )))[0];
+          if (current && !await hasCustomerPushSubscription(app, request.salonId, current.customerId)) {
+            return reply.code(409).send({ error: "APP_PUSH_SUBSCRIPTION_NOT_FOUND" });
+          }
+        }
         const resent = await resendConsentRequest(consentRepository, request.params.consentId, {
           deliveryChannel: body.delivery_channel,
           expiresAt: body.expires_at,
           salonId: request.salonId,
         });
+        const pushDelivery = await deliverConsentPush(app, resent);
+        if (body.delivery_channel === "push" && pushDelivery !== "delivered") {
+          return reply.code(409).send({ error: "APP_PUSH_SUBSCRIPTION_NOT_FOUND" });
+        }
         return {
           consent: consentDto(resent.consent),
           signing_url: `/consents/${encodeURIComponent(resent.rawToken)}`,

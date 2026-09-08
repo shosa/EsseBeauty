@@ -62,4 +62,17 @@ describe("document route contracts", () => {
     });
     expect(transaction).not.toHaveBeenCalled();
   });
+
+  it("accepts push as a consent delivery channel", () => {
+    const parsed = createConsentRequestBodySchema.safeParse({
+      customer_id: "11111111-1111-4111-8111-111111111111",
+      delivery_channel: "push",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      template_id: "22222222-2222-4222-8222-222222222222",
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) throw new Error("Expected push delivery to be accepted");
+    expect(parsed.data.delivery_channel).toBe("push");
+  });
 });

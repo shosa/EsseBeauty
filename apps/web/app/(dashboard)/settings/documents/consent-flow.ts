@@ -1,5 +1,5 @@
-/** The legacy channel is retained only to render historical consent evidence; new requests use WhatsApp. */
-export type ConsentDeliveryChannel = "email" | "in_person" | "whatsapp" | "sms";
+/** The legacy channel is retained only to render historical consent evidence; new requests use WhatsApp or app push. */
+export type ConsentDeliveryChannel = "email" | "in_person" | "push" | "whatsapp" | "sms";
 export type ConsentStatus = "expired" | "pending" | "revoked" | "signed";
 
 export interface ConsentRequestInput {
@@ -58,6 +58,7 @@ export function consentMutationError(code?: string): string {
     CONSENT_SERVICE_INVALID: "Il modello non è valido per il servizio selezionato.",
     CONSENT_TEMPLATE_ARCHIVED: "Il modello selezionato è archiviato.",
     CONSENT_TEMPLATE_NOT_FOUND: "Il modello selezionato non è più disponibile.",
+    APP_PUSH_SUBSCRIPTION_NOT_FOUND: "Il cliente non ha le notifiche push attive nell'app.",
     TOKEN_CONSUMED: "Il documento è già stato firmato.",
     TOKEN_EXPIRED: "La richiesta è scaduta. Rigenera il link per continuare.",
     TOKEN_REVOKED: "Il consenso è stato revocato.",
