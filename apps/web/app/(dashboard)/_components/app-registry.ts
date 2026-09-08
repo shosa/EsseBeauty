@@ -252,6 +252,11 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       label: "Nuova campagna",
       permissions: [PERMISSION_KEYS.MARKETING_SEND],
     }],
+    tabs: [
+      { href: "/marketing", label: "Campagne" },
+      { href: "/marketing/new", label: "Nuova campagna", permissions: [PERMISSION_KEYS.MARKETING_SEND] },
+      { href: "/marketing/templates", label: "Modelli", permissions: [PERMISSION_KEYS.MARKETING_SEND] },
+    ],
   },
   {
     accent: "#c026d3",
