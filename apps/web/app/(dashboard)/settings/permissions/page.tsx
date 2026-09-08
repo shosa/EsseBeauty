@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 
-import { AppPage, Button, ConfirmDialog, DateTimeField, EmptyState, FormField, InlineError, PageHeader, SaveActionButton, SaveToast, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, DateTimeField, EmptyState, FormField, InlineError, PageHeader, SaveActionButton, SaveToast, SectionCard, StatusBadge, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -190,7 +190,7 @@ export default function PermissionsPage() {
 
       <SectionCard className="self-start xl:col-span-5" title="Inserimento manuale" subtitle="Registra direttamente ferie, permessi o altre indisponibilità.">
         <form action={addBlock} className="grid gap-4">
-          <FormField label="Collaboratore" required><select className="w-full" name="staff_id" required><option value="">Seleziona</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</select></FormField>
+          <FormField label="Collaboratore" required><Select className="w-full" name="staff_id" required><option value="">Seleziona</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</Select></FormField>
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Inizio" required><DateTimeField aria-label="Inizio permesso" name="starts" onChange={setStartsAt} required value={startsAt} /></FormField>
             <FormField label="Fine" required><DateTimeField aria-label="Fine permesso" min={startsAt || undefined} name="ends" onChange={setEndsAt} required value={endsAt} /></FormField>

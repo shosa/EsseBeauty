@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Dialog } from "@esse-beauty/ui";
+import { Button, Dialog, Select} from "@esse-beauty/ui";
 
 export function StockMovementModal({
   name,
@@ -49,12 +49,12 @@ export function StockMovementModal({
         </label>
         <label className="block text-sm font-semibold">
           Motivo
-          <select value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3">
+          <Select value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3">
             <option value="restock">Rifornimento</option>
             <option value="usage">Utilizzo</option>
             <option value="loss">Perdita</option>
             <option value="other">Altro</option>
-          </select>
+          </Select>
         </label>
       </div>
     </Dialog>

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronRight, MoreHorizontal, PackagePlus, SlidersHorizontal } from "lucide-react";
-import { Button, EmptyState, Switch } from "@esse-beauty/ui";
+import { Button, EmptyState, Switch, Select} from "@esse-beauty/ui";
 import { Card } from "./EnterpriseCard";
 import type { WarehouseItemType, WarehouseProduct } from "../warehouse-types";
 
@@ -19,10 +19,10 @@ export function WarehouseProducts({ items, query, lowOnly, itemType, selected, o
           <span className="sr-only">Cerca articoli</span>
           <input className="w-full" onChange={(event) => onQuery(event.target.value)} placeholder="Cerca articolo, SKU o fornitore" value={query} />
         </label>
-        <select aria-label="Tipo articolo" className="w-[170px]" onChange={(event) => onItemType(event.target.value as WarehouseItemType | "all")} value={itemType}>
+        <Select aria-label="Tipo articolo" className="w-[170px]" onChange={(event) => onItemType(event.target.value as WarehouseItemType | "all")} value={itemType}>
           <option value="all">Tutti i tipi</option>
           {Object.entries(types).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
-        </select>
+        </Select>
         <label className="flex h-10 items-center gap-2 rounded-xl border border-[#e8dfe4] bg-white px-3 text-[12.5px] font-bold text-stone-600"><Switch checked={lowOnly} onCheckedChange={onLowOnly} />Solo scorte basse</label>
         <Button className="ml-auto" onClick={() => onOpenOperation("adjustment")} size="sm" variant="outline"><SlidersHorizontal className="size-3.5" />Azione manuale</Button>
       </div>

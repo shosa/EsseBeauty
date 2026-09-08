@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, DateField, Dialog, FormField } from "@esse-beauty/ui";
+import { Button, DateField, Dialog, FormField, Select} from "@esse-beauty/ui";
 import { buildExpensePayload } from "../expense-form";
 import type { WarehousePaymentMethod, WarehouseSupplier } from "../warehouse-types";
 
@@ -38,13 +38,13 @@ export function ExpenseDialog({
         <FormField label="Motivo" required><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} value={draft.description} /></FormField>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField label="Categoria"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, category: event.target.value }))} value={draft.category} /></FormField>
-          <FormField label="Pagamento"><select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, paymentMethod: event.target.value as WarehousePaymentMethod }))} value={draft.paymentMethod}><option value="cash">Contanti</option><option value="card">Carta</option><option value="bank_transfer">Bonifico</option><option value="other">Altro</option></select></FormField>
+          <FormField label="Pagamento"><Select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, paymentMethod: event.target.value as WarehousePaymentMethod }))} value={draft.paymentMethod}><option value="cash">Contanti</option><option value="card">Carta</option><option value="bank_transfer">Bonifico</option><option value="other">Altro</option></Select></FormField>
         </div>
         <FormField label="Note"><textarea className="min-h-20 w-full rounded-xl border border-stone-200 px-3 py-2" onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} value={draft.notes} /></FormField>
         <details open={details} onToggle={(event) => setDetails(event.currentTarget.open)}>
           <summary className="cursor-pointer text-sm font-bold text-[#792f59]">Aggiungi dettagli documento</summary>
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <FormField label="Fornitore"><select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, supplierId: event.target.value }))} value={draft.supplierId}><option value="">Nessuno</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></FormField>
+            <FormField label="Fornitore"><Select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, supplierId: event.target.value }))} value={draft.supplierId}><option value="">Nessuno</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></FormField>
             <FormField label="IVA"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, vat: event.target.value }))} value={draft.vat} /></FormField>
           </div>
         </details>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -117,10 +117,10 @@ export default function ServiceDetailPage() {
             <form action={save} className="grid gap-4">
               <FormField label="Nome servizio" required><input required name="name" defaultValue={service.name} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
               <FormField label="Categoria" required>
-                <select className="min-h-12 w-full" onChange={(event) => setCategoryId(event.target.value)} required value={categoryId}>
+                <Select className="min-h-12 w-full" onChange={(event) => setCategoryId(event.target.value)} required value={categoryId}>
                   <option disabled value="">Seleziona categoria</option>
                   {categories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.active ? "" : " (archiviata)"}</option>)}
-                </select>
+                </Select>
               </FormField>
               <FormField label="Descrizione"><textarea name="description" defaultValue={service.description ?? ""} className="min-h-28 w-full rounded-xl border p-3" /></FormField>
               <FormField label="Durata" required description="Durata in minuti."><input required name="duration" type="number" min="5" step="5" defaultValue={service.durationMinutes} className="min-h-12 w-full rounded-xl border px-3" /></FormField>

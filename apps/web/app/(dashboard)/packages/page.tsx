@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { AppPage, Button, Dialog, Drawer, EmptyState, InlineError, SaveToast, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, Dialog, Drawer, EmptyState, InlineError, SaveToast, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -274,10 +274,10 @@ export default function PackagesPage() {
               <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
               <input className="w-full pl-10" onChange={(event) => setAssignSearch(event.target.value)} placeholder="Cerca cliente o pacchetto" value={assignSearch} />
             </label>
-            <select aria-label="Filtra per stato" className="w-[190px]" onChange={(event) => setAssignStatusFilter(event.target.value as AssignmentStatus | "all")} value={assignStatusFilter}>
+            <Select aria-label="Filtra per stato" className="w-[190px]" onChange={(event) => setAssignStatusFilter(event.target.value as AssignmentStatus | "all")} value={assignStatusFilter}>
               <option value="all">Tutti gli stati</option>
               {(Object.keys(statusLabels) as AssignmentStatus[]).map((key) => <option key={key} value={key}>{statusLabels[key]}</option>)}
-            </select>
+            </Select>
           </div>
           {!filteredAssignments.length ? <div className="p-4"><EmptyState description="Modifica la ricerca o il filtro selezionato." title="Nessuna assegnazione" /></div> : (
             <div className="mt-3 overflow-x-auto border-t border-[#e8dfe4]">

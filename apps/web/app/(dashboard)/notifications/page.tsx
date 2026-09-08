@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import { AppPage, Button, EmptyState, PageHeader, PageTransition, SectionCard, StatGrid, StatCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, PageHeader, PageTransition, SectionCard, StatGrid, StatCard, StatusBadge, Select} from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 import { BellIcon, CalendarIcon, InventoryIcon, StaffIcon } from "../_components/Icons";
 
@@ -254,10 +254,10 @@ export default function NotificationsPage() {
           <span className="sr-only">Cerca notifiche</span>
           <input className="w-full pl-9" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca per cliente, servizio, prodotto…" type="search" value={query} />
         </label>
-        <select aria-label="Categoria" className="min-h-11" onChange={(event) => setCategory(event.target.value)} value={category}>
+        <Select aria-label="Categoria" className="min-h-11" onChange={(event) => setCategory(event.target.value)} value={category}>
           <option value="all">Tutte le categorie</option>
           {categoryOptions.map((key) => <option key={key} value={key}>{categoryLabels[key] ?? key}</option>)}
-        </select>
+        </Select>
         <div className="flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-stone-50 p-1">
           {statusTabs.map((tab) => (
             <button

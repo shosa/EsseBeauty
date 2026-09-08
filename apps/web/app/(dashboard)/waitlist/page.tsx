@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AppPage, Button, ConfirmDialog, PageHeader, PageTransition, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, PageHeader, PageTransition, SectionCard, StatusBadge, Select} from "@esse-beauty/ui";
 import { useAuth } from "../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -86,7 +86,7 @@ export default function WaitlistPage() {
     <PageHeader eyebrow="Disponibilità" title="Lista d’attesa" subtitle="Trasforma gli slot liberati in nuovi appuntamenti." />
     <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">{Object.entries(statusLabels).map(([key, label]) => <button key={key} className="min-h-20 rounded-2xl border border-stone-200 bg-white p-4 text-left" onClick={() => setStatus(status === key ? "" : key)}><span className="block text-2xl font-black">{counts[key] ?? 0}</span><span className="text-sm text-stone-600">{label}</span></button>)}</div>
     <SectionCard>
-      <div className="mb-5 flex flex-wrap gap-3"><label className="text-sm font-bold">Stato<select className="ml-2 min-h-11" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Tutti</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="text-sm font-bold">Data<input className="ml-2 min-h-11" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>{(status || date) && <Button onClick={() => { setStatus(""); setDate(""); }} size="sm" variant="tableAction">Azzera filtri</Button>}</div>
+      <div className="mb-5 flex flex-wrap gap-3"><label className="text-sm font-bold">Stato<Select className="ml-2 min-h-11" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Tutti</option>{Object.entries(statusLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></label><label className="text-sm font-bold">Data<input className="ml-2 min-h-11" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>{(status || date) && <Button onClick={() => { setStatus(""); setDate(""); }} size="sm" variant="tableAction">Azzera filtri</Button>}</div>
       {selected.length > 0 && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ead1df] bg-[#fffafd] px-4 py-2.5 text-sm"><span><strong>{selected.length}</strong> richieste selezionate</span><Button disabled={bulkPending} onClick={() => setBulkDeleteOpen(true)} size="sm" variant="destructive">Elimina selezionate</Button></div>}
       {message && <p className="mb-4 rounded-xl bg-stone-100 p-3 text-sm font-semibold" role="status">{message}</p>}
       {loading ? <p className="py-10 text-center text-stone-500">Caricamento richieste...</p> : items.length === 0 ? <p className="py-10 text-center text-stone-500">{status || date ? "Nessuna richiesta corrisponde ai filtri." : "Nessun cliente è attualmente in lista d’attesa."}</p> : <>

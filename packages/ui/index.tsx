@@ -1,12 +1,15 @@
 import type {
   ButtonHTMLAttributes,
+  ChangeEvent,
   ComponentType,
   HTMLAttributes,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent,
   ReactNode,
+  ReactElement,
+  SelectHTMLAttributes,
 } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Children, isValidElement, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, Trash2, X } from "lucide-react";
@@ -134,6 +137,138 @@ const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   secondary: "border border-[#ead1df] bg-[#faf3f7] text-[#792f59] shadow-none hover:border-[#d99aba] hover:bg-[#f3e2eb]",
   tableAction: "border border-stone-200 bg-white/90 text-xs font-bold text-stone-700 shadow-none hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]",
 };
+
+export function Select({
+  children,
+  className = "",
+  defaultValue,
+  disabled = false,
+  onChange,
+  value,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const listboxId = useId();
+  const options = Children.toArray(children)
+    .filter((child): child is ReactElement<{ children?: ReactNode; disabled?: boolean; value?: string | number }> => isValidElement(child) && child.type === "option")
+    .map((option) => ({
+      disabled: Boolean(option.props.disabled),
+      label: String(option.props.children ?? option.props.value ?? ""),
+      value: String(option.props.value ?? option.props.children ?? ""),
+    }));
+  const initialValue = String(defaultValue ?? options.find((option) => !option.disabled)?.value ?? "");
+  const [internalValue, setInternalValue] = useState(initialValue);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [position, setPosition] = useState({ left: 0, top: 0, width: 0 });
+  const selectedValue = value === undefined ? internalValue : String(value);
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === selectedValue));
+  const selectedOption = options[selectedIndex];
+
+  function updatePosition() {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPosition({ left: rect.left, top: rect.bottom + 6, width: rect.width });
+  }
+
+  function choose(nextValue: string) {
+    if (value === undefined) setInternalValue(nextValue);
+    onChange?.({ target: { value: nextValue }, currentTarget: { value: nextValue } } as ChangeEvent<HTMLSelectElement>);
+    setOpen(false);
+    buttonRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const close = (event: globalThis.MouseEvent) => {
+      if (event.target instanceof Node && !buttonRef.current?.contains(event.target)) setOpen(false);
+    };
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    document.addEventListener("mousedown", close);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", close);
+    };
+  }, [open]);
+
+  function moveActive(direction: 1 | -1) {
+    if (!options.length) return;
+    let next = activeIndex;
+    do next = (next + direction + options.length) % options.length;
+    while (options[next]?.disabled && next !== activeIndex);
+    setActiveIndex(next);
+  }
+
+  return (
+    <>
+      <button
+        aria-controls={open ? listboxId : undefined}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={props["aria-label"]}
+        aria-required={props.required || undefined}
+        className={`relative min-h-11 cursor-pointer rounded-xl border border-stone-300 bg-white py-2.5 pl-3 pr-10 text-left text-sm font-semibold text-stone-900 shadow-sm transition-[border-color,box-shadow,background-color] hover:border-stone-400 focus:border-[#792f59] focus:outline-none focus:ring-4 focus:ring-[#b85888]/15 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-500 ${className}`}
+        disabled={disabled}
+        id={props.id}
+        onClick={() => { updatePosition(); setActiveIndex(selectedIndex); setOpen((current) => !current); }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") { setOpen(false); return; }
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            if (!open) { updatePosition(); setActiveIndex(selectedIndex); setOpen(true); }
+            else moveActive(event.key === "ArrowDown" ? 1 : -1);
+          }
+          if ((event.key === "Enter" || event.key === " ") && open) {
+            event.preventDefault();
+            const option = options[activeIndex];
+            if (option && !option.disabled) choose(option.value);
+          }
+        }}
+        ref={buttonRef}
+        type="button"
+      >
+        <span className="block truncate">{selectedOption?.label || "Seleziona"}</span>
+        <ChevronDown aria-hidden="true" className={`pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#792f59] transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      <input
+        disabled={disabled}
+        name={props.name}
+        type="hidden"
+        value={selectedValue}
+      />
+      {open && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed z-[100] max-h-72 overflow-y-auto rounded-xl border border-[#e8bfd4] bg-white p-1.5 shadow-[0_18px_50px_rgb(45_29_39_/_0.18)]"
+          id={listboxId}
+          onMouseDown={(event) => event.stopPropagation()}
+          role="listbox"
+          style={{ left: position.left, minWidth: position.width, top: position.top, width: position.width }}
+        >
+          {options.map((option, index) => (
+            <button
+              aria-selected={option.value === selectedValue}
+              className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${option.disabled ? "cursor-not-allowed text-stone-400" : index === activeIndex ? "bg-[#faf3f7] text-[#792f59]" : "text-stone-700 hover:bg-stone-50"}`}
+              disabled={option.disabled}
+              key={`${option.value}-${index}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => choose(option.value)}
+              role="option"
+              type="button"
+            >
+              <span>{option.label}</span>
+              {option.value === selectedValue && <Check aria-hidden="true" className="size-4 shrink-0 text-[#792f59]" />}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
 
 const buttonSizes: Record<NonNullable<ButtonProps["size"]>, string> = {
   lg: "min-h-12 rounded-xl px-5 py-3",

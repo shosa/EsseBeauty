@@ -13,6 +13,7 @@ import {
   SaveActionButton,
   SaveToast,
   SectionCard,
+  Select,
   StatusBadge,
   Switch,
 } from "@esse-beauty/ui";
@@ -201,9 +202,9 @@ export default function DocumentsSettingsPage() {
                 />
               </FormField>
               <FormField label="Tipo">
-                <select className="w-full" onChange={(event) => setForm((value) => ({ ...value, type: event.target.value }))} value={form.type}>
+                <Select className="w-full" onChange={(event) => setForm((value) => ({ ...value, type: event.target.value }))} value={form.type}>
                   {documentTypes.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
-                </select>
+                </Select>
               </FormField>
             </div>
 

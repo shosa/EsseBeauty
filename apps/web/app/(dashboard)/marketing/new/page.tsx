@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, CalendarClock, Eye, LayoutTemplate, Mail, MessageCircleMore, Save, Send, UsersRound } from "lucide-react";
-import { AppPage, Breadcrumbs, Button, InlineError, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, InlineError, SectionCard, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -128,7 +128,7 @@ export default function NewCampaignPage() {
           >
             <div className="grid gap-4 md:grid-cols-2">
               <label className="font-semibold">Nome<input name="name" required className="mt-2 min-h-12 w-full rounded-xl border px-3" placeholder="Es. Ritorna da noi" /></label>
-              <label className="font-semibold">Modello<select defaultValue="" onChange={(event) => applyTemplate(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3"><option value="">Nessun modello</option>{templates.filter((template) => template.channel !== "whatsapp" || template.whatsappApprovalStatus === "approved").map((template) => <option key={template.id} value={template.id}>{template.name} · {template.channel.toUpperCase()}</option>)}</select></label>
+              <label className="font-semibold">Modello<Select defaultValue="" onChange={(event) => applyTemplate(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3"><option value="">Nessun modello</option>{templates.filter((template) => template.channel !== "whatsapp" || template.whatsappApprovalStatus === "approved").map((template) => <option key={template.id} value={template.id}>{template.name} · {template.channel.toUpperCase()}</option>)}</Select></label>
             </div>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {(["email", "whatsapp", "app"] as const).map((value) => {
@@ -141,7 +141,7 @@ export default function NewCampaignPage() {
           </SectionCard>
 
           <SectionCard className="xl:col-span-5" title={<span className="flex items-center gap-2"><UsersRound className="size-5 text-[#792f59]" />Pubblico e pianificazione</span>} subtitle="Definisci chi riceverà il messaggio e quando prepararlo.">
-            <label className="block font-semibold">Segmento<select value={segment} onChange={(event) => { setSegment(event.target.value); invalidatePreview(); }} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3"><option value="all">Tutti</option><option value="inactive">Clienti inattivi</option><option value="tag">Tag cliente</option><option value="high_loyalty">Punti fedeltà alti</option></select></label>
+            <label className="block font-semibold">Segmento<Select value={segment} onChange={(event) => { setSegment(event.target.value); invalidatePreview(); }} className="mt-2 min-h-12 w-full rounded-xl border bg-white px-3"><option value="all">Tutti</option><option value="inactive">Clienti inattivi</option><option value="tag">Tag cliente</option><option value="high_loyalty">Punti fedeltà alti</option></Select></label>
             {segment === "inactive" && <input name="days" type="number" min="1" required placeholder="Giorni dall'ultima visita" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
             {segment === "tag" && <input name="tag" required placeholder="Tag cliente" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}
             {segment === "high_loyalty" && <input name="points" type="number" min="0" required placeholder="Punti minimi" onChange={invalidatePreview} className="mt-3 min-h-12 w-full rounded-xl border px-3" />}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, LoaderCircle } from "lucide-react";
 
 import type { WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, DateField, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, ScheduleEditor, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, ScheduleEditor, SectionCard, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -293,12 +293,12 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
         <SectionCard title="Dati del salone" subtitle="Informazioni generali e orari di apertura usati in tutto il gestionale.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField className="md:col-span-2" label="Nome salone"><input className="w-full" value={settings.name} onChange={(event) => setSettings({ ...settings, name: event.target.value })} /></FormField>
-            <FormField label="Lingua"><select className="w-full" value={settings.locale} onChange={(event) => setSettings({ ...settings, locale: event.target.value })}><option value="it-IT">Italiano</option><option value="en-GB">English</option></select></FormField>
+            <FormField label="Lingua"><Select className="w-full" value={settings.locale} onChange={(event) => setSettings({ ...settings, locale: event.target.value })}><option value="it-IT">Italiano</option><option value="en-GB">English</option></Select></FormField>
             <FormField description="Gli orari vengono adeguati automaticamente all’ora legale." label="Fuso orario">
-              <select className="w-full" value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })}>
+              <Select className="w-full" value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })}>
                 {!currentTimezoneIsListed && <option value={settings.timezone}>{settings.timezone}</option>}
                 {timezoneOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
+              </Select>
             </FormField>
           </div>
           <div className="mt-6 border-t border-stone-200 pt-5">
@@ -327,10 +327,10 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
               <input autoComplete="address-level1" className="w-full" maxLength={2} onChange={(event) => setSettings({ ...settings, province: event.target.value.toUpperCase() })} value={settings.province ?? ""} />
             </FormField>
             <FormField label="Paese">
-              <select autoComplete="country-name" className="w-full" onChange={(event) => setSettings({ ...settings, country: event.target.value })} value={settings.country ?? "Italia"}>
+              <Select autoComplete="country-name" className="w-full" onChange={(event) => setSettings({ ...settings, country: event.target.value })} value={settings.country ?? "Italia"}>
                 {!countryOptions.includes(settings.country ?? "Italia") && <option value={settings.country ?? ""}>{settings.country}</option>}
                 {countryOptions.map((country) => <option key={country} value={country}>{country}</option>)}
-              </select>
+              </Select>
             </FormField>
             <details className="group rounded-xl border border-stone-200 bg-stone-50 md:col-span-2">
               <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold text-stone-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20">
@@ -360,20 +360,20 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
         <SectionCard title="Calendario e agenda" subtitle="Regole condivise da gestionale, App Clienti e App Staff.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField description="Griglia usata per posizionare gli appuntamenti." label="Intervallo agenda">
-              <select className="w-full" value={calendar.minSlotMinutes ?? 15} onChange={(event) => setCalendar({ ...calendar, minSlotMinutes: Number(event.target.value) })}>{!slotOptions.includes(calendar.minSlotMinutes ?? 15) && <option value={calendar.minSlotMinutes}>{calendar.minSlotMinutes} minuti — valore attuale</option>}{slotOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes} minuti</option>)}</select>
+              <Select className="w-full" value={calendar.minSlotMinutes ?? 15} onChange={(event) => setCalendar({ ...calendar, minSlotMinutes: Number(event.target.value) })}>{!slotOptions.includes(calendar.minSlotMinutes ?? 15) && <option value={calendar.minSlotMinutes}>{calendar.minSlotMinutes} minuti — valore attuale</option>}{slotOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes} minuti</option>)}</Select>
             </FormField>
             <FormField description="Tempo libero aggiunto dopo ogni appuntamento." label="Pausa automatica">
-              <select className="w-full" value={calendar.bufferMinutes ?? 0} onChange={(event) => setCalendar({ ...calendar, bufferMinutes: Number(event.target.value) })}>{!bufferOptions.includes(calendar.bufferMinutes ?? 0) && <option value={calendar.bufferMinutes}>{calendar.bufferMinutes} minuti — valore attuale</option>}{bufferOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes === 0 ? "Nessuna pausa" : `${minutes} minuti`}</option>)}</select>
+              <Select className="w-full" value={calendar.bufferMinutes ?? 0} onChange={(event) => setCalendar({ ...calendar, bufferMinutes: Number(event.target.value) })}>{!bufferOptions.includes(calendar.bufferMinutes ?? 0) && <option value={calendar.bufferMinutes}>{calendar.bufferMinutes} minuti — valore attuale</option>}{bufferOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes === 0 ? "Nessuna pausa" : `${minutes} minuti`}</option>)}</Select>
             </FormField>
             <FormField description="Quanto prima deve essere effettuata una prenotazione." label="Preavviso minimo">
-              <select className="w-full" value={calendar.minBookingNoticeHours ?? 2} onChange={(event) => setCalendar({ ...calendar, minBookingNoticeHours: Number(event.target.value) })}>{!noticeOptions.includes(calendar.minBookingNoticeHours ?? 2) && <option value={calendar.minBookingNoticeHours}>{calendar.minBookingNoticeHours} ore — valore attuale</option>}{noticeOptions.map((hours) => <option key={hours} value={hours}>{hours === 0 ? "Nessun limite" : hours === 1 ? "1 ora" : `${hours} ore`}</option>)}</select>
+              <Select className="w-full" value={calendar.minBookingNoticeHours ?? 2} onChange={(event) => setCalendar({ ...calendar, minBookingNoticeHours: Number(event.target.value) })}>{!noticeOptions.includes(calendar.minBookingNoticeHours ?? 2) && <option value={calendar.minBookingNoticeHours}>{calendar.minBookingNoticeHours} ore — valore attuale</option>}{noticeOptions.map((hours) => <option key={hours} value={hours}>{hours === 0 ? "Nessun limite" : hours === 1 ? "1 ora" : `${hours} ore`}</option>)}</Select>
             </FormField>
             <FormField description="Termine oltre il quale il cliente non può annullare." label="Termine di cancellazione">
-              <select className="w-full" value={calendar.cancellationPolicyHours ?? 24} onChange={(event) => setCalendar({ ...calendar, cancellationPolicyHours: Number(event.target.value) })}>{!cancellationOptions.includes(calendar.cancellationPolicyHours ?? 24) && <option value={calendar.cancellationPolicyHours}>{calendar.cancellationPolicyHours} ore prima — valore attuale</option>}{cancellationOptions.map((hours) => <option key={hours} value={hours}>{hours === 0 ? "Fino all’inizio" : hours === 1 ? "1 ora prima" : `${hours} ore prima`}</option>)}</select>
+              <Select className="w-full" value={calendar.cancellationPolicyHours ?? 24} onChange={(event) => setCalendar({ ...calendar, cancellationPolicyHours: Number(event.target.value) })}>{!cancellationOptions.includes(calendar.cancellationPolicyHours ?? 24) && <option value={calendar.cancellationPolicyHours}>{calendar.cancellationPolicyHours} ore prima — valore attuale</option>}{cancellationOptions.map((hours) => <option key={hours} value={hours}>{hours === 0 ? "Fino all’inizio" : hours === 1 ? "1 ora prima" : `${hours} ore prima`}</option>)}</Select>
             </FormField>
-            <FormField className="md:col-span-2" label="Vista iniziale"><select className="w-full" value={calendar.defaultView ?? "day"} onChange={(event) => setCalendar({ ...calendar, defaultView: event.target.value })}><option value="day">Giorno</option><option value="week">Settimana</option><option value="month">Mese</option><option value="agenda">Agenda</option><option value="staff_columns">Colonne staff</option><option value="resources">Risorse</option></select></FormField>
+            <FormField className="md:col-span-2" label="Vista iniziale"><Select className="w-full" value={calendar.defaultView ?? "day"} onChange={(event) => setCalendar({ ...calendar, defaultView: event.target.value })}><option value="day">Giorno</option><option value="week">Settimana</option><option value="month">Mese</option><option value="agenda">Agenda</option><option value="staff_columns">Colonne staff</option><option value="resources">Risorse</option></Select></FormField>
             <label className="flex min-h-16 items-center justify-between gap-4 rounded-xl border border-stone-200 px-4 py-3 md:col-span-2"><span><span className="block text-sm font-bold text-stone-900">Overbooking controllato</span><span className="mt-0.5 block text-xs font-medium leading-5 text-stone-500">Consente più appuntamenti nello stesso intervallo.</span></span><Switch aria-label="Overbooking controllato" checked={Boolean(calendar.allowOverbooking)} onCheckedChange={(allowOverbooking) => setCalendar({ ...calendar, allowOverbooking })} /></label>
-            {calendar.allowOverbooking && <FormField className="md:col-span-2" description="Numero massimo di appuntamenti aggiuntivi nello stesso intervallo." label="Limite overbooking"><select className="w-full" value={Math.max(1, calendar.overbookingLimit ?? 1)} onChange={(event) => setCalendar({ ...calendar, overbookingLimit: Number(event.target.value) })}>{overbookingOptions.map((limit) => <option key={limit} value={limit}>{limit === 1 ? "1 appuntamento aggiuntivo" : `${limit} appuntamenti aggiuntivi`}</option>)}</select></FormField>}
+            {calendar.allowOverbooking && <FormField className="md:col-span-2" description="Numero massimo di appuntamenti aggiuntivi nello stesso intervallo." label="Limite overbooking"><Select className="w-full" value={Math.max(1, calendar.overbookingLimit ?? 1)} onChange={(event) => setCalendar({ ...calendar, overbookingLimit: Number(event.target.value) })}>{overbookingOptions.map((limit) => <option key={limit} value={limit}>{limit === 1 ? "1 appuntamento aggiuntivo" : `${limit} appuntamenti aggiuntivi`}</option>)}</Select></FormField>}
             <label className="flex min-h-16 items-center justify-between gap-4 rounded-xl border border-stone-200 px-4 py-3 md:col-span-2"><span><span className="block text-sm font-bold text-stone-900">Vista risorse</span><span className="mt-0.5 block text-xs font-medium leading-5 text-stone-500">Mostra cabine e altre risorse nelle viste compatibili.</span></span><Switch aria-label="Vista risorse" checked={Boolean(calendar.enableResourceView)} onCheckedChange={(enableResourceView) => setCalendar({ ...calendar, enableResourceView })} /></label>
           </div>
           <div className="mt-5 border-t border-stone-200 pt-4">

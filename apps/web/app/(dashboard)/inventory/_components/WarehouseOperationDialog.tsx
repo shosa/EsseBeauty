@@ -12,7 +12,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { Button, DateField } from "@esse-beauty/ui";
+import { Button, DateField, Select} from "@esse-beauty/ui";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { mapWarehouseLineErrors, WarehouseApiError } from "../warehouse-api";
@@ -652,7 +652,7 @@ export function WarehouseOperationDialog({
               <>
                 <label className="text-xs font-bold text-stone-600">
                   Tipo documento
-                  <select
+                  <Select
                     className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 bg-white px-2 text-sm"
                     onChange={(event) =>
                       setKind(event.target.value as WarehouseDocumentKind)
@@ -663,7 +663,7 @@ export function WarehouseOperationDialog({
                     <option value="supplier_invoice">Fattura fornitore</option>
                     <option value="expense">Spesa</option>
                     <option value="equipment_purchase">Attrezzatura</option>
-                  </select>
+                  </Select>
                 </label>
                 <label className="text-xs font-bold text-stone-600">
                   Riferimento documento
@@ -684,7 +684,7 @@ export function WarehouseOperationDialog({
                 </div>
                 <label className="text-xs font-bold text-stone-600">
                   Fornitore
-                  <select
+                  <Select
                     className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 bg-white px-2 text-sm"
                     onChange={(event) => setSupplierId(event.target.value)}
                     value={supplierId}
@@ -695,7 +695,7 @@ export function WarehouseOperationDialog({
                         {supplier.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               </>
             )}
@@ -717,7 +717,7 @@ export function WarehouseOperationDialog({
             {mode === "waste" && (
               <label className="text-xs font-bold text-stone-600">
                 Causa dello scarto *
-                <select
+                <Select
                   className="mt-1 min-h-10 w-full rounded-lg border border-stone-200 bg-white px-2 text-sm"
                   onChange={(event) => setReason(event.target.value)}
                   value={reason}
@@ -728,7 +728,7 @@ export function WarehouseOperationDialog({
                   <option value="rottura">Rottura</option>
                   <option value="smarrimento">Smarrimento</option>
                   <option value="altro">Altro</option>
-                </select>
+                </Select>
               </label>
             )}
             <label className="text-xs font-bold text-stone-600">
@@ -842,7 +842,7 @@ export function WarehouseOperationDialog({
                       {mode === "purchase" && (
                         <>
                           <td className="px-3 py-2">
-                            <select
+                            <Select
                               className="min-h-10 w-full rounded-lg border border-stone-200 bg-white px-2"
                               disabled={Boolean(line.product_id)}
                               onChange={(event) =>
@@ -861,7 +861,7 @@ export function WarehouseOperationDialog({
                               <option value="consumable">Consumo</option>
                               <option value="equipment">Attrezzatura</option>
                               <option value="expense">Spesa</option>
-                            </select>
+                            </Select>
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -963,7 +963,7 @@ export function WarehouseOperationDialog({
                             {product?.stockQuantity ?? "—"}
                           </td>
                           <td className="px-3 py-2">
-                            <select
+                            <Select
                               className="min-h-10 w-full rounded-lg border border-stone-200 bg-white px-2"
                               onChange={(event) =>
                                 updateLine(line.key, {
@@ -976,7 +976,7 @@ export function WarehouseOperationDialog({
                             >
                               <option value="in">Aumenta</option>
                               <option value="out">Diminuisci</option>
-                            </select>
+                            </Select>
                           </td>
                           <td className="px-3 py-2">
                             <input

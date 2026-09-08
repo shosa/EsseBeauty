@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, InlineError, Select} from "@esse-beauty/ui";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -41,11 +41,11 @@ export default function InviteUserPage() {
         {temporaryPassword && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Password temporanea: <code className="font-bold">{temporaryPassword}</code></div>}
         <FormField label="Nome completo" required><input required name="full_name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <FormField label="Email" required><input required type="email" name="email" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
-        <FormField label="Ruolo" required><select name="role" defaultValue="employee" className="min-h-12 w-full rounded-xl border bg-white px-3">
+        <FormField label="Ruolo" required><Select name="role" defaultValue="employee" className="min-h-12 w-full rounded-xl border bg-white px-3">
           <option value="manager">Manager</option>
           <option value="receptionist">Receptionist</option>
           <option value="employee">Dipendente</option>
-        </select></FormField>
+        </Select></FormField>
         <div className="flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={() => router.push("/settings/users")}>Torna</Button>
           <Button type="submit">Crea utente</Button>

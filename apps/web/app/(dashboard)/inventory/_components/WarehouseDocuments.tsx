@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, RotateCcw } from "lucide-react";
-import { DateField, EmptyState } from "@esse-beauty/ui";
+import { DateField, EmptyState, Select} from "@esse-beauty/ui";
 import { Card } from "./EnterpriseCard";
 import type { WarehouseDocument, WarehouseDocumentKind, WarehouseDocumentStatus, WarehouseSupplier } from "../warehouse-types";
 import { documentKindBadgeClass, documentKindLabels, warehouseDocumentLabel } from "../document-label";
@@ -20,12 +20,12 @@ export function WarehouseDocuments({ documents, suppliers, status, kind, dateFro
   return (
     <Card bodyClassName="p-0" title="Registro documenti" subtitle="Acquisti, rettifiche, scarti, note credito e tutti i movimenti formali di magazzino.">
       <div className="flex flex-wrap items-center gap-2.5 p-4 pb-0">
-        <select aria-label="Stato documento" className="w-[160px]" onChange={(event) => onStatus(event.target.value as WarehouseDocumentStatus | "all")} value={status}>
+        <Select aria-label="Stato documento" className="w-[160px]" onChange={(event) => onStatus(event.target.value as WarehouseDocumentStatus | "all")} value={status}>
           <option value="all">Tutti gli stati</option><option value="draft">Bozze</option><option value="posted">Registrati</option><option value="reversed">Stornati</option><option value="cancelled">Annullati</option>
-        </select>
-        <select aria-label="Tipo documento" className="w-[190px]" onChange={(event) => onKind(event.target.value as WarehouseDocumentKind | "all")} value={kind}>
+        </Select>
+        <Select aria-label="Tipo documento" className="w-[190px]" onChange={(event) => onKind(event.target.value as WarehouseDocumentKind | "all")} value={kind}>
           <option value="all">Tutti i tipi</option>{Object.entries(documentKindLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-        </select>
+        </Select>
         <DateField aria-label="Data documento da" onChange={onDateFrom} value={dateFrom} />
         <span className="text-xs font-bold text-stone-400">→</span>
         <DateField aria-label="Data documento a" min={dateFrom} onChange={onDateTo} value={dateTo} />

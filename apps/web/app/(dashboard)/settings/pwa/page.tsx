@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, LoaderCircle } from "lucide-react";
-import { AppPage, FormField, PageHeader, SaveActionButton, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, FormField, PageHeader, SaveActionButton, SaveToast, SectionCard, Switch, Select} from "@esse-beauty/ui";
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -80,10 +80,10 @@ function HoursField({
 }) {
   return (
     <FormField label={label}>
-      <select className="w-full" disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} value={value}>
+      <Select className="w-full" disabled={disabled} onChange={(event) => onChange(Number(event.target.value))} value={value}>
         {!options.includes(value) && <option value={value}>{value} ore — valore attuale</option>}
         {options.map((option) => <option key={option} value={option}>{option === 0 ? "Nessun anticipo" : `${option} ${option === 1 ? "ora" : "ore"}`}</option>)}
-      </select>
+      </Select>
     </FormField>
   );
 }
@@ -101,10 +101,10 @@ function DaysField({
 }) {
   return (
     <FormField label={label}>
-      <select className="w-full" onChange={(event) => onChange(Number(event.target.value))} value={value}>
+      <Select className="w-full" onChange={(event) => onChange(Number(event.target.value))} value={value}>
         {!options.includes(value) && <option value={value}>{value} giorni — valore attuale</option>}
         {options.map((option) => <option key={option} value={option}>{option} giorni</option>)}
-      </select>
+      </Select>
     </FormField>
   );
 }
@@ -259,10 +259,10 @@ export default function AppClientiSettingsPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold md:col-span-2">Prenotazioni online attive<Switch aria-label="Prenotazioni online attive" checked={settings.onlineBookingEnabled} onCheckedChange={(onlineBookingEnabled) => setSettings({ ...settings, onlineBookingEnabled })} /></label>
             <FormField className="md:col-span-2" label="Stato iniziale della prenotazione">
-              <select className="w-full" value={settings.bookingDefaultStatus} onChange={(event) => setSettings({ ...settings, bookingDefaultStatus: event.target.value as AppClientiSettings["bookingDefaultStatus"] })}>
+              <Select className="w-full" value={settings.bookingDefaultStatus} onChange={(event) => setSettings({ ...settings, bookingDefaultStatus: event.target.value as AppClientiSettings["bookingDefaultStatus"] })}>
                 <option value="pending">In attesa di conferma</option>
                 <option value="confirmed">Confermato direttamente</option>
-              </select>
+              </Select>
               <p className="mt-2 text-xs leading-5 text-stone-500">
                 {settings.bookingDefaultStatus === "confirmed"
                   ? "Le nuove prenotazioni e le richieste di cambio orario del cliente vengono applicate subito, senza bisogno della tua conferma. L’annullamento da parte del cliente resta sempre immediato."

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, FormField, InlineError, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -62,10 +62,10 @@ export default function NewServicePage() {
         {error && <InlineError>{error}</InlineError>}
         <FormField label="Nome servizio" required><input required name="name" className="min-h-12 w-full rounded-xl border px-3" /></FormField>
         <FormField label="Categoria" required>
-          <select className="min-h-12 w-full" onChange={(event) => setCategoryId(event.target.value)} required value={categoryId}>
+          <Select className="min-h-12 w-full" onChange={(event) => setCategoryId(event.target.value)} required value={categoryId}>
             <option disabled value="">Seleziona categoria</option>
             {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
+          </Select>
         </FormField>
         {categories.length === 0 && <InlineError>Prima crea almeno una categoria dal Catalogo servizi.</InlineError>}
         <FormField label="Descrizione"><textarea name="description" className="min-h-28 w-full rounded-xl border p-3" /></FormField>

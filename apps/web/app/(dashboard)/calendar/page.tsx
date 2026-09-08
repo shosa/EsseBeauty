@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { Calendar, CalendarCheck, CalendarDays, CalendarSearch, ChevronLeft, ChevronRight, Columns3, DoorOpen, List, MapPin, Search, SlidersHorizontal, Tag, UsersRound } from "lucide-react";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, isAppointmentDragDisabled, nextAppointmentStatuses, PERMISSION_KEYS, WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
-import { Badge, Button, Dialog, InlineError, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { Badge, Button, Dialog, InlineError, SectionCard, StatusBadge, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import AppointmentDetailPanel from "./_components/AppointmentDetailPanel";
@@ -1055,7 +1055,7 @@ export default function CalendarPage() {
           <div className="flex items-center gap-2 px-3 py-2">
             {/* Sede */}
             {locations.length > 1 && (
-              <select
+              <Select
                 aria-label="Sede"
                 className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20"
                 onChange={(event) => { setLocationFilter(event.target.value); setStaffFilter(""); }}
@@ -1063,11 +1063,11 @@ export default function CalendarPage() {
               >
                 <option value="">Tutte le sedi</option>
                 {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-              </select>
+              </Select>
             )}
 
             {/* Staff */}
-            <select
+            <Select
               aria-label="Staff"
               className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20"
               onChange={(event) => setStaffFilter(event.target.value)}
@@ -1075,7 +1075,7 @@ export default function CalendarPage() {
             >
               <option value="">Tutto lo staff</option>
               {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
+            </Select>
 
             <div className="mx-1 h-5 w-px bg-stone-200" />
 
@@ -1227,17 +1227,17 @@ export default function CalendarPage() {
             )}
             <div className="mb-3">
               <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.08em] text-stone-500"><UsersRound aria-hidden="true" className="size-3" />Staff</p>
-              <select aria-label="Filtra per staff" className="min-h-10 w-full rounded-lg border border-stone-200 bg-[#fbfaf8] px-3 text-sm font-semibold" onChange={(event) => setStaffFilter(event.target.value)} value={staffFilter}>
+              <Select aria-label="Filtra per staff" className="min-h-10 w-full rounded-lg border border-stone-200 bg-[#fbfaf8] px-3 text-sm font-semibold" onChange={(event) => setStaffFilter(event.target.value)} value={staffFilter}>
                 <option value="">Tutto lo staff</option>
                 {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-              </select>
+              </Select>
             </div>
             <div>
               <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.08em] text-stone-500"><Tag aria-hidden="true" className="size-3" />Stato</p>
-              <select aria-label="Filtra per stato" className="min-h-10 w-full rounded-lg border border-stone-200 bg-[#fbfaf8] px-3 text-sm font-semibold" onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
+              <Select aria-label="Filtra per stato" className="min-h-10 w-full rounded-lg border border-stone-200 bg-[#fbfaf8] px-3 text-sm font-semibold" onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
                 <option value="">Tutti gli stati</option>
                 {statuses.map((status) => <option key={status} value={status}>{appointmentStatusLabel(status)}</option>)}
-              </select>
+              </Select>
             </div>
             <div aria-label="Legenda stati appuntamento" className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-stone-100 pt-3">
               {appointmentStatusLegend.map(([initial, label]) => (
@@ -1514,18 +1514,18 @@ export default function CalendarPage() {
               </label>
               <label className="text-sm font-bold text-stone-700">
                 Collaboratore
-                <select
+                <Select
                   aria-label="Nuovo collaboratore"
                   className="mt-2 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 font-semibold text-stone-950"
                   onChange={(event) => setMoveDraft((current) => current ? { ...current, staffId: event.target.value } : current)}
                   value={moveDraft.staffId}
                 >
                   {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select>
+                </Select>
               </label>
               <label className="text-sm font-bold text-stone-700">
                 Cabina
-                <select
+                <Select
                   aria-label="Nuova cabina"
                   className="mt-2 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 font-semibold text-stone-950"
                   onChange={(event) => setMoveDraft((current) => current ? { ...current, resourceId: event.target.value } : current)}
@@ -1533,7 +1533,7 @@ export default function CalendarPage() {
                 >
                   <option value="">Assegnazione automatica</option>
                   {resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}
-                </select>
+                </Select>
               </label>
             </div>
           </div>

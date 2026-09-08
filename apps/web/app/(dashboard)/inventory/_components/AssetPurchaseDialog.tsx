@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, DateField, Dialog, FormField } from "@esse-beauty/ui";
+import { Button, DateField, Dialog, FormField, Select} from "@esse-beauty/ui";
 import { buildAssetPayload } from "../expense-form";
 import type { WarehousePaymentMethod, WarehouseSupplier } from "../warehouse-types";
 
@@ -31,8 +31,8 @@ export function AssetPurchaseDialog({
           <FormField label="Data acquisto" required><DateField aria-label="Data acquisto" onChange={(value) => setDraft((current) => ({ ...current, date: value }))} required value={draft.date} /></FormField>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Pagamento"><select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, paymentMethod: event.target.value as WarehousePaymentMethod }))} value={draft.paymentMethod}><option value="cash">Contanti</option><option value="card">Carta</option><option value="bank_transfer">Bonifico</option><option value="other">Altro</option></select></FormField>
-          <FormField label="Fornitore"><select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, supplierId: event.target.value }))} value={draft.supplierId}><option value="">Nessuno</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></FormField>
+          <FormField label="Pagamento"><Select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, paymentMethod: event.target.value as WarehousePaymentMethod }))} value={draft.paymentMethod}><option value="cash">Contanti</option><option value="card">Carta</option><option value="bank_transfer">Bonifico</option><option value="other">Altro</option></Select></FormField>
+          <FormField label="Fornitore"><Select className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, supplierId: event.target.value }))} value={draft.supplierId}><option value="">Nessuno</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></FormField>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
           <FormField label="Matricola"><input className="min-h-11 w-full rounded-xl border border-stone-200 px-3" onChange={(event) => setDraft((current) => ({ ...current, serialNumber: event.target.value }))} value={draft.serialNumber} /></FormField>

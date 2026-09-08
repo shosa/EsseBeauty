@@ -11,6 +11,7 @@ import {
   EmptyState,
   InlineError,
   PageSkeleton,
+  Select,
   StatusBadge,
 } from "@esse-beauty/ui";
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, nextAppointmentStatuses, type AppointmentStatus } from "@esse-beauty/shared";
@@ -493,7 +494,7 @@ export default function AppointmentDetailPanel({
                       <UserRound aria-hidden="true" className="size-4" />
                       <p className="text-[10px] font-black uppercase tracking-[.16em]">Con</p>
                     </div>
-                    <select
+                    <Select
                       aria-label="Collaboratore assegnato"
                       className="mt-2 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm font-black text-stone-950 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
                       disabled={isClosed || staffUpdating}
@@ -506,7 +507,7 @@ export default function AppointmentDetailPanel({
                       {staffOptions.map((staff) => (
                         <option key={staff.id} value={staff.id}>{staff.name}</option>
                       ))}
-                    </select>
+                    </Select>
                     <p className="mt-1 text-sm font-semibold text-stone-600">
                       {staffUpdating ? "Aggiornamento collaboratore…" : appointment.service_name}
                     </p>

@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Mail, MessageCircle, Phone, Plus, Search, Tag, X } from "lucide-react";
-import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -220,18 +220,18 @@ export default function ClientsPage() {
           </label>
           <label className="w-[180px]">
             <span className="sr-only">Stato anagrafica</span>
-            <select className="w-full" onChange={(event) => setStatus(event.target.value as CustomerStatus)} value={status}>
+            <Select className="w-full" onChange={(event) => setStatus(event.target.value as CustomerStatus)} value={status}>
               <option value="all">Tutti i clienti</option>
               <option value="active">Solo attivi</option>
               <option value="blocked">Solo bloccati</option>
-            </select>
+            </Select>
           </label>
           <label className="w-[180px]">
             <span className="sr-only">Segmento</span>
-            <select className="w-full" onChange={(event) => setTag(event.target.value)} value={tag}>
+            <Select className="w-full" onChange={(event) => setTag(event.target.value)} value={tag}>
               <option value="">Tutti i segmenti</option>
               {tags.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
+            </Select>
           </label>
           <Button disabled={!filtersActive} onClick={resetFilters} variant="outline">Azzera filtri</Button>
         </div>
@@ -351,13 +351,13 @@ export default function ClientsPage() {
             {whatsAppConsent && (
               <div className="grid gap-4 border-t border-emerald-100 p-4 sm:grid-cols-2">
                 <FormField label="Fonte di acquisizione">
-                  <select onChange={(event) => setConsentSource(event.target.value)} value={consentSource} className="w-full">
+                  <Select onChange={(event) => setConsentSource(event.target.value)} value={consentSource} className="w-full">
                     <option value="in_person">Acquisito in salone</option>
                     <option value="customer_request">Richiesta del cliente</option>
                     <option value="web_form">Modulo online</option>
                     <option value="import_verified">Importazione verificata</option>
                     <option value="manual_admin">Inserimento amministrativo</option>
-                  </select>
+                  </Select>
                 </FormField>
                 <FormField label="Nota o evidenza"><textarea onChange={(event) => setConsentNote(event.target.value)} placeholder="Es. consenso espresso in reception" rows={2} value={consentNote} className="w-full" /></FormField>
               </div>

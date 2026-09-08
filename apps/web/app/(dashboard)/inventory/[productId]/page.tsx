@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton, Switch } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -166,7 +166,7 @@ export default function InventoryProductPage() {
               </section>
               <label className="text-sm font-semibold md:col-span-2">Descrizione<textarea name="description" rows={3} defaultValue={product.description ?? ""} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2" /></label>
               <section className="grid gap-4 md:col-span-2 md:grid-cols-4">
-                <label className="text-sm font-semibold">Tipo articolo<select name="itemType" defaultValue={product.itemType ?? "resale"} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3"><option value="resale">Rivendita</option><option value="consumable">Consumo interno</option><option value="equipment">Attrezzatura</option><option value="expense">Spesa</option></select></label>
+                <label className="text-sm font-semibold">Tipo articolo<Select name="itemType" defaultValue={product.itemType ?? "resale"} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3"><option value="resale">Rivendita</option><option value="consumable">Consumo interno</option><option value="equipment">Attrezzatura</option><option value="expense">Spesa</option></Select></label>
                 <label className="text-sm font-semibold">Scorta<input name="stock" type="number" defaultValue={product.stockQuantity} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
                 <label className="text-sm font-semibold">Soglia minima<input name="threshold" type="number" defaultValue={product.lowStockThreshold} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>
                 <label className="text-sm font-semibold">Riordino consigliato<input name="reorderQuantity" type="number" defaultValue={product.reorderQuantity ?? 0} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3" /></label>

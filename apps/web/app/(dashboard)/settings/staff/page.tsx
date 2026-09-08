@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Plus, Search } from "lucide-react";
 
 import { type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Button, ConfirmDialog, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, SaveActionButton, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, ConfirmDialog, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, SaveActionButton, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 import { staffStatusAction } from "./staff-status-action";
@@ -173,11 +173,11 @@ export default function SettingsStaffPage() {
           </label>
           <label className="w-[180px]">
             <span className="sr-only">Stato collaboratore</span>
-            <select className="w-full" onChange={(event) => setStatus(event.target.value as StaffStatus)} value={status}>
+            <Select className="w-full" onChange={(event) => setStatus(event.target.value as StaffStatus)} value={status}>
               <option value="all">Tutti i collaboratori</option>
               <option value="active">Solo attivi</option>
               <option value="inactive">Solo disattivati</option>
-            </select>
+            </Select>
           </label>
           <Button disabled={!filtersActive} onClick={resetFilters} variant="outline">Azzera filtri</Button>
         </div>

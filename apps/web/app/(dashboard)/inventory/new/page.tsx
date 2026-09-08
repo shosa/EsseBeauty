@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, InlineError, Switch } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, InlineError, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -88,7 +88,7 @@ export default function NewInventoryProductPage() {
         </section>
         <label className="text-sm font-semibold md:col-span-2">Descrizione<textarea name="description" rows={3} className="mt-1 w-full rounded-xl border border-stone-200 px-3 py-2" /></label>
         <section className="grid gap-4 md:col-span-2 md:grid-cols-4">
-          <label className="text-sm font-semibold">Tipo articolo<select name="itemType" defaultValue="resale" className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3"><option value="resale">Rivendita</option><option value="consumable">Consumo interno</option><option value="equipment">Attrezzatura</option><option value="expense">Spesa</option></select></label>
+          <label className="text-sm font-semibold">Tipo articolo<Select name="itemType" defaultValue="resale" className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 bg-white px-3"><option value="resale">Rivendita</option><option value="consumable">Consumo interno</option><option value="equipment">Attrezzatura</option><option value="expense">Spesa</option></Select></label>
           {[
             { name: "stock", label: "Scorta iniziale", type: "number", required: true, defaultValue: "0" },
             { name: "threshold", label: "Soglia minima", type: "number", required: true, defaultValue: "0" },

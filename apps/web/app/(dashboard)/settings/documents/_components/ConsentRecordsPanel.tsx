@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { Button, DateTimeField, Dialog, EmptyState, FormField, InlineError, StatusBadge, Switch } from "@esse-beauty/ui";
+import { Button, DateTimeField, Dialog, EmptyState, FormField, InlineError, StatusBadge, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 import {
@@ -314,8 +314,8 @@ export function ConsentRecordsPanel({
         title={dialog.mode === "resend" ? "Rigenera il link di firma" : "Richiedi consenso"}
       >
         <div className="grid gap-4">
-          {dialog.mode === "request" && <FormField label="Modello attivo"><select onChange={(event) => dispatchDialog({ field: "templateId", type: "change", value: event.target.value })} value={dialog.templateId}><option value="">Seleziona un modello</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · v{template.version}</option>)}</select></FormField>}
-          <FormField label="Canale"><select onChange={(event) => dispatchDialog({ field: "deliveryChannel", type: "change", value: event.target.value as ConsentDeliveryChannel })} value={dialog.deliveryChannel}><option value="in_person">In presenza</option><option value="push">Notifica push app</option><option value="email">Email (genera link)</option><option value="whatsapp">WhatsApp (genera link)</option></select></FormField>
+          {dialog.mode === "request" && <FormField label="Modello attivo"><Select onChange={(event) => dispatchDialog({ field: "templateId", type: "change", value: event.target.value })} value={dialog.templateId}><option value="">Seleziona un modello</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · v{template.version}</option>)}</Select></FormField>}
+          <FormField label="Canale"><Select onChange={(event) => dispatchDialog({ field: "deliveryChannel", type: "change", value: event.target.value as ConsentDeliveryChannel })} value={dialog.deliveryChannel}><option value="in_person">In presenza</option><option value="push">Notifica push app</option><option value="email">Email (genera link)</option><option value="whatsapp">WhatsApp (genera link)</option></Select></FormField>
           <FormField label="Scadenza"><DateTimeField aria-label="Scadenza consenso" min={new Date().toISOString().slice(0, 16)} onChange={(value) => dispatchDialog({ field: "expiresAt", type: "change", value })} value={dialog.expiresAt} /></FormField>
           <p className="text-xs leading-5 text-stone-500">Il sistema genera il link sicuro. La notifica push viene inviata solo se il cliente ha attivato le notifiche nell'app.</p>
           {dialog.error && <InlineError>{dialog.error}</InlineError>}

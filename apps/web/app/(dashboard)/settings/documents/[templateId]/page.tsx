@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, SectionCard, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -132,7 +132,7 @@ export default function DocumentVersionPage() {
           <SectionCard subtitle="Il testo firmato in precedenza non cambia: verrà creato un nuovo record con il numero successivo." title="Crea nuova versione">
             <div className="grid gap-4">
               <FormField label="Nome"><input onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} value={draft.name} /></FormField>
-              <FormField label="Tipo"><select onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))} value={draft.type}><option value="privacy">Privacy</option><option value="treatment">Trattamento</option><option value="anamnesis">Anamnesi</option><option value="photo_release">Uso immagini</option></select></FormField>
+              <FormField label="Tipo"><Select onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))} value={draft.type}><option value="privacy">Privacy</option><option value="treatment">Trattamento</option><option value="anamnesis">Anamnesi</option><option value="photo_release">Uso immagini</option></Select></FormField>
               <FormField label="Nuovo testo"><textarea onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} rows={14} value={draft.body} /></FormField>
               {services.length > 0 && <fieldset><legend className="text-sm font-bold text-stone-700">Obbligatorio per i servizi</legend><div className="mt-3 grid gap-2 sm:grid-cols-2">{services.map((service) => <label className="flex items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2 text-sm font-semibold" key={service.id}><span>{service.name}</span><Switch checked={draft.requiredForServices.includes(service.id)} onCheckedChange={() => toggleService(service.id)} /></label>)}</div></fieldset>}
               <label className="flex min-h-12 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold"><span>Nuova versione attiva</span><Switch aria-label="Attiva la nuova versione" checked={draft.active} onCheckedChange={(active: boolean) => setDraft((current) => ({ ...current, active }))} /></label>

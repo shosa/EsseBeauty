@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { Banknote, CalendarClock, ChevronDown, CreditCard, Gift, Landmark, MoreHorizontal, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
-import { AppPage, Button, designTokens, Dialog, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Button, designTokens, Dialog, EmptyState, FormField, InlineError, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -856,10 +856,10 @@ export default function SalesPage() {
             {/* scrollable middle: operator, credit banners, cart lines */}
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <FormField label="Operatore">
-                <select className="w-full" onChange={(event) => setStaffId(event.target.value)} value={staffId}>
+                <Select className="w-full" onChange={(event) => setStaffId(event.target.value)} value={staffId}>
                   <option value="">Non assegnato</option>
                   {catalog?.staff.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
+                </Select>
               </FormField>
 
               {selectedCustomer && customerVouchers.length > 0 && (
@@ -978,7 +978,7 @@ export default function SalesPage() {
                   {payments.map((payment, index) => (
                     <div className="rounded-xl border border-stone-200 p-2.5" key={index}>
                       <div className="grid grid-cols-[1fr_100px_auto] gap-1.5">
-                        <select
+                        <Select
                           className="rounded-lg border border-stone-200 px-2 text-xs"
                           onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? {
                             amount_cents: item.amount_cents,
@@ -987,7 +987,7 @@ export default function SalesPage() {
                           value={payment.method}
                         >
                           {paymentMethods.map((methodOption) => <option key={methodOption.value} value={methodOption.value}>{methodOption.label}</option>)}
-                        </select>
+                        </Select>
                         <input className="rounded-lg border border-stone-200 p-1.5 text-right text-xs font-bold" onChange={(event) => setPayments((current) => current.map((item, i) => i === index ? { ...item, amount_cents: cents(event.target.value) } : item))} type="number" value={(payment.amount_cents / 100).toFixed(2)} />
                         <button aria-label="Rimuovi pagamento" className="px-1 font-black text-red-700" onClick={() => setPayments((current) => current.filter((_, i) => i !== index))} type="button">×</button>
                       </div>

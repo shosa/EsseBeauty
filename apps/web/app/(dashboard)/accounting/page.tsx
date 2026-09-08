@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, FileText, RefreshCw, Search, Undo2 } from "lucide-react";
-import { AppPage, Button, DateField, Dialog, Drawer, EmptyState, InlineError, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, DateField, Dialog, Drawer, EmptyState, InlineError, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -610,7 +610,7 @@ export default function AccountingPage() {
               <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
               <input className="w-full pl-10" onChange={(event) => setSearch(event.target.value)} placeholder="Cerca cliente o operatore" value={search} />
             </label>
-            <select aria-label="Filtra per metodo di pagamento" className="w-[190px]" onChange={(event) => setPaymentFilter(event.target.value as PaymentMethod | "all")} value={paymentFilter}><option value="all">Tutti i pagamenti</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <Select aria-label="Filtra per metodo di pagamento" className="w-[190px]" onChange={(event) => setPaymentFilter(event.target.value as PaymentMethod | "all")} value={paymentFilter}><option value="all">Tutti i pagamenti</option>{Object.entries(methodLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>
             {filtersActive && <Button onClick={resetFilters} size="sm" variant="outline">Azzera filtri</Button>}
           </div>
           {!filteredRows.length ? <div className="p-4"><EmptyState description="Modifica la ricerca, i filtri o il periodo selezionato." title="Nessun movimento" /></div> : (

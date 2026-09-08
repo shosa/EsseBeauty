@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CheckCircle2, History, MessageCircle, ShieldCheck } from "lucide-react";
-import { Button, StatusBadge } from "@esse-beauty/ui";
+import { Button, StatusBadge, Select} from "@esse-beauty/ui";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -96,9 +96,9 @@ export function WhatsAppMarketingConsentPanel({ customerId, phone, salonId }: { 
         {!phone && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">Aggiungi un numero di telefono prima di acquisire il consenso WhatsApp.</p>}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-sm font-bold text-stone-700">Fonte di acquisizione
-            <select className="mt-2 w-full rounded-xl border border-stone-200 bg-white p-3 font-normal" onChange={(event) => setSource(event.target.value)} value={source}>
+            <Select className="mt-2 w-full rounded-xl border border-stone-200 bg-white p-3 font-normal" onChange={(event) => setSource(event.target.value)} value={source}>
               {Object.entries(sourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
+            </Select>
           </label>
           <div className="rounded-xl border border-stone-200 p-3 text-sm">
             <span className="block text-xs font-bold uppercase text-stone-400">Ultima acquisizione</span>
