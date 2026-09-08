@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { createPortal } from "react-dom";
+import { Calendar, CalendarCheck, CalendarDays, CalendarSearch, ChevronLeft, ChevronRight, Columns3, DoorOpen, List, MapPin, Search, SlidersHorizontal, Tag, UsersRound } from "lucide-react";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, isAppointmentDragDisabled, nextAppointmentStatuses, PERMISSION_KEYS, WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
 import { AppPage, Badge, Button, Dialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge, WorkspaceToolbar } from "@esse-beauty/ui";
@@ -68,6 +69,15 @@ interface CalendarRules {
   minSlotMinutes: number;
   overbookingLimit: number;
 }
+
+const viewIcons: Record<CalendarView, typeof CalendarDays> = {
+  agenda: List,
+  day: CalendarDays,
+  month: Calendar,
+  resources: DoorOpen,
+  staff_columns: UsersRound,
+  week: Columns3,
+};
 
 const views: Array<{ key: CalendarView; label: string }> = [
   { key: "day", label: "Giorno" },
@@ -358,6 +368,15 @@ export default function CalendarPage() {
   const [deleteTarget, setDeleteTarget] = useState<Appointment>();
   const [moveSaving, setMoveSaving] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ appointment?: Appointment; resourceId?: string; staffId?: string; startsAt?: string; x: number; y: number }>();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filtersPosition, setFiltersPosition] = useState<{ right: number; top: number }>();
+  const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const filtersPanelRef = useRef<HTMLDivElement>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [datePickerPosition, setDatePickerPosition] = useState<{ left: number; top: number }>();
+  const [datePickerMonth, setDatePickerMonth] = useState(() => new Date());
+  const dateTriggerRef = useRef<HTMLButtonElement>(null);
+  const datePickerPanelRef = useRef<HTMLDivElement>(null);
   const suppressClickUntilRef = useRef(0);
   const { hasPermission, salon } = useAuth();
   const canCreate =
@@ -460,6 +479,54 @@ export default function CalendarPage() {
     };
   }, [selectedAppointmentId]);
 
+  useEffect(() => {
+    if (!filtersOpen) return;
+    function closeOnOutsideAction(event: MouseEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setFiltersOpen(false);
+        return;
+      }
+      const target = event.target as Node;
+      if (filtersButtonRef.current?.contains(target)) return;
+      if (filtersPanelRef.current && !filtersPanelRef.current.contains(target)) setFiltersOpen(false);
+    }
+    function closeOnScroll() {
+      setFiltersOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideAction);
+    document.addEventListener("keydown", closeOnOutsideAction);
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideAction);
+      document.removeEventListener("keydown", closeOnOutsideAction);
+      window.removeEventListener("scroll", closeOnScroll, true);
+    };
+  }, [filtersOpen]);
+
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    function closeOnOutsideAction(event: MouseEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setDatePickerOpen(false);
+        return;
+      }
+      const target = event.target as Node;
+      if (dateTriggerRef.current?.contains(target)) return;
+      if (datePickerPanelRef.current && !datePickerPanelRef.current.contains(target)) setDatePickerOpen(false);
+    }
+    function closeOnScroll() {
+      setDatePickerOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideAction);
+    document.addEventListener("keydown", closeOnOutsideAction);
+    window.addEventListener("scroll", closeOnScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideAction);
+      document.removeEventListener("keydown", closeOnOutsideAction);
+      window.removeEventListener("scroll", closeOnScroll, true);
+    };
+  }, [datePickerOpen]);
+
   function appointmentHref(appointmentId: string) {
     const next = new URLSearchParams(searchParams.toString());
     next.set("appointment", appointmentId);
@@ -558,6 +625,79 @@ export default function CalendarPage() {
     const today = startOfDay(new Date());
     setView(view === "resources" ? "resources" : "day");
     setPeriodOffset(Math.round((startOfDay(day).getTime() - today.getTime()) / 86_400_000));
+  }
+
+  function goToToday() {
+    setPeriodOffset(0);
+  }
+
+  function clearFilters() {
+    setStatusFilter("");
+    setStaffFilter("");
+    setLocationFilter("");
+  }
+
+  function stepPeriod(direction: 1 | -1) {
+    const dayLike = view === "day" || view === "staff_columns" || view === "resources";
+    setPeriodOffset((value) => value + direction * (dayLike ? 7 : 1));
+  }
+
+  function periodNavLabel(direction: "prev" | "next") {
+    const unit = view === "month" ? "Mese" : "Settimana";
+    if (direction === "prev") return `${unit} precedente`;
+    return unit === "Settimana" ? "Settimana successiva" : "Mese successivo";
+  }
+
+  function goToDate(value: string) {
+    if (!value) return;
+    const target = startOfDay(new Date(`${value}T00:00:00`));
+    const today = startOfDay(new Date());
+    if (view === "month") {
+      setPeriodOffset((target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth()));
+    } else if (view === "day" || view === "staff_columns" || view === "resources") {
+      setPeriodOffset(Math.round((target.getTime() - today.getTime()) / 86_400_000));
+    } else {
+      setPeriodOffset(Math.round((startOfWeek(target).getTime() - startOfWeek(today).getTime()) / (7 * 86_400_000)));
+    }
+  }
+
+  function openDatePicker() {
+    if (datePickerOpen) {
+      setDatePickerOpen(false);
+      return;
+    }
+    const rect = dateTriggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const panelWidth = 288;
+      setDatePickerPosition({ left: Math.max(12, Math.min(rect.left, window.innerWidth - panelWidth - 12)), top: rect.bottom + 8 });
+    }
+    setDatePickerMonth(range.from);
+    setDatePickerOpen(true);
+  }
+
+  function pickDate(day: Date) {
+    const year = day.getFullYear();
+    const month = String(day.getMonth() + 1).padStart(2, "0");
+    const date = String(day.getDate()).padStart(2, "0");
+    goToDate(`${year}-${month}-${date}`);
+    setDatePickerOpen(false);
+  }
+
+  function toggleFilters() {
+    if (filtersOpen) {
+      setFiltersOpen(false);
+      return;
+    }
+    const rect = filtersButtonRef.current?.getBoundingClientRect();
+    if (rect) setFiltersPosition({ right: window.innerWidth - rect.right, top: rect.bottom + 8 });
+    setFiltersOpen(true);
+  }
+
+  function legendDotColor(initial: string) {
+    if (initial === "C") return "#792f59";
+    if (initial === "A") return APPOINTMENT_STATUS_PALETTE.pending.border;
+    if (initial === "N") return APPOINTMENT_STATUS_PALETTE.no_show.border;
+    return APPOINTMENT_STATUS_PALETTE.cancelled.border;
   }
 
   const timelineStartHour = timelineRange.startHour;
@@ -897,6 +1037,11 @@ export default function CalendarPage() {
     );
   }
 
+  const activeFilterCount = [locationFilter, statusFilter, staffFilter].filter(Boolean).length;
+  const weekdayHeaderLabels = WEEK_DAYS_IT.map((day) => day.shortLabel);
+  const datePickerGridStart = startOfWeek(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth(), 1));
+  const datePickerDays = Array.from({ length: 42 }, (_, index) => addDays(datePickerGridStart, index));
+
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <DndContext
@@ -916,66 +1061,145 @@ export default function CalendarPage() {
         {error && <InlineError className="mb-4">{error}</InlineError>}
 
         <section className="mb-4 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <div className="grid grid-cols-[48px_1fr_48px] items-stretch border-b border-stone-200">
-            <button aria-label="Settimana precedente" className="grid place-items-center border-r border-stone-200 text-2xl font-black text-[#792f59] transition hover:bg-[#faf3f7]" onClick={() => setPeriodOffset((value) => value - 7)} type="button">‹</button>
-            <div className="grid grid-cols-7">
-              {navigatorDays.map((day) => {
-                const active = sameDay(day, range.from) && (view === "day" || view === "staff_columns" || view === "resources");
-                const count = itemsForDay(day).length;
+          <div className="border-b border-stone-200 p-3">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-lg font-black text-stone-950">{range.label}</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <button aria-expanded={datePickerOpen} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-black transition ${datePickerOpen ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-[#792f59] hover:bg-[#faf3f7]"}`} onClick={openDatePicker} ref={dateTriggerRef} type="button">
+                  <CalendarSearch aria-hidden="true" className="size-3.5" />
+                  Vai a
+                </button>
+                {periodOffset !== 0 && (
+                  <button className="inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-[#b85888] bg-[#faf3f7] px-2.5 text-[10px] font-black text-[#792f59]" onClick={goToToday} type="button">
+                    <CalendarCheck aria-hidden="true" className="size-3.5" />
+                    Torna a oggi
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button aria-label={periodNavLabel("prev")} className="grid size-9 shrink-0 place-items-center rounded-lg border border-stone-200 text-[#792f59] transition hover:border-[#e8c7d8] hover:bg-[#faf3f7]" onClick={() => stepPeriod(-1)} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
+              <div className="grid flex-1 grid-cols-7 gap-1">
+                {navigatorDays.map((day) => {
+                  const active = sameDay(day, range.from) && (view === "day" || view === "staff_columns" || view === "resources");
+                  const count = itemsForDay(day).length;
+                  return (
+                    <button className={`flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1 py-2 text-center transition ${active ? "border-[#5f2447] bg-[#5f2447] text-white" : "border-transparent bg-stone-50 text-stone-600 hover:border-stone-200 hover:bg-[#faf3f7]"}`} key={day.toISOString()} onClick={() => selectNavigatorDay(day)} type="button">
+                      <span className={`text-[9px] font-black uppercase tracking-[.1em] ${active ? "text-white/65" : "text-stone-400"}`}>{day.toLocaleDateString("it-IT", { weekday: "short" })}</span>
+                      <strong className="text-base tabular-nums">{day.getDate()}</strong>
+                      <span className={`block size-1 rounded-full ${count ? active ? "bg-white" : "bg-[#b85888]" : "bg-transparent"}`} />
+                    </button>
+                  );
+                })}
+              </div>
+              <button aria-label={periodNavLabel("next")} className="grid size-9 shrink-0 place-items-center rounded-lg border border-stone-200 text-[#792f59] transition hover:border-[#e8c7d8] hover:bg-[#faf3f7]" onClick={() => stepPeriod(1)} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
+            </div>
+          </div>
+
+          <WorkspaceToolbar>
+            <div className="flex shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 p-1">
+              {views.filter((item) => item.key !== "resources" || rules.enableResourceView || resources.length > 0).map((item) => {
+                const ViewIcon = viewIcons[item.key];
                 return (
-                  <button className={`relative min-w-0 border-r border-stone-100 px-2 py-3 text-center transition last:border-r-0 ${active ? "bg-[#5f2447] text-white" : "text-stone-600 hover:bg-[#fff8fc]"}`} key={day.toISOString()} onClick={() => selectNavigatorDay(day)} type="button">
-                    <span className={`block text-[10px] font-black uppercase tracking-[.12em] ${active ? "text-white/65" : "text-stone-400"}`}>{day.toLocaleDateString("it-IT", { weekday: "short" })}</span>
-                    <strong className="mt-1 block text-xl">{day.getDate()}</strong>
-                    <span className={`mx-auto mt-1.5 block size-1.5 rounded-full ${count ? active ? "bg-white" : "bg-[#b85888]" : "bg-transparent"}`} />
+                  <button className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${view === item.key ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-stone-900"}`} key={item.key} onClick={() => {
+                    setView(item.key);
+                    setPeriodOffset(0);
+                  }} type="button">
+                    <ViewIcon aria-hidden="true" className="size-3.5" />
+                    {item.label}
                   </button>
                 );
               })}
             </div>
-            <button aria-label="Settimana successiva" className="grid place-items-center text-2xl font-black text-[#792f59] transition hover:bg-[#faf3f7]" onClick={() => setPeriodOffset((value) => value + 7)} type="button">›</button>
-          </div>
 
-          <WorkspaceToolbar className="flex-col border-y-0 xl:flex-row">
-            <input
-              aria-label="Cerca appuntamenti"
-              className="min-h-11 min-w-0 flex-1 rounded-xl border border-stone-200 bg-[#fbfaf8] px-4 text-sm font-semibold outline-none transition focus:border-[#792f59] focus:ring-4 focus:ring-[#b85888]/15"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Cerca cliente, servizio o collaboratore"
-              value={query}
-            />
-            {locations.length > 1 && <div className="flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-white p-1">
-              <button className={`min-h-9 rounded-lg px-3 text-xs font-black ${!locationFilter ? "bg-[#faf3f7] text-[#792f59]" : "text-stone-500"}`} onClick={() => { setLocationFilter(""); setStaffFilter(""); }} type="button">Tutte le sedi</button>
-              {locations.map((location) => <button className={`min-h-9 rounded-lg px-3 text-xs font-black ${locationFilter === location.id ? "bg-[#faf3f7] text-[#792f59]" : "text-stone-500"}`} key={location.id} onClick={() => { setLocationFilter(location.id); setStaffFilter(""); }} type="button">{location.name}</button>)}
-            </div>}
-            <select aria-label="Filtra per stato" className="min-h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
-              <option value="">Tutti gli stati</option>
-              {statuses.map((status) => <option key={status} value={status}>{appointmentStatusLabel(status)}</option>)}
-            </select>
-            <select aria-label="Filtra per staff" className="min-h-11 rounded-xl border border-stone-200 bg-white px-3 text-sm font-semibold" onChange={(event) => setStaffFilter(event.target.value)} value={staffFilter}>
-              <option value="">Tutto lo staff</option>
-              {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-            </select>
-            <div aria-label="Legenda stati appuntamento" className="flex shrink-0 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 text-[10px] font-bold text-stone-500">
-              {appointmentStatusLegend.map(([initial, label]) => (
-                <span className="whitespace-nowrap" key={initial}><b className="text-stone-950">{initial}</b> {label}</span>
-              ))}
+            <div className="relative min-w-[180px] flex-1">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+              <input
+                aria-label="Cerca appuntamenti"
+                className="min-h-11 w-full rounded-xl border border-stone-200 bg-[#fbfaf8] pl-9 pr-9 text-sm font-semibold outline-none transition focus:border-[#792f59] focus:ring-4 focus:ring-[#b85888]/15"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Cerca cliente, servizio o collaboratore"
+                value={query}
+              />
+              {query && (
+                <button aria-label="Cancella ricerca" className="absolute right-2.5 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-stone-400 transition hover:bg-stone-100 hover:text-stone-700" onClick={() => setQuery("")} type="button">×</button>
+              )}
             </div>
-            <div className="flex shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 p-1">
-              {views.filter((item) => item.key !== "resources" || rules.enableResourceView || resources.length > 0).map((item) => (
-                <button className={`min-h-9 rounded-lg px-3 text-xs font-black transition ${view === item.key ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-stone-900"}`} key={item.key} onClick={() => {
-                  setView(item.key);
-                  setPeriodOffset(0);
-                }} type="button">{item.label}</button>
-              ))}
-            </div>
-            <button className="min-h-10 shrink-0 rounded-xl px-3 text-xs font-black text-[#792f59] hover:bg-[#faf3f7]" onClick={() => {
-              setQuery("");
-              setStatusFilter("");
-              setStaffFilter("");
-              setLocationFilter("");
-              setPeriodOffset(0);
-            }} type="button">Oggi · Azzera</button>
+
+            <button aria-expanded={filtersOpen} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${filtersOpen || activeFilterCount ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50"}`} onClick={toggleFilters} ref={filtersButtonRef} type="button">
+              <SlidersHorizontal aria-hidden="true" className="size-4" />
+              Filtri
+              {activeFilterCount > 0 && <span className="grid size-4 place-items-center rounded-full bg-[#792f59] text-[10px] font-black text-white">{activeFilterCount}</span>}
+            </button>
           </WorkspaceToolbar>
         </section>
+
+        {filtersOpen && filtersPosition && portalNode && createPortal(
+          <div className="fixed z-30 w-72 rounded-2xl border border-stone-200 bg-white p-4 shadow-lg" ref={filtersPanelRef} style={{ right: filtersPosition.right, top: filtersPosition.top }}>
+            {locations.length > 1 && (
+              <div className="mb-3">
+                <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.08em] text-stone-500"><MapPin aria-hidden="true" className="size-3" />Sede</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button className={`rounded-full border px-3 py-1 text-xs font-bold ${!locationFilter ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 text-stone-600"}`} onClick={() => { setLocationFilter(""); setStaffFilter(""); }} type="button">Tutte</button>
+                  {locations.map((location) => <button className={`rounded-full border px-3 py-1 text-xs font-bold ${locationFilter === location.id ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 text-stone-600"}`} key={location.id} onClick={() => { setLocationFilter(location.id); setStaffFilter(""); }} type="button">{location.name}</button>)}
+                </div>
+              </div>
+            )}
+            <div className="mb-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.08em] text-stone-500"><UsersRound aria-hidden="true" className="size-3" />Staff</p>
+              <select aria-label="Filtra per staff" className="min-h-10 w-full rounded-lg border border-stone-200 bg-[#fbfaf8] px-3 text-sm font-semibold" onChange={(event) => setStaffFilter(event.target.value)} value={staffFilter}>
+                <option value="">Tutto lo staff</option>
+                {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.08em] text-stone-500"><Tag aria-hidden="true" className="size-3" />Stato</p>
+              <select aria-label="Filtra per stato" className="min-h-10 w-full rounded-lg border border-stone-200 bg-[#fbfaf8] px-3 text-sm font-semibold" onChange={(event) => setStatusFilter(event.target.value)} value={statusFilter}>
+                <option value="">Tutti gli stati</option>
+                {statuses.map((status) => <option key={status} value={status}>{appointmentStatusLabel(status)}</option>)}
+              </select>
+            </div>
+            <div aria-label="Legenda stati appuntamento" className="mt-3 flex flex-wrap gap-x-3 gap-y-1.5 border-t border-stone-100 pt-3">
+              {appointmentStatusLegend.map(([initial, label]) => (
+                <span className="flex items-center gap-1.5 text-[10px] font-bold text-stone-500" key={initial}>
+                  <span className="size-2 rounded-sm" style={{ background: legendDotColor(initial) }} />
+                  {label}
+                </span>
+              ))}
+            </div>
+            {activeFilterCount > 0 && <button className="mt-3 w-full border-t border-stone-100 pt-3 text-center text-xs font-black text-[#792f59]" onClick={clearFilters} type="button">Azzera filtri</button>}
+          </div>,
+          portalNode,
+        )}
+
+        {datePickerOpen && datePickerPosition && portalNode && createPortal(
+          <div className="fixed z-30 w-72 rounded-2xl border border-stone-200 bg-white p-4 shadow-lg" ref={datePickerPanelRef} style={{ left: datePickerPosition.left, top: datePickerPosition.top }}>
+            <div className="mb-3 flex items-center justify-between">
+              <button aria-label="Mese precedente" className="grid size-7 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100" onClick={() => setDatePickerMonth((current) => addMonths(current, -1))} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
+              <strong className="text-xs font-black capitalize text-stone-950">{datePickerMonth.toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</strong>
+              <button aria-label="Mese successivo" className="grid size-7 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100" onClick={() => setDatePickerMonth((current) => addMonths(current, 1))} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {weekdayHeaderLabels.map((label) => <span className="pb-1 text-center text-[9px] font-black uppercase tracking-[.08em] text-stone-400" key={label}>{label}</span>)}
+              {datePickerDays.map((day) => {
+                const inMonth = day.getMonth() === datePickerMonth.getMonth();
+                const isToday = sameDay(day, new Date());
+                const isSelected = sameDay(day, range.from);
+                return (
+                  <button
+                    className={`rounded-lg py-1.5 text-xs font-bold tabular-nums transition ${isSelected ? "bg-[#5f2447] text-white" : isToday ? "bg-[#faf3f7] text-[#792f59]" : inMonth ? "text-stone-700 hover:bg-stone-100" : "text-stone-300 hover:bg-stone-50"}`}
+                    key={day.toISOString()}
+                    onClick={() => pickDate(day)}
+                    type="button"
+                  >
+                    {day.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          portalNode,
+        )}
 
         {view === "agenda" ? (
           <div className="grid gap-3">
