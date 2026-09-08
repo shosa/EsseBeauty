@@ -33,6 +33,12 @@ describe("campaign operations", () => {
     expect(source).toContain("Provider non configurato");
   });
 
+  it("renders campaign details when the target segment is missing", () => {
+    const source = page("[campaignId]");
+    expect(source).toContain('campaign.targetSegment?.type?.replace("_", " ") ??');
+    expect(source).toContain("Non specificato");
+  });
+
   it("exposes reusable campaign templates", () => {
     expect(page("templates")).toContain("Nuovo modello");
   });

@@ -16,7 +16,7 @@ interface Campaign {
   recipientPreview?: Array<{ destination?: string | null; name?: string; reason?: string }>;
   scheduledAt?: string | null;
   status: string;
-  targetSegment: { type: string };
+  targetSegment?: { type?: string };
 }
 
 interface Stats {
@@ -146,7 +146,7 @@ export default function CampaignDetailPage() {
               <h2 className="text-xl font-bold">Riepilogo</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <div><dt className="font-bold">Canale</dt><dd>{campaign.channel.toUpperCase()}</dd></div>
-                <div><dt className="font-bold">Segmento</dt><dd>{campaign.targetSegment.type.replace("_", " ")}</dd></div>
+                <div><dt className="font-bold">Segmento</dt><dd>{campaign.targetSegment?.type?.replace("_", " ") ?? "Non specificato"}</dd></div>
                 <div><dt className="font-bold">Stato</dt><dd>{campaign.status}</dd></div>
                 <div><dt className="font-bold">Destinatari</dt><dd>{stats?.recipient_count ?? 0}</dd></div>
                 <div><dt className="font-bold">Inviati</dt><dd>{stats?.sent_count ?? 0}</dd></div>
