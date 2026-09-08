@@ -28,4 +28,12 @@ describe("multi-site scheduling contracts", () => {
     expect(backfill).toContain('UPDATE "appointments"');
     expect(backfill).toContain('HAVING count(*) = 1');
   });
+
+  it("routes customer appointment push taps through the message reader", () => {
+    const appointments = readFileSync(join(root, "routes", "appointments", "index.ts"), "utf8");
+
+    expect(appointments).toContain('from "../../lib/customer-messages.js"');
+    expect(appointments).toContain("sendCustomerAppMessage");
+    expect(appointments).not.toContain("sendCustomerPush");
+  });
 });

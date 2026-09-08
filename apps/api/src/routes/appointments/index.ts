@@ -4,7 +4,7 @@ import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
 import type { DrizzleDB } from "@esse-beauty/db";
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, notifications, salonClosures, salonResources, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
 import { canTransitionAppointmentStatus, computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
-import { sendCustomerPush } from "../../lib/customer-push.js";
+import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
 import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
 import { authenticate } from "../../middleware/auth.js";
 
@@ -61,10 +61,11 @@ async function notifyCustomerOfAppointmentUpdate(
   if (!salonRow) return;
 
   if (hasCancellation) {
-    await sendCustomerPush(db, salonId, after.customerId, {
+    await sendCustomerAppMessage(db, salonId, after.customerId, {
       body: `Il salone ha annullato il tuo appuntamento per ${serviceRow?.name ?? "il servizio prenotato"} del ${after.startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow.timezone })}.`,
       href: `/${salonRow.slug}/appointments`,
-      tag: `appointment-${after.id}`,
+      kind: "appointment_cancelled",
+      slug: salonRow.slug,
       title: "Appuntamento annullato",
     });
     return;
@@ -76,10 +77,11 @@ async function notifyCustomerOfAppointmentUpdate(
     changes.push(`è stato spostato al ${after.startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow.timezone })}`);
   }
   if (hasStaffChange) changes.push(`ora è affidato a ${staffName}`);
-  await sendCustomerPush(db, salonId, after.customerId, {
+  await sendCustomerAppMessage(db, salonId, after.customerId, {
     body: `Il tuo appuntamento per ${serviceRow?.name ?? "il servizio prenotato"} ${changes.join(" e ")}.`,
     href: `/${salonRow.slug}/appointments`,
-    tag: `appointment-${after.id}`,
+    kind: "appointment_updated",
+    slug: salonRow.slug,
     title: "Aggiornamento appuntamento",
   });
 }
@@ -617,12 +619,15 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
         request.server.db.select({ name: services.name }).from(services).where(eq(services.id, item.serviceId)).then((rows) => rows[0]),
         request.server.db.select({ slug: salons.slug, timezone: salons.timezone }).from(salons).where(eq(salons.id, request.salonId)).then((rows) => rows[0]),
       ]);
-      await sendCustomerPush(request.server.db, request.salonId, item.customerId, {
-        body: `${serviceRow?.name ?? "Il tuo appuntamento"} è confermato per il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow?.timezone })}.`,
-        href: salonRow ? `/${salonRow.slug}/appointments` : undefined,
-        tag: `appointment-${item.id}`,
-        title: "Richiesta di cambio orario accettata",
-      });
+      if (salonRow) {
+        await sendCustomerAppMessage(request.server.db, request.salonId, item.customerId, {
+          body: `${serviceRow?.name ?? "Il tuo appuntamento"} è confermato per il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short", timeZone: salonRow.timezone })}.`,
+          href: `/${salonRow.slug}/appointments`,
+          kind: "appointment_reschedule_approved",
+          slug: salonRow.slug,
+          title: "Richiesta di cambio orario accettata",
+        });
+      }
       return updated;
     },
   );
