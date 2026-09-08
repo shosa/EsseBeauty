@@ -143,7 +143,7 @@ export function DateField({ compact, disabled, id, isDateDisabled, label, max, m
               const isDisabled = (minDate && day < minDate) || (maxDate && day > maxDate) || Boolean(isDateDisabled?.(day));
               return (
                 <button
-                  className={`grid size-9 place-items-center rounded-full text-sm font-bold transition ${isSelected ? "text-white" : isDisabled ? "text-stone-300" : "text-stone-700 hover:bg-stone-100"}`}
+                  className={`grid size-9 place-items-center rounded-full text-sm font-bold transition ${isSelected ? "text-white" : isDisabled ? "bg-stone-100 text-stone-400" : "text-stone-700 hover:bg-stone-100"}`}
                   disabled={Boolean(isDisabled)}
                   key={iso}
                   onClick={() => selectDay(day)}

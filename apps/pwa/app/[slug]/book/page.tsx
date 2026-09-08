@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { formatPrice } from "@esse-beauty/shared";
+import { formatPrice, type WorkingHours } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../../lib/api";
 import { isDateClosed, type SalonClosure } from "../../../lib/salon-closures";
@@ -48,6 +48,7 @@ interface Profile {
   capabilities?: { waitlist?: boolean };
   categories: Category[];
   closures?: SalonClosure[];
+  opening_hours?: WorkingHours;
   pwa?: {
     allowStaffPreference?: boolean;
     bookingDefaultStatus?: "confirmed" | "pending";
@@ -356,7 +357,7 @@ export default function BookingPage() {
   if (!profile) return <main className="grid min-h-screen place-items-center bg-[#faf8f4] text-sm font-black text-stone-500">Preparazione agenda...</main>;
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#faf8f4] px-4 py-6">
+    <main className="min-h-screen overflow-x-hidden bg-[#faf8f4] px-4 pb-28 pt-6">
       <div className="mx-auto max-w-md">
         <div className="flex items-center justify-between">
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: primary }}>{profile.salon.name}</p>
@@ -449,7 +450,6 @@ export default function BookingPage() {
               </div>
             )}
 
-            <motion.button className="min-h-12 w-full rounded-full font-black text-white disabled:opacity-40" disabled={!serviceId} onClick={() => setStep(2)} style={{ background: primary }} whileTap={{ scale: 0.97 }}>Continua</motion.button>
           </motion.section>
         )}
 
@@ -485,7 +485,7 @@ export default function BookingPage() {
               <DateField
                 compact
                 id="booking-date"
-                isDateDisabled={(day) => isDateClosed(day, profile.closures)}
+                isDateDisabled={(day) => isDateClosed(day, profile.closures, profile.opening_hours)}
                 max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)}
                 min={new Date().toISOString().slice(0, 10)}
                 onChange={(nextValue) => setDate(nextValue)}
@@ -497,11 +497,11 @@ export default function BookingPage() {
             <div className="flex gap-2 overflow-x-auto pb-1">
               {quickDays.map((day) => {
                 const iso = isoDate(day);
-                const closed = isDateClosed(day, profile.closures);
+                const closed = isDateClosed(day, profile.closures, profile.opening_hours);
                 const active = date === iso;
                 return (
                   <button
-                    className={`flex h-[72px] w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl border text-xs font-bold transition ${active ? "text-white" : closed ? "border-stone-100 bg-stone-50 text-stone-300" : "border-stone-200 bg-white text-stone-700"}`}
+                    className={`flex h-[72px] w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl border text-xs font-bold transition ${active ? "text-white" : closed ? "border-stone-200 bg-stone-200 text-stone-400" : "border-stone-200 bg-white text-stone-700"}`}
                     disabled={closed}
                     key={iso}
                     onClick={() => setDate(iso)}
@@ -521,7 +521,7 @@ export default function BookingPage() {
                 <p className="rounded-2xl bg-stone-50 p-4 text-center text-sm font-bold text-stone-500">Cerco orari...</p>
               ) : dayClosed ? (
                 <p className="animate-reveal rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Il salone è chiuso in questa data. Scegli un altro giorno.</p>
-              ) : (
+              ) : slots.some((slot) => slot.available) ? (
                 <div className="grid grid-cols-3 gap-2">
                   {slots.map((slot) => (
                     <button key={slot.starts_at} disabled={!slot.available} onClick={() => pickSlot(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-200 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary, borderColor: primary } : undefined}>
@@ -529,17 +529,8 @@ export default function BookingPage() {
                     </button>
                   ))}
                 </div>
-              )}
-              <div className="scroll-mb-24" ref={continueRef}>
-                {!loadingSlots && !dayClosed && !slots.some((slot) => slot.available) && (
-                  <div className="animate-reveal mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-5">
-                    <p className="font-black text-stone-900">Questa giornata è al completo</p>
-                    <p className="mt-1 text-sm text-stone-600">Puoi lasciare una richiesta e il salone ti contatterà se si libera un posto.</p>
-                    {profile.capabilities?.waitlist && <button className="mt-4 min-h-12 w-full rounded-full font-black text-white" onClick={() => setWaitlistMode(true)} style={{ background: primary }}>Entra in lista d’attesa</button>}
-                  </div>
-                )}
-                {waitlistMode ? (
-                  <form action={submitWaitlist} className="animate-reveal mt-5 space-y-4 border-t border-stone-100 pt-5">
+              ) : waitlistMode ? (
+                  <form action={submitWaitlist} className="animate-reveal mt-6 space-y-4 border-t border-stone-100 pt-5">
                     <fieldset>
                       <legend className="text-sm font-black text-stone-800">Quando sei disponibile?</legend>
                       <div className="mt-2 grid grid-cols-2 gap-2">
@@ -549,7 +540,25 @@ export default function BookingPage() {
                     {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
                     <motion.button className="min-h-12 w-full rounded-full font-black text-white disabled:opacity-50" disabled={submittingWaitlist} style={{ background: primary }} whileTap={{ scale: 0.97 }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</motion.button>
                   </form>
-                ) : <motion.button className="mt-5 min-h-12 w-full rounded-full font-black text-white disabled:opacity-40" disabled={!startsAt} onClick={() => setStep(3)} whileTap={{ scale: 0.97 }} style={{ background: primary }}>Continua</motion.button>}
+              ) : (
+                <div className="animate-reveal flex min-h-[40dvh] flex-col items-center justify-center py-8 text-center">
+                  <img alt="" aria-hidden="true" className="h-36 w-36 object-contain" src="/booking-oops-doodle.png" />
+                  <p className="mt-2 text-3xl font-black text-stone-950">Oops!</p>
+                  <p className="mt-2 text-lg font-black text-stone-900">Questa giornata è al completo</p>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-stone-600">Lascia una richiesta: il salone ti contatterà se si libera un posto.</p>
+                  {profile.capabilities?.waitlist && (
+                    <button
+                      className="mt-6 min-h-12 w-full max-w-xs rounded-full px-6 font-black text-white"
+                      onClick={() => setWaitlistMode(true)}
+                      style={{ background: primary }}
+                      type="button"
+                    >
+                      Iscriviti alla lista d’attesa
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="scroll-mb-24" ref={continueRef}>
               </div>
             </div>
           </motion.section>
@@ -600,6 +609,25 @@ export default function BookingPage() {
         )}
         </AnimatePresence>
       </div>
+      {(step === 1 || (step === 2 && !waitlistMode && (loadingSlots || dayClosed || slots.some((slot) => slot.available)))) && (
+        <footer
+          className="fixed inset-x-0 bottom-[76px] z-40 border-t border-stone-200/80 bg-[#faf8f4]/95 px-4 pt-3 backdrop-blur"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <div className="mx-auto max-w-md">
+            <motion.button
+              className="min-h-12 w-full rounded-full font-black text-white shadow-sm disabled:opacity-40"
+              disabled={step === 1 ? !serviceId : !startsAt}
+              onClick={() => setStep(step === 1 ? 2 : 3)}
+              style={{ background: primary }}
+              type="button"
+              whileTap={{ scale: 0.97 }}
+            >
+              Avanti
+            </motion.button>
+          </div>
+        </footer>
+      )}
     </main>
   );
 }

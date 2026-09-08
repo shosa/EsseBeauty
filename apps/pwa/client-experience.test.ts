@@ -16,6 +16,22 @@ describe("client PWA experience", () => {
     expect(source).toContain("RescheduleWizard");
   });
 
+  it("keeps the booking wizard forward action in a safe-area footer", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "book", "page.tsx"), "utf8");
+    expect(source).toContain("<footer");
+    expect(source).toContain("bottom-[76px] z-40");
+    expect(source).toContain("env(safe-area-inset-bottom)");
+    expect(source).toContain("Avanti");
+  });
+
+  it("shows the waitlist action as a centered Oops state instead of a card", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "book", "page.tsx"), "utf8");
+    expect(source).toContain('/booking-oops-doodle.png');
+    expect(source).toContain("min-h-[40dvh]");
+    expect(source).toContain("Iscriviti alla lista d’attesa");
+    expect(source).not.toContain("animate-reveal mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-5");
+  });
+
   it("uses library icons instead of text glyph CTAs on the customer home", () => {
     const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
     expect(source).toContain("CalendarDays");
