@@ -1,7 +1,9 @@
 {
   "name": "Esse Beauty",
   "short_name": "Esse Beauty",
-  "description": "Book and manage salon appointments",
+  "description": "Prenota e gestisci i tuoi appuntamenti",
+  "lang": "it",
+  "dir": "ltr",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

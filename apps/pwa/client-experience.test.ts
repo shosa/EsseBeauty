@@ -55,6 +55,15 @@ describe("client PWA experience", () => {
     expect(source).toContain("salonName");
     expect(source).toContain("name: salonName");
     expect(source).toContain("short_name: salonName");
+    expect(source).toContain('lang: "it"');
+    expect(source).toContain('dir: "ltr"');
     expect(source).not.toContain('name: "Esse Beauty"');
+  });
+
+  it("declares Italian metadata in the fallback manifest", () => {
+    const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "manifest.json"), "utf8")) as Record<string, unknown>;
+    expect(manifest.lang).toBe("it");
+    expect(manifest.dir).toBe("ltr");
+    expect(manifest.description).toBe("Prenota e gestisci i tuoi appuntamenti");
   });
 });
