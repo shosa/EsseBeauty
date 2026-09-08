@@ -45,8 +45,8 @@ export default function LoyaltyPage() {
   }, [authStatus, slug]);
 
   return (
-    <main className="min-h-screen bg-[#faf8f4] px-4 py-8">
-      <section className="mx-auto max-w-lg">
+    <main className="min-h-screen bg-[#faf8f4] px-4 py-8 lg:px-10 lg:py-10">
+      <section className="mx-auto max-w-lg lg:max-w-4xl">
         <header>
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: primary }}>{profile?.salon.name ?? "Programma fedeltà"}</p>
           <h1 className="mt-2 text-[1.7rem] font-bold text-stone-950">I tuoi punti</h1>
@@ -54,8 +54,8 @@ export default function LoyaltyPage() {
         </header>
         {missing && <p className="animate-reveal mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">Nessun profilo fedeltà trovato per il tuo account.</p>}
         {data && (
-          <div className="animate-reveal mt-6 space-y-5">
-            <article className="rounded-3xl p-7 text-white" style={{ background: primary }}>
+          <div className="animate-reveal mt-6 space-y-5 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
+            <article className="rounded-3xl p-7 text-white lg:col-span-2" style={{ background: primary }}>
               <p className="text-sm" style={{ color: accent }}>{data.customer.name}</p>
               <strong className="mt-2 block text-6xl tracking-[-.06em]">{data.balance}</strong>
               <span className="text-sm text-white/70">punti disponibili</span>

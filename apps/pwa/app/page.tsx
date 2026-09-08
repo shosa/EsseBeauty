@@ -71,15 +71,15 @@ export default function CustomerEntry() {
   }
 
   return (
-    <main className="min-h-screen bg-[#faf8f4] px-4 py-8">
-      <div className="mx-auto max-w-3xl">
+    <main className="min-h-screen bg-[#faf8f4] px-4 py-8 lg:px-10 lg:py-14">
+      <div className="mx-auto max-w-3xl lg:max-w-5xl">
         <header>
           <span className="grid size-12 place-items-center rounded-2xl bg-stone-950"><img alt="EsseBeauty" className="h-9 w-auto brightness-0 invert" src="/esse-logo.svg" /></span>
-          <h1 className="mt-6 text-4xl font-bold text-stone-950 sm:text-5xl">Trova il salone più vicino a te</h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-stone-500">Cerca per nome, città, CAP o indirizzo e accedi subito ai servizi e alle prenotazioni.</p>
+          <h1 className="mt-6 text-4xl font-bold text-stone-950 sm:text-5xl lg:text-6xl">Trova il salone più vicino a te</h1>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-stone-500 lg:text-base">Cerca per nome, città, CAP o indirizzo e accedi subito ai servizi e alle prenotazioni.</p>
         </header>
 
-        <section className="mt-8 rounded-2xl border border-stone-200 bg-white p-4">
+        <section className="mt-8 rounded-2xl border border-stone-200 bg-white p-4 lg:max-w-2xl">
           <form className="flex flex-col gap-3 sm:flex-row" onSubmit={(event) => { event.preventDefault(); void search(); }}>
             <label className="relative min-w-0 flex-1">
               <span className="sr-only">Cerca salone</span>
@@ -104,7 +104,7 @@ export default function CustomerEntry() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {loading && [1, 2, 3, 4].map((item) => <div className="h-36 animate-pulse rounded-2xl border border-stone-100 bg-white" key={item} />)}
             {!loading && items.map((salon) => (
               <Link className="group rounded-2xl border border-stone-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-stone-300" href={`/${salon.slug}`} key={salon.slug}>

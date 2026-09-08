@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useReducer, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { AppPage, Button, Dialog, EmptyState, PageHeaderMetrics, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { AppPage, Button, Dialog, EmptyState, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import {
@@ -18,6 +18,7 @@ import {
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type Channel = "app" | "email" | "whatsapp";
+type ReviewScope = "all" | "unanswered" | "private" | "published";
 const CHANNEL_LABELS: Record<Channel, string> = { app: "App", email: "Email", whatsapp: "WhatsApp" };
 interface ReviewSettings { automaticEnabled: boolean; channels: Channel[]; delayPreset: "immediate" | "one_hour" | "three_hours" | "next_day" | "two_days" }
 interface CollectionItem { appointment_date: string; appointment_id: string; customer_email?: string | null; customer_name: string; customer_phone?: string | null; customer_push_subscribed?: boolean; deliveries: Array<{ channel: Channel; delivered_at?: string | null; failure_reason?: string | null; generation: number; scheduled_at: string; status: string }>; invitation_consumed_at?: string | null; review_id?: string | null; service_name: string }
@@ -25,9 +26,9 @@ const presetOptions = [["immediate", "Subito"], ["one_hour", "Dopo 1 ora"], ["th
 
 function stars(rating: number) {
   return (
-    <span className="text-[#b85888]">
+    <span aria-label={`${rating} stelle su 5`} className="tracking-[.08em] text-[#9b3f70]">
       {"★".repeat(rating)}
-      <span className="text-stone-200">{"★".repeat(5 - rating)}</span>
+      <span aria-hidden="true" className="text-stone-200">{"★".repeat(5 - rating)}</span>
     </span>
   );
 }
@@ -48,6 +49,9 @@ export default function ReviewsPage() {
   const [manualTarget, setManualTarget] = useState<CollectionItem>();
   const [manualChannels, setManualChannels] = useState<Channel[]>(["email"]);
   const [manualPending, setManualPending] = useState(false);
+  const [reviewScope, setReviewScope] = useState<ReviewScope>("all");
+  const [reviewQuery, setReviewQuery] = useState("");
+  const [visibleReviewCount, setVisibleReviewCount] = useState(12);
   const load = async () => {
     if (!salon) return;
     dispatchList({ type: "load" });
@@ -74,6 +78,23 @@ export default function ReviewsPage() {
   const average = useMemo(() => items.length ? items.reduce((sum, item) => sum + item.rating, 0) / items.length : 0, [items]);
   const published = useMemo(() => items.filter((item) => item.published).length, [items]);
   const unanswered = useMemo(() => items.filter((item) => !item.reply).length, [items]);
+  const ratingDistribution = useMemo(() => [5, 4, 3, 2, 1].map((rating) => ({
+    count: items.filter((item) => item.rating === rating).length,
+    rating,
+  })), [items]);
+  const filteredReviews = useMemo(() => {
+    const query = reviewQuery.trim().toLocaleLowerCase("it-IT");
+    return items.filter((item) => {
+      const matchesScope = reviewScope === "all"
+        || (reviewScope === "unanswered" && !item.reply)
+        || (reviewScope === "private" && !item.published)
+        || (reviewScope === "published" && item.published);
+      const matchesQuery = !query || `${item.customer_name} ${item.comment ?? ""}`.toLocaleLowerCase("it-IT").includes(query);
+      return matchesScope && matchesQuery;
+    });
+  }, [items, reviewQuery, reviewScope]);
+
+  useEffect(() => { setVisibleReviewCount(12); }, [reviewQuery, reviewScope]);
 
   async function saveReply() {
     if (!salon || !selected) return;
@@ -130,16 +151,20 @@ export default function ReviewsPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
-      <PageHeaderMetrics
-        eyebrow="Voce dei clienti"
-        metrics={[
-          { detail: "Su 5 stelle", label: "Media", value: average.toFixed(1) },
-          { detail: "Visibili ai clienti", label: "Pubblicate", value: published },
-          { detail: "Senza risposta", label: "Da rispondere", value: unanswered },
-        ]}
-        title="Recensioni"
-        subtitle="Rispondi ai feedback e scegli cosa rendere pubblico nella pagina del salone."
-      />
+      <header className="mb-7 border-b border-stone-200 pb-6 sm:mb-8 sm:pb-8">
+        <p className="text-sm font-bold text-[#8b3b68]">Voce dei clienti</p>
+        <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <h1 className="font-serif text-4xl font-bold tracking-[-.035em] text-stone-950 sm:text-5xl">Recensioni</h1>
+            <p className="mt-3 max-w-xl text-base leading-7 text-stone-600">Ascolta i feedback, rispondi ai clienti e cura ciò che appare nella pagina del salone.</p>
+          </div>
+          <div className="flex flex-wrap gap-x-7 gap-y-3 border-l-2 border-[#d7a6c1] pl-4 sm:pl-5">
+            <div><strong className="block text-2xl font-black text-stone-950">{items.length}</strong><span className="text-sm text-stone-500">ricevute</span></div>
+            <div><strong className="block text-2xl font-black text-stone-950">{published}</strong><span className="text-sm text-stone-500">pubblicate</span></div>
+            <div><strong className="block text-2xl font-black text-[#792f59]">{unanswered}</strong><span className="text-sm text-stone-500">da rispondere</span></div>
+          </div>
+        </div>
+      </header>
 
       {activeTab === "requests" && <div>
       <SectionCard title="Raccolta recensioni" subtitle="Configura gli inviti automatici e gestisci quelli manuali dopo gli appuntamenti completati.">
@@ -180,52 +205,45 @@ export default function ReviewsPage() {
       </SectionCard>
       </div>}
 
-      {activeTab === "overview" && <div>
-      <SectionCard title="Distribuzione voti" subtitle="Una lettura rapida della soddisfazione recente.">
-        <div className="grid gap-3 md:grid-cols-5">
-          {[5, 4, 3, 2, 1].map((star) => {
-            const count = items.filter((item) => item.rating === star).length;
-            const height = items.length ? (count / items.length) * 100 : 0;
-            return (
-              <div className="rounded-2xl border border-[#ead1df] bg-[#fffafd] p-3 text-center" key={star}>
-                <b className="text-sm text-[#792f59]">{star}★</b>
-                <div className="mx-auto mt-3 flex h-24 w-8 items-end rounded-full bg-white p-1 shadow-inner">
-                  <div className="w-full rounded-full bg-[linear-gradient(180deg,#b85888,#792f59)]" style={{ height: `${height}%` }} />
-                </div>
-                <p className="mt-2 text-xs font-bold text-stone-500">{count}</p>
-              </div>
-            );
-          })}
+      {activeTab === "overview" && <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <section aria-labelledby="reviews-list-title" className="esse-panel min-w-0 overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-[0_12px_36px_rgb(45_29_39_/_0.06)]">
+        <div className="border-b border-stone-200 p-5 sm:p-7">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div><h2 className="text-2xl font-black tracking-[-.025em] text-stone-950" id="reviews-list-title">Recensioni ricevute</h2><p className="mt-1 text-sm text-stone-500">Trova rapidamente i feedback che richiedono attenzione.</p></div>
+            <label className="block lg:w-72"><span className="sr-only">Cerca nelle recensioni</span><input className="min-h-11 w-full rounded-xl border border-stone-300 bg-stone-50 px-4 text-sm outline-none transition placeholder:text-stone-400 focus:border-[#792f59] focus:bg-white focus:ring-2 focus:ring-[#792f59]/15" onChange={(event) => setReviewQuery(event.target.value)} placeholder="Cerca cliente o commento…" type="search" value={reviewQuery} /></label>
+          </div>
+          <div aria-label="Filtra recensioni" className="mt-5 flex gap-2 overflow-x-auto pb-1" role="group">
+            {([['all', 'Tutte', items.length], ['unanswered', 'Da rispondere', unanswered], ['private', 'Private', items.length - published], ['published', 'Pubblicate', published]] as const).map(([value, label, count]) => <button aria-pressed={reviewScope === value} className={`min-h-10 shrink-0 rounded-full border px-4 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59] ${reviewScope === value ? 'border-[#792f59] bg-[#792f59] text-white' : 'border-stone-200 bg-white text-stone-600 hover:border-[#c78baa]'}`} key={value} onClick={() => setReviewScope(value)} type="button">{label} <span className={reviewScope === value ? 'text-white/70' : 'text-stone-400'}>{count}</span></button>)}
+          </div>
         </div>
-      </SectionCard>
-
-      <SectionCard className="mt-6" title="Recensioni ricevute" subtitle="Ogni recensione resta gestibile senza uscire dalla pagina.">
         {management.error && !selected && <p className="mb-4 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-800" role="alert">{management.error}</p>}
         {list.status === "loading" || list.status === "idle" ? (
-          <p className="rounded-2xl bg-stone-50 p-5 text-sm font-semibold text-stone-500" role="status">Caricamento recensioni…</p>
+          <p className="m-5 rounded-2xl bg-stone-50 p-5 text-sm font-semibold text-stone-500" role="status">Caricamento recensioni…</p>
         ) : list.status === "error" ? (
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-5" role="alert">
+          <div className="m-5 rounded-2xl border border-red-200 bg-red-50 p-5" role="alert">
             <p className="text-sm font-semibold text-red-800">{list.error}</p>
             <Button className="mt-3" onClick={() => void load()} variant="outline">Riprova</Button>
           </div>
         ) : items.length === 0 ? (
           <EmptyState title="Nessuna recensione" description="Le recensioni compariranno dopo gli appuntamenti completati." />
+        ) : filteredReviews.length === 0 ? (
+          <div className="p-8 text-center"><h3 className="font-black text-stone-900">Nessun risultato</h3><p className="mt-1 text-sm text-stone-500">Prova a cambiare ricerca o filtro.</p></div>
         ) : (
-          <div className="space-y-3">
-            {items.map((item) => (
-              <article className="rounded-2xl border border-white/80 bg-white/82 p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.06)] ring-1 ring-stone-950/5 transition hover:-translate-y-0.5 hover:border-[#d7a6c1]" key={item.id}>
-                <div className="flex flex-wrap justify-between gap-3">
-                  <div>
-                    <p className="font-bold">{stars(item.rating)}</p>
-                    <h2 className="mt-1 text-lg font-bold text-stone-950">{item.customer_name}</h2>
-                    <time className="text-xs font-semibold uppercase tracking-[.08em] text-stone-400">{new Date(item.created_at).toLocaleDateString("it-IT")}</time>
+          <div>
+            <div className="divide-y divide-stone-200">
+            {filteredReviews.slice(0, visibleReviewCount).map((item) => (
+              <article className="px-5 py-6 transition-colors hover:bg-[#fffafd] sm:px-7" key={item.id}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">{stars(item.rating)}</p>
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1"><h3 className="text-base font-black text-stone-950">{item.customer_name}</h3><time className="text-sm text-stone-400">{new Date(item.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })}</time></div>
                   </div>
                   <StatusBadge status={item.published ? "active" : "inactive"}>{item.published ? "Pubblicata" : "Privata"}</StatusBadge>
                 </div>
-                <p className="mt-4 text-sm leading-6 text-stone-600">{item.comment || "Nessun commento."}</p>
-                {item.reply && <details className="group mt-3 rounded-xl border border-[#ead1df] bg-[#fffafd]"><summary className="min-h-10 cursor-pointer list-none px-4 py-2.5 text-sm font-bold text-[#792f59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]">Risposta del salone <span aria-hidden="true" className="ml-1 inline-block transition group-open:rotate-90">›</span></summary><p className="border-t border-[#ead1df] px-4 py-3 text-sm leading-6 text-stone-600">{item.reply}</p></details>}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button onClick={() => dispatchManagement({ review: item, type: "open" })} variant="outline">Rispondi</Button>
+                <p className="mt-4 max-w-3xl text-[15px] leading-7 text-stone-700">{item.comment || <span className="italic text-stone-400">Nessun commento.</span>}</p>
+                {item.reply && <div className="mt-4 border-l-2 border-[#d7a6c1] pl-4"><p className="text-xs font-bold text-[#792f59]">Risposta del salone</p><p className="mt-1 text-sm leading-6 text-stone-600">{item.reply}</p></div>}
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <Button onClick={() => dispatchManagement({ review: item, type: "open" })} variant={item.reply ? "outline" : "primary"}>{item.reply ? "Modifica risposta" : "Rispondi"}</Button>
                   {hasPermission(PERMISSION_KEYS.SETTINGS_SALON) && (
                     <Button disabled={management.pending} onClick={() => void setPublished(item, !item.published)} variant="tableAction">
                       {item.published ? "Rendi privata" : "Pubblica"}
@@ -234,9 +252,25 @@ export default function ReviewsPage() {
                 </div>
               </article>
             ))}
+            </div>
+            {visibleReviewCount < filteredReviews.length && <div className="border-t border-stone-200 p-5 text-center"><Button onClick={() => setVisibleReviewCount((count) => count + 12)} variant="outline">Mostra altre recensioni</Button><p className="mt-2 text-xs text-stone-400">{Math.min(visibleReviewCount, filteredReviews.length)} di {filteredReviews.length}</p></div>}
           </div>
         )}
-      </SectionCard>
+      </section>
+
+      <aside className="order-first xl:order-none xl:sticky xl:top-24">
+        <section aria-labelledby="rating-summary-title" className="esse-panel overflow-hidden rounded-3xl border border-[#e2c2d3] bg-[#fffafd] p-5 sm:p-6">
+          <h2 className="text-sm font-black text-stone-700" id="rating-summary-title">Valutazione complessiva</h2>
+          <div className="mt-3 flex items-end gap-3"><strong className="font-serif text-6xl font-bold leading-none tracking-[-.06em] text-stone-950">{average.toFixed(1)}</strong><div className="pb-1"><div className="text-base">{stars(Math.round(average))}</div><p className="mt-1 text-xs text-stone-500">su {items.length} recensioni</p></div></div>
+          <div className="mt-7 space-y-3">
+            {ratingDistribution.map(({ count, rating }) => {
+              const width = items.length ? (count / items.length) * 100 : 0;
+              return <div className="grid grid-cols-[28px_1fr_28px] items-center gap-3" key={rating}><span className="text-sm font-bold text-stone-600">{rating}★</span><div className="h-2 overflow-hidden rounded-full bg-white ring-1 ring-stone-200"><div className="h-full rounded-full bg-[#a94c7d]" style={{ width: `${width}%` }} /></div><span className="text-right text-xs font-semibold text-stone-400">{count}</span></div>;
+            })}
+          </div>
+        </section>
+        {unanswered > 0 && <div className="mt-4 rounded-2xl border border-stone-200 bg-white p-5"><p className="text-sm font-black text-stone-900">{unanswered} recensioni aspettano una risposta</p><p className="mt-1 text-sm leading-6 text-stone-500">Una risposta breve mostra attenzione e completa la conversazione con il cliente.</p><button className="mt-3 min-h-10 text-sm font-bold text-[#792f59] underline decoration-[#d7a6c1] underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]" onClick={() => setReviewScope("unanswered")} type="button">Mostra quelle da gestire</button></div>}
+      </aside>
       </div>}
 
       <Dialog

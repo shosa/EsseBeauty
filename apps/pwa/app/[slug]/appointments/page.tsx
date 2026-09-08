@@ -105,21 +105,21 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#faf8f4] px-4 py-8">
-      <section className="mx-auto max-w-md">
+    <main className="min-h-screen bg-[#faf8f4] px-4 py-8 lg:px-10 lg:py-10">
+      <section className="mx-auto max-w-md lg:max-w-4xl">
         <header>
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: primary }}>{profile?.salon.name ?? "Area cliente"}</p>
           <h1 className="mt-2 text-[1.7rem] font-bold text-stone-950">I tuoi appuntamenti</h1>
           <p className="mt-2 text-sm text-stone-500">Consulta le prossime prenotazioni del tuo account.</p>
         </header>
         {authStatus === "authenticated" && (
-          <div className="mt-5 flex gap-2" role="tablist">
+          <div className="mt-5 flex gap-2 lg:max-w-xs" role="tablist">
             <button aria-selected={tab === "upcoming"} className={`min-h-11 flex-1 rounded-full border px-4 text-sm font-bold ${tab === "upcoming" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setTab("upcoming")} role="tab" style={tab === "upcoming" ? { background: primary, borderColor: primary } : undefined} type="button">Prossimi ({upcomingItems.length})</button>
             <button aria-selected={tab === "past"} className={`min-h-11 flex-1 rounded-full border px-4 text-sm font-bold ${tab === "past" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setTab("past")} role="tab" style={tab === "past" ? { background: primary, borderColor: primary } : undefined} type="button">Passati ({pastItems.length})</button>
           </div>
         )}
         {authStatus === "authenticated" && (
-          <div className="mt-3 space-y-3">
+          <div className="mt-3 space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
             {visibleItems.map((item, index) => {
               const isOpen = openItemId === item.id;
               const isPast = isPastAppointment(item);

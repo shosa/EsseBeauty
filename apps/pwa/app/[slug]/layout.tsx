@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { CustomerAuthProvider } from "./_components/CustomerAuthProvider";
 import { PageTransition } from "./_components/PageTransition";
 import { SalonBottomNav } from "./_components/SalonBottomNav";
+import { SalonTopNav } from "./_components/SalonTopNav";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -16,7 +17,8 @@ export default async function SalonLayout({ children, params }: { children: Reac
   const { slug } = await params;
   return (
     <CustomerAuthProvider>
-      <div className="pb-24"><PageTransition>{children}</PageTransition><SalonBottomNav slug={slug} /></div>
+      <SalonTopNav slug={slug} />
+      <div className="pb-24 lg:pb-0 lg:pt-16"><PageTransition>{children}</PageTransition><SalonBottomNav slug={slug} /></div>
     </CustomerAuthProvider>
   );
 }

@@ -399,8 +399,8 @@ export default function BookingPage() {
   if (!profile) return <main className="grid min-h-screen place-items-center bg-[#faf8f4] text-sm font-black text-stone-500">Preparazione agenda...</main>;
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#faf8f4] px-4 pb-28 pt-6">
-      <div className="mx-auto max-w-md">
+    <main className="min-h-screen overflow-x-hidden bg-[#faf8f4] px-4 pb-28 pt-6 lg:px-10 lg:pb-24 lg:pt-10">
+      <div className="mx-auto max-w-md lg:max-w-3xl">
         <div className="flex items-center justify-between">
           <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: primary }}>{profile.salon.name}</p>
           <Link aria-label="Chiudi" className="grid size-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-700" href={`/${slug}`}>
@@ -455,7 +455,7 @@ export default function BookingPage() {
             </div>
 
             {category && (
-              <div className="space-y-2">
+              <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-2 lg:space-y-0">
                 {filteredServices.map((service) => {
                   const selected = serviceIds.includes(service.id);
                   return (
@@ -506,7 +506,7 @@ export default function BookingPage() {
                 <Shuffle className="size-5 shrink-0" />Lo staff verrà assegnato automaticamente.
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                 <button
                   aria-pressed={!primaryStaffId}
                   className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-sm font-black ${!primaryStaffId ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
@@ -535,7 +535,7 @@ export default function BookingPage() {
               <div className="border-t border-stone-200 pt-5" key={service.id}>
                 <p className="font-black text-stone-900">Per {service.name}</p>
                 <p className="mt-1 text-sm leading-6 text-stone-500">{firstName(primaryStaff?.displayName ?? "")} non esegue questo servizio. Scegli un’altra preferenza.</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-3">
                   <button
                     aria-pressed={!staffByService[service.id]}
                     className={`flex min-h-16 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black ${!staffByService[service.id] ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
@@ -624,7 +624,7 @@ export default function BookingPage() {
               ) : dayClosed ? (
                 <p className="animate-reveal rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Il salone è chiuso in questa data. Scegli un altro giorno.</p>
               ) : slots.some((slot) => slot.available) ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 lg:grid-cols-5">
                   {slots.map((slot) => (
                     <button key={slot.starts_at} disabled={!slot.available} onClick={() => pickSlot(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-200 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary, borderColor: primary } : undefined}>
                       {formatTimeSummary(slot.starts_at)}
@@ -735,10 +735,10 @@ export default function BookingPage() {
       </div>
       {(step === 1 || step === 2 || (step === 3 && !waitlistMode && (loadingSlots || dayClosed || slots.some((slot) => slot.available)))) && (
         <footer
-          className="fixed inset-x-0 bottom-[76px] z-40 border-t border-stone-200/80 bg-[#faf8f4]/95 px-4 pt-3 backdrop-blur"
+          className="fixed inset-x-0 bottom-[76px] z-40 border-t border-stone-200/80 bg-[#faf8f4]/95 px-4 pt-3 backdrop-blur lg:bottom-0 lg:px-10"
           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
-          <div className="mx-auto max-w-md">
+          <div className="mx-auto max-w-md lg:max-w-3xl">
             {step === 1 && selectedServices.length > 0 && (
               <div aria-label="Servizi selezionati" className="mb-3 flex gap-2 overflow-x-auto pb-1">
                 {selectedServices.map((service) => (

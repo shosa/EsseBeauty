@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bell, BellOff, LogOut, Sparkles, Star, UserRound, X } from "lucide-react";
+import { ArrowRight, Bell, BellOff, Clock, LogOut, Sparkles, Star, UserRound, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import type { Weekday, WorkingHours } from "@esse-beauty/shared";
 
 import { apiBaseUrl } from "../../lib/api";
 import { NoticeModal } from "../_components/NoticeModal";
@@ -21,7 +22,19 @@ function initials(fullNameValue: string): string {
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
 interface Category { icon: string; id: string; name: string; }
 interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; installPromptEnabled?: boolean; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
-interface Profile { branding?: Branding | null; categories: Category[]; pwa?: { pushPublicKey?: string | null } | null; salon: { name: string }; services: Service[]; }
+interface Profile { branding?: Branding | null; categories: Category[]; opening_hours?: WorkingHours | null; pwa?: { pushPublicKey?: string | null } | null; salon: { name: string; timezone?: string }; services: Service[]; }
+
+const WEEKDAY_KEYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const WEEKDAY_LABELS: Record<Weekday, string> = { fri: "Venerdì", mon: "Lunedì", sat: "Sabato", sun: "Domenica", thu: "Giovedì", tue: "Martedì", wed: "Mercoledì" };
+
+function todayWeekdayAndMinutes(timezone: string): { minutes: number; weekday: Weekday } {
+  const parts = new Intl.DateTimeFormat("en-US", { hour: "2-digit", hour12: false, minute: "2-digit", timeZone: timezone, weekday: "short" }).formatToParts(new Date());
+  const short = parts.find((part) => part.type === "weekday")?.value ?? "Mon";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+  const weekday = WEEKDAY_KEYS[(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(short) + 6) % 7] ?? "mon";
+  return { minutes: hour * 60 + minute, weekday };
+}
 interface PublicReview { comment: string | null; created_at: string; customer_name: string; id: string; rating: number; reply: string | null; }
 interface PublicReviews { average_rating: number | null; items: PublicReview[]; total: number; }
 interface AppMessage { body: string; created_at: string; href?: string | null; id: string; read_at: string | null; title: string; }
@@ -37,6 +50,7 @@ export default function SalonLanding() {
   const [profile, setProfile] = useState<Profile>();
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable" | "missing">("loading");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [hoursOpen, setHoursOpen] = useState(false);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "reviews">("overview");
   const [reviews, setReviews] = useState<PublicReviews>();
@@ -122,7 +136,44 @@ export default function SalonLanding() {
   const categories = useMemo(() => profile?.categories.filter((category) =>
     profile.services.some((service) => service.category === category.name),
   ) ?? [], [profile]);
+  const openingHours = profile?.opening_hours;
+  const isOpenNow = useMemo(() => {
+    if (!openingHours) return null;
+    const { minutes, weekday } = todayWeekdayAndMinutes(profile?.salon.timezone || "Europe/Rome");
+    return (openingHours[weekday] ?? []).some((range) => {
+      const [fromHour = 0, fromMinute = 0] = range.from.split(":").map(Number);
+      const [toHour = 0, toMinute = 0] = range.to.split(":").map(Number);
+      return minutes >= fromHour * 60 + fromMinute && minutes < toHour * 60 + toMinute;
+    });
+  }, [openingHours, profile?.salon.timezone]);
+  const todayKey = openingHours ? todayWeekdayAndMinutes(profile?.salon.timezone || "Europe/Rome").weekday : undefined;
   const brand = profile?.branding;
+
+  function hoursStatusBadge() {
+    if (isOpenNow === null) return null;
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 text-xs font-bold" style={{ color: isOpenNow ? "#0e7c59" : "#a6a399" }}>
+        <span className="size-1.5 rounded-full" style={{ background: isOpenNow ? "#0e7c59" : "#a6a399" }} />
+        {isOpenNow ? "Aperto ora" : "Chiuso ora"}
+      </span>
+    );
+  }
+
+  function hoursList() {
+    return (
+      <div className="space-y-1.5">
+        {WEEKDAY_KEYS.map((key) => {
+          const ranges = openingHours?.[key] ?? [];
+          return (
+            <div className={`flex items-center justify-between gap-4 text-sm ${key === todayKey ? "font-black text-stone-950" : "text-stone-600"}`} key={key}>
+              <span>{WEEKDAY_LABELS[key]}</span>
+              <span className={ranges.length ? "" : "text-stone-400"}>{ranges.length ? ranges.map((range) => `${range.from}–${range.to}`).join(", ") : "Chiuso"}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
   const primary = brand?.primaryColor || "#15140f";
   const accent = brand?.accentColor || "#0e7c59";
   const unreadMessages = messages.filter((message) => !message.read_at).length;
@@ -132,8 +183,8 @@ export default function SalonLanding() {
   if (status === "missing") return <main className="grid min-h-screen place-items-center bg-[#faf8f4] p-5"><h1 className="text-2xl font-bold">Salone non trovato</h1></main>;
 
   return (
-    <main className="min-h-screen bg-[#faf8f4] px-4 py-6">
-      <div className="animate-reveal mx-auto max-w-md">
+    <main className="min-h-screen bg-[#faf8f4] px-4 py-6 lg:px-10 lg:py-10">
+      <div className="animate-reveal mx-auto max-w-md lg:max-w-6xl">
         <div className="flex items-center justify-end gap-2">
           {authStatus === "authenticated" && (
             <button
@@ -189,20 +240,40 @@ export default function SalonLanding() {
           </div>
         </div>
 
-        <div className="mt-5 flex items-center gap-3.5">
-          {brand?.logoUrl
-            ? <img alt="Logo salone" className="size-12 shrink-0 rounded-2xl border border-stone-200 object-cover" src={brand.logoUrl} />
-            : <span className="grid size-12 shrink-0 place-items-center rounded-2xl" style={{ background: primary }}><img alt="EsseBeauty" className="h-9 w-auto brightness-0 invert" src="/esse-logo.svg" /></span>}
-          <div className="min-w-0">
-            <p className="truncate text-lg font-bold text-stone-950">{profile?.salon.name}</p>
-            {Boolean(reviews?.average_rating) && (
-              <p className="mt-0.5 flex items-center gap-1 text-sm">
-                <Star className="size-[13px] fill-current" style={{ color: "#b8862e" }} />
-                <span className="font-black text-stone-950">{reviews!.average_rating!.toLocaleString("it-IT")}</span>
-                <span className="text-stone-400">({reviews!.total})</span>
-              </p>
-            )}
+        <div className="lg:mt-6 lg:grid lg:grid-cols-[360px_1fr] lg:items-start lg:gap-10">
+        <div className="lg:col-start-1">
+        <div className="mt-5 flex items-center justify-between gap-3.5">
+          <div className="flex min-w-0 items-center gap-3.5">
+            {brand?.logoUrl
+              ? <img alt="Logo salone" className="size-12 shrink-0 rounded-2xl border border-stone-200 object-cover" src={brand.logoUrl} />
+              : <span className="grid size-12 shrink-0 place-items-center rounded-2xl" style={{ background: primary }}><img alt="EsseBeauty" className="h-9 w-auto brightness-0 invert" src="/esse-logo.svg" /></span>}
+            <div className="min-w-0">
+              <p className="truncate text-lg font-bold text-stone-950">{profile?.salon.name}</p>
+              {Boolean(reviews?.average_rating) && (
+                <p className="mt-0.5 flex items-center gap-1 text-sm">
+                  <Star className="size-[13px] fill-current" style={{ color: "#b8862e" }} />
+                  <span className="font-black text-stone-950">{reviews!.average_rating!.toLocaleString("it-IT")}</span>
+                  <span className="text-stone-400">({reviews!.total})</span>
+                </p>
+              )}
+            </div>
           </div>
+          {openingHours && (
+            <div className="relative shrink-0 lg:hidden">
+              <button aria-expanded={hoursOpen} aria-label="Orari di apertura" className="grid size-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-700" onClick={() => setHoursOpen((state) => !state)} type="button">
+                <Clock className="size-[18px]" />
+              </button>
+              {hoursOpen && (
+                <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-64 origin-top-right rounded-2xl border border-stone-200 bg-white p-4 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Orari</p>
+                    {hoursStatusBadge()}
+                  </div>
+                  {hoursList()}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-6 px-0.5">
@@ -210,6 +281,16 @@ export default function SalonLanding() {
           <h1 className={`text-[1.7rem] font-bold leading-tight text-stone-950 ${authStatus === "authenticated" && customer ? "mt-0.5" : ""}`}>{brand?.heroTitle || "Prenota il tuo prossimo trattamento"}</h1>
           <p className="mt-2 text-sm leading-6 text-stone-500">{brand?.heroSubtitle || "Il tuo spazio per prenderti cura di te, con la libertà di prenotare quando vuoi."}</p>
         </div>
+
+        {openingHours && (
+          <div className="mt-5 hidden rounded-3xl border border-stone-200 bg-white p-5 lg:block">
+            <div className="flex items-center justify-between gap-3">
+              <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.14em] text-stone-400"><Clock className="size-4" />Orari</p>
+              {hoursStatusBadge()}
+            </div>
+            <div className="mt-3">{hoursList()}</div>
+          </div>
+        )}
 
         {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-600">{brand.welcomeText}</p>}
         <InstallAppButton enabled={brand?.installPromptEnabled !== false} primary={primary} />
@@ -227,8 +308,10 @@ export default function SalonLanding() {
             </div>
           </div>
         )}
+        </div>
 
-        <nav className="mt-6 grid grid-cols-2 rounded-full border border-stone-200 bg-white p-1 text-sm font-black">
+        <div className="lg:col-start-2">
+        <nav className="mt-6 grid grid-cols-2 rounded-full border border-stone-200 bg-white p-1 text-sm font-black lg:max-w-xs">
           {[
             ["overview", "Overview"],
             ["reviews", "Recensioni"],
@@ -252,7 +335,7 @@ export default function SalonLanding() {
           <section className="mt-7">
             <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Sparkles className="size-4" />Da dove vuoi iniziare?</p>
             <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un trattamento</h2>
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible">
               {categories.map((category) => (
                 <Link
                   className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-stone-200 bg-white px-4 text-sm font-bold text-stone-800 transition hover:border-stone-300"
@@ -278,7 +361,7 @@ export default function SalonLanding() {
           {reviewsStatus === "loading" && <p className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 text-sm font-bold text-stone-500">Caricamento recensioni...</p>}
           {reviewsStatus === "failed" && <p className="mt-4 rounded-3xl bg-rose-50 p-5 text-sm font-bold text-rose-700">Recensioni non disponibili.</p>}
           {reviewsStatus === "ready" && reviews?.items.length === 0 && <p className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-500">Le recensioni pubbliche compariranno qui appena il salone le renderà visibili.</p>}
-          {reviewsStatus === "ready" && Boolean(reviews?.items.length) && <div className="mt-4 grid gap-3">
+          {reviewsStatus === "ready" && Boolean(reviews?.items.length) && <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {reviews?.items.map((item) => (
               <article className="rounded-3xl border border-stone-200 bg-white p-5" key={item.id}>
                 <div className="flex items-start justify-between gap-4">
@@ -291,6 +374,8 @@ export default function SalonLanding() {
             ))}
           </div>}
         </section>}
+        </div>
+        </div>
       </div>
       <AnimatePresence>
         {showAuthOverlay && <CustomerAuthOverlay accent={accent} onClose={() => setShowAuthOverlay(false)} primary={primary} salonName={profile?.salon.name} />}
