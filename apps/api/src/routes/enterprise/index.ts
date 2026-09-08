@@ -358,7 +358,7 @@ async function deliverConsentPush(
 
   await sendCustomerAppMessage(app.db, input.consent.salonId, input.consent.customerId, {
     body: `${details.salonName} ti ha inviato il consenso "${details.templateName}" da leggere e firmare.`,
-    href: `/consents/${encodeURIComponent(input.rawToken)}`,
+    href: `/${details.salonSlug}/consents/${encodeURIComponent(input.rawToken)}`,
     kind: "consent_request",
     slug: details.salonSlug,
     title: "Consenso da firmare",

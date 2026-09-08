@@ -16,7 +16,7 @@ import {
 
 describe("public consent signing", () => {
   it("exposes an Italian, encoding-safe acceptance page", () => {
-    const publicPath = join(process.cwd(), "app/consents/[token]/page.tsx");
+    const publicPath = join(process.cwd(), "app/consents/ConsentSigningView.tsx");
     expect(existsSync(publicPath)).toBe(true);
     const publicSource = readFileSync(publicPath, "utf8");
     expect(publicSource).toContain("Accetto il documento");

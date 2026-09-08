@@ -13,11 +13,11 @@ const items = [
 ];
 
 // Desktop-only (lg+) horizontal chrome; SalonBottomNav keeps serving mobile. Hidden on the
-// standalone message view for the same reason the bottom nav is: it reads as a dismiss-and-go
-// notice, not another app screen with chrome around it.
+// standalone message and consent-signing views for the same reason the bottom nav is: they
+// read as a focused dismiss-and-go flow, not another app screen with chrome around it.
 export function SalonTopNav({ slug }: { slug: string }) {
   const pathname = usePathname();
-  if (pathname.includes("/messages/")) return null;
+  if (pathname.includes("/messages/") || pathname.includes("/consents/")) return null;
   return (
     <nav aria-label="Navigazione cliente" className="fixed inset-x-0 top-0 z-30 hidden h-16 border-b border-stone-200 bg-white/95 backdrop-blur-xl lg:block">
       <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-8">

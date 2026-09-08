@@ -18,8 +18,10 @@ import {
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type Channel = "app" | "email" | "whatsapp";
+type CollectionScope = "all" | "pending" | "reviewed" | "sent";
 type ReviewScope = "all" | "unanswered" | "private" | "published";
 const CHANNEL_LABELS: Record<Channel, string> = { app: "App", email: "Email", whatsapp: "WhatsApp" };
+const COLLECTION_PAGE_SIZE = 10;
 interface ReviewSettings { automaticEnabled: boolean; channels: Channel[]; delayPreset: "immediate" | "one_hour" | "three_hours" | "next_day" | "two_days" }
 interface CollectionItem { appointment_date: string; appointment_id: string; customer_email?: string | null; customer_name: string; customer_phone?: string | null; customer_push_subscribed?: boolean; deliveries: Array<{ channel: Channel; delivered_at?: string | null; failure_reason?: string | null; generation: number; scheduled_at: string; status: string }>; invitation_consumed_at?: string | null; review_id?: string | null; service_name: string }
 const presetOptions = [["immediate", "Subito"], ["one_hour", "Dopo 1 ora"], ["three_hours", "Dopo 3 ore"], ["next_day", "Il giorno successivo"], ["two_days", "Dopo 2 giorni"]] as const;
@@ -45,6 +47,9 @@ export default function ReviewsPage() {
   const [collection, setCollection] = useState<CollectionItem[]>([]);
   const [collectionError, setCollectionError] = useState("");
   const [collectionLoading, setCollectionLoading] = useState(true);
+  const [collectionPage, setCollectionPage] = useState(1);
+  const [collectionQuery, setCollectionQuery] = useState("");
+  const [collectionScope, setCollectionScope] = useState<CollectionScope>("all");
   const [settingsMessage, setSettingsMessage] = useState("");
   const [manualTarget, setManualTarget] = useState<CollectionItem>();
   const [manualChannels, setManualChannels] = useState<Channel[]>(["email"]);
@@ -82,6 +87,25 @@ export default function ReviewsPage() {
     count: items.filter((item) => item.rating === rating).length,
     rating,
   })), [items]);
+  const collectionCounts = useMemo(() => ({
+    all: collection.length,
+    pending: collection.filter((item) => !item.review_id && item.deliveries.length === 0).length,
+    reviewed: collection.filter((item) => Boolean(item.review_id)).length,
+    sent: collection.filter((item) => !item.review_id && item.deliveries.length > 0).length,
+  }), [collection]);
+  const filteredCollection = useMemo(() => {
+    const query = collectionQuery.trim().toLocaleLowerCase("it-IT");
+    return collection.filter((item) => {
+      const matchesScope = collectionScope === "all"
+        || (collectionScope === "pending" && !item.review_id && item.deliveries.length === 0)
+        || (collectionScope === "sent" && !item.review_id && item.deliveries.length > 0)
+        || (collectionScope === "reviewed" && Boolean(item.review_id));
+      const searchable = `${item.customer_name} ${item.service_name} ${item.customer_email ?? ""} ${item.customer_phone ?? ""}`.toLocaleLowerCase("it-IT");
+      return matchesScope && (!query || searchable.includes(query));
+    });
+  }, [collection, collectionQuery, collectionScope]);
+  const collectionPageCount = Math.max(1, Math.ceil(filteredCollection.length / COLLECTION_PAGE_SIZE));
+  const paginatedCollection = filteredCollection.slice((collectionPage - 1) * COLLECTION_PAGE_SIZE, collectionPage * COLLECTION_PAGE_SIZE);
   const filteredReviews = useMemo(() => {
     const query = reviewQuery.trim().toLocaleLowerCase("it-IT");
     return items.filter((item) => {
@@ -95,6 +119,8 @@ export default function ReviewsPage() {
   }, [items, reviewQuery, reviewScope]);
 
   useEffect(() => { setVisibleReviewCount(12); }, [reviewQuery, reviewScope]);
+  useEffect(() => { setCollectionPage(1); }, [collectionQuery, collectionScope]);
+  useEffect(() => { setCollectionPage((page) => Math.min(page, collectionPageCount)); }, [collectionPageCount]);
 
   async function saveReply() {
     if (!salon || !selected) return;
@@ -197,9 +223,15 @@ export default function ReviewsPage() {
           </section>
 
           <section aria-labelledby="review-queue-title">
-            <div><h2 className="font-black" id="review-queue-title">Appuntamenti completati</h2><p className="mt-1 text-sm text-stone-600">Invia ora o reinvia una richiesta già consegnata.</p></div>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div><h2 className="font-black" id="review-queue-title">Appuntamenti completati</h2><p className="mt-1 text-sm text-stone-600">Invia ora o reinvia una richiesta già consegnata.</p></div>
+              <label className="block lg:w-80"><span className="sr-only">Cerca negli appuntamenti completati</span><input className="min-h-11 w-full rounded-xl border border-stone-300 bg-stone-50 px-4 text-sm outline-none transition placeholder:text-stone-400 focus:border-[#792f59] focus:bg-white focus:ring-2 focus:ring-[#792f59]/15" onChange={(event) => setCollectionQuery(event.target.value)} placeholder="Cerca cliente o servizio…" type="search" value={collectionQuery} /></label>
+            </div>
+            <div aria-label="Filtra richieste recensione" className="mt-4 flex gap-2 overflow-x-auto pb-1" role="group">
+              {([['all', 'Tutte', collectionCounts.all], ['pending', 'Da inviare', collectionCounts.pending], ['sent', 'Inviate', collectionCounts.sent], ['reviewed', 'Recensione ricevuta', collectionCounts.reviewed]] as const).map(([value, label, count]) => <button aria-pressed={collectionScope === value} className={`min-h-10 shrink-0 rounded-full border px-4 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59] ${collectionScope === value ? 'border-[#792f59] bg-[#792f59] text-white' : 'border-stone-200 bg-white text-stone-600 hover:border-[#c78baa]'}`} key={value} onClick={() => setCollectionScope(value)} type="button">{label} <span className={collectionScope === value ? 'text-white/70' : 'text-stone-400'}>{count}</span></button>)}
+            </div>
             {collectionError && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-800" role="alert">{collectionError}</p>}
-            {collectionLoading ? <p className="mt-4 text-sm text-stone-500">Caricamento richieste…</p> : collection.length === 0 ? <EmptyState title="Nessun appuntamento completato" description="Gli appuntamenti conclusi compariranno qui." /> : <div className="mt-4 divide-y divide-stone-200 overflow-hidden rounded-2xl border border-stone-200 bg-white">{collection.map((item) => <article className="p-4" key={item.appointment_id}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">{item.customer_name}</h3><p className="text-sm text-stone-600">{item.service_name} · {new Date(item.appointment_date).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })}</p></div><div className="flex items-center gap-2">{item.review_id ? <StatusBadge status="completed">Recensione ricevuta</StatusBadge> : <Button disabled={Boolean(item.invitation_consumed_at)} onClick={() => openManual(item)} variant={item.deliveries.length ? "outline" : "primary"}>{item.deliveries.length ? "Reinvia" : "Invia ora"}</Button>}</div></div>{item.deliveries.length > 0 && <details className="group mt-2"><summary className="min-h-10 cursor-pointer list-none py-2 text-sm font-bold text-[#792f59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]">Dettagli invii <span aria-hidden="true" className="ml-1 inline-block transition group-open:rotate-90">›</span></summary><div className="flex flex-wrap gap-2 pb-1">{item.deliveries.map((delivery) => <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold" key={`${delivery.channel}-${delivery.generation}`}>{CHANNEL_LABELS[delivery.channel]}: {delivery.status}{delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}</span>)}</div></details>}</article>)}</div>}
+            {collectionLoading ? <p className="mt-4 text-sm text-stone-500">Caricamento richieste…</p> : collection.length === 0 ? <EmptyState title="Nessun appuntamento completato" description="Gli appuntamenti conclusi compariranno qui." /> : filteredCollection.length === 0 ? <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-8 text-center"><h3 className="font-black text-stone-900">Nessun risultato</h3><p className="mt-1 text-sm text-stone-500">Prova a cambiare ricerca o filtro.</p></div> : <div className="mt-4 overflow-hidden rounded-2xl border border-stone-200 bg-white"><div className="divide-y divide-stone-200">{paginatedCollection.map((item) => <article className="p-4 transition-colors hover:bg-[#fffafd] sm:p-5" key={item.appointment_id}><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-black">{item.customer_name}</h3><p className="text-sm text-stone-600">{item.service_name} · {new Date(item.appointment_date).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })}</p></div><div className="flex items-center gap-2">{item.review_id ? <StatusBadge status="completed">Recensione ricevuta</StatusBadge> : <Button disabled={Boolean(item.invitation_consumed_at)} onClick={() => openManual(item)} variant={item.deliveries.length ? "outline" : "primary"}>{item.deliveries.length ? "Reinvia" : "Invia ora"}</Button>}</div></div>{item.deliveries.length > 0 && <details className="group mt-2"><summary className="min-h-10 cursor-pointer list-none py-2 text-sm font-bold text-[#792f59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#792f59]">Dettagli invii <span aria-hidden="true" className="ml-1 inline-block transition group-open:rotate-90">›</span></summary><div className="flex flex-wrap gap-2 pb-1">{item.deliveries.map((delivery) => <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold" key={`${delivery.channel}-${delivery.generation}`}>{CHANNEL_LABELS[delivery.channel]}: {delivery.status}{delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}</span>)}</div></details>}</article>)}</div><nav aria-label="Paginazione richieste recensione" className="flex flex-col gap-3 border-t border-stone-200 bg-stone-50/70 p-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-sm text-stone-500"><strong className="text-stone-700">{(collectionPage - 1) * COLLECTION_PAGE_SIZE + 1}–{Math.min(collectionPage * COLLECTION_PAGE_SIZE, filteredCollection.length)}</strong> di {filteredCollection.length}</p><div className="flex items-center gap-2"><Button disabled={collectionPage === 1} onClick={() => setCollectionPage((page) => Math.max(1, page - 1))} variant="outline">Precedente</Button><span className="min-w-16 text-center text-sm font-bold text-stone-600" aria-current="page">{collectionPage} / {collectionPageCount}</span><Button disabled={collectionPage === collectionPageCount} onClick={() => setCollectionPage((page) => Math.min(collectionPageCount, page + 1))} variant="outline">Successiva</Button></div></nav></div>}
           </section>
         </div>
       </SectionCard>
