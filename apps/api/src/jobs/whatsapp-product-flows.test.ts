@@ -24,7 +24,7 @@ describe("WhatsApp product flows", () => {
     const source = await readFile(resolve(import.meta.dirname, "reviews.ts"), "utf8");
 
     expect(source).toContain("export function buildReviewInvitePath");
-    expect(source).toContain("href: buildReviewInvitePath(delivery.rawToken)");
+    expect(source).toContain("href: buildReviewInvitePath(delivery.salonSlug, delivery.rawToken)");
     expect(source).toContain("reviewInvitationEmailHtml({ customerName: delivery.customerName, reviewUrl: buildReviewInviteUrl(pwaUrl, delivery.rawToken)");
   });
 });

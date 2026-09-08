@@ -27,8 +27,8 @@ describe("review token ingress", () => {
 
     const result = await exchange(
       fetcher,
-      `https://pwa.example.test/review#token=${encodeURIComponent(rawToken)}`,
-      (url) => { events.push("replace"); expect(url).toBe("/review"); },
+      `https://pwa.example.test/salone/review#token=${encodeURIComponent(rawToken)}`,
+      (url) => { events.push("replace"); expect(url).toBe("/salone/review"); },
     );
 
     expect(events).toEqual(["replace", "fetch"]);

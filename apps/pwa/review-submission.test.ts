@@ -22,6 +22,11 @@ describe("public review submission", () => {
     expect(reviewNetworkOnly.urlPattern.test("https://pwa.example.test/review/v1.review.secret")).toBe(false);
   });
 
+  it("exposes a scoped review page for app push notifications", async () => {
+    const page = await import("./app/[slug]/review/page.js");
+    expect(page.default).toBeTypeOf("function");
+  });
+
   it("preserves rating and comment after a submission failure", () => {
     let state = reviewSubmissionReducer(initialReviewSubmissionState, { rating: 5, type: "rating" });
     state = reviewSubmissionReducer(state, { comment: "Esperienza ottima", type: "comment" });

@@ -34,6 +34,12 @@ describe("client PWA experience", () => {
     expect(source).not.toContain("Trova il trattamento e l’orario giusto.");
   });
 
+  it("lets customer notifications close back to the salon home", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "messages", "[id]", "page.tsx"), "utf8");
+    expect(source).toContain('aria-label="Chiudi notifica"');
+    expect(source).toContain("router.push(`/${slug}`)");
+  });
+
   it("shows a salon overview with a public reviews tab", () => {
     const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
     expect(source).toContain('activeTab === "overview"');

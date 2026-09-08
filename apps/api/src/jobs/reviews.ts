@@ -57,8 +57,8 @@ export function buildReviewInviteUrl(pwaBaseUrl: string, rawToken: string): stri
   return `${base}/review#token=${encodeURIComponent(rawToken)}`;
 }
 
-export function buildReviewInvitePath(rawToken: string): string {
-  return `/review#token=${encodeURIComponent(rawToken)}`;
+export function buildReviewInvitePath(slug: string, rawToken: string): string {
+  return `/${slug}/review#token=${encodeURIComponent(rawToken)}`;
 }
 
 function escapeHtml(value: string): string {
@@ -587,7 +587,7 @@ export async function processChannelReviewRequest(db: DrizzleDB, job: Job<Review
     } else if (delivery.channel === "app" && delivery.rawToken) {
       await sendCustomerAppMessage(db, delivery.salonId, delivery.customerId, {
         body: `Ciao ${delivery.customerName}, raccontaci com'è andato il trattamento ${delivery.serviceName} da ${delivery.salonName}: bastano pochi secondi.`,
-        href: buildReviewInvitePath(delivery.rawToken),
+        href: buildReviewInvitePath(delivery.salonSlug, delivery.rawToken),
         kind: "review_request",
         slug: delivery.salonSlug,
         title: "Com'è andato il tuo appuntamento?",
