@@ -30,4 +30,20 @@ describe("client PWA experience", () => {
     expect(source).toContain("/api/public/${slug}/reviews");
     expect(source).toContain("Recensioni clienti");
   });
+
+  it("keeps the iOS install instructions visible in the viewport", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "_components", "InstallAppButton.tsx"), "utf8");
+    expect(source).toContain("place-items-center");
+    expect(source).toContain("max-h-[calc(100dvh-2rem)]");
+    expect(source).not.toContain("place-items-end");
+    expect(source).not.toContain("rounded-t-[2.2rem]");
+  });
+
+  it("uses the salon name in the per-salon install manifest", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "manifest.webmanifest", "route.ts"), "utf8");
+    expect(source).toContain("salonName");
+    expect(source).toContain("name: salonName");
+    expect(source).toContain("short_name: salonName");
+    expect(source).not.toContain('name: "Esse Beauty"');
+  });
 });
