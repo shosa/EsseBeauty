@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, CalendarPlus, LogOut, Sparkles, UserRound } from "lucide-react";
+import { ArrowRight, CalendarDays, CalendarPlus, LogOut, Sparkles, Star, UserRound } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -20,6 +20,13 @@ interface Service { id: string; name: string; category: string; durationMinutes:
 interface Category { icon: string; id: string; name: string; }
 interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; installPromptEnabled?: boolean; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
 interface Profile { branding?: Branding | null; categories: Category[]; salon: { name: string }; services: Service[]; }
+interface PublicReview { comment: string | null; created_at: string; customer_name: string; id: string; rating: number; reply: string | null; }
+interface PublicReviews { average_rating: number | null; items: PublicReview[]; total: number; }
+
+function displayName(value: string): string {
+  const first = value.trim().split(/\s+/)[0];
+  return first ? `${first} cliente` : "Cliente";
+}
 
 export default function SalonLanding() {
   const { slug } = useParams<{ slug: string }>();
@@ -28,6 +35,9 @@ export default function SalonLanding() {
   const [status, setStatus] = useState<"loading" | "ready" | "unavailable" | "missing">("loading");
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews">("overview");
+  const [reviews, setReviews] = useState<PublicReviews>();
+  const [reviewsStatus, setReviewsStatus] = useState<"idle" | "loading" | "ready" | "failed">("idle");
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -37,6 +47,18 @@ export default function SalonLanding() {
       setStatus("ready");
     });
   }, [slug]);
+
+  useEffect(() => {
+    if (activeTab !== "reviews" || reviewsStatus !== "idle") return;
+    setReviewsStatus("loading");
+    void fetch(`${apiBaseUrl()}/api/public/${slug}/reviews`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("REVIEWS_UNAVAILABLE");
+        setReviews(await response.json());
+        setReviewsStatus("ready");
+      })
+      .catch(() => setReviewsStatus("failed"));
+  }, [activeTab, reviewsStatus, slug]);
 
   const categories = useMemo(() => profile?.categories.filter((category) =>
     profile.services.some((service) => service.category === category.name),
@@ -95,41 +117,77 @@ export default function SalonLanding() {
         {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-white/80 bg-white/82 p-5 text-sm leading-6 text-stone-600 shadow-sm">{brand.welcomeText}</p>}
         <InstallAppButton accent={accent} enabled={brand?.installPromptEnabled !== false} primary={primary} />
 
-        <section className="mt-5 grid grid-cols-2 gap-3">
-          <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/appointments`}>
-            <span className="grid size-11 place-items-center rounded-2xl text-white" style={{ background: primary }}><CalendarDays className="size-5" /></span>
-            <h2 className="mt-4 text-lg font-bold text-stone-950">I miei appuntamenti</h2>
-            <p className="mt-1 text-sm leading-5 text-stone-500">Consulta le prenotazioni già effettuate.</p>
-          </Link>
-          <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/book`}>
-            <span className="grid size-11 place-items-center rounded-2xl" style={{ background: accent, color: primary }}><CalendarPlus className="size-5" /></span>
-            <h2 className="mt-4 text-lg font-bold text-stone-950">Nuova prenotazione</h2>
-            <p className="mt-1 text-sm leading-5 text-stone-500">Trova il trattamento e l’orario giusto.</p>
-          </Link>
-        </section>
+        <nav className="mt-6 grid grid-cols-2 rounded-2xl bg-white/70 p-1 text-sm font-black shadow-sm">
+          {[
+            ["overview", "Overview"],
+            ["reviews", "Recensioni"],
+          ].map(([value, label]) => (
+            <button aria-pressed={activeTab === value} className={`min-h-11 rounded-xl transition ${activeTab === value ? "text-white shadow-sm" : "text-stone-500"}`} key={value} onClick={() => setActiveTab(value as "overview" | "reviews")} style={activeTab === value ? { background: primary } : undefined} type="button">{label}</button>
+          ))}
+        </nav>
 
-        <section className="mt-7">
-          <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Sparkles className="size-4" />Da dove vuoi iniziare?</p>
-          <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un’esperienza</h2>
-          <div className="mt-4 grid gap-3">
-            {categories.map((category, index) => (
-              <Link
-                className="animate-reveal group flex min-h-20 items-center justify-between rounded-3xl border border-white/80 bg-white/88 px-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)] transition hover:-translate-y-0.5"
-                href={`/${slug}/book?category=${encodeURIComponent(category.name)}`}
-                key={category.id}
-                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="grid size-11 place-items-center rounded-2xl" style={{ background: `${primary}12`, color: primary }}>
-                    <ServiceCategoryIcon className="size-5" name={category.icon} />
-                  </span>
-                  <strong className="text-base text-stone-950">{category.name}</strong>
-                </div>
-                <ArrowRight className="size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
-              </Link>
-            ))}
+        {activeTab === "overview" && <>
+          <section className="mt-5 grid grid-cols-2 gap-3">
+            <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/appointments`}>
+              <span className="grid size-11 place-items-center rounded-2xl text-white" style={{ background: primary }}><CalendarDays className="size-5" /></span>
+              <h2 className="mt-4 text-lg font-bold text-stone-950">I miei appuntamenti</h2>
+              <p className="mt-1 text-sm leading-5 text-stone-500">Consulta le prenotazioni già effettuate.</p>
+            </Link>
+            <Link className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/book`}>
+              <span className="grid size-11 place-items-center rounded-2xl" style={{ background: accent, color: primary }}><CalendarPlus className="size-5" /></span>
+              <h2 className="mt-4 text-lg font-bold text-stone-950">Nuova prenotazione</h2>
+              <p className="mt-1 text-sm leading-5 text-stone-500">Trova il trattamento e l’orario giusto.</p>
+            </Link>
+          </section>
+
+          <section className="mt-7">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Sparkles className="size-4" />Da dove vuoi iniziare?</p>
+            <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un’esperienza</h2>
+            <div className="mt-4 grid gap-3">
+              {categories.map((category, index) => (
+                <Link
+                  className="animate-reveal group flex min-h-20 items-center justify-between rounded-3xl border border-white/80 bg-white/88 px-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)] transition hover:-translate-y-0.5"
+                  href={`/${slug}/book?category=${encodeURIComponent(category.name)}`}
+                  key={category.id}
+                  style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="grid size-11 place-items-center rounded-2xl" style={{ background: `${primary}12`, color: primary }}>
+                      <ServiceCategoryIcon className="size-5" name={category.icon} />
+                    </span>
+                    <strong className="text-base text-stone-950">{category.name}</strong>
+                  </div>
+                  <ArrowRight className="size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
+                </Link>
+              ))}
+            </div>
+          </section>
+        </>}
+
+        {activeTab === "reviews" && <section className="mt-6">
+          <div className="rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]">
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Star className="size-4 fill-current" />Recensioni clienti</p>
+            <div className="mt-3 flex items-end justify-between gap-4">
+              <h2 className="text-2xl font-bold text-stone-950">Cosa dicono del salone</h2>
+              {reviews?.average_rating && <span className="rounded-full px-3 py-1.5 text-sm font-black text-white" style={{ background: primary }}>{reviews.average_rating.toLocaleString("it-IT")} ★</span>}
+            </div>
           </div>
-        </section>
+          {reviewsStatus === "loading" && <p className="mt-4 rounded-3xl bg-white/80 p-5 text-sm font-bold text-stone-500">Caricamento recensioni...</p>}
+          {reviewsStatus === "failed" && <p className="mt-4 rounded-3xl bg-rose-50 p-5 text-sm font-bold text-rose-700">Recensioni non disponibili.</p>}
+          {reviewsStatus === "ready" && reviews?.items.length === 0 && <p className="mt-4 rounded-3xl bg-white/80 p-5 text-sm leading-6 text-stone-500">Le recensioni pubbliche compariranno qui appena il salone le renderà visibili.</p>}
+          {reviewsStatus === "ready" && Boolean(reviews?.items.length) && <div className="mt-4 grid gap-3">
+            {reviews?.items.map((item) => (
+              <article className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)]" key={item.id}>
+                <div className="flex items-start justify-between gap-4">
+                  <div><h3 className="font-black text-stone-950">{displayName(item.customer_name)}</h3><p className="mt-1 text-xs font-semibold text-stone-400">{new Date(item.created_at).toLocaleDateString("it-IT", { dateStyle: "medium" })}</p></div>
+                  <span className="whitespace-nowrap text-sm font-black" style={{ color: primary }}>{"★".repeat(item.rating)}<span className="text-stone-200">{"★".repeat(5 - item.rating)}</span></span>
+                </div>
+                {item.comment && <p className="mt-4 text-sm leading-6 text-stone-600">{item.comment}</p>}
+                {item.reply && <p className="mt-4 rounded-2xl p-4 text-sm leading-6" style={{ background: `${primary}10`, color: primary }}><strong>Risposta del salone</strong><br />{item.reply}</p>}
+              </article>
+            ))}
+          </div>}
+        </section>}
       </div>
       <AnimatePresence>
         {showAuthOverlay && <CustomerAuthOverlay accent={accent} onClose={() => setShowAuthOverlay(false)} primary={primary} salonName={profile?.salon.name} />}

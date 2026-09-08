@@ -22,4 +22,12 @@ describe("client PWA experience", () => {
     expect(source).toContain("CalendarPlus");
     expect(source).not.toContain(">⌁<");
   });
+
+  it("shows a salon overview with a public reviews tab", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
+    expect(source).toContain('activeTab === "overview"');
+    expect(source).toContain('activeTab === "reviews"');
+    expect(source).toContain("/api/public/${slug}/reviews");
+    expect(source).toContain("Recensioni clienti");
+  });
 });

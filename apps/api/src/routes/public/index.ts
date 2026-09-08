@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, desc, eq, gt, ilike, inArray, lt, ne, or } from "drizzle-orm";
 
-import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, salonClosures, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, reviews, salonClosures, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureCustomerCancellationNotification, ensureOnlineBookingNotifications, ensureRescheduleRequestNotifications } from "../../jobs/staff-request-notifications.js";
@@ -207,6 +207,35 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         }))
         : [],
       opening_hours: salon.openingHours,
+    };
+  });
+
+  app.get<{ Params: { slug: string } }>("/api/public/:slug/reviews", async (request, reply) => {
+    const salon = await getSalon(app, request.params.slug);
+    if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+    const enabled = await isModuleEnabled(salon.id, MODULE_KEYS.REVIEWS, app.db);
+    if (!enabled) return { average_rating: null, items: [], total: 0 };
+    const items = await app.db
+      .select({
+        comment: reviews.comment,
+        created_at: reviews.createdAt,
+        customer_name: customers.fullName,
+        id: reviews.id,
+        rating: reviews.rating,
+        reply: reviews.reply,
+      })
+      .from(reviews)
+      .innerJoin(customers, eq(customers.id, reviews.customerId))
+      .where(and(eq(reviews.salonId, salon.id), eq(reviews.published, true)))
+      .orderBy(desc(reviews.createdAt))
+      .limit(30);
+    const average = items.length
+      ? Math.round((items.reduce((sum, item) => sum + item.rating, 0) / items.length) * 10) / 10
+      : null;
+    return {
+      average_rating: average,
+      items,
+      total: items.length,
     };
   });
 
