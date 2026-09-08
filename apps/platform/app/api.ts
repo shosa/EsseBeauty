@@ -12,6 +12,7 @@ export function apiBaseUrl(): string {
 const messages: Record<string, string> = {
   BOOTSTRAP_ALREADY_COMPLETED: "La configurazione iniziale è già stata completata.",
   INVALID_CREDENTIALS: "Email o password non corrette.",
+  INVALID_EMAIL_SETTINGS: "Completa host, porta e mittente email.",
   INVALID_MODULE_KEY: "Modulo non valido.",
   NAME_REQUIRED: "Inserisci il nome del salone.",
   OWNER_NOT_FOUND: "Il titolare non è disponibile.",

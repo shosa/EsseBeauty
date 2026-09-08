@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
-import { BellRing, Building2, CalendarRange, FileSignature, History, MapPinned, MessageCircle, Smartphone, Users } from "lucide-react";
+import { BellRing, Building2, CalendarRange, FileSignature, History, Mail, MapPinned, MessageCircle, Smartphone, Users } from "lucide-react";
 
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
@@ -41,6 +41,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
       label: "Sistema",
       links: [
         { href: "/settings/communications", icon: MessageCircle, label: "WhatsApp" },
+        { href: "/settings/email", icon: Mail, label: "Email" },
         ...(reminders ? [{ href: "/settings/reminders", icon: BellRing, label: "Promemoria" }] : []),
         ...(documents ? [{ href: "/settings/documents", icon: FileSignature, label: "Documenti" }] : []),
         ...(audit ? [{ href: "/settings/audit", icon: History, label: "Attività" }] : []),

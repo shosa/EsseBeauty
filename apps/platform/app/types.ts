@@ -1,6 +1,6 @@
 import type { ModuleKey } from "@esse-beauty/feature-flags";
 
-export type View = "overview" | "tenants" | "plans" | "modules" | "templates" | "audit";
+export type View = "overview" | "tenants" | "plans" | "modules" | "templates" | "settings" | "audit";
 export type TenantTab = "profile" | "owner" | "modules" | "danger";
 export type TenantStatus = "active" | "suspended" | "trial" | "churn_risk";
 
@@ -58,6 +58,25 @@ export interface PlatformTemplate {
   id: string;
   key: string;
   subject: string | null;
+}
+export interface PlatformEmailSettings {
+  defaultFromEmail: string;
+  defaultFromName: string;
+  enabled: boolean;
+  host: string;
+  id: string | null;
+  lastHealthCheckAt: string | null;
+  passwordPresent: boolean;
+  port: number;
+  provider: "smtp";
+  secure: boolean;
+  username: string | null;
+}
+
+export interface PlatformEmailTestResult {
+  checkedAt: string;
+  message: string;
+  ok: boolean;
 }
 export interface SalonOwner {
   active: boolean;

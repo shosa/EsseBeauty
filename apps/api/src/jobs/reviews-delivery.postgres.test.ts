@@ -11,6 +11,7 @@ import { testDatabaseUrl } from "../test/postgres.js";
 
 const senders = vi.hoisted(() => ({
   sendEmail: vi.fn(async (_to: string, _subject: string, _html: string) => undefined),
+  sendEmailFromDb: vi.fn(async (_db: DrizzleDB, to: string, subject: string, html: string) => senders.sendEmail(to, subject, html)),
 }));
 
 vi.mock("./notifications.js", () => senders);
@@ -18,12 +19,34 @@ vi.mock("./notifications.js", () => senders);
 import {
   ensureReviewInvitation,
   processReviewRequest,
+  reviewInvitationEmailHtml,
   type ReviewRequestJob,
 } from "./reviews.js";
 import { enqueueCommunication } from "./communications.js";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;
+
+describe("review invitation email template", () => {
+  it("renders an EsseBeauty styled HTML email and escapes dynamic values", () => {
+    const html = reviewInvitationEmailHtml({
+      customerName: "Mario <Rossi>",
+      reviewUrl: "https://pwa.example.test/review#token=v1.review.token",
+      salonName: "Luce & Bellezza",
+      serviceName: "Pulizia viso",
+    });
+
+    expect(html).toContain("background:#fbf7f2");
+    expect(html).toContain("font-family:Manrope,Georgia,serif;font-size:56px");
+    expect(html).toContain("letter-spacing:.1em;text-transform:uppercase");
+    expect(html).toContain("background:#24161d");
+    expect(html).toContain("border-radius:999px");
+    expect(html).toContain("Lascia una recensione");
+    expect(html).toContain("Luce &amp; Bellezza");
+    expect(html).toContain("Mario &lt;Rossi&gt;");
+    expect(html).toContain("https://pwa.example.test/review#token=v1.review.token");
+  });
+});
 
 postgresSuite("review delivery with PostgreSQL", () => {
   let db: DrizzleDB;

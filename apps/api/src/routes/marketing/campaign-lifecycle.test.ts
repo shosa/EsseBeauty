@@ -143,7 +143,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
         messages.push(message);
         return {
           acceptedAt: new Date("2026-08-24T10:00:00.000Z"),
-          provider: "resend",
+          provider: "smtp",
           providerMessageId: `provider-${messages.length}`,
         };
       },

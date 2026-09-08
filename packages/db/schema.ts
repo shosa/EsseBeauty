@@ -351,6 +351,22 @@ export const platformSystemTemplates = pgTable(
   (table) => [uniqueIndex("platform_system_templates_key_channel_unique").on(table.key, table.channel)],
 );
 
+export const platformEmailSettings = pgTable("platform_email_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").default("smtp").notNull(),
+  host: text("host").default("").notNull(),
+  port: integer("port").default(587).notNull(),
+  secure: boolean("secure").default(false).notNull(),
+  username: text("username"),
+  passwordEncrypted: text("password_encrypted"),
+  defaultFromName: text("default_from_name").default("EsseBeauty").notNull(),
+  defaultFromEmail: text("default_from_email").default("noreply@essebeauty.app").notNull(),
+  enabled: boolean("enabled").default(false).notNull(),
+  lastHealthCheckAt: timestamp("last_health_check_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps,
+});
+
 export const users = pgTable(
   "users",
   {

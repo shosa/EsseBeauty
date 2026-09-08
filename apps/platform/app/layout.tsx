@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
+import PlatformConsole from "./_components/PlatformConsole";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -13,5 +14,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return <html className={`${inter.variable} ${manrope.variable}`} lang="it"><body>{children}</body></html>;
+  return <html className={`${inter.variable} ${manrope.variable}`} lang="it"><body><PlatformConsole>{children}</PlatformConsole></body></html>;
 }

@@ -2,10 +2,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const source = readFileSync(join(process.cwd(), "..", "platform", "app", "page.tsx"), "utf8");
+const platformRoot = join(process.cwd(), "..", "platform", "app");
+const source = readFileSync(join(platformRoot, "_components", "PlatformConsole.tsx"), "utf8");
 
 describe("platform operations console", () => {
   it("loads the global platform overview", () => {
+    expect(readFileSync(join(platformRoot, "layout.tsx"), "utf8")).toContain("<PlatformConsole>{children}</PlatformConsole>");
+    expect(readFileSync(join(platformRoot, "page.tsx"), "utf8")).toContain('view="overview"');
+    expect(readFileSync(join(platformRoot, "salons", "page.tsx"), "utf8")).toContain('view="tenants"');
+    expect(readFileSync(join(platformRoot, "settings", "page.tsx"), "utf8")).toContain('view="settings"');
     expect(source).toContain('"/api/platform/overview"');
     expect(source).toContain('"/api/platform/plans"');
     expect(source).toContain('"/api/platform/module-catalog"');

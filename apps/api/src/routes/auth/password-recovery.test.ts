@@ -38,7 +38,7 @@ postgresSuite("password recovery with PostgreSQL", () => {
 
   it("uses an enumeration-safe response and sends a purpose-scoped 30 minute token", async () => {
     const data = await fixture();
-    const send = vi.fn(async (_message: CommunicationMessage) => ({ acceptedAt: new Date(), provider: "resend" as const, providerMessageId: "mail-1" }));
+    const send = vi.fn(async (_message: CommunicationMessage) => ({ acceptedAt: new Date(), provider: "smtp" as const, providerMessageId: "mail-1" }));
     const providers: CommunicationProviderRegistry = {
       require: () => ({ send }),
       send,
@@ -72,7 +72,7 @@ postgresSuite("password recovery with PostgreSQL", () => {
     const providers: CommunicationProviderRegistry = {
       require: () => ({ send: async (message) => {
         rawToken = /\/reset-password\/([^\s<"]+)/.exec(message.channel === "email" ? message.html : "")?.[1] ?? "";
-        return { acceptedAt: new Date(), provider: "resend", providerMessageId: "mail-2" };
+        return { acceptedAt: new Date(), provider: "smtp", providerMessageId: "mail-2" };
       } }),
       async send(message) { return this.require(message.channel).send(message); },
       status: () => ({ email: "ready" }),

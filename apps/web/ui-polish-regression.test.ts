@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const dashboardRoot = join(process.cwd(), "app", "(dashboard)");
 const sharedUi = join(process.cwd(), "..", "..", "packages", "ui", "index.tsx");
+const platformConsole = join(process.cwd(), "..", "platform", "app", "_components", "PlatformConsole.tsx");
 
 function dashboardPages(directory = dashboardRoot): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -155,7 +156,7 @@ describe("professional UI regression guard", () => {
   it("keeps module activation in the central configurator", () => {
     const settingsLayout = readFileSync(join(dashboardRoot, "settings", "layout.tsx"), "utf8");
     const dashboardShell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
-    const platform = readFileSync(join(process.cwd(), "..", "platform", "app", "page.tsx"), "utf8");
+    const platform = readFileSync(platformConsole, "utf8");
     expect(existsSync(join(dashboardRoot, "settings", "modules", "page.tsx"))).toBe(false);
     expect(settingsLayout).not.toContain("/settings/modules");
     expect(dashboardShell).not.toContain("/settings/modules");
@@ -165,7 +166,7 @@ describe("professional UI regression guard", () => {
   });
 
   it("does not auto-open a salon card before an explicit selection", () => {
-    const platform = readFileSync(join(process.cwd(), "..", "platform", "app", "page.tsx"), "utf8");
+    const platform = readFileSync(platformConsole, "utf8");
     expect(platform).toContain("const [selected, setSelected] = useState<PlatformSalon | null>(null)");
     expect(platform).toContain("onClick={() => onOpen(salon)}");
     expect(platform).toContain("{selected && <TenantDrawer");

@@ -259,7 +259,8 @@ Segreti:
 
 - `REVIEW_TOKEN_SECRET` e `REVIEW_SESSION_SECRET`, obbligatori e distinti.
 - `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`, obbligatorio prima di salvare credenziali provider.
-- `RESEND_API_KEY`, `META_APP_SECRET` e `META_WEBHOOK_VERIFY_TOKEN` quando si abilitano email o WhatsApp.
+- `META_APP_SECRET` e `META_WEBHOOK_VERIFY_TOKEN` quando si abilita WhatsApp.
+- La configurazione SMTP email si gestisce dalla console Platform.
 
 Docker:
 

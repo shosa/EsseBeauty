@@ -14,6 +14,7 @@ import {
   platformAuditLog,
   platformAdmins,
   platformAdminSessions,
+  platformEmailSettings,
   platformModuleCatalog,
   platformPlans,
   platformSystemTemplates,
@@ -35,6 +36,8 @@ import {
   SESSION_DURATION_MS,
   verifyPassword,
 } from "../auth/local-auth.js";
+import { encryptProviderSecret } from "../../lib/provider-credentials.js";
+import { testPlatformEmailConnection } from "../../jobs/notifications.js";
 
 const PLATFORM_SESSION_COOKIE = "esse-platform-session";
 
@@ -83,6 +86,32 @@ async function createPlatformSession(
     expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
   });
   setPlatformSessionCookie(reply, token);
+}
+
+function encodePlatformEmailPassword(password: string, settingsId: string): string {
+  try {
+    return JSON.stringify(encryptProviderSecret(password, {
+      accountId: settingsId,
+      provider: "smtp",
+      salonId: "platform",
+    }));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Provider credential key version")) {
+      return password;
+    }
+    throw error;
+  }
+}
+
+function normalizeSmtpHost(host: string): string {
+  const value = host.trim();
+  if (!value) return "";
+  try {
+    const parsed = new URL(value.includes("://") ? value : `smtp://${value}`);
+    return parsed.hostname;
+  } catch {
+    return value.replace(/^smtps?:\/\//i, "").split("/")[0]?.split(":")[0]?.trim() ?? value;
+  }
 }
 
 async function writePlatformAudit(
@@ -602,6 +631,115 @@ export async function registerPlatformRoutes(
       });
 
       return salon;
+    },
+  );
+
+  app.get(
+    "/api/platform/settings/email",
+    { preHandler: [authenticatePlatform] },
+    async () => {
+      const rows = await app.db.select().from(platformEmailSettings).limit(1);
+      const settings = rows[0];
+      return {
+        defaultFromEmail: settings?.defaultFromEmail ?? "noreply@essebeauty.app",
+        defaultFromName: settings?.defaultFromName ?? "EsseBeauty",
+        enabled: settings?.enabled ?? false,
+        host: settings?.host ?? "",
+        id: settings?.id ?? null,
+        lastHealthCheckAt: settings?.lastHealthCheckAt?.toISOString() ?? null,
+        passwordPresent: Boolean(settings?.passwordEncrypted),
+        port: settings?.port ?? 587,
+        provider: settings?.provider ?? "smtp",
+        secure: settings?.secure ?? false,
+        username: settings?.username ?? null,
+      };
+    },
+  );
+
+  app.put<{
+    Body: {
+      default_from_email: string;
+      default_from_name: string;
+      enabled: boolean;
+      host: string;
+      password?: string;
+      port: number;
+      secure: boolean;
+      username?: string | null;
+    };
+  }>(
+    "/api/platform/settings/email",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      const host = normalizeSmtpHost(request.body.host ?? "");
+      if (!host || !request.body.default_from_email?.trim() || !request.body.default_from_name?.trim() || request.body.port < 1) {
+        return reply.code(400).send({ error: "INVALID_EMAIL_SETTINGS" });
+      }
+      const current = await app.db.select().from(platformEmailSettings).limit(1);
+      const existing = current[0];
+      const settingsId = existing?.id ?? randomUUID();
+      const storedPassword = request.body.password?.trim()
+        ? encodePlatformEmailPassword(request.body.password, settingsId)
+        : existing?.passwordEncrypted || null;
+      const values = {
+        defaultFromEmail: request.body.default_from_email.trim(),
+        defaultFromName: request.body.default_from_name.trim(),
+        enabled: request.body.enabled,
+        host,
+        passwordEncrypted: storedPassword,
+        port: request.body.port,
+        provider: "smtp",
+        secure: request.body.secure,
+        updatedAt: new Date(),
+        username: request.body.username?.trim() || null,
+      };
+      const rows = existing
+        ? await app.db.update(platformEmailSettings).set(values).where(eq(platformEmailSettings.id, existing.id)).returning()
+        : await app.db.insert(platformEmailSettings).values({ id: settingsId, ...values }).returning();
+      await writePlatformAudit(app, request, {
+        action: "settings.email_updated",
+        diff: { enabled: request.body.enabled, host, port: request.body.port, secure: request.body.secure },
+        summary: "Aggiornata la configurazione email Platform",
+        targetId: rows[0]?.id,
+        targetType: "platform_email_settings",
+      });
+      return {
+        defaultFromEmail: rows[0]?.defaultFromEmail,
+        defaultFromName: rows[0]?.defaultFromName,
+        enabled: rows[0]?.enabled,
+        host: rows[0]?.host,
+        id: rows[0]?.id,
+        lastHealthCheckAt: rows[0]?.lastHealthCheckAt?.toISOString() ?? null,
+        passwordPresent: Boolean(rows[0]?.passwordEncrypted),
+        port: rows[0]?.port,
+        provider: rows[0]?.provider,
+        secure: rows[0]?.secure,
+        username: rows[0]?.username,
+      };
+    },
+  );
+
+  app.post(
+    "/api/platform/settings/email/test",
+    { preHandler: [authenticatePlatform] },
+    async () => {
+      const checkedAt = new Date();
+      try {
+        await testPlatformEmailConnection(app.db);
+        await app.db.update(platformEmailSettings).set({ lastHealthCheckAt: checkedAt, updatedAt: checkedAt });
+        return {
+          checkedAt: checkedAt.toISOString(),
+          message: "Connessione SMTP verificata.",
+          ok: true,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Test SMTP non riuscito.";
+        return {
+          checkedAt: checkedAt.toISOString(),
+          message,
+          ok: false,
+        };
+      }
     },
   );
 

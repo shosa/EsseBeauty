@@ -337,6 +337,13 @@
       "when": 1788524067143,
       "tag": "0047_shallow_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1788526800000,
+      "tag": "0048_platform_email_settings",
+      "breakpoints": true
     }
   ]
 }

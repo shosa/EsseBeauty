@@ -1,7 +1,3 @@
-import { Resend } from "resend";
-
-import { ResendProvider } from "./resend-provider.js";
-
 export type CommunicationChannel = "email";
 export type CommunicationProviderReadiness = "ready" | "not_configured";
 
@@ -15,7 +11,7 @@ export type CommunicationMessage = {
 
 export interface DeliveryReceipt {
   acceptedAt: Date;
-  provider: "resend";
+  provider: "smtp";
   providerMessageId: string;
 }
 
@@ -30,8 +26,6 @@ export interface CommunicationProviderRegistry {
 }
 
 export interface CommunicationEnvironment {
-  RESEND_API_KEY?: string;
-  RESEND_FROM_EMAIL?: string;
 }
 
 export class ProviderNotConfiguredError extends Error {
@@ -43,18 +37,11 @@ export class ProviderNotConfiguredError extends Error {
   }
 }
 
-function present(value: string | undefined): boolean {
-  return Boolean(value?.trim());
-}
-
 export function providerStatus(
-  env: CommunicationEnvironment,
+  _env: CommunicationEnvironment,
 ): Record<CommunicationChannel, CommunicationProviderReadiness> {
   return {
-    email:
-      present(env.RESEND_API_KEY) && present(env.RESEND_FROM_EMAIL)
-        ? "ready"
-        : "not_configured",
+    email: "not_configured",
   };
 }
 
@@ -64,12 +51,6 @@ export function createCommunicationProviderRegistry(
   const readiness = providerStatus(env);
   const providers: Partial<Record<CommunicationChannel, CommunicationProvider>> = {};
 
-  if (readiness.email === "ready") {
-    providers.email = new ResendProvider(
-      new Resend(env.RESEND_API_KEY!),
-      env.RESEND_FROM_EMAIL!,
-    );
-  }
   return {
     require(channel) {
       const provider = providers[channel];
