@@ -1466,7 +1466,7 @@ export const reviewInvitationDeliveries = pgTable(
     index("review_invitation_deliveries_schedule_idx").on(table.status, table.scheduledAt),
     check("review_invitation_deliveries_generation_check", sql`${table.generation} >= 0`),
     check("review_invitation_deliveries_attempts_check", sql`${table.attempts} >= 0`),
-    check("review_invitation_deliveries_channel_check", sql`${table.channel} in ('email','whatsapp','app')`),
+    check("review_invitation_deliveries_channel_check", sql`${table.channel}::text in ('email','whatsapp','app')`),
   ],
 );
 

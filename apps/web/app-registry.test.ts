@@ -22,16 +22,20 @@ describe("app-oriented dashboard registry", () => {
     expect(availableApps.map((app) => app.key)).not.toContain("home");
     expect(availableApps.map((app) => app.key)).not.toContain("reminders");
     expect(availableApps.map((app) => app.key)).not.toContain("documents");
-    expect(availableApps.find((app) => app.key === "calendar")?.domain).toBe("control");
-    expect(availableApps.find((app) => app.key === "sales")?.domain).toBe("control");
+    expect(availableApps.find((app) => app.key === "calendar")?.domain).toBe("operations");
+    expect(availableApps.find((app) => app.key === "sales")?.domain).toBe("operations");
   });
 
-  it("groups every dashboard destination into the four approved domains", () => {
+  it("groups every dashboard destination into three salon app domains", () => {
     expect(APP_DOMAINS.map((domain) => domain.key)).toEqual([
-      "day",
-      "relationships",
-      "growth",
-      "control",
+      "operations",
+      "clients",
+      "management",
+    ]);
+    expect(APP_DOMAINS.map((domain) => domain.label)).toEqual([
+      "Operatività",
+      "Clienti e crescita",
+      "Gestione salone",
     ]);
     expect(APP_REGISTRY.map((app) => app.key)).toEqual(expect.arrayContaining([
       "home",

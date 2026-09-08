@@ -36,6 +36,7 @@ describe("apps directory navigation", () => {
     expect(overlay).toContain("APP_DOMAINS");
     expect(overlay).toContain("drawerApps(apps)");
     expect(overlay).toContain("esse-app-drawer-item");
+    expect(overlay).toContain("mt-7 space-y-7 pb-8");
     expect(overlay).toContain("grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7");
     expect(overlay).toContain('role="dialog"');
     expect(overlay).toContain("md:left-[76px]");

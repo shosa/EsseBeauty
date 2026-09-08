@@ -25,7 +25,7 @@ import {
   VouchersIcon,
 } from "./Icons";
 
-export type AppDomainKey = "day" | "relationships" | "growth" | "control";
+export type AppDomainKey = "operations" | "clients" | "management";
 export type AppIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export interface AppTab {
@@ -57,17 +57,16 @@ export interface AppDefinition {
 }
 
 export const APP_DOMAINS: ReadonlyArray<{ key: AppDomainKey; label: string }> = [
-  { key: "day", label: "Giornata" },
-  { key: "relationships", label: "Relazioni" },
-  { key: "growth", label: "Crescita" },
-  { key: "control", label: "Controllo" },
+  { key: "operations", label: "Operatività" },
+  { key: "clients", label: "Clienti e crescita" },
+  { key: "management", label: "Gestione salone" },
 ];
 
 export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#792f59",
     description: "Panoramica operativa del salone",
-    domain: "day",
+    domain: "operations",
     href: "/",
     icon: DashboardIcon,
     key: "home",
@@ -77,7 +76,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#dc2626",
     description: "Tutte le notifiche del salone in un posto",
-    domain: "day",
+    domain: "operations",
     href: "/notifications",
     icon: BellIcon,
     key: "notifications",
@@ -87,7 +86,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#7c3aed",
     description: "Appuntamenti, risorse e disponibilità",
-    domain: "control",
+    domain: "operations",
     href: "/calendar",
     icon: CalendarIcon,
     key: "calendar",
@@ -131,7 +130,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#0f766e",
     description: "Vendite, pagamenti e chiusura",
-    domain: "control",
+    domain: "operations",
     href: "/sales",
     icon: SalesIcon,
     key: "sales",
@@ -146,7 +145,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#2563eb",
     description: "Anagrafiche, preferenze e storico",
-    domain: "relationships",
+    domain: "clients",
     href: "/clients",
     icon: ClientsIcon,
     key: "clients",
@@ -162,7 +161,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#0369a1",
     description: "Team, ruoli e operatività",
-    domain: "relationships",
+    domain: "management",
     href: "/staff",
     icon: StaffIcon,
     key: "staff",
@@ -187,7 +186,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#9333ea",
     description: "Catalogo, categorie e prezzi",
-    domain: "relationships",
+    domain: "management",
     href: "/services",
     icon: ServicesIcon,
     key: "services",
@@ -213,7 +212,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#b45309",
     description: "Emissione e utilizzo dei buoni",
-    domain: "relationships",
+    domain: "clients",
     href: "/vouchers",
     icon: VouchersIcon,
     key: "vouchers",
@@ -229,7 +228,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#0e7490",
     description: "Sedi, ambienti e compatibilità servizi",
-    domain: "relationships",
+    domain: "management",
     href: "/cabins",
     icon: DoorIcon,
     key: "cabins",
@@ -240,7 +239,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#be185d",
     description: "Campagne e comunicazioni clienti",
-    domain: "growth",
+    domain: "clients",
     href: "/marketing",
     icon: MarketingIcon,
     key: "marketing",
@@ -257,7 +256,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#c026d3",
     description: "Punti, premi e fidelizzazione",
-    domain: "growth",
+    domain: "clients",
     href: "/loyalty",
     icon: LoyaltyIcon,
     key: "loyalty",
@@ -269,7 +268,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#ca8a04",
     description: "Feedback e reputazione",
-    domain: "growth",
+    domain: "clients",
     href: "/reviews",
     icon: ReviewsIcon,
     key: "reviews",
@@ -285,7 +284,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#ea580c",
     description: "Richieste e slot liberati",
-    domain: "growth",
+    domain: "operations",
     href: "/waitlist",
     icon: WaitlistIcon,
     key: "waitlist",
@@ -297,7 +296,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#15803d",
     description: "Prodotti, giacenze e movimenti",
-    domain: "control",
+    domain: "management",
     href: "/inventory",
     icon: InventoryIcon,
     key: "inventory",
@@ -323,7 +322,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#0f766e",
     description: "Movimenti e andamento economico",
-    domain: "control",
+    domain: "management",
     href: "/accounting",
     icon: AccountingIcon,
     key: "accounting",
@@ -345,7 +344,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#4338ca",
     description: "Indicatori e performance",
-    domain: "control",
+    domain: "management",
     href: "/reports",
     icon: ReportsIcon,
     key: "reports",
@@ -364,7 +363,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#7e22ce",
     description: "Offerte composte e percorsi",
-    domain: "control",
+    domain: "operations",
     href: "/packages",
     icon: PackagesIcon,
     key: "packages",
@@ -385,7 +384,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#475569",
     description: "Cronologia delle operazioni",
-    domain: "control",
+    domain: "management",
     href: "/settings/audit",
     icon: AuditIcon,
     key: "audit",
@@ -397,7 +396,7 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
   {
     accent: "#57534e",
     description: "Configurazione del salone",
-    domain: "control",
+    domain: "management",
     href: "/settings",
     icon: SettingsIcon,
     key: "settings",
