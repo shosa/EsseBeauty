@@ -5,6 +5,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
 import {
   authSessions,
+  customerAppMessages,
+  customerPushSubscriptions,
   campaignRecipients,
   campaignTemplates,
   communicationConsents,
@@ -477,6 +479,75 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       expect(preview.json().excluded).toEqual([
         expect.objectContaining({ customer_id: data.customers[1]!.id, reason: "MISSING_WHATSAPP_CONSENT" }),
       ]);
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("previews app recipients with salon-scoped push subscriptions as eligible", async () => {
+    const data = await fixture();
+    await db.insert(customerPushSubscriptions).values({
+      auth: "auth",
+      customerId: data.customers[0]!.id,
+      endpoint: `https://push.example.test/${randomUUID()}`,
+      p256dh: "p256dh",
+      salonId: data.salonId,
+    });
+    const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+    try {
+      const preview = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: { channel: "app", target_segment: { type: "all" } },
+        url: `/api/salons/${data.salonId}/campaigns/preview`,
+      });
+      expect(preview.statusCode, preview.body).toBe(200);
+      expect(preview.json()).toMatchObject({ eligible_count: 1, excluded_count: 1 });
+      expect(preview.json().eligible).toEqual([
+        expect.objectContaining({ customer_id: data.customers[0]!.id, destination: data.customers[0]!.id }),
+      ]);
+      expect(preview.json().excluded).toEqual([
+        expect.objectContaining({ customer_id: data.customers[1]!.id, reason: "MISSING_PUSH_SUBSCRIPTION" }),
+      ]);
+    } finally {
+      await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("matches app test-send recipients by normalized phone before checking push subscription", async () => {
+    const data = await fixture();
+    await db.update(customers).set({
+      phone: "3483318964",
+      phoneNormalized: "+393483318964",
+    }).where(eq(customers.id, data.customers[0]!.id));
+    await db.insert(customerPushSubscriptions).values({
+      auth: "auth",
+      customerId: data.customers[0]!.id,
+      endpoint: `https://push.example.test/${randomUUID()}`,
+      p256dh: "p256dh",
+      salonId: data.salonId,
+    });
+    const app = createApp({ db, env: { API_CORS_ORIGIN: "http://localhost:3000" } });
+    try {
+      const response = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "POST",
+        payload: {
+          channel: "app",
+          content: "Contenuto test",
+          destination: "+393483318964",
+          subject: "Test push",
+        },
+        url: `/api/salons/${data.salonId}/campaigns/test-send`,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json()).toMatchObject({ provider: null, provider_message_id: null });
+      expect(await db.select().from(customerAppMessages).where(and(
+        eq(customerAppMessages.customerId, data.customers[0]!.id),
+        eq(customerAppMessages.kind, "marketing_test"),
+      ))).toHaveLength(1);
     } finally {
       await app.close();
       await data.cleanup();

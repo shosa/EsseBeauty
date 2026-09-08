@@ -28,6 +28,7 @@ import { aggregateCampaignStatus } from "../../jobs/marketing.js";
 import type { CampaignBatchJob, CampaignQueue } from "../../jobs/marketing.js";
 import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
 import { pushPublicKey } from "../../lib/customer-push.js";
+import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { getQueue, QUEUE_NAMES } from "../../jobs/queues.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import {
@@ -75,28 +76,21 @@ const guard = [
   requirePermission(PERMISSION_KEYS.MARKETING_SEND),
 ];
 
-// A stand-in "destination" for the app channel — there's no contactable address to
-// send a push to, only a customer who may or may not have an active subscription —
-// so this resolves to the customer's own id (satisfying the NOT NULL destination
-// column and giving campaign_recipients a stable per-customer uniqueness key) when
-// they have one, and to null (excluded, same as a missing email/phone) otherwise.
-// A function, not a shared constant: each call site needs its own SQL AST node.
-function appPushDestinationSql() {
-  return sql<string | null>`(case when exists (
-    select 1 from ${customerPushSubscriptions}
-    where ${customerPushSubscriptions.customerId} = ${customers.id}
-  ) then ${customers.id}::text else null end)`;
-}
-
 async function resolveSegment(
   app: FastifyInstance,
   salonId: string,
   channel: CampaignChannel,
   segment: Segment,
 ) {
+  if (channel === "app") {
+    const rows = await resolveAppSegmentCandidates(app, salonId, segment);
+    const subscribedCustomerIds = await subscribedAppCustomerIds(app.db, salonId, rows.map((row) => row.customerId));
+    return rows
+      .filter((row) => subscribedCustomerIds.has(row.customerId))
+      .map((row) => ({ customerId: row.customerId, destination: row.customerId }));
+  }
   const destination = channel === "email" ? customers.email
-    : channel === "app" ? appPushDestinationSql()
-      : customers.phoneNormalized;
+    : customers.phoneNormalized;
   const communicationConsent = channel === "whatsapp"
     ? sql`exists (
       select 1 from ${communicationConsents}
@@ -165,9 +159,29 @@ async function resolveSegmentPreview(
   channel: CampaignChannel,
   segment: Segment,
 ) {
+  if (channel === "app") {
+    const rows = await resolveAppSegmentCandidates(app, salonId, segment);
+    const subscribedCustomerIds = await subscribedAppCustomerIds(app.db, salonId, rows.map((row) => row.customerId));
+    const eligible: RecipientPreviewRow[] = [];
+    const excluded: RecipientPreviewRow[] = [];
+    for (const row of rows) {
+      const item = {
+        customer_id: row.customerId,
+        destination: subscribedCustomerIds.has(row.customerId) ? row.customerId : null,
+        name: row.name,
+      };
+      if (item.destination) eligible.push(item);
+      else excluded.push({ ...item, reason: "MISSING_PUSH_SUBSCRIPTION" });
+    }
+    return {
+      eligible,
+      eligible_count: eligible.length,
+      excluded,
+      excluded_count: excluded.length,
+    };
+  }
   const destination = channel === "email" ? customers.email
-    : channel === "app" ? appPushDestinationSql()
-      : customers.phoneNormalized;
+    : customers.phoneNormalized;
   const base = app.db
     .select({ customerId: customers.id, destination, name: customers.fullName })
     .from(customers);
@@ -218,7 +232,7 @@ async function resolveSegmentPreview(
     else excluded.push({
       ...item,
       reason: !row.destination?.trim()
-        ? channel === "email" ? "MISSING_EMAIL" : channel === "app" ? "MISSING_PUSH_SUBSCRIPTION" : "MISSING_PHONE"
+        ? channel === "email" ? "MISSING_EMAIL" : "MISSING_PHONE"
         : "MISSING_WHATSAPP_CONSENT",
     });
   }
@@ -321,6 +335,70 @@ async function approvedWhatsAppTemplate(
     eq(campaignTemplates.channel, "whatsapp"),
     eq(campaignTemplates.active, true),
     eq(campaignTemplates.whatsappApprovalStatus, "approved"),
+  )))[0];
+}
+
+async function resolveAppSegmentCandidates(
+  app: FastifyInstance,
+  salonId: string,
+  segment: Segment,
+): Promise<Array<{ customerId: string; name: string }>> {
+  const base = app.db
+    .select({ customerId: customers.id, name: customers.fullName })
+    .from(customers);
+  if (segment.type === "inactive") {
+    const cutoff = new Date(Date.now() - segment.days_since_last_visit * 24 * 60 * 60_000);
+    return base.where(and(
+      eq(customers.salonId, salonId),
+      sql`not exists (
+        select 1 from ${appointments}
+        where ${appointments.customerId} = ${customers.id}
+        and ${appointments.startsAt} >= ${cutoff}
+        and ${appointments.status} = 'completed'
+      )`,
+    ));
+  }
+  if (segment.type === "tag") {
+    return base.where(and(
+      eq(customers.salonId, salonId),
+      sql`${segment.tag} = any(${customers.tags})`,
+    ));
+  }
+  if (segment.type === "high_loyalty") {
+    return base
+      .leftJoin(loyaltyPoints, eq(loyaltyPoints.customerId, customers.id))
+      .where(eq(customers.salonId, salonId))
+      .groupBy(customers.id)
+      .having(sql`coalesce(sum(${loyaltyPoints.delta}), 0) >= ${segment.min_points}`);
+  }
+  return base.where(eq(customers.salonId, salonId));
+}
+
+async function subscribedAppCustomerIds(
+  db: DrizzleDB,
+  salonId: string,
+  customerIds: string[],
+): Promise<Set<string>> {
+  if (customerIds.length === 0) return new Set();
+  return new Set((await db
+    .select({ customerId: customerPushSubscriptions.customerId })
+    .from(customerPushSubscriptions)
+    .where(and(
+      eq(customerPushSubscriptions.salonId, salonId),
+      inArray(customerPushSubscriptions.customerId, customerIds),
+    ))).map((row) => row.customerId));
+}
+
+async function findCustomerByMarketingTestPhone(
+  db: DrizzleDB,
+  salonId: string,
+  destination: string,
+) {
+  const phoneNormalized = normalizePhoneE164(destination);
+  if (!phoneNormalized) return undefined;
+  return (await db.select({ id: customers.id }).from(customers).where(and(
+    eq(customers.salonId, salonId),
+    eq(customers.phoneNormalized, phoneNormalized),
   )))[0];
 }
 
@@ -432,11 +510,7 @@ export async function registerMarketingRoutes(
       try {
         let whatsappTemplate: typeof campaignTemplates.$inferSelect | undefined;
         if (body.channel === "whatsapp") {
-          const normalized = body.destination.replace(/\D/g, "");
-          const customer = (await app.db.select({ id: customers.id }).from(customers).where(and(
-            eq(customers.salonId, request.salonId),
-            sql`regexp_replace(coalesce(${customers.phone}, ''), '[^0-9]', '', 'g') = ${normalized}`,
-          )))[0];
+          const customer = await findCustomerByMarketingTestPhone(app.db, request.salonId, body.destination);
           const consent = customer && (await app.db.select({ id: communicationConsents.id }).from(communicationConsents).where(and(
             eq(communicationConsents.salonId, request.salonId), eq(communicationConsents.customerId, customer.id),
             eq(communicationConsents.channel, "whatsapp"), eq(communicationConsents.purpose, "marketing"), eq(communicationConsents.status, "granted"),
@@ -449,14 +523,13 @@ export async function registerMarketingRoutes(
           }
         }
         if (body.channel === "app") {
-          const normalized = body.destination.replace(/\D/g, "");
-          const customer = (await app.db.select({ id: customers.id }).from(customers).where(and(
-            eq(customers.salonId, request.salonId),
-            sql`regexp_replace(coalesce(${customers.phone}, ''), '[^0-9]', '', 'g') = ${normalized}`,
-          )))[0];
+          const customer = await findCustomerByMarketingTestPhone(app.db, request.salonId, body.destination);
           if (!customer) return reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
           const subscribed = (await app.db.select({ id: customerPushSubscriptions.id }).from(customerPushSubscriptions)
-            .where(eq(customerPushSubscriptions.customerId, customer.id)))[0];
+            .where(and(
+              eq(customerPushSubscriptions.salonId, request.salonId),
+              eq(customerPushSubscriptions.customerId, customer.id),
+            )))[0];
           if (!subscribed) return reply.code(409).send({ error: "APP_PUSH_SUBSCRIPTION_NOT_FOUND" });
           const salon = (await app.db.select({ slug: salons.slug }).from(salons).where(eq(salons.id, request.salonId)))[0];
           if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
