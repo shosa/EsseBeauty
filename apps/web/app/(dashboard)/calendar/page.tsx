@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { Calendar, CalendarCheck, CalendarDays, CalendarSearch, ChevronLeft, ChevronRight, Columns3, DoorOpen, List, MapPin, Search, SlidersHorizontal, Tag, UsersRound } from "lucide-react";
 
 import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, isAppointmentDragDisabled, nextAppointmentStatuses, PERMISSION_KEYS, WEEK_DAYS_IT, type WorkingHours } from "@esse-beauty/shared";
-import { AppPage, Badge, Button, Dialog, InlineError, PageHeader, PageTransition, SectionCard, StatusBadge, WorkspaceToolbar } from "@esse-beauty/ui";
+import { Badge, Button, Dialog, InlineError, SectionCard, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
 import AppointmentDetailPanel from "./_components/AppointmentDetailPanel";
@@ -1043,68 +1043,157 @@ export default function CalendarPage() {
   const datePickerDays = Array.from({ length: 42 }, (_, index) => addDays(datePickerGridStart, index));
 
   return (
-    <AppPage maxWidth="max-w-[1600px]">
+    <main className="esse-workspace-page flex h-[calc(100vh-4rem)] flex-col overflow-hidden">
       <DndContext
         onDragCancel={() => { suppressClickUntilRef.current = 0; }}
         onDragEnd={handleDragEnd}
         onDragStart={() => { suppressClickUntilRef.current = Number.POSITIVE_INFINITY; }}
         sensors={sensors}
       >
-      <PageTransition>
-        <PageHeader
-          eyebrow="Agenda"
-          title="Agenda operativa"
-          subtitle={`${range.label}. Orari, team e appuntamenti nello stesso quadro di lavoro.`}
-          actions={canCreate ? <Link href="/calendar/appointments/new" className="inline-flex min-h-11 cursor-pointer items-center rounded-xl bg-stone-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-stone-800">Nuovo appuntamento</Link> : undefined}
-        />
+        {/* ── Barra strumenti integrata ── */}
+        <div className="flex-none border-b border-stone-200 bg-white">
+          <div className="flex items-center gap-2 px-3 py-2">
+            {/* Sede */}
+            {locations.length > 1 && (
+              <select
+                aria-label="Sede"
+                className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20"
+                onChange={(event) => { setLocationFilter(event.target.value); setStaffFilter(""); }}
+                value={locationFilter}
+              >
+                <option value="">Tutte le sedi</option>
+                {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+              </select>
+            )}
 
-        {error && <InlineError className="mb-4">{error}</InlineError>}
+            {/* Staff */}
+            <select
+              aria-label="Staff"
+              className="h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20"
+              onChange={(event) => setStaffFilter(event.target.value)}
+              value={staffFilter}
+            >
+              <option value="">Tutto lo staff</option>
+              {staffOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
 
-        <section className="mb-4 overflow-hidden rounded-xl border border-stone-200 bg-white shadow-sm">
-          <div className="border-b border-stone-200 p-3">
-            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-lg font-black text-stone-950">{range.label}</span>
-              <div className="flex shrink-0 items-center gap-2">
-                <button aria-expanded={datePickerOpen} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-black transition ${datePickerOpen ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-[#792f59] hover:bg-[#faf3f7]"}`} onClick={openDatePicker} ref={dateTriggerRef} type="button">
-                  <CalendarSearch aria-hidden="true" className="size-3.5" />
-                  Vai a
-                </button>
-                {periodOffset !== 0 && (
-                  <button className="inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-[#b85888] bg-[#faf3f7] px-2.5 text-[10px] font-black text-[#792f59]" onClick={goToToday} type="button">
-                    <CalendarCheck aria-hidden="true" className="size-3.5" />
-                    Torna a oggi
+            <div className="mx-1 h-5 w-px bg-stone-200" />
+
+            {/* Navigazione settimana */}
+            <button
+              aria-label={periodNavLabel("prev")}
+              className="grid size-8 shrink-0 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100"
+              onClick={() => stepPeriod(-1)}
+              type="button"
+            >
+              <ChevronLeft aria-hidden="true" className="size-4" />
+            </button>
+            <div className="grid grid-cols-7 gap-px">
+              {navigatorDays.map((day) => {
+                const active = sameDay(day, range.from) && (view === "day" || view === "staff_columns" || view === "resources");
+                const count = itemsForDay(day).length;
+                return (
+                  <button
+                    className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-center transition ${active ? "bg-[#5f2447] text-white" : "text-stone-600 hover:bg-stone-50"}`}
+                    key={day.toISOString()}
+                    onClick={() => selectNavigatorDay(day)}
+                    type="button"
+                  >
+                    <span className={`text-[9px] font-black uppercase tracking-[.08em] ${active ? "text-white/65" : "text-stone-400"}`}>{day.toLocaleDateString("it-IT", { weekday: "short" })}</span>
+                    <strong className="text-sm tabular-nums">{day.getDate()}</strong>
+                    <span className={`block h-1 w-1 rounded-full ${count ? active ? "bg-white" : "bg-[#b85888]" : "bg-transparent"}`} />
                   </button>
-                )}
-              </div>
+                );
+              })}
             </div>
-            <div className="flex items-center gap-2">
-              <button aria-label={periodNavLabel("prev")} className="grid size-9 shrink-0 place-items-center rounded-lg border border-stone-200 text-[#792f59] transition hover:border-[#e8c7d8] hover:bg-[#faf3f7]" onClick={() => stepPeriod(-1)} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
-              <div className="grid flex-1 grid-cols-7 gap-1">
-                {navigatorDays.map((day) => {
-                  const active = sameDay(day, range.from) && (view === "day" || view === "staff_columns" || view === "resources");
-                  const count = itemsForDay(day).length;
-                  return (
-                    <button className={`flex min-w-0 flex-col items-center gap-1 rounded-lg border px-1 py-2 text-center transition ${active ? "border-[#5f2447] bg-[#5f2447] text-white" : "border-transparent bg-stone-50 text-stone-600 hover:border-stone-200 hover:bg-[#faf3f7]"}`} key={day.toISOString()} onClick={() => selectNavigatorDay(day)} type="button">
-                      <span className={`text-[9px] font-black uppercase tracking-[.1em] ${active ? "text-white/65" : "text-stone-400"}`}>{day.toLocaleDateString("it-IT", { weekday: "short" })}</span>
-                      <strong className="text-base tabular-nums">{day.getDate()}</strong>
-                      <span className={`block size-1 rounded-full ${count ? active ? "bg-white" : "bg-[#b85888]" : "bg-transparent"}`} />
-                    </button>
-                  );
-                })}
-              </div>
-              <button aria-label={periodNavLabel("next")} className="grid size-9 shrink-0 place-items-center rounded-lg border border-stone-200 text-[#792f59] transition hover:border-[#e8c7d8] hover:bg-[#faf3f7]" onClick={() => stepPeriod(1)} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
-            </div>
-          </div>
+            <button
+              aria-label={periodNavLabel("next")}
+              className="grid size-8 shrink-0 place-items-center rounded-lg text-stone-500 transition hover:bg-stone-100"
+              onClick={() => stepPeriod(1)}
+              type="button"
+            >
+              <ChevronRight aria-hidden="true" className="size-4" />
+            </button>
 
-          <WorkspaceToolbar>
-            <div className="flex shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 p-1">
+            <div className="mx-1 h-5 w-px bg-stone-200" />
+
+            {/* Oggi */}
+            {periodOffset !== 0 && (
+              <button
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-dashed border-[#b85888] bg-[#faf3f7] px-3 text-[10px] font-black text-[#792f59]"
+                onClick={goToToday}
+                type="button"
+              >
+                <CalendarCheck aria-hidden="true" className="size-3.5" />
+                Oggi
+              </button>
+            )}
+
+            {/* Date picker */}
+            <button
+              aria-expanded={datePickerOpen}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition ${datePickerOpen ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-stone-600 hover:bg-stone-50"}`}
+              onClick={openDatePicker}
+              ref={dateTriggerRef}
+              type="button"
+            >
+              <CalendarSearch aria-hidden="true" className="size-3.5" />
+              Vai a
+            </button>
+
+            <div className="flex-1" />
+
+            {/* Ricerca */}
+            <div className="relative">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" />
+              <input
+                aria-label="Cerca appuntamenti"
+                className="h-9 w-44 rounded-lg border border-stone-200 bg-stone-50 pl-8 pr-7 text-xs font-semibold placeholder:text-stone-400 focus:border-[#792f59] focus:outline-none focus:ring-2 focus:ring-[#792f59]/15"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Cerca..."
+                value={query}
+              />
+              {query && (
+                <button
+                  aria-label="Cancella ricerca"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700"
+                  onClick={() => setQuery("")}
+                  type="button"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+
+            {/* Filtri */}
+            <div className="relative">
+              <button
+                aria-expanded={filtersOpen}
+                className={`grid size-9 place-items-center rounded-lg border transition ${filtersOpen || activeFilterCount ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-stone-500 hover:bg-stone-50"}`}
+                onClick={toggleFilters}
+                ref={filtersButtonRef}
+                type="button"
+              >
+                <SlidersHorizontal aria-hidden="true" className="size-4" />
+              </button>
+              {activeFilterCount > 0 && (
+                <span className="pointer-events-none absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#792f59] text-[9px] font-black text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+            </div>
+
+            {/* Vista */}
+            <div className="flex overflow-hidden rounded-lg border border-stone-200 bg-stone-50">
               {views.filter((item) => item.key !== "resources" || rules.enableResourceView || resources.length > 0).map((item) => {
                 const ViewIcon = viewIcons[item.key];
                 return (
-                  <button className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition ${view === item.key ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-stone-900"}`} key={item.key} onClick={() => {
-                    setView(item.key);
-                    setPeriodOffset(0);
-                  }} type="button">
+                  <button
+                    className={`inline-flex h-9 items-center gap-1.5 px-3 text-xs font-bold transition ${view === item.key ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-stone-900"}`}
+                    key={item.key}
+                    onClick={() => { setView(item.key); setPeriodOffset(0); }}
+                    type="button"
+                  >
                     <ViewIcon aria-hidden="true" className="size-3.5" />
                     {item.label}
                   </button>
@@ -1112,28 +1201,19 @@ export default function CalendarPage() {
               })}
             </div>
 
-            <div className="relative min-w-[180px] flex-1">
-              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
-              <input
-                aria-label="Cerca appuntamenti"
-                className="min-h-11 w-full rounded-xl border border-stone-200 bg-[#fbfaf8] pl-9 pr-9 text-sm font-semibold outline-none transition focus:border-[#792f59] focus:ring-4 focus:ring-[#b85888]/15"
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Cerca cliente, servizio o collaboratore"
-                value={query}
-              />
-              {query && (
-                <button aria-label="Cancella ricerca" className="absolute right-2.5 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-stone-400 transition hover:bg-stone-100 hover:text-stone-700" onClick={() => setQuery("")} type="button">×</button>
-              )}
-            </div>
+            {/* Nuovo */}
+            {canCreate && (
+              <Link
+                className="inline-flex h-9 items-center rounded-lg bg-stone-950 px-4 text-xs font-bold text-white transition hover:bg-stone-800"
+                href="/calendar/appointments/new"
+              >
+                + Nuovo
+              </Link>
+            )}
+          </div>
+        </div>
 
-            <button aria-expanded={filtersOpen} className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${filtersOpen || activeFilterCount ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50"}`} onClick={toggleFilters} ref={filtersButtonRef} type="button">
-              <SlidersHorizontal aria-hidden="true" className="size-4" />
-              Filtri
-              {activeFilterCount > 0 && <span className="grid size-4 place-items-center rounded-full bg-[#792f59] text-[10px] font-black text-white">{activeFilterCount}</span>}
-            </button>
-          </WorkspaceToolbar>
-        </section>
-
+        {/* ── Pannello filtri (portal) ── */}
         {filtersOpen && filtersPosition && portalNode && createPortal(
           <div className="fixed z-30 w-72 rounded-2xl border border-stone-200 bg-white p-4 shadow-lg" ref={filtersPanelRef} style={{ right: filtersPosition.right, top: filtersPosition.top }}>
             {locations.length > 1 && (
@@ -1172,6 +1252,7 @@ export default function CalendarPage() {
           portalNode,
         )}
 
+        {/* ── Date picker (portal) ── */}
         {datePickerOpen && datePickerPosition && portalNode && createPortal(
           <div className="fixed z-30 w-72 rounded-2xl border border-stone-200 bg-white p-4 shadow-lg" ref={datePickerPanelRef} style={{ left: datePickerPosition.left, top: datePickerPosition.top }}>
             <div className="mb-3 flex items-center justify-between">
@@ -1201,183 +1282,190 @@ export default function CalendarPage() {
           portalNode,
         )}
 
-        {view === "agenda" ? (
-          <div className="grid gap-3">
-            {filteredItems.length === 0 && availabilityBlocks.length === 0 && salonClosures.length === 0 && <SectionCard>Nessun appuntamento con questi filtri.</SectionCard>}
-            {days.flatMap((day) => closuresForDay(day).map((closure) => closureCard(closure)))}
-            {filteredItems.map((item) => appointmentCard(item))}
-            {availabilityBlocks.filter((block) => !staffFilter || block.staff_id === staffFilter).map((block) => blockCard(block))}
-          </div>
-        ) : view === "resources" ? (
-          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="min-w-[980px]">
-              <div className="sticky top-0 z-20 grid border-b border-stone-200 bg-white" style={{ gridTemplateColumns: `76px repeat(${Math.max(resourceColumns.length, 1)}, minmax(220px, 1fr))` }}>
-                <div className="border-r border-stone-200 p-3 text-center text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Ora</div>
-                {(resourceColumns.length ? resourceColumns : [{ id: "", name: "Nessuna cabina" }]).map((resource) => (
-                  <div className="border-r border-stone-100 p-3 text-center last:border-r-0" key={resource.id}>
-                    <p className="font-black uppercase text-stone-950">{resource.name}</p>
-                    <p className="text-xs font-semibold text-stone-400">
-                      {filteredItems.filter((item) => item.resource_id === resource.id).length} appuntamenti
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(resourceColumns.length, 1)}, minmax(220px, 1fr))` }}>
-                <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
-                  {timelineCompressedGapMarkers.map((gap) => (
-                    <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
-                      <span className="leading-3">·</span>
-                      <span className="leading-3">·</span>
-                      <span className="leading-3">·</span>
-                    </div>
-                  ))}
-                  {visibleTimelineHours.map((hour, index) => (
-                    <div className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500" key={hour} style={{ top: index === 0 ? 8 : index === visibleTimelineHours.length - 1 ? timelineHeight - 22 : timelineHourTop(hour) - 8 }}>
-                      {String(hour).padStart(2, "0")}:00
-                    </div>
-                  ))}
-                </div>
-                {(resourceColumns.length ? resourceColumns : [{ id: "", name: "Nessuna cabina" }]).map((resource) => {
-                  const resourceAppointments = filteredItems.filter((item) => item.resource_id === resource.id);
-                  const layouts = collisionLayout(
-                    resourceAppointments,
-                    (item) => timelinePosition(item.starts_at, item.ends_at).top,
-                    (item) => {
-                      const position = timelinePosition(item.starts_at, item.ends_at);
-                      return position.top + position.height;
-                    },
-                  );
-                  return (
-                    <DroppableTimeline id={`resource:${resource.id}`} key={resource.id} onContextMenu={(event) => openSlotContext(event, { resourceId: resource.id })} style={{ height: timelineHeight }}>
-                      {visibleTimelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: timelineHourTop(hour) }} />)}
-                      {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => {
-                        const minutes = hour * 60 + minute;
-                        if (timelineCompression.gaps.some((gap) => gap.from < minutes && minutes < gap.to)) return null;
-                        return <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: timelineCompression.timelineY(minutes) }} />;
-                      }))}
-                      {resourceAppointments.map((item) => timelineAppointmentCard(item, layouts.get(item.id) ?? { column: 0, columnCount: 1 }))}
-                    </DroppableTimeline>
-                  );
-                })}
-              </div>
+        {/* ── Contenuto calendario ── */}
+        <div className="min-h-0 flex-1 overflow-auto">
+          {error && <InlineError className="m-3">{error}</InlineError>}
+
+          {view === "agenda" ? (
+            <div className="grid gap-3 p-4">
+              {filteredItems.length === 0 && availabilityBlocks.length === 0 && salonClosures.length === 0 && <SectionCard>Nessun appuntamento con questi filtri.</SectionCard>}
+              {days.flatMap((day) => closuresForDay(day).map((closure) => closureCard(closure)))}
+              {filteredItems.map((item) => appointmentCard(item))}
+              {availabilityBlocks.filter((block) => !staffFilter || block.staff_id === staffFilter).map((block) => blockCard(block))}
             </div>
-          </div>
-        ) : view === "staff_columns" || view === "day" ? (
-          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
-            <div className="min-w-[980px]">
-              <div className="sticky top-0 z-20 grid border-b border-stone-200 bg-white" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
-                <div className="border-r border-stone-200 p-3 text-center text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Ora</div>
-                {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId, staffName]) => {
-                  const member = staffMembers.find((item) => item.id === staffId);
-                  const displayName = staffName ?? "Nessuno staff";
-                  return (
-                    <div className="flex items-center justify-center gap-3 border-r border-stone-100 p-3 last:border-r-0" key={staffId}>
-                      <span className="grid h-9 w-9 place-items-center rounded-full text-sm font-black text-white" style={{ background: member?.color || "#792f59" }}>{displayName.slice(0, 1).toUpperCase()}</span>
-                      <div><p className="font-black text-stone-950">{displayName}</p><p className="text-xs font-semibold text-stone-400">{filteredItems.filter((item) => item.staff_id === staffId).length} appuntamenti</p></div>
-                    </div>
-                  );
-                })}
-              </div>
-              {closuresForDay(range.from).length > 0 && (
-                <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-bold text-red-800">Chiusura salone · {closuresForDay(range.from).map((item) => item.reason || "Giorno non prenotabile").join(", ")}</div>
-              )}
-              <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
-                <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
-                  {timelineCompressedGapMarkers.map((gap) => (
-                    <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
-                      <span className="leading-3">·</span>
-                      <span className="leading-3">·</span>
-                      <span className="leading-3">·</span>
-                    </div>
-                  ))}
-                  {visibleTimelineHours.map((hour, index) => (
-                    <div
-                      className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500"
-                      key={hour}
-                      style={{
-                        top: index === 0
-                          ? 8
-                          : index === visibleTimelineHours.length - 1
-                            ? timelineHeight - 22
-                            : timelineHourTop(hour) - 8,
-                      }}
-                    >
-                      {String(hour).padStart(2, "0")}:00
+          ) : view === "resources" ? (
+            <div className="h-full overflow-x-auto bg-white">
+              <div className="min-h-full min-w-[980px]">
+                <div className="sticky top-0 z-20 grid border-b border-stone-200 bg-white" style={{ gridTemplateColumns: `76px repeat(${Math.max(resourceColumns.length, 1)}, minmax(220px, 1fr))` }}>
+                  <div className="border-r border-stone-200 p-3 text-center text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Ora</div>
+                  {(resourceColumns.length ? resourceColumns : [{ id: "", name: "Nessuna cabina" }]).map((resource) => (
+                    <div className="border-r border-stone-100 p-3 text-center last:border-r-0" key={resource.id}>
+                      <p className="font-black uppercase text-stone-950">{resource.name}</p>
+                      <p className="text-xs font-semibold text-stone-400">
+                        {filteredItems.filter((item) => item.resource_id === resource.id).length} appuntamenti
+                      </p>
                     </div>
                   ))}
                 </div>
-                {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId]) => {
-                  const staffAppointments = filteredItems.filter((item) => item.staff_id === staffId);
-                  const layouts = collisionLayout(
-                    staffAppointments,
-                    (item) => timelinePosition(item.starts_at, item.ends_at).top,
-                    (item) => {
-                      const position = timelinePosition(item.starts_at, item.ends_at);
-                      return position.top + position.height;
-                    },
-                  );
-                  return (
-                  <DroppableTimeline id={`staff:${staffId}`} key={staffId} onContextMenu={(event) => openSlotContext(event, { staffId })} style={{ height: timelineHeight }}>
-                    {visibleTimelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: timelineHourTop(hour) }} />)}
-                    {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => {
-                      const minutes = hour * 60 + minute;
-                      if (timelineCompression.gaps.some((gap) => gap.from < minutes && minutes < gap.to)) return null;
-                      return <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: timelineCompression.timelineY(minutes) }} />;
-                    }))}
-                    {nonWorkingPeriods(staffId ?? "").map((period) => (
-                      <div
-                        className="absolute left-0 right-0 z-[1] flex items-center justify-center overflow-hidden border-y border-stone-300/80 text-[10px] font-black uppercase tracking-[.18em] text-stone-500"
-                        key={`${period.from}-${period.to}`}
-                        style={{
-                          ...timelineMinutesPosition(period.from, period.to),
-                          background: "repeating-linear-gradient(135deg, rgba(120,113,108,.08) 0, rgba(120,113,108,.08) 8px, rgba(120,113,108,.20) 8px, rgba(120,113,108,.20) 10px)",
-                        }}
-                      >
-                        <span className="rounded-full bg-white/85 px-3 py-1 shadow-sm">Non lavorativo</span>
+                <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(resourceColumns.length, 1)}, minmax(220px, 1fr))` }}>
+                  <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
+                    {timelineCompressedGapMarkers.map((gap) => (
+                      <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
+                        <span className="leading-3">·</span>
+                        <span className="leading-3">·</span>
+                        <span className="leading-3">·</span>
                       </div>
                     ))}
-                    {availabilityBlocks.filter((item) => item.staff_id === staffId).map((item) => {
-                      const position = timelinePosition(item.starts_at, item.ends_at);
-                      return <div className="absolute left-2 right-2 z-10 overflow-hidden rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-950 shadow-sm" key={item.id} style={{ ...position, background: "repeating-linear-gradient(135deg, #fffbeb 0, #fffbeb 8px, #fde68a 8px, #fde68a 11px)" }}><span className="block">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span><span className="mt-1 block truncate uppercase">{item.reason || "Assenza / non disponibile"}</span></div>;
-                    })}
-                    {staffAppointments.map((item) =>
-                      timelineAppointmentCard(item, layouts.get(item.id) ?? { column: 0, columnCount: 1 }),
-                    )}
-                  </DroppableTimeline>
+                    {visibleTimelineHours.map((hour, index) => (
+                      <div className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500" key={hour} style={{ top: index === 0 ? 8 : index === visibleTimelineHours.length - 1 ? timelineHeight - 22 : timelineHourTop(hour) - 8 }}>
+                        {String(hour).padStart(2, "0")}:00
+                      </div>
+                    ))}
+                  </div>
+                  {(resourceColumns.length ? resourceColumns : [{ id: "", name: "Nessuna cabina" }]).map((resource) => {
+                    const resourceAppointments = filteredItems.filter((item) => item.resource_id === resource.id);
+                    const layouts = collisionLayout(
+                      resourceAppointments,
+                      (item) => timelinePosition(item.starts_at, item.ends_at).top,
+                      (item) => {
+                        const position = timelinePosition(item.starts_at, item.ends_at);
+                        return position.top + position.height;
+                      },
+                    );
+                    return (
+                      <DroppableTimeline id={`resource:${resource.id}`} key={resource.id} onContextMenu={(event) => openSlotContext(event, { resourceId: resource.id })} style={{ height: timelineHeight }}>
+                        {visibleTimelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: timelineHourTop(hour) }} />)}
+                        {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => {
+                          const minutes = hour * 60 + minute;
+                          if (timelineCompression.gaps.some((gap) => gap.from < minutes && minutes < gap.to)) return null;
+                          return <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: timelineCompression.timelineY(minutes) }} />;
+                        }))}
+                        {resourceAppointments.map((item) => timelineAppointmentCard(item, layouts.get(item.id) ?? { column: 0, columnCount: 1 }))}
+                      </DroppableTimeline>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : view === "staff_columns" || view === "day" ? (
+            <div className="h-full overflow-x-auto bg-white">
+              <div className="min-h-full min-w-[980px]">
+                <div className="sticky top-0 z-20 grid border-b-2 border-stone-200 bg-white shadow-sm" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
+                  <div className="flex items-end justify-center border-r border-stone-200 pb-3 pt-4 text-[10px] font-black uppercase tracking-[.16em] text-stone-400">Ora</div>
+                  {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId, staffName]) => {
+                    const member = staffMembers.find((item) => item.id === staffId);
+                    const displayName = staffName ?? "Nessuno staff";
+                    return (
+                      <div className="flex flex-col items-center gap-2 border-r border-stone-100 px-4 pb-3 pt-4 last:border-r-0" key={staffId}>
+                        <span className="grid h-12 w-12 place-items-center rounded-full text-base font-black text-white shadow-md ring-2 ring-white" style={{ background: member?.color || "#792f59" }}>{displayName.slice(0, 1).toUpperCase()}</span>
+                        <div className="text-center">
+                          <p className="text-sm font-black text-stone-950">{displayName}</p>
+                          <p className="text-[11px] font-semibold text-stone-400">{filteredItems.filter((item) => item.staff_id === staffId).length} appuntamenti</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {closuresForDay(range.from).length > 0 && (
+                  <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm font-bold text-red-800">Chiusura salone · {closuresForDay(range.from).map((item) => item.reason || "Giorno non prenotabile").join(", ")}</div>
+                )}
+                <div className="grid" style={{ gridTemplateColumns: `76px repeat(${Math.max(visibleStaff.length, 1)}, minmax(220px, 1fr))` }}>
+                  <div className="relative border-r border-stone-200 bg-[#faf9f7]" style={{ height: timelineHeight }}>
+                    {timelineCompressedGapMarkers.map((gap) => (
+                      <div className="absolute left-0 right-0 z-10 flex flex-col items-end justify-center pr-5 text-stone-400" key={`${gap.from}-${gap.to}`} style={{ height: gap.compressedHeight, top: gap.top }}>
+                        <span className="leading-3">·</span>
+                        <span className="leading-3">·</span>
+                        <span className="leading-3">·</span>
+                      </div>
+                    ))}
+                    {visibleTimelineHours.map((hour, index) => (
+                      <div
+                        className="absolute left-0 right-0 z-10 pr-3 text-right text-xs font-black text-stone-500"
+                        key={hour}
+                        style={{
+                          top: index === 0
+                            ? 8
+                            : index === visibleTimelineHours.length - 1
+                              ? timelineHeight - 22
+                              : timelineHourTop(hour) - 8,
+                        }}
+                      >
+                        {String(hour).padStart(2, "0")}:00
+                      </div>
+                    ))}
+                  </div>
+                  {(visibleStaff.length ? visibleStaff : [["", "Nessuno staff"]]).map(([staffId]) => {
+                    const staffAppointments = filteredItems.filter((item) => item.staff_id === staffId);
+                    const layouts = collisionLayout(
+                      staffAppointments,
+                      (item) => timelinePosition(item.starts_at, item.ends_at).top,
+                      (item) => {
+                        const position = timelinePosition(item.starts_at, item.ends_at);
+                        return position.top + position.height;
+                      },
+                    );
+                    return (
+                      <DroppableTimeline id={`staff:${staffId}`} key={staffId} onContextMenu={(event) => openSlotContext(event, { staffId })} style={{ height: timelineHeight }}>
+                        {visibleTimelineHours.slice(0, -1).map((hour) => <div className="absolute left-0 right-0 border-t border-stone-100" key={hour} style={{ top: timelineHourTop(hour) }} />)}
+                        {timelineHours.slice(0, -1).flatMap((hour) => [15, 30, 45].map((minute) => {
+                          const minutes = hour * 60 + minute;
+                          if (timelineCompression.gaps.some((gap) => gap.from < minutes && minutes < gap.to)) return null;
+                          return <div className="absolute left-0 right-0 border-t border-dashed border-stone-100" key={`${hour}-${minute}`} style={{ top: timelineCompression.timelineY(minutes) }} />;
+                        }))}
+                        {nonWorkingPeriods(staffId ?? "").map((period) => (
+                          <div
+                            className="absolute left-0 right-0 z-[1] flex items-center justify-center overflow-hidden border-y border-stone-300/80 text-[10px] font-black uppercase tracking-[.18em] text-stone-500"
+                            key={`${period.from}-${period.to}`}
+                            style={{
+                              ...timelineMinutesPosition(period.from, period.to),
+                              background: "repeating-linear-gradient(135deg, rgba(120,113,108,.08) 0, rgba(120,113,108,.08) 8px, rgba(120,113,108,.20) 8px, rgba(120,113,108,.20) 10px)",
+                            }}
+                          >
+                            <span className="rounded-full bg-white/85 px-3 py-1 shadow-sm">Non lavorativo</span>
+                          </div>
+                        ))}
+                        {availabilityBlocks.filter((item) => item.staff_id === staffId).map((item) => {
+                          const position = timelinePosition(item.starts_at, item.ends_at);
+                          return <div className="absolute left-2 right-2 z-10 overflow-hidden rounded-lg border border-amber-300 px-3 py-2 text-xs font-bold text-amber-950 shadow-sm" key={item.id} style={{ ...position, background: "repeating-linear-gradient(135deg, #fffbeb 0, #fffbeb 8px, #fde68a 8px, #fde68a 11px)" }}><span className="block">{formatTime(item.starts_at)}–{formatTime(item.ends_at)}</span><span className="mt-1 block truncate uppercase">{item.reason || "Assenza / non disponibile"}</span></div>;
+                        })}
+                        {staffAppointments.map((item) =>
+                          timelineAppointmentCard(item, layouts.get(item.id) ?? { column: 0, columnCount: 1 }),
+                        )}
+                      </DroppableTimeline>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto p-3">
+              <div className="grid min-w-[920px] grid-cols-7 gap-3">
+                {days.map((day) => {
+                  const dayItems = itemsForDay(day);
+                  const dayBlocks = blocksForDay(day);
+                  const dayClosures = closuresForDay(day);
+                  const outsideMonth = view === "month" && day.getMonth() !== range.from.getMonth();
+                  return (
+                    <section key={day.toISOString()} className={`${view === "month" ? "min-h-[170px]" : "min-h-[620px]"} rounded-xl border border-stone-100 bg-white p-3 ${outsideMonth ? "opacity-45" : ""}`}>
+                      <header className="mb-3 flex items-center justify-between gap-2 border-b border-stone-100 pb-3">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-[.18em] text-stone-400">{weekdayShortLabel(day)}</p>
+                          <strong className="text-2xl text-[#2d1d27]">{day.getDate()}</strong>
+                        </div>
+                        <Badge>{dayItems.length + dayBlocks.length + dayClosures.length}</Badge>
+                      </header>
+                      <div className="space-y-2">
+                        {dayClosures.map((item) => closureCard(item))}
+                        {dayItems.map((item) => appointmentCard(item, view === "month"))}
+                        {dayBlocks.map((item) => blockCard(item, view === "month"))}
+                      </div>
+                    </section>
                   );
                 })}
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white p-3 shadow-sm">
-            <div className={`grid min-w-[920px] gap-3 ${view === "month" ? "grid-cols-7" : "grid-cols-7"}`}>
-              {days.map((day) => {
-                const dayItems = itemsForDay(day);
-                const dayBlocks = blocksForDay(day);
-                const dayClosures = closuresForDay(day);
-                const outsideMonth = view === "month" && day.getMonth() !== range.from.getMonth();
-                return (
-                  <section key={day.toISOString()} className={`${view === "month" ? "min-h-[170px]" : "min-h-[620px]"} rounded-xl border border-stone-100 bg-white p-3 ${outsideMonth ? "opacity-45" : ""}`}>
-                    <header className="mb-3 flex items-center justify-between gap-2 border-b border-stone-100 pb-3">
-                      <div>
-                        <p className="text-[11px] font-black uppercase tracking-[.18em] text-stone-400">{weekdayShortLabel(day)}</p>
-                        <strong className="text-2xl text-[#2d1d27]">{day.getDate()}</strong>
-                      </div>
-                      <Badge>{dayItems.length + dayBlocks.length + dayClosures.length}</Badge>
-                    </header>
-                    <div className="space-y-2">
-                      {dayClosures.map((item) => closureCard(item))}
-                      {dayItems.map((item) => appointmentCard(item, view === "month"))}
-                      {dayBlocks.map((item) => blockCard(item, view === "month"))}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </PageTransition>
+          )}
+        </div>
       </DndContext>
       <Dialog
         footer={
@@ -1544,6 +1632,6 @@ export default function CalendarPage() {
           </motion.aside>
         </motion.div>}
       </AnimatePresence>, portalNode)}
-    </AppPage>
+    </main>
   );
 }
