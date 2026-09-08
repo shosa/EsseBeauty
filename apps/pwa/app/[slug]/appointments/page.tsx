@@ -52,8 +52,8 @@ export default function AppointmentsPage() {
   const [pushSupported, setPushSupported] = useState(false);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-  const primary = profile?.branding?.primaryColor || "#402334";
-  const accent = profile?.branding?.accentColor || "#f4d8a8";
+  const primary = profile?.branding?.primaryColor || "#15140f";
+  const accent = profile?.branding?.accentColor || "#0e7c59";
   const pushPublicKey = profile?.pwa?.pushPublicKey;
 
   useEffect(() => {
@@ -138,16 +138,16 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top left, ${accent}55, transparent 18rem), linear-gradient(180deg,#fffafd,#f6f2f4)` }}>
+    <main className="min-h-screen bg-[#faf8f4] px-4 py-8">
       <section className="mx-auto max-w-md">
-        <header className="rounded-[2.2rem] p-6 text-white shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
-          <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: accent }}>{profile?.salon.name ?? "Area cliente"}</p>
-          <h1 className="mt-3 text-4xl font-bold">I miei appuntamenti</h1>
-          <p className="mt-2 text-sm text-white/75">Consulta le prossime prenotazioni del tuo account.</p>
+        <header>
+          <p className="text-xs font-black uppercase tracking-[.24em]" style={{ color: primary }}>{profile?.salon.name ?? "Area cliente"}</p>
+          <h1 className="mt-2 text-[1.7rem] font-bold text-stone-950">I tuoi appuntamenti</h1>
+          <p className="mt-2 text-sm text-stone-500">Consulta le prossime prenotazioni del tuo account.</p>
         </header>
         {authStatus === "authenticated" && pushSupported && pushPublicKey && (
           <button
-            className="animate-reveal mt-5 flex w-full items-center gap-3 rounded-2xl border border-white/80 bg-white/86 p-4 text-left shadow-sm disabled:opacity-60"
+            className="animate-reveal mt-5 flex w-full items-center gap-3 rounded-2xl border border-stone-200 bg-white p-4 text-left disabled:opacity-60"
             disabled={pushBusy}
             onClick={() => void togglePush()}
             type="button"
@@ -176,7 +176,7 @@ export default function AppointmentsPage() {
               const isCancelled = item.status === "cancelled";
               const startDate = new Date(item.starts_at);
               return (
-                <article className="animate-reveal overflow-hidden rounded-[1.7rem] border border-white/80 bg-white/86 shadow-sm" key={item.id} style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
+                <article className="animate-reveal overflow-hidden rounded-3xl border border-stone-200 bg-white" key={item.id} style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}>
                   <button className="flex w-full items-center justify-between gap-3 p-5 text-left" onClick={() => setOpenItemId(isOpen ? undefined : item.id)} type="button">
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 text-sm font-black" style={{ color: primary }}><CalendarClock className="size-4 shrink-0" />{startDate.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}</span>
@@ -207,8 +207,8 @@ export default function AppointmentsPage() {
                           )}
                           {!isPast && !isPending && (profile?.pwa?.allowReschedule !== false || profile?.pwa?.allowCancellation !== false) && (
                             <div className="mt-4 grid grid-cols-2 gap-2">
-                              {profile?.pwa?.allowReschedule !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 text-xs font-black text-stone-700 transition-colors hover:bg-stone-100" onClick={() => setRescheduleTarget(item)} type="button"><RefreshCw className="size-4" />Riprogramma</button>}
-                              {profile?.pwa?.allowCancellation !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-50 px-3 text-xs font-black text-red-700 transition-colors hover:bg-red-100" onClick={() => void cancel(item.id)} type="button"><Trash2 className="size-4" />Annulla</button>}
+                              {profile?.pwa?.allowReschedule !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-3 text-xs font-black text-stone-700 transition-colors hover:bg-stone-50" onClick={() => setRescheduleTarget(item)} type="button"><RefreshCw className="size-4" />Riprogramma</button>}
+                              {profile?.pwa?.allowCancellation !== false && <button className="flex min-h-11 items-center justify-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 text-xs font-black text-red-700 transition-colors hover:bg-red-100" onClick={() => void cancel(item.id)} type="button"><Trash2 className="size-4" />Annulla</button>}
                             </div>
                           )}
                         </div>
@@ -219,18 +219,18 @@ export default function AppointmentsPage() {
               );
             })}
             {loadedItems && visibleItems.length === 0 && (
-              <p className="animate-reveal rounded-[1.7rem] bg-white/86 p-5 text-sm font-semibold text-stone-600 shadow-sm">
+              <p className="animate-reveal rounded-3xl border border-stone-200 bg-white p-5 text-sm font-semibold text-stone-600">
                 {tab === "upcoming" ? "Nessun appuntamento futuro trovato per il tuo account." : "Nessun appuntamento passato trovato per il tuo account."}
               </p>
             )}
           </div>
         )}
         {authStatus === "anonymous" && (
-          <div className="animate-reveal mt-5 rounded-[1.7rem] border border-white/80 bg-white/86 p-6 text-center shadow-sm">
+          <div className="animate-reveal mt-5 rounded-3xl border border-stone-200 bg-white p-6 text-center">
             <span className="mx-auto grid size-12 place-items-center rounded-2xl text-white" style={{ background: primary }}><Lock className="size-5" /></span>
             <h2 className="mt-4 text-lg font-black text-stone-950">Accedi per vedere i tuoi appuntamenti</h2>
             <p className="mt-1 text-sm leading-5 text-stone-500">Accedi con il tuo numero di telefono, oppure registrati se non hai ancora un account.</p>
-            <button className="mt-5 min-h-12 w-full rounded-2xl font-black text-white" onClick={() => setShowAuthOverlay(true)} style={{ background: primary }} type="button">Accedi o registrati</button>
+            <button className="mt-5 min-h-12 w-full rounded-full font-black text-white" onClick={() => setShowAuthOverlay(true)} style={{ background: primary }} type="button">Accedi o registrati</button>
           </div>
         )}
       </section>
@@ -242,7 +242,6 @@ export default function AppointmentsPage() {
       <AnimatePresence>
         {rescheduleTarget && (
           <RescheduleWizard
-            accent={accent}
             closures={profile?.closures}
             maxAdvanceDays={profile?.pwa?.maxAdvanceDays ?? 90}
             onClose={() => setRescheduleTarget(undefined)}

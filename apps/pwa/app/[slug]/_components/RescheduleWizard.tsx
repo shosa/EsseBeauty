@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { apiBaseUrl } from "../../../lib/api";
@@ -14,7 +14,6 @@ interface Slot {
 }
 
 interface Props {
-  accent: string;
   closures?: SalonClosure[];
   maxAdvanceDays: number;
   onClose: () => void;
@@ -34,16 +33,27 @@ function formatTimeSummary(value: string) {
   return new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, onSubmit, primary, serviceId, serviceName, slug, staffId }: Props) {
+function isoDate(value: Date) {
+  return new Intl.DateTimeFormat("en-CA").format(value);
+}
+
+const QUICK_DAY_COUNT = 8;
+
+export function RescheduleWizard({ closures, maxAdvanceDays, onClose, onSubmit, primary, serviceId, serviceName, slug, staffId }: Props) {
   const reduceMotion = useReducedMotion();
   const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
-  const [openSection, setOpenSection] = useState<"date" | "time">("date");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [startsAt, setStartsAt] = useState("");
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [dayClosed, setDayClosed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const quickDays = useMemo(() => Array.from({ length: QUICK_DAY_COUNT }, (_, index) => {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() + index);
+    return day;
+  }), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +92,7 @@ export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, on
   return (
     <motion.div
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-40 grid place-items-center bg-[#2d1d27]/55 p-3 backdrop-blur-sm"
+      className="fixed inset-0 z-40 grid place-items-center bg-[#15140f]/55 p-3 backdrop-blur-sm"
       exit={{ opacity: 0 }}
       initial={{ opacity: 0 }}
       onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}
@@ -90,10 +100,9 @@ export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, on
     >
       <motion.section
         animate={{ opacity: 1, y: 0 }}
-        className="relative flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-[2.2rem] shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
+        className="relative flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white"
         exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
         initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
-        style={{ background: `radial-gradient(circle at top left, ${accent}35, transparent 14rem), #fff` }}
         transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
       >
         <button aria-label="Chiudi" className="absolute right-5 top-5 z-10 grid size-9 place-items-center rounded-full bg-stone-100 text-stone-500" onClick={onClose} type="button">
@@ -117,82 +126,67 @@ export function RescheduleWizard({ accent, closures, maxAdvanceDays, onClose, on
             )}
           </AnimatePresence>
 
-          <div className="mt-5 space-y-3">
-          <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
-            <button className="flex w-full items-center justify-between text-left" onClick={() => setOpenSection(openSection === "date" ? "time" : "date")} type="button">
-              <span>
-                <span className="block text-sm font-black text-stone-800">Data</span>
-                {openSection !== "date" && <span className="mt-0.5 block text-xs font-bold" style={{ color: primary }}>{formatDateSummary(date)}</span>}
-              </span>
-              <ChevronDown className={`size-4 shrink-0 text-stone-400 transition-transform ${openSection === "date" ? "rotate-180" : ""}`} />
-            </button>
-            <AnimatePresence initial={false}>
-              {openSection === "date" && (
-                <motion.div
-                  animate={{ height: "auto", opacity: 1 }}
-                  className="overflow-hidden"
-                  exit={{ height: 0, opacity: 0 }}
-                  initial={{ height: 0, opacity: 0 }}
-                  transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
-                >
-                  <div className="mt-3">
-                    <DateField
-                      isDateDisabled={(day) => isDateClosed(day, closures)}
-                      max={new Date(Date.now() + maxAdvanceDays * 86400000).toISOString().slice(0, 10)}
-                      min={new Date().toISOString().slice(0, 10)}
-                      onChange={(nextValue) => { setDate(nextValue); setOpenSection("time"); }}
-                      primary={primary}
-                      value={date}
-                    />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <div className="mt-5 space-y-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Data e ora</p>
+              <div className="mt-2 flex items-center gap-2">
+                <p className="flex-1 truncate rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold capitalize text-stone-800">{formatDateSummary(date)}</p>
+                <DateField
+                  compact
+                  isDateDisabled={(day) => isDateClosed(day, closures)}
+                  max={new Date(Date.now() + maxAdvanceDays * 86400000).toISOString().slice(0, 10)}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(nextValue) => setDate(nextValue)}
+                  primary={primary}
+                  value={date}
+                />
+              </div>
+            </div>
 
-          <div className="rounded-2xl border border-stone-100 bg-white/70 p-4">
-            <button className="flex w-full items-center justify-between text-left" onClick={() => setOpenSection(openSection === "time" ? "date" : "time")} type="button">
-              <span>
-                <span className="block text-sm font-black text-stone-800">Orario</span>
-                {openSection !== "time" && startsAt && <span className="mt-0.5 block text-xs font-bold" style={{ color: primary }}>{formatTimeSummary(startsAt)}</span>}
-              </span>
-              <ChevronDown className={`size-4 shrink-0 text-stone-400 transition-transform ${openSection === "time" ? "rotate-180" : ""}`} />
-            </button>
-            <AnimatePresence initial={false}>
-              {openSection === "time" && (
-                <motion.div
-                  animate={{ height: "auto", opacity: 1 }}
-                  className="overflow-hidden"
-                  exit={{ height: 0, opacity: 0 }}
-                  initial={{ height: 0, opacity: 0 }}
-                  transition={{ duration: reduceMotion ? 0.12 : 0.28, ease: [0.22, 0.9, 0.28, 1] }}
-                >
-                  <div className="mt-3">
-                    {loadingSlots ? (
-                      <p className="rounded-2xl bg-stone-50 p-4 text-center text-sm font-bold text-stone-500">Cerco orari...</p>
-                    ) : dayClosed ? (
-                      <p className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Il salone è chiuso in questa data. Scegli un altro giorno.</p>
-                    ) : slots.some((slot) => slot.available) ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {slots.map((slot) => (
-                          <button key={slot.starts_at} disabled={!slot.available} onClick={() => setStartsAt(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-100 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary } : undefined} type="button">
-                            {formatTimeSummary(slot.starts_at)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Nessun orario disponibile in questa data.</p>
-                    )}
-                  </div>
-                </motion.div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {quickDays.map((day) => {
+                const iso = isoDate(day);
+                const closed = isDateClosed(day, closures);
+                const active = date === iso;
+                return (
+                  <button
+                    className={`flex h-[72px] w-14 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl border text-xs font-bold transition ${active ? "text-white" : closed ? "border-stone-100 bg-stone-50 text-stone-300" : "border-stone-200 bg-white text-stone-700"}`}
+                    disabled={closed}
+                    key={iso}
+                    onClick={() => setDate(iso)}
+                    style={active ? { background: primary, borderColor: primary } : undefined}
+                    type="button"
+                  >
+                    <span className="text-[10px] font-black uppercase tracking-wide">{day.toLocaleDateString("it-IT", { weekday: "short" }).replace(".", "")}</span>
+                    <span className="text-lg font-bold">{day.getDate()}</span>
+                    <span className="text-[9px] font-black uppercase tracking-wide opacity-70">{day.toLocaleDateString("it-IT", { month: "short" }).replace(".", "")}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div>
+              {loadingSlots ? (
+                <p className="rounded-2xl bg-stone-50 p-4 text-center text-sm font-bold text-stone-500">Cerco orari...</p>
+              ) : dayClosed ? (
+                <p className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Il salone è chiuso in questa data. Scegli un altro giorno.</p>
+              ) : slots.some((slot) => slot.available) ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {slots.map((slot) => (
+                    <button key={slot.starts_at} disabled={!slot.available} onClick={() => setStartsAt(slot.starts_at)} className={`min-h-12 rounded-2xl border text-sm font-black ${startsAt === slot.starts_at ? "text-white" : slot.available ? "border-stone-200 bg-white text-stone-800" : "border-stone-100 bg-stone-100 text-stone-300 line-through"}`} style={startsAt === slot.starts_at ? { background: primary, borderColor: primary } : undefined} type="button">
+                      {formatTimeSummary(slot.starts_at)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-center text-sm font-bold text-stone-600">Nessun orario disponibile in questa data.</p>
               )}
-            </AnimatePresence>
+            </div>
           </div>
-        </div>
         </div>
 
         <div className="border-t border-stone-100 p-6 pt-4">
-          <motion.button className="min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-40" disabled={!startsAt || submitting} onClick={() => void confirm()} style={{ background: primary }} type="button" whileTap={{ scale: 0.97 }}>
+          <motion.button className="min-h-12 w-full rounded-full font-black text-white disabled:opacity-40" disabled={!startsAt || submitting} onClick={() => void confirm()} style={{ background: primary }} type="button" whileTap={{ scale: 0.97 }}>
             {submitting ? "Invio richiesta..." : "Invia richiesta di cambio orario"}
           </motion.button>
         </div>

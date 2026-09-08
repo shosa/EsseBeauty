@@ -84,17 +84,16 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
   return (
     <motion.div
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-40 grid place-items-center bg-[#2d1d27]/55 p-3 backdrop-blur-sm"
+      className="fixed inset-0 z-40 grid place-items-center bg-[#15140f]/55 p-3 backdrop-blur-sm"
       exit={{ opacity: 0 }}
       initial={{ opacity: 0 }}
       transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: "easeOut" }}
     >
       <motion.section
         animate={{ opacity: 1, y: 0 }}
-        className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2.2rem] p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
+        className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-3xl border border-stone-200 bg-white p-6"
         exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
         initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
-        style={{ background: `radial-gradient(circle at top left, ${accent}35, transparent 14rem), #fff` }}
         transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
       >
         {onClose && (
@@ -102,7 +101,7 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
             <X className="size-4" />
           </motion.button>
         )}
-        <span className="grid size-12 place-items-center rounded-2xl text-white" style={{ background: primary }}><Lock className="size-5" /></span>
+        <span className="grid size-12 place-items-center rounded-2xl text-white" style={{ background: primary, boxShadow: `0 0 0 6px ${accent}1f` }}><Lock className="size-5" /></span>
         <h1 className="mt-4 text-2xl font-bold text-stone-950">{mode === "login" ? "Accedi" : mode === "register" ? "Crea il tuo account" : "Recupera la password"}</h1>
         <p className="mt-1 text-sm text-stone-500">
           {mode === "reset"
@@ -183,7 +182,7 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
                   </label>
                 </>
               )}
-              <motion.button className="mt-2 min-h-12 w-full rounded-2xl font-black text-white disabled:opacity-50" disabled={submitting} style={{ background: primary }} type="submit" whileTap={{ scale: 0.97 }}>
+              <motion.button className="mt-2 min-h-12 w-full rounded-full font-black text-white disabled:opacity-50" disabled={submitting} style={{ background: primary }} type="submit" whileTap={{ scale: 0.97 }}>
                 {submitting ? "Un momento..." : mode === "login" ? "Accedi" : mode === "register" ? "Registrati" : "Invia link di recupero"}
               </motion.button>
             </motion.form>

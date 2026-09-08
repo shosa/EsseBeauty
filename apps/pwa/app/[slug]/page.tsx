@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bell, CalendarDays, CalendarPlus, LogOut, Sparkles, Star, UserRound } from "lucide-react";
-import { AnimatePresence } from "motion/react";
+import { ArrowRight, Bell, LogOut, Sparkles, Star, UserRound, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -80,46 +80,44 @@ export default function SalonLanding() {
     profile.services.some((service) => service.category === category.name),
   ) ?? [], [profile]);
   const brand = profile?.branding;
-  const primary = brand?.primaryColor || "#402334";
-  const accent = brand?.accentColor || "#f4d8a8";
+  const primary = brand?.primaryColor || "#15140f";
+  const accent = brand?.accentColor || "#0e7c59";
   const unreadMessages = messages.filter((message) => !message.read_at).length;
 
-  if (status === "loading") return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] text-sm font-bold text-[#792f59]">Preparazione salone...</main>;
-  if (status === "unavailable") return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5"><section className="max-w-md rounded-[2rem] bg-white p-8 text-center shadow-xl"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#792f59]">Prenotazioni online</p><h1 className="mt-3 text-3xl font-bold">Servizio momentaneamente non disponibile</h1><p className="mt-3 text-stone-600">Contatta direttamente il salone per fissare un appuntamento.</p></section></main>;
-  if (status === "missing") return <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5"><h1 className="text-2xl font-bold">Salone non trovato</h1></main>;
+  if (status === "loading") return <main className="grid min-h-screen place-items-center bg-[#faf8f4] text-sm font-bold text-stone-500">Preparazione salone...</main>;
+  if (status === "unavailable") return <main className="grid min-h-screen place-items-center bg-[#faf8f4] p-5"><section className="max-w-md rounded-3xl border border-stone-200 bg-white p-8 text-center"><p className="text-xs font-bold uppercase tracking-[.2em] text-stone-400">Prenotazioni online</p><h1 className="mt-3 text-3xl font-bold">Servizio momentaneamente non disponibile</h1><p className="mt-3 text-stone-600">Contatta direttamente il salone per fissare un appuntamento.</p></section></main>;
+  if (status === "missing") return <main className="grid min-h-screen place-items-center bg-[#faf8f4] p-5"><h1 className="text-2xl font-bold">Salone non trovato</h1></main>;
 
   return (
-    <main className="min-h-screen px-4 py-6" style={{ background: `radial-gradient(circle at 10% 0%, ${accent}55, transparent 18rem), linear-gradient(180deg,#fffafd,#f6f2f4)` }}>
+    <main className="min-h-screen bg-[#faf8f4] px-4 py-6">
       <div className="animate-reveal mx-auto max-w-md">
-        <div className="flex items-center justify-between rounded-2xl p-2.5 text-white shadow-[0_10px_28px_rgb(45_29_39_/_0.16)]" style={{ background: `linear-gradient(135deg, ${primary}, #792f59)` }}>
-          {brand?.logoUrl ? <img alt="Logo salone" className="size-10 rounded-xl bg-white object-cover p-1" src={brand.logoUrl} /> : <span className="grid size-10 place-items-center rounded-xl bg-white/15 text-base font-black">E</span>}
-          <div className="flex items-center gap-2">
-            {authStatus === "authenticated" && (
-              <button
-                aria-label="Apri notifiche"
-                aria-pressed={messagesOpen}
-                className="relative grid size-11 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
-                onClick={() => setMessagesOpen((state) => !state)}
-                type="button"
-              >
-                <Bell className="size-5" />
-                {unreadMessages > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-5 place-items-center rounded-full bg-[#f4d8a8] px-1 text-[10px] font-black text-[#402334]">{Math.min(unreadMessages, 9)}</span>}
-              </button>
-            )}
-            <div className="relative">
+        <div className="flex items-center justify-end gap-2">
+          {authStatus === "authenticated" && (
+            <button
+              aria-label="Apri notifiche"
+              aria-pressed={messagesOpen}
+              className="relative grid size-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 transition hover:border-stone-300"
+              onClick={() => setMessagesOpen((state) => !state)}
+              type="button"
+            >
+              <Bell className="size-[18px]" />
+              {unreadMessages > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-5 place-items-center rounded-full bg-stone-950 px-1 text-[10px] font-black text-white">{Math.min(unreadMessages, 9)}</span>}
+            </button>
+          )}
+          <div className="relative">
             <button
               aria-label={authStatus === "authenticated" ? "Il tuo account" : "Accedi"}
-              className="flex items-center gap-2 rounded-full bg-white/15 py-1 pl-3 pr-1 text-sm font-bold transition hover:bg-white/25"
+              className="flex items-center gap-2 rounded-full border border-stone-200 bg-white py-1 pl-3 pr-1 text-sm font-bold text-stone-800 transition hover:border-stone-300"
               onClick={() => (authStatus === "authenticated" ? setAccountMenuOpen((state) => !state) : setShowAuthOverlay(true))}
               type="button"
             >
               {authStatus === "authenticated" && customer ? customer.first_name : "Accedi"}
-              <span className="grid size-8 place-items-center rounded-full bg-white text-xs font-black" style={{ color: primary }}>
+              <span className="grid size-8 place-items-center rounded-full text-xs font-black text-white" style={{ background: primary }}>
                 {authStatus === "authenticated" && customer ? initials(customer.full_name) : <UserRound className="size-4" />}
               </span>
             </button>
             {accountMenuOpen && customer && (
-              <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-48 origin-top-right rounded-2xl bg-white p-3 text-left shadow-[0_18px_44px_rgb(45_29_39_/_0.25)]">
+              <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-48 origin-top-right rounded-2xl border border-stone-200 bg-white p-3 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">
                 <p className="truncate text-sm font-black text-stone-900">{customer.full_name}</p>
                 <p className="truncate text-xs text-stone-500">{customer.phone}</p>
                 <button
@@ -134,85 +132,58 @@ export default function SalonLanding() {
                 </button>
               </div>
             )}
-            </div>
           </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-3.5">
+          {brand?.logoUrl
+            ? <img alt="Logo salone" className="size-12 shrink-0 rounded-2xl border border-stone-200 object-cover" src={brand.logoUrl} />
+            : <span className="grid size-12 shrink-0 place-items-center rounded-2xl" style={{ background: primary }}><img alt="EsseBeauty" className="h-9 w-auto brightness-0 invert" src="/esse-logo.svg" /></span>}
+          <p className="truncate text-lg font-bold text-stone-950">{profile?.salon.name}</p>
         </div>
 
         <div className="mt-6 px-0.5">
           {authStatus === "authenticated" && customer && <p className="text-base font-black" style={{ color: primary }}>Ciao, {customer.first_name}</p>}
-          <h1 className={`text-[1.7rem] font-bold leading-tight text-stone-950 ${authStatus === "authenticated" && customer ? "mt-0.5" : ""}`}>{brand?.heroTitle || profile?.salon.name || "Esse Beauty"}</h1>
+          <h1 className={`text-[1.7rem] font-bold leading-tight text-stone-950 ${authStatus === "authenticated" && customer ? "mt-0.5" : ""}`}>{brand?.heroTitle || "Prenota il tuo prossimo trattamento"}</h1>
           <p className="mt-2 text-sm leading-6 text-stone-500">{brand?.heroSubtitle || "Il tuo spazio per prenderti cura di te, con la libertà di prenotare quando vuoi."}</p>
         </div>
 
-        {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-white/80 bg-white/82 p-5 text-sm leading-6 text-stone-600 shadow-sm">{brand.welcomeText}</p>}
-        <InstallAppButton accent={accent} enabled={brand?.installPromptEnabled !== false} primary={primary} />
-        {messagesOpen && (
-          <section className="animate-pop mt-4 rounded-[1.6rem] border border-white/80 bg-white/92 p-4 shadow-[0_18px_44px_rgb(45_29_39_/_0.12)]">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-sm font-black text-stone-950">Notifiche</h2>
-              <span className="text-xs font-bold text-stone-400">{unreadMessages} nuove</span>
-            </div>
-            {messagesStatus === "loading" && <p className="mt-3 text-sm font-semibold text-stone-500">Caricamento...</p>}
-            {messagesStatus === "failed" && <p className="mt-3 text-sm font-semibold text-rose-700">Notifiche non disponibili.</p>}
-            {messagesStatus === "ready" && messages.length === 0 && <p className="mt-3 text-sm font-semibold text-stone-500">Nessuna notifica ricevuta.</p>}
-            {messagesStatus === "ready" && messages.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {messages.map((message) => (
-                  <Link className="flex items-start gap-3 rounded-2xl bg-stone-50 p-3 transition hover:bg-stone-100" href={`/${slug}/messages/${message.id}`} key={message.id}>
-                    <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-white" style={{ background: message.read_at ? "#a8a29e" : primary }}><Bell className="size-4" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-black text-stone-950">{message.title}</span>
-                      <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-stone-500">{message.body}</span>
-                      <span className="mt-1 block text-[11px] font-bold text-stone-400">{new Date(message.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+        {brand?.welcomeText && <p className="mt-5 rounded-3xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-600">{brand.welcomeText}</p>}
+        <InstallAppButton enabled={brand?.installPromptEnabled !== false} primary={primary} />
 
-        <nav className="mt-6 grid grid-cols-2 rounded-2xl bg-white/70 p-1 text-sm font-black shadow-sm">
+        <nav className="mt-6 grid grid-cols-2 rounded-full border border-stone-200 bg-white p-1 text-sm font-black">
           {[
             ["overview", "Overview"],
             ["reviews", "Recensioni"],
           ].map(([value, label]) => (
-            <button aria-pressed={activeTab === value} className={`min-h-11 rounded-xl transition ${activeTab === value ? "text-white shadow-sm" : "text-stone-500"}`} key={value} onClick={() => setActiveTab(value as "overview" | "reviews")} style={activeTab === value ? { background: primary } : undefined} type="button">{label}</button>
+            <button aria-pressed={activeTab === value} className={`min-h-11 rounded-full transition ${activeTab === value ? "text-white" : "text-stone-500"}`} key={value} onClick={() => setActiveTab(value as "overview" | "reviews")} style={activeTab === value ? { background: primary } : undefined} type="button">{label}</button>
           ))}
         </nav>
 
         {activeTab === "overview" && <>
           <section className="mt-5 grid grid-cols-2 gap-3">
-            <Link className="group rounded-[1.6rem] border border-white/80 bg-white/92 p-4 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/appointments`}>
-              <span className="grid size-12 place-items-center rounded-full text-white shadow-[0_10px_24px_rgb(45_29_39_/_0.18)]" style={{ background: primary }}><CalendarDays className="size-5" /></span>
-              <h2 className="mt-4 text-base font-black leading-tight text-stone-950">I miei appuntamenti</h2>
-              <ArrowRight className="mt-3 size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
+            <Link className="group flex min-h-[92px] flex-col items-start justify-between rounded-3xl p-4 text-white transition hover:-translate-y-0.5" href={`/${slug}/book`} style={{ background: primary }}>
+              <span className="whitespace-nowrap text-[15px] font-bold leading-tight">Prenota ora</span>
+              <ArrowRight className="size-5 transition group-hover:translate-x-1" />
             </Link>
-            <Link className="group rounded-[1.6rem] border border-white/80 p-4 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)] transition hover:-translate-y-0.5" href={`/${slug}/book`} style={{ background: `linear-gradient(135deg, ${accent}, #fff)` }}>
-              <span className="grid size-12 place-items-center rounded-full bg-white shadow-[0_10px_24px_rgb(45_29_39_/_0.12)]" style={{ color: primary }}><CalendarPlus className="size-5" /></span>
-              <h2 className="mt-4 text-base font-black leading-tight text-stone-950">Nuova prenotazione</h2>
-              <ArrowRight className="mt-3 size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
+            <Link className="group flex min-h-[92px] flex-col items-start justify-between rounded-3xl border border-stone-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-stone-300" href={`/${slug}/appointments`}>
+              <span className="text-[15px] font-bold leading-tight text-stone-950">I tuoi appuntamenti</span>
+              <ArrowRight className="size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
             </Link>
           </section>
 
           <section className="mt-7">
             <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Sparkles className="size-4" />Da dove vuoi iniziare?</p>
-            <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un’esperienza</h2>
-            <div className="mt-4 grid gap-3">
-              {categories.map((category, index) => (
+            <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un trattamento</h2>
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {categories.map((category) => (
                 <Link
-                  className="animate-reveal group flex min-h-20 items-center justify-between rounded-3xl border border-white/80 bg-white/88 px-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)] transition hover:-translate-y-0.5"
+                  className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-stone-200 bg-white px-4 text-sm font-bold text-stone-800 transition hover:border-stone-300"
                   href={`/${slug}/book?category=${encodeURIComponent(category.name)}`}
                   key={category.id}
-                  style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="grid size-11 place-items-center rounded-2xl" style={{ background: `${primary}12`, color: primary }}>
-                      <ServiceCategoryIcon className="size-5" name={category.icon} />
-                    </span>
-                    <strong className="text-base text-stone-950">{category.name}</strong>
-                  </div>
-                  <ArrowRight className="size-5 transition group-hover:translate-x-1" style={{ color: primary }} />
+                  <span style={{ color: primary }}><ServiceCategoryIcon className="size-4" name={category.icon} /></span>
+                  {category.name}
                 </Link>
               ))}
             </div>
@@ -220,19 +191,19 @@ export default function SalonLanding() {
         </>}
 
         {activeTab === "reviews" && <section className="mt-6">
-          <div className="rounded-[2rem] border border-white/80 bg-white/88 p-5 shadow-[0_14px_34px_rgb(45_29_39_/_0.08)]">
+          <div className="rounded-3xl border border-stone-200 bg-white p-5">
             <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Star className="size-4 fill-current" />Recensioni clienti</p>
             <div className="mt-3 flex items-end justify-between gap-4">
               <h2 className="text-2xl font-bold text-stone-950">Cosa dicono del salone</h2>
               {reviews?.average_rating && <span className="rounded-full px-3 py-1.5 text-sm font-black text-white" style={{ background: primary }}>{reviews.average_rating.toLocaleString("it-IT")} ★</span>}
             </div>
           </div>
-          {reviewsStatus === "loading" && <p className="mt-4 rounded-3xl bg-white/80 p-5 text-sm font-bold text-stone-500">Caricamento recensioni...</p>}
+          {reviewsStatus === "loading" && <p className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 text-sm font-bold text-stone-500">Caricamento recensioni...</p>}
           {reviewsStatus === "failed" && <p className="mt-4 rounded-3xl bg-rose-50 p-5 text-sm font-bold text-rose-700">Recensioni non disponibili.</p>}
-          {reviewsStatus === "ready" && reviews?.items.length === 0 && <p className="mt-4 rounded-3xl bg-white/80 p-5 text-sm leading-6 text-stone-500">Le recensioni pubbliche compariranno qui appena il salone le renderà visibili.</p>}
+          {reviewsStatus === "ready" && reviews?.items.length === 0 && <p className="mt-4 rounded-3xl border border-stone-200 bg-white p-5 text-sm leading-6 text-stone-500">Le recensioni pubbliche compariranno qui appena il salone le renderà visibili.</p>}
           {reviewsStatus === "ready" && Boolean(reviews?.items.length) && <div className="mt-4 grid gap-3">
             {reviews?.items.map((item) => (
-              <article className="rounded-3xl border border-white/80 bg-white/90 p-5 shadow-[0_12px_30px_rgb(45_29_39_/_0.07)]" key={item.id}>
+              <article className="rounded-3xl border border-stone-200 bg-white p-5" key={item.id}>
                 <div className="flex items-start justify-between gap-4">
                   <div><h3 className="font-black text-stone-950">{displayName(item.customer_name)}</h3><p className="mt-1 text-xs font-semibold text-stone-400">{new Date(item.created_at).toLocaleDateString("it-IT", { dateStyle: "medium" })}</p></div>
                   <span className="whitespace-nowrap text-sm font-black" style={{ color: primary }}>{"★".repeat(item.rating)}<span className="text-stone-200">{"★".repeat(5 - item.rating)}</span></span>
@@ -246,6 +217,43 @@ export default function SalonLanding() {
       </div>
       <AnimatePresence>
         {showAuthOverlay && <CustomerAuthOverlay accent={accent} onClose={() => setShowAuthOverlay(false)} primary={primary} salonName={profile?.salon.name} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {messagesOpen && (
+          <motion.section
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-40 flex flex-col bg-[#faf8f4]"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+          >
+            <div className="flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4">
+              <h2 className="text-lg font-bold text-stone-950">Notifiche</h2>
+              <button aria-label="Chiudi notifiche" className="grid size-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-700" onClick={() => setMessagesOpen(false)} type="button">
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              {messagesStatus === "loading" && <p className="text-sm font-semibold text-stone-500">Caricamento...</p>}
+              {messagesStatus === "failed" && <p className="text-sm font-semibold text-rose-700">Notifiche non disponibili.</p>}
+              {messagesStatus === "ready" && messages.length === 0 && <p className="text-sm font-semibold text-stone-500">Nessuna notifica ricevuta.</p>}
+              {messagesStatus === "ready" && messages.length > 0 && (
+                <div className="space-y-2">
+                  {messages.map((message) => (
+                    <Link className="flex items-start gap-3 rounded-2xl border border-stone-200 bg-white p-3 transition hover:border-stone-300" href={`/${slug}/messages/${message.id}`} key={message.id} onClick={() => setMessagesOpen(false)}>
+                      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-white" style={{ background: message.read_at ? "#a8a29e" : primary }}><Bell className="size-4" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-stone-950">{message.title}</span>
+                        <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-stone-500">{message.body}</span>
+                        <span className="mt-1 block text-[11px] font-bold text-stone-400">{new Date(message.created_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.section>
+        )}
       </AnimatePresence>
     </main>
   );

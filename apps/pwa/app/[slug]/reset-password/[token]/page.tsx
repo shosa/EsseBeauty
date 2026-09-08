@@ -31,14 +31,14 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f6f2f4] p-5">
-      <section className="animate-slide-up w-full max-w-md rounded-[2.2rem] bg-white p-7 shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]">
-        <span className="grid size-12 place-items-center rounded-2xl bg-[#402334] text-white"><Lock className="size-5" /></span>
+    <main className="grid min-h-screen place-items-center bg-[#faf8f4] p-5">
+      <section className="animate-slide-up w-full max-w-md rounded-3xl border border-stone-200 bg-white p-7">
+        <span className="grid size-12 place-items-center rounded-2xl bg-stone-950 text-white"><Lock className="size-5" /></span>
         <h1 className="mt-4 text-2xl font-bold text-stone-950">Scegli una nuova password</h1>
         {done ? (
           <>
             <p className="mt-3 text-sm font-semibold text-emerald-700">Password aggiornata. Ora puoi accedere con la tua nuova password.</p>
-            <Link className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#402334] font-black text-white" href={`/${slug}/appointments`}>Vai al login</Link>
+            <Link className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-stone-950 font-black text-white" href={`/${slug}/appointments`}>Vai al login</Link>
           </>
         ) : (
           <>
@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
                   <input className="w-full pl-9" minLength={8} name="password" required type="password" />
                 </div>
               </label>
-              <button className="min-h-12 w-full rounded-2xl bg-[#402334] font-black text-white disabled:opacity-50" disabled={submitting} type="submit">
+              <button className="min-h-12 w-full rounded-full bg-stone-950 font-black text-white disabled:opacity-50" disabled={submitting} type="submit">
                 {submitting ? "Un momento..." : "Aggiorna password"}
               </button>
             </form>

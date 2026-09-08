@@ -20,7 +20,7 @@ function InstallInstructionsModal({ onClose, primary }: { onClose: () => void; p
   return (
     <motion.div
       animate={{ opacity: 1 }}
-      className="fixed inset-0 z-40 grid place-items-center bg-[#2d1d27]/55 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-40 grid place-items-center bg-[#15140f]/55 p-4 backdrop-blur-sm"
       exit={{ opacity: 0 }}
       initial={{ opacity: 0 }}
       onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}
@@ -28,7 +28,7 @@ function InstallInstructionsModal({ onClose, primary }: { onClose: () => void; p
     >
       <motion.section
         animate={{ opacity: 1, y: 0 }}
-        className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[2.2rem] bg-white p-6 shadow-[0_24px_70px_rgb(45_29_39_/_0.25)]"
+        className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-stone-200 bg-white p-6"
         exit={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
         initial={reduceMotion ? { opacity: 0, y: 0 } : { opacity: 0, y: 16 }}
         transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
@@ -46,18 +46,16 @@ function InstallInstructionsModal({ onClose, primary }: { onClose: () => void; p
             </li>
           ))}
         </ol>
-        <button className="mt-6 min-h-12 w-full rounded-2xl font-black text-white" onClick={onClose} style={{ background: primary }} type="button">Ho capito</button>
+        <button className="mt-6 min-h-12 w-full rounded-full font-black text-white" onClick={onClose} style={{ background: primary }} type="button">Ho capito</button>
       </motion.section>
     </motion.div>
   );
 }
 
 export function InstallAppButton({
-  accent,
   enabled,
   primary,
 }: {
-  accent: string;
   enabled: boolean;
   primary: string;
 }) {
@@ -105,9 +103,8 @@ export function InstallAppButton({
   return (
     <>
       <motion.button
-        className="animate-reveal mt-5 flex w-full items-center gap-4 rounded-3xl border p-5 text-left shadow-[0_12px_30px_rgb(45_29_39_/_0.1)]"
+        className="animate-reveal mt-5 flex w-full items-center gap-4 rounded-3xl border border-stone-200 bg-white p-5 text-left"
         onClick={() => void handleTap()}
-        style={{ background: `linear-gradient(135deg, ${accent}45, ${accent}15)`, borderColor: `${primary}28` }}
         type="button"
         whileTap={{ scale: 0.98 }}
       >

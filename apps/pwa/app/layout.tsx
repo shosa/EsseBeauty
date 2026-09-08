@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Manrope } from "next/font/google";
+import { Manrope, Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
@@ -11,7 +11,7 @@ const manrope = Manrope({
   variable: "--font-sans",
 });
 
-const fraunces = Fraunces({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   variable: "--font-display",
 });
@@ -38,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html className={`${manrope.variable} ${fraunces.variable}`} lang="it">
+    <html className={`${manrope.variable} ${spaceGrotesk.variable}`} lang="it">
       <body><ServiceWorkerRegistration />{children}</body>
     </html>
   );

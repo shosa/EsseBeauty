@@ -18,26 +18,26 @@ export function SalonBottomNav({ slug }: { slug: string }) {
   // dismiss" view — the tab bar would make it look like just another app screen.
   if (pathname.includes("/messages/")) return null;
   return (
-    <nav aria-label="Navigazione cliente" className="fixed inset-x-3 bottom-3 z-30 mx-auto grid h-[68px] max-w-[430px] grid-cols-4 rounded-[1.4rem] border border-white/80 bg-white/94 p-1.5 shadow-[0_18px_50px_rgb(45_29_39_/_0.18)] backdrop-blur-xl">
+    <nav aria-label="Navigazione cliente" className="fixed inset-x-0 bottom-0 z-30 mx-auto grid h-[76px] max-w-[430px] grid-cols-4 border-t border-stone-200 bg-white/95 backdrop-blur-xl">
       {items.map(({ icon: Icon, label, suffix }) => {
         const href = `/${slug}${suffix}`;
         const active = suffix ? pathname.startsWith(href) : pathname === href;
         return (
           <Link
             aria-current={active ? "page" : undefined}
-            className={`relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-black transition-colors active:scale-90 ${active ? "text-white" : "text-stone-500 hover:bg-[#faf3f7] hover:text-[#792f59]"}`}
+            className={`relative flex min-w-0 flex-col items-center justify-center gap-1.5 text-[10.5px] font-bold transition-colors active:scale-95 ${active ? "text-stone-950" : "text-stone-400"}`}
             href={href}
             key={suffix || "home"}
           >
             {active && (
               <motion.span
                 aria-hidden="true"
-                className="absolute inset-0 rounded-2xl bg-[#402334] shadow-sm"
-                layoutId="salon-nav-active-pill"
+                className="absolute top-2 size-1 rounded-full bg-stone-950"
+                layoutId="salon-nav-active-dot"
                 transition={{ damping: 32, stiffness: 420, type: "spring" }}
               />
             )}
-            <Icon className="relative size-[19px]" strokeWidth={active ? 2.6 : 2} />
+            <Icon className="relative size-[21px]" strokeWidth={active ? 2.2 : 1.8} />
             <span className="relative max-w-full truncate">{label}</span>
           </Link>
         );

@@ -21,8 +21,8 @@ export default function MessagePage() {
   const [message, setMessage] = useState<Message>();
   const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
-  const primary = branding?.primaryColor || "#402334";
-  const accent = branding?.accentColor || "#f4d8a8";
+  const primary = branding?.primaryColor || "#15140f";
+  const accent = branding?.accentColor || "#0e7c59";
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -53,19 +53,19 @@ export default function MessagePage() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center p-5" style={{ background: `radial-gradient(circle at top, ${accent}55, transparent 20rem), #f6f2f4` }}>
+    <main className="grid min-h-screen place-items-center bg-[#faf8f4] p-5">
       {authStatus === "anonymous" && (
         <CustomerAuthOverlay accent={accent} primary={primary} subtitle="Accedi per leggere questo messaggio." />
       )}
       {authStatus === "authenticated" && (
         <motion.section
           animate={{ opacity: 1, y: 0 }}
-          className="relative w-full max-w-md rounded-[2.2rem] bg-white p-7 text-center shadow-[0_24px_70px_rgb(45_29_39_/_0.16)]"
+          className="relative w-full max-w-md rounded-3xl border border-stone-200 bg-white p-7 text-center"
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
         >
           <button aria-label="Chiudi notifica" className="absolute right-4 top-4 grid size-10 place-items-center rounded-full bg-stone-100 text-stone-500 transition hover:bg-stone-200 hover:text-stone-900" onClick={close} type="button"><X className="size-5" /></button>
-          <span className="mx-auto grid size-14 place-items-center rounded-3xl text-white" style={{ background: primary }}><Bell className="size-6" /></span>
+          <span className="mx-auto grid size-14 place-items-center rounded-2xl text-white" style={{ background: primary }}><Bell className="size-6" /></span>
           {loading ? (
             <p className="mt-5 text-sm text-stone-500">Caricamento...</p>
           ) : notFound || !message ? (
@@ -79,7 +79,7 @@ export default function MessagePage() {
               <p className="mt-3 whitespace-pre-line text-sm leading-6 text-stone-600">{message.body}</p>
             </>
           )}
-          <button className="mt-7 min-h-12 w-full rounded-2xl font-black text-white" onClick={done} style={{ background: primary }} type="button">OK</button>
+          <button className="mt-7 min-h-12 w-full rounded-full font-black text-white" onClick={done} style={{ background: primary }} type="button">OK</button>
         </motion.section>
       )}
     </main>

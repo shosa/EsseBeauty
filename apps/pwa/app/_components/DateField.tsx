@@ -22,6 +22,7 @@ function startOfMonth(date: Date): Date {
 const WEEKDAY_LABELS = ["L", "M", "M", "G", "V", "S", "D"];
 
 interface DateFieldProps {
+  compact?: boolean;
   disabled?: boolean;
   id?: string;
   isDateDisabled?: (date: Date) => boolean;
@@ -33,7 +34,7 @@ interface DateFieldProps {
   value: string;
 }
 
-export function DateField({ disabled, id, isDateDisabled, label, max, min, onChange, primary, value }: DateFieldProps) {
+export function DateField({ compact, disabled, id, isDateDisabled, label, max, min, onChange, primary, value }: DateFieldProps) {
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(() => startOfMonth(value ? parseISODate(value) : new Date()));
   const [position, setPosition] = useState<{ left: number; top: number }>();
@@ -93,21 +94,35 @@ export function DateField({ disabled, id, isDateDisabled, label, max, min, onCha
 
   return (
     <div className="relative" ref={rootRef}>
-      <button
-        className="flex min-h-12 w-full items-center gap-2.5 rounded-2xl border border-stone-200 bg-white px-4 text-left text-sm font-bold text-stone-800 transition-colors disabled:opacity-50"
-        disabled={disabled}
-        id={id}
-        onClick={() => setOpen((state) => !state)}
-        ref={buttonRef}
-        type="button"
-      >
-        <CalendarDays className="size-4 shrink-0" style={{ color: primary }} />
-        {selected ? selected.toLocaleDateString("it-IT", { day: "numeric", month: "long", weekday: "short", year: "numeric" }) : label || "Seleziona data"}
-      </button>
+      {compact ? (
+        <button
+          aria-label="Scegli un'altra data dal calendario"
+          className="grid size-11 shrink-0 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 transition-colors disabled:opacity-50"
+          disabled={disabled}
+          id={id}
+          onClick={() => setOpen((state) => !state)}
+          ref={buttonRef}
+          type="button"
+        >
+          <CalendarDays className="size-[18px]" style={{ color: primary }} />
+        </button>
+      ) : (
+        <button
+          className="flex min-h-12 w-full items-center gap-2.5 rounded-2xl border border-stone-200 bg-white px-4 text-left text-sm font-bold text-stone-800 transition-colors disabled:opacity-50"
+          disabled={disabled}
+          id={id}
+          onClick={() => setOpen((state) => !state)}
+          ref={buttonRef}
+          type="button"
+        >
+          <CalendarDays className="size-4 shrink-0" style={{ color: primary }} />
+          {selected ? selected.toLocaleDateString("it-IT", { day: "numeric", month: "long", weekday: "short", year: "numeric" }) : label || "Seleziona data"}
+        </button>
+      )}
 
       {open && position && portalNode && createPortal(
         <div
-          className="animate-pop fixed z-50 rounded-2xl border border-stone-100 bg-white p-4 shadow-[0_18px_44px_rgb(45_29_39_/_0.18)]"
+          className="animate-pop fixed z-50 rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]"
           ref={popoverRef}
           style={{ left: position.left, top: position.top, width: POPOVER_WIDTH }}
         >
