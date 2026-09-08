@@ -37,6 +37,10 @@ async function getPwaOptions(app: FastifyInstance, salonId: string) {
 }
 
 async function slotsFor(app: FastifyInstance, salon: any, member: any, service: any, date: string) {
+  return slotsForServices(app, salon, member, [service], date);
+}
+
+async function slotsForServices(app: FastifyInstance, salon: any, member: any, selectedServices: any[], date: string) {
   if (await isSalonClosed(app, salon.id, date)) return [];
   const dayStart = new Date(`${date}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart.getTime() + 36 * 60 * 60_000);
@@ -48,19 +52,70 @@ async function slotsFor(app: FastifyInstance, salon: any, member: any, service: 
       eq(availabilityBlocks.staffId, member.id), lt(availabilityBlocks.startsAt, dayEnd), gt(availabilityBlocks.endsAt, dayStart))),
   ]);
   const slots = computeAvailableSlots({ date, timezone: salon.timezone, workingHours: member.workingHours,
-    durationMinutes: service.durationMinutes, appointments: busy, blocks });
+    durationMinutes: selectedServices.reduce((total, service) => total + service.durationMinutes, 0), appointments: busy, blocks });
   return Promise.all(slots.map(async (slot) => {
     if (!slot.available) return slot;
-    const resource = await availableResourceFor(
-      app.db,
-      salon.id,
-      service.id,
-      new Date(slot.starts_at),
-      new Date(slot.ends_at),
-      member.locationId,
-    );
-    return { ...slot, available: !resource.required || Boolean(resource.resource) };
+    let segmentStart = new Date(slot.starts_at);
+    for (const service of selectedServices) {
+      const segmentEnd = new Date(segmentStart.getTime() + service.durationMinutes * 60_000);
+      const resource = await availableResourceFor(app.db, salon.id, service.id, segmentStart, segmentEnd, member.locationId);
+      if (resource.required && !resource.resource) return { ...slot, available: false };
+      segmentStart = segmentEnd;
+    }
+    return slot;
   }));
+}
+
+function requestedServiceIds(input: { serviceId?: string; serviceIds?: string } | { service_id?: string; service_ids?: string[] }) {
+  const body = input as { service_id?: string; service_ids?: string[] };
+  const query = input as { serviceId?: string; serviceIds?: string };
+  const raw = body.service_ids?.length
+    ? body.service_ids
+    : body.service_id ? [body.service_id] : (query.serviceIds?.split(",").filter(Boolean) ?? [query.serviceId].filter(Boolean));
+  return [...new Set(raw)] as string[];
+}
+
+function requestedStaffIds(input: { staffId?: string; staffIds?: string } | { staff_id?: string; staff_ids?: Array<string | null> }, serviceCount: number) {
+  const body = input as { staff_id?: string; staff_ids?: Array<string | null> };
+  const query = input as { staffId?: string; staffIds?: string };
+  if (body.staff_ids?.length) return Array.from({ length: serviceCount }, (_, index) => body.staff_ids?.[index] || undefined);
+  if (query.staffIds !== undefined) return Array.from({ length: serviceCount }, (_, index) => query.staffIds?.split(",")[index] || undefined);
+  const legacy = body.staff_id ?? query.staffId;
+  return Array.from({ length: serviceCount }, () => legacy || undefined);
+}
+
+async function serviceStaffCandidates(app: FastifyInstance, salonId: string, serviceId: string, preferredStaffId?: string) {
+  const qualified = await qualifiedStaffIds(app.db, salonId, serviceId);
+  return (await app.db.select().from(staff).where(and(
+    eq(staff.salonId, salonId), eq(staff.active, true),
+    ...(preferredStaffId ? [eq(staff.id, preferredStaffId)] : []),
+  )).orderBy(asc(staff.displayName))).filter((member) => !qualified || qualified.has(member.id));
+}
+
+async function findServiceSequence(app: FastifyInstance, salon: any, selectedServices: any[], startsAt: Date, staffPreferences: Array<string | undefined>) {
+  const assignments: Array<{ member: any; service: any; startsAt: Date; endsAt: Date }> = [];
+  let segmentStart = startsAt;
+  for (const [index, service] of selectedServices.entries()) {
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: salon.timezone }).format(segmentStart);
+    const candidates = await serviceStaffCandidates(app, salon.id, service.id, staffPreferences[index]);
+    const previousStaffId = assignments.at(-1)?.member.id;
+    if (!staffPreferences[index] && previousStaffId) {
+      candidates.sort((left, right) => Number(right.id === previousStaffId) - Number(left.id === previousStaffId));
+    }
+    let assigned;
+    for (const member of candidates) {
+      const slots = await slotsFor(app, salon, member, service, date);
+      if (slots.some((slot) => slot.starts_at === segmentStart.toISOString() && slot.available)) {
+        assigned = member;
+        break;
+      }
+    }
+    if (!assigned) return undefined;
+    const endsAt = new Date(segmentStart.getTime() + service.durationMinutes * 60_000);
+    assignments.push({ endsAt, member: assigned, service, startsAt: segmentStart });
+    segmentStart = endsAt;
+  }
+  return assignments;
 }
 
 async function isSalonClosed(app: FastifyInstance, salonId: string, date: string) {
@@ -239,7 +294,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     };
   });
 
-  app.get<{ Params: { slug: string }; Querystring: { serviceId: string; staffId?: string; date: string } }>(
+  app.get<{ Params: { slug: string }; Querystring: { serviceId?: string; serviceIds?: string; staffId?: string; staffIds?: string; date: string } }>(
     "/api/public/:slug/slots", async (request, reply) => {
       const salon = await getSalon(app, request.params.slug);
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
@@ -252,31 +307,39 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       if (requestedDate.getTime() < new Date().setHours(0, 0, 0, 0) || requestedDate > latestDate) {
         return reply.code(400).send({ error: "BOOKING_DATE_OUT_OF_RANGE" });
       }
-      if (!pwa.allowStaffPreference && request.query.staffId) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
-      const serviceRows = await app.db.select().from(services).where(and(
-        eq(services.id, request.query.serviceId), eq(services.salonId, salon.id), eq(services.active, true)));
-      const service = serviceRows[0];
-      if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
-      const qualified = await qualifiedStaffIds(app.db, salon.id, service.id);
-      const staffRows = (await app.db.select().from(staff).where(and(
-        eq(staff.salonId, salon.id), eq(staff.active, true),
-        ...(request.query.staffId ? [eq(staff.id, request.query.staffId)] : []),
-      )).orderBy(asc(staff.displayName)))
-        .filter((member) => !qualified || qualified.has(member.id));
-      if (request.query.staffId && !staffRows[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
+      if (!pwa.allowStaffPreference && (request.query.staffId || request.query.staffIds?.split(",").some(Boolean))) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
+      const serviceIds = requestedServiceIds(request.query);
+      if (!serviceIds.length || serviceIds.length > 10) return reply.code(400).send({ error: "INVALID_SERVICES" });
+      const unorderedServices = await app.db.select().from(services).where(and(
+        inArray(services.id, serviceIds), eq(services.salonId, salon.id), eq(services.active, true)));
+      if (unorderedServices.length !== serviceIds.length) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
+      const selectedServices = serviceIds.map((id) => unorderedServices.find((service) => service.id === id)!);
+      const staffPreferences = requestedStaffIds(request.query, selectedServices.length);
+      const firstServiceStaff = await serviceStaffCandidates(app, salon.id, selectedServices[0]!.id, staffPreferences[0]);
+      if (staffPreferences[0] && !firstServiceStaff[0]) return reply.code(404).send({ error: "STAFF_NOT_FOUND" });
       const closed = await isSalonClosed(app, salon.id, request.query.date);
-      for (const member of staffRows) {
-        const earliestStart = Date.now() + pwa.minBookingNoticeHours * 3600000;
-        const slots = (await slotsFor(app, salon, member, service, request.query.date)).map((slot) => ({
-          ...slot,
-          available: slot.available && new Date(slot.starts_at).getTime() >= earliestStart,
-        }));
-        if (request.query.staffId || slots.some((slot) => slot.available)) return { closed, staff_id: member.id, slots };
+      const candidateSlots = new Map<string, { available: boolean; ends_at: string; starts_at: string }>();
+      for (const member of firstServiceStaff) {
+        for (const slot of await slotsFor(app, salon, member, selectedServices[0], request.query.date)) {
+          if (!candidateSlots.has(slot.starts_at) || slot.available) candidateSlots.set(slot.starts_at, slot);
+        }
       }
-      return { closed, staff_id: null, slots: [] };
+      const earliestStart = Date.now() + pwa.minBookingNoticeHours * 3600000;
+      const slots = await Promise.all([...candidateSlots.values()].sort((left, right) => left.starts_at.localeCompare(right.starts_at)).map(async (slot) => {
+        const assignments = slot.available && new Date(slot.starts_at).getTime() >= earliestStart
+          ? await findServiceSequence(app, salon, selectedServices, new Date(slot.starts_at), staffPreferences)
+          : undefined;
+        return {
+          ...slot,
+          available: Boolean(assignments),
+          ends_at: assignments?.at(-1)?.endsAt.toISOString() ?? slot.ends_at,
+          staff_ids: assignments?.map((assignment) => assignment.member.id) ?? [],
+        };
+      }));
+      return { closed, staff_id: null, slots };
     });
 
-  app.post<{ Params: { slug: string }; Body: { service_id: string; staff_id?: string; starts_at: string; customer: { first_name?: string; full_name?: string; last_name?: string; email?: string; phone?: string }; notes?: string } }>(
+  app.post<{ Params: { slug: string }; Body: { service_id?: string; service_ids?: string[]; staff_id?: string; staff_ids?: Array<string | null>; starts_at: string; customer: { first_name?: string; full_name?: string; last_name?: string; email?: string; phone?: string }; notes?: string } }>(
     "/api/public/:slug/book", async (request, reply) => {
       const salon = await getSalon(app, request.params.slug);
       if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
@@ -290,7 +353,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       if (!name.firstName || !name.lastName) return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
       if (pwa.requireEmail && !customerInput.email?.trim()) return reply.code(400).send({ error: "EMAIL_REQUIRED" });
       if (pwa.requirePhone && !customerInput.phone?.trim()) return reply.code(400).send({ error: "PHONE_REQUIRED" });
-      if (!pwa.allowStaffPreference && request.body.staff_id) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
+      if (!pwa.allowStaffPreference && (request.body.staff_id || request.body.staff_ids?.some(Boolean))) return reply.code(400).send({ error: "STAFF_PREFERENCE_DISABLED" });
       const requestedStart = new Date(request.body.starts_at);
       if (
         requestedStart < new Date(Date.now() + pwa.minBookingNoticeHours * 3600000) ||
@@ -305,55 +368,44 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       if (customerRows[0]?.blocked) {
         return reply.code(403).send({ error: "CUSTOMER_BLOCKED" });
       }
-      const serviceRows = await app.db.select().from(services).where(and(
-        eq(services.id, request.body.service_id), eq(services.salonId, salon.id), eq(services.active, true)));
-      const service = serviceRows[0];
-      if (!service) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
+      const serviceIds = requestedServiceIds(request.body);
+      if (!serviceIds.length || serviceIds.length > 10) return reply.code(400).send({ error: "INVALID_SERVICES" });
+      const unorderedServices = await app.db.select().from(services).where(and(
+        inArray(services.id, serviceIds), eq(services.salonId, salon.id), eq(services.active, true)));
+      if (unorderedServices.length !== serviceIds.length) return reply.code(404).send({ error: "SERVICE_NOT_FOUND" });
+      const selectedServices = serviceIds.map((id) => unorderedServices.find((service) => service.id === id)!);
       const date = new Intl.DateTimeFormat("en-CA", { timeZone: salon.timezone }).format(new Date(request.body.starts_at));
       if (await isSalonClosed(app, salon.id, date)) return reply.code(409).send({ error: "SALON_CLOSED" });
-      const qualified = await qualifiedStaffIds(app.db, salon.id, service.id);
-      const candidates = (await app.db.select().from(staff).where(and(
-        eq(staff.salonId, salon.id), eq(staff.active, true),
-        ...(request.body.staff_id ? [eq(staff.id, request.body.staff_id)] : []),
-      )).orderBy(asc(staff.displayName)))
-        .filter((member) => !qualified || qualified.has(member.id));
-      let selected = candidates[0];
-      for (const member of candidates) {
-        const slots = await slotsFor(app, salon, member, service, date);
-        if (slots.some((slot) => slot.starts_at === new Date(request.body.starts_at).toISOString() && slot.available)) {
-          selected = member;
-          break;
-        }
-        selected = undefined;
-      }
-      if (!selected) return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
+      const staffPreferences = requestedStaffIds(request.body, selectedServices.length);
+      const assignments = await findServiceSequence(app, salon, selectedServices, requestedStart, staffPreferences);
+      if (!assignments) return reply.code(409).send({ error: "APPOINTMENT_CONFLICT" });
       if (!customerRows[0]) customerRows = await app.db.insert(customers).values({
         salonId: salon.id, firstName: name.firstName, lastName: name.lastName, fullName: name.fullName, email: customerInput.email, phone: customerInput.phone, phoneNormalized,
       }).returning();
       const customer = customerRows[0]!;
       const startsAt = new Date(request.body.starts_at);
-      const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
-      const resource = await availableResourceFor(
-        app.db,
-        salon.id,
-        service.id,
-        startsAt,
-        endsAt,
-        selected.locationId,
-      );
-      if (resource.required && !resource.resource) {
-        return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+      const segments: Array<(typeof assignments)[number] & { resourceId?: string }> = [];
+      for (const assignment of assignments) {
+        const resource = await availableResourceFor(app.db, salon.id, assignment.service.id, assignment.startsAt, assignment.endsAt, assignment.member.locationId);
+        if (resource.required && !resource.resource) return reply.code(409).send({ error: "RESOURCE_CONFLICT" });
+        segments.push({ ...assignment, resourceId: resource.resource?.id });
       }
-      const rows = await app.db.insert(appointments).values({
-        salonId: salon.id, customerId: customer.id, staffId: selected.id, serviceId: service.id,
-        startsAt, endsAt,
-        status: pwa.bookingDefaultStatus, internalNotes: request.body.notes, source: "online",
-        locationId: selected.locationId,
-        resourceId: resource.resource?.id,
-      }).returning();
-      const appointment = rows[0]!;
-      await ensureOnlineBookingNotifications(app, salon.id, appointment.id);
-      return reply.code(201).send({ ...appointment, staff_name: selected.displayName, service_name: service.name, salon_name: salon.name });
+      const created = await app.db.transaction(async (tx) => tx.insert(appointments).values(segments.map((segment) => ({
+        salonId: salon.id, customerId: customer.id, staffId: segment.member.id, serviceId: segment.service.id,
+        startsAt: segment.startsAt, endsAt: segment.endsAt,
+        status: pwa.bookingDefaultStatus, internalNotes: request.body.notes, source: "online" as const,
+        locationId: segment.member.locationId, resourceId: segment.resourceId,
+      }))).returning());
+      await Promise.all(created.map((appointment) => ensureOnlineBookingNotifications(app, salon.id, appointment.id)));
+      const firstAppointment = created[0]!;
+      return reply.code(201).send({
+        ...firstAppointment,
+        endsAt: created.at(-1)?.endsAt ?? firstAppointment.endsAt,
+        appointment_ids: created.map((appointment) => appointment.id),
+        staff_name: assignments.map((assignment) => assignment.member.displayName).filter((name, index, items) => items.indexOf(name) === index).join(" + "),
+        service_name: selectedServices.map((service) => service.name).join(" + "),
+        salon_name: salon.name,
+      });
     });
 
   app.get<{ Params: { slug: string }; Querystring: { email?: string } }>("/api/public/:slug/appointments", async (request, reply) => {

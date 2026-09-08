@@ -32,6 +32,25 @@ describe("client PWA experience", () => {
     expect(source).not.toContain("animate-reveal mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-5");
   });
 
+  it("supports consecutive services with a dedicated staff step", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "book", "page.tsx"), "utf8");
+    expect(source).toContain("service_ids: serviceIds");
+    expect(source).toContain("staff_ids: staffPreferences");
+    expect(source).toContain("Puoi selezionare più trattamenti");
+    expect(source).toContain("Passo 2 di 4");
+    expect(source).toContain("Nessuna preferenza");
+    expect(source).toContain("<Shuffle");
+    expect(source).toContain("incompatibleServices.map");
+    expect(source).not.toContain("durationMinutes} min");
+  });
+
+  it("keeps removable selected services above the forward action", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "book", "page.tsx"), "utf8");
+    expect(source).toContain('aria-label="Servizi selezionati"');
+    expect(source).toContain("Rimuovi ${service.name}");
+    expect(source.indexOf('aria-label="Servizi selezionati"')).toBeLessThan(source.indexOf('<motion.button\n              className="min-h-12'));
+  });
+
   it("uses library icons instead of text glyph CTAs on the customer home", () => {
     const source = readFileSync(join(process.cwd(), "app", "[slug]", "page.tsx"), "utf8");
     expect(source).toContain("CalendarDays");
@@ -48,6 +67,12 @@ describe("client PWA experience", () => {
     expect(source).not.toContain(">Prenota ora</Link>");
     expect(source).not.toContain("Consulta le prenotazioni già effettuate.");
     expect(source).not.toContain("Trova il trattamento e l’orario giusto.");
+  });
+
+  it("shows an envelope icon in the registration email field", () => {
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "_components", "CustomerAuthOverlay.tsx"), "utf8");
+    expect(source).toContain("<Mail className");
+    expect(source).toContain('name="email" required={requireEmail}');
   });
 
   it("lets customer notifications close back to the salon home", () => {

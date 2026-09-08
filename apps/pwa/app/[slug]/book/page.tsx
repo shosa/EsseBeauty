@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Check, Shuffle, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
@@ -136,8 +136,16 @@ export default function BookingPage() {
   const [profile, setProfile] = useState<Profile>();
   const [step, setStep] = useState(1);
   const [category, setCategory] = useState(searchParams.get("category") ?? "");
-  const [serviceId, setServiceId] = useState(searchParams.get("serviceId") ?? "");
-  const [staffId, setStaffId] = useState(searchParams.get("staffId") ?? "");
+  const [serviceIds, setServiceIds] = useState<string[]>(() => {
+    const preselected = searchParams.get("serviceId");
+    return preselected ? [preselected] : [];
+  });
+  const [staffByService, setStaffByService] = useState<Record<string, string>>(() => {
+    const serviceId = searchParams.get("serviceId");
+    const staffId = searchParams.get("staffId");
+    return serviceId && staffId ? { [serviceId]: staffId } : {};
+  });
+  const [primaryStaffId, setPrimaryStaffId] = useState(searchParams.get("staffId") ?? "");
   const [date, setDate] = useState(() => searchParams.get("date") ?? new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [slots, setSlots] = useState<Slot[]>([]);
   const [dayClosed, setDayClosed] = useState(false);
@@ -175,7 +183,10 @@ export default function BookingPage() {
     });
   }, [slug]);
 
-  const selectedService = profile?.services.find((service) => service.id === serviceId);
+  const selectedServices = useMemo(
+    () => serviceIds.map((id) => profile?.services.find((service) => service.id === id)).filter((service): service is Service => Boolean(service)),
+    [profile, serviceIds],
+  );
   const categories = useMemo(
     () => profile?.categories.filter((item) => profile.services.some((service) => service.category === item.name)) ?? [],
     [profile],
@@ -184,11 +195,12 @@ export default function BookingPage() {
     () => profile?.services.filter((service) => service.category === category) ?? [],
     [category, profile],
   );
-  const qualifiedStaff = useMemo(
-    () => profile?.staff.filter((member) => !serviceId || !member.serviceIds?.length || member.serviceIds.includes(serviceId)) ?? [],
-    [profile, serviceId],
-  );
-  const selectedStaffName = staffId ? qualifiedStaff.find((member) => member.id === staffId)?.displayName : "Nessuna preferenza";
+  const staffPreferences = serviceIds.map((serviceId) => staffByService[serviceId] ?? "");
+  const primaryStaff = profile?.staff.find((member) => member.id === primaryStaffId);
+  const primaryStaffChoices = profile?.staff.filter((member) => selectedServices.some((service) => !member.serviceIds?.length || member.serviceIds.includes(service.id))) ?? [];
+  const incompatibleServices = primaryStaff
+    ? selectedServices.filter((service) => primaryStaff.serviceIds?.length && !primaryStaff.serviceIds.includes(service.id))
+    : [];
   const quickDays = useMemo(() => Array.from({ length: QUICK_DAY_COUNT }, (_, index) => {
     const day = new Date();
     day.setHours(0, 0, 0, 0);
@@ -197,19 +209,22 @@ export default function BookingPage() {
   }), []);
 
   useEffect(() => {
-    if (staffId && !qualifiedStaff.some((member) => member.id === staffId)) setStaffId("");
-  }, [qualifiedStaff, staffId]);
+    if (!profile) return;
+    setStaffByService((current) => Object.fromEntries(Object.entries(current).filter(([serviceId, staffId]) =>
+      profile.staff.some((member) => member.id === staffId && (!member.serviceIds?.length || member.serviceIds.includes(serviceId))),
+    )));
+  }, [profile, serviceIds]);
   const brand = profile?.branding;
   const primary = brand?.primaryColor || "#15140f";
   const accent = brand?.accentColor || "#0e7c59";
 
   useEffect(() => {
-    if (step !== 2 || !serviceId) return;
+    if (step !== 3 || !serviceIds.length) return;
     let cancelled = false;
     setLoadingSlots(true);
     setError("");
-    const query = new URLSearchParams({ date, serviceId });
-    if (staffId) query.set("staffId", staffId);
+    const query = new URLSearchParams({ date, serviceIds: serviceIds.join(",") });
+    if (staffPreferences.some(Boolean)) query.set("staffIds", staffPreferences.join(","));
     void fetch(`${apiBaseUrl()}/api/public/${slug}/slots?${query}`).then(async (response) => {
       if (cancelled) return;
       setLoadingSlots(false);
@@ -229,11 +244,36 @@ export default function BookingPage() {
     return () => {
       cancelled = true;
     };
-  }, [date, serviceId, slug, staffId, step]);
+  }, [date, serviceIds, slug, staffPreferences.join(","), step]);
 
   function pickSlot(startsAtValue: string) {
     setStartsAt(startsAtValue);
     requestAnimationFrame(() => continueRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }));
+  }
+
+  function toggleService(serviceId: string) {
+    setServiceIds((current) => current.includes(serviceId)
+      ? current.filter((id) => id !== serviceId)
+      : [...current, serviceId]);
+    setStartsAt("");
+    setPrimaryStaffId("");
+    setStaffByService({});
+  }
+
+  function qualifiedStaffFor(serviceId: string) {
+    return profile?.staff.filter((member) => !member.serviceIds?.length || member.serviceIds.includes(serviceId)) ?? [];
+  }
+
+  function choosePrimaryStaff(staffId: string) {
+    setPrimaryStaffId(staffId);
+    if (!staffId) {
+      setStaffByService({});
+      return;
+    }
+    const member = profile?.staff.find((item) => item.id === staffId);
+    setStaffByService(Object.fromEntries(selectedServices
+      .filter((service) => !member?.serviceIds?.length || member.serviceIds.includes(service.id))
+      .map((service) => [service.id, staffId])));
   }
 
   async function performBooking(payload: { email?: string; first_name: string; last_name: string; phone?: string }) {
@@ -247,8 +287,8 @@ export default function BookingPage() {
           last_name: payload.last_name,
           phone: payload.phone || undefined,
         },
-        service_id: serviceId,
-        staff_id: staffId || undefined,
+        service_ids: serviceIds,
+        staff_ids: staffPreferences.map((staffId) => staffId || null),
         starts_at: startsAt,
       }),
       headers: { "content-type": "application/json" },
@@ -292,10 +332,12 @@ export default function BookingPage() {
     setError("");
     const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/waitlist`, {
       body: JSON.stringify({
-        customer: { email: data.get("email"), first_name: data.get("first_name"), full_name: fullName(data), last_name: data.get("last_name"), phone: data.get("phone") },
+        customer: customerAuthStatus === "authenticated" && customer
+          ? { email: customer.email, first_name: customer.first_name, full_name: customer.full_name, last_name: customer.last_name, phone: customer.phone }
+          : { email: data.get("email"), first_name: data.get("first_name"), full_name: fullName(data), last_name: data.get("last_name"), phone: data.get("phone") },
         requested_date: date,
-        service_id: serviceId,
-        staff_id: staffId || undefined,
+        service_id: serviceIds[0],
+        staff_id: staffPreferences[0] || undefined,
         time_preference: timePreference,
       }),
       headers: { "content-type": "application/json" },
@@ -367,7 +409,7 @@ export default function BookingPage() {
         </div>
 
         <div className="mt-4 flex gap-1.5">
-          {[1, 2, 3].map((segment) => (
+          {[1, 2, 3, 4].map((segment) => (
             <span className="h-1 flex-1 rounded-full bg-stone-200" key={segment}>
               <span className="block h-full rounded-full transition-[width] duration-300" style={{ background: primary, width: step >= segment ? "100%" : "0%" }} />
             </span>
@@ -389,8 +431,9 @@ export default function BookingPage() {
             variants={stepVariants}
           >
             <div>
-              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 1 di 3</p>
-              <h1 className="mt-0.5 text-2xl font-bold text-stone-950">Scegli un servizio</h1>
+              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 1 di 4</p>
+              <h1 className="mt-0.5 text-2xl font-bold text-stone-950">Scegli i servizi</h1>
+              <p className="mt-1 text-sm text-stone-500">Puoi selezionare più trattamenti: verranno prenotati uno dopo l’altro.</p>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -400,7 +443,6 @@ export default function BookingPage() {
                   key={item.id}
                   onClick={() => {
                     setCategory(item.name);
-                    setServiceId("");
                     setStartsAt("");
                   }}
                   style={category === item.name ? { background: primary, borderColor: primary } : undefined}
@@ -414,39 +456,27 @@ export default function BookingPage() {
 
             {category && (
               <div className="space-y-2">
-                {filteredServices.map((service) => (
-                  <button
-                    className={`flex min-h-16 w-full items-center justify-between rounded-2xl border p-4 text-left transition ${serviceId === service.id ? "" : "border-stone-200 bg-white hover:border-stone-300"}`}
-                    key={service.id}
-                    onClick={() => setServiceId(service.id)}
-                    style={serviceId === service.id ? { borderColor: primary, background: `${primary}0d` } : undefined}
-                    type="button"
-                  >
-                    <span><b className="block text-[15.5px]">{service.name}</b><small className="text-stone-500">{service.durationMinutes} min</small></span>
-                    <b className="whitespace-nowrap" style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
-                  </button>
-                ))}
-                {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
-              </div>
-            )}
-
-            {profile.pwa?.allowStaffPreference !== false && serviceId && (
-              <div>
-                <p className="mb-2 text-xs font-black uppercase tracking-[.14em] text-stone-400">Preferenza staff</p>
-                <div className="flex flex-wrap gap-2">
-                  <button className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === "" ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} onClick={() => setStaffId("")} style={staffId === "" ? { background: primary, borderColor: primary } : undefined} type="button">Nessuna preferenza</button>
-                  {qualifiedStaff.map((member) => (
-                    <button
-                      className={`min-h-11 rounded-full border px-4 text-sm font-bold ${staffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
-                      key={member.id}
-                      onClick={() => setStaffId(member.id)}
-                      style={staffId === member.id ? { background: primary, borderColor: primary } : undefined}
-                      type="button"
+                {filteredServices.map((service) => {
+                  const selected = serviceIds.includes(service.id);
+                  return (
+                    <div
+                      className={`overflow-hidden rounded-2xl border transition ${selected ? "" : "border-stone-200 bg-white hover:border-stone-300"}`}
+                      key={service.id}
+                      style={selected ? { borderColor: primary, background: `${primary}0d` } : undefined}
                     >
-                      {firstName(member.displayName)}
-                    </button>
-                  ))}
-                </div>
+                      <button className="flex min-h-16 w-full items-center justify-between gap-3 p-4 text-left" onClick={() => toggleService(service.id)} type="button">
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className={`grid size-6 shrink-0 place-items-center rounded-full border ${selected ? "text-white" : "border-stone-300 bg-white text-transparent"}`} style={selected ? { background: primary, borderColor: primary } : undefined}>
+                            <Check className="size-3.5" strokeWidth={3} />
+                          </span>
+                          <b className="block text-[15.5px]">{service.name}</b>
+                        </span>
+                        <b className="whitespace-nowrap" style={{ color: primary }}>{formatPrice(service.priceCents, "it-IT")}</b>
+                      </button>
+                    </div>
+                  );
+                })}
+                {filteredServices.length === 0 && <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">Nessun trattamento disponibile in questa categoria.</p>}
               </div>
             )}
 
@@ -456,7 +486,7 @@ export default function BookingPage() {
         {step === 2 && (
           <motion.section
             animate="center"
-            className="mt-5 space-y-4"
+            className="mt-5 space-y-5"
             custom={stepDirection}
             exit="exit"
             initial="enter"
@@ -464,24 +494,96 @@ export default function BookingPage() {
             transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
             variants={stepVariants}
           >
-            <button className="text-sm font-black text-stone-500" onClick={() => setStep(1)} type="button">← Cambia servizio</button>
+            <button className="text-sm font-black text-stone-500" onClick={() => setStep(1)} type="button">← Cambia servizi</button>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 2 di 4</p>
+              <h1 className="mt-0.5 text-2xl font-bold text-stone-950">Scegli lo staff</h1>
+              <p className="mt-1 text-sm leading-6 text-stone-500">Puoi lasciare a noi l’assegnazione oppure indicare chi preferisci.</p>
+            </div>
+
+            {profile.pwa?.allowStaffPreference === false ? (
+              <div className="flex items-center gap-3 rounded-2xl bg-stone-100 p-4 text-sm font-bold text-stone-700">
+                <Shuffle className="size-5 shrink-0" />Lo staff verrà assegnato automaticamente.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  aria-pressed={!primaryStaffId}
+                  className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border px-3 text-center text-sm font-black ${!primaryStaffId ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                  onClick={() => choosePrimaryStaff("")}
+                  style={!primaryStaffId ? { background: primary, borderColor: primary } : undefined}
+                  type="button"
+                >
+                  <Shuffle className="size-5" />Nessuna preferenza
+                </button>
+                {primaryStaffChoices.map((member) => (
+                  <button
+                    aria-pressed={primaryStaffId === member.id}
+                    className={`min-h-20 rounded-2xl border px-3 text-sm font-black ${primaryStaffId === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                    key={member.id}
+                    onClick={() => choosePrimaryStaff(member.id)}
+                    style={primaryStaffId === member.id ? { background: primary, borderColor: primary } : undefined}
+                    type="button"
+                  >
+                    {firstName(member.displayName)}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {incompatibleServices.map((service) => (
+              <div className="border-t border-stone-200 pt-5" key={service.id}>
+                <p className="font-black text-stone-900">Per {service.name}</p>
+                <p className="mt-1 text-sm leading-6 text-stone-500">{firstName(primaryStaff?.displayName ?? "")} non esegue questo servizio. Scegli un’altra preferenza.</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    aria-pressed={!staffByService[service.id]}
+                    className={`flex min-h-16 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black ${!staffByService[service.id] ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                    onClick={() => setStaffByService((current) => ({ ...current, [service.id]: "" }))}
+                    style={!staffByService[service.id] ? { background: primary, borderColor: primary } : undefined}
+                    type="button"
+                  >
+                    <Shuffle className="size-4" />Nessuna preferenza
+                  </button>
+                  {qualifiedStaffFor(service.id).map((member) => (
+                    <button
+                      aria-pressed={staffByService[service.id] === member.id}
+                      className={`min-h-16 rounded-2xl border px-3 text-sm font-black ${staffByService[service.id] === member.id ? "text-white" : "border-stone-200 bg-white text-stone-700"}`}
+                      key={member.id}
+                      onClick={() => setStaffByService((current) => ({ ...current, [service.id]: member.id }))}
+                      style={staffByService[service.id] === member.id ? { background: primary, borderColor: primary } : undefined}
+                      type="button"
+                    >
+                      {firstName(member.displayName)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </motion.section>
+        )}
+
+        {step === 3 && (
+          <motion.section
+            animate="center"
+            className="mt-5 space-y-4"
+            custom={stepDirection}
+            exit="exit"
+            initial="enter"
+            key="step-3"
+            transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
+            variants={stepVariants}
+          >
+            <button className="text-sm font-black text-stone-500" onClick={() => setStep(2)} type="button">← Cambia staff</button>
 
             <div>
-              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 2 di 3</p>
+              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 3 di 4</p>
               <h1 className="mt-0.5 text-2xl font-bold text-stone-950">Scegli data e ora</h1>
               <p className="mt-1 text-sm font-bold capitalize" style={{ color: primary }}>{formatDateSummary(date)}</p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <select
-                aria-label="Preferenza operatore"
-                className="min-h-11 flex-1 rounded-full border border-stone-200 bg-white px-4 text-sm font-bold text-stone-800"
-                onChange={(event) => setStaffId(event.target.value)}
-                value={staffId}
-              >
-                <option value="">Nessuna preferenza</option>
-                {qualifiedStaff.map((member) => <option key={member.id} value={member.id}>{firstName(member.displayName)}</option>)}
-              </select>
+            <div className="flex items-center justify-between gap-3 rounded-2xl bg-stone-100 px-4 py-3">
+              <p className="text-sm font-bold text-stone-700">{selectedServices.length === 1 ? selectedServices[0]?.name : `${selectedServices.length} servizi`}</p>
               <DateField
                 compact
                 id="booking-date"
@@ -537,7 +639,25 @@ export default function BookingPage() {
                         {([ ["any", "Qualsiasi orario"], ["morning", "Mattina"], ["afternoon", "Pomeriggio"], ["evening", "Sera"] ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setTimePreference(value)} className={`min-h-12 rounded-2xl border text-sm font-bold ${timePreference === value ? "text-white" : "border-stone-200 bg-white text-stone-700"}`} style={timePreference === value ? { background: primary, borderColor: primary } : undefined}>{label}</button>)}
                       </div>
                     </fieldset>
-                    {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => <label key={name} className="block text-sm font-black text-stone-800">{label}<input className="mt-2 w-full" name={name} type={type} required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)} /></label>)}
+                    {[["first_name", "Nome", "text"], ["last_name", "Cognome", "text"], ["email", "Email", "email"], ["phone", "Telefono", "tel"]].map(([name, label, type]) => {
+                      const accountValue = customerAuthStatus === "authenticated" && customer
+                        ? name === "first_name" ? customer.first_name : name === "last_name" ? customer.last_name : name === "email" ? customer.email ?? "" : customer.phone ?? ""
+                        : undefined;
+                      return (
+                        <label key={name} className="block text-sm font-black text-stone-800">
+                          {label}
+                          <input
+                            aria-readonly={accountValue !== undefined}
+                            className={`mt-2 w-full ${accountValue !== undefined ? "cursor-not-allowed bg-stone-100 text-stone-500" : ""}`}
+                            defaultValue={accountValue}
+                            name={name}
+                            readOnly={accountValue !== undefined}
+                            required={name === "first_name" || name === "last_name" || (name === "email" && profile.pwa?.requireEmail !== false) || (name === "phone" && profile.pwa?.requirePhone === true)}
+                            type={type}
+                          />
+                        </label>
+                      );
+                    })}
                     <motion.button className="min-h-12 w-full rounded-full font-black text-white disabled:opacity-50" disabled={submittingWaitlist} style={{ background: primary }} whileTap={{ scale: 0.97 }}>{submittingWaitlist ? "Invio richiesta..." : "Invia richiesta"}</motion.button>
                   </form>
               ) : (
@@ -545,8 +665,12 @@ export default function BookingPage() {
                   <img alt="" aria-hidden="true" className="h-36 w-36 object-contain" src="/booking-oops-doodle.png" />
                   <p className="mt-2 text-3xl font-black text-stone-950">Oops!</p>
                   <p className="mt-2 text-lg font-black text-stone-900">Questa giornata è al completo</p>
-                  <p className="mt-2 max-w-xs text-sm leading-6 text-stone-600">Lascia una richiesta: il salone ti contatterà se si libera un posto.</p>
-                  {profile.capabilities?.waitlist && (
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-stone-600">
+                    {selectedServices.length === 1
+                      ? "Lascia una richiesta: il salone ti contatterà se si libera un posto."
+                      : "Non c’è una sequenza disponibile per tutti i servizi. Prova un altro giorno o modifica la selezione."}
+                  </p>
+                  {profile.capabilities?.waitlist && selectedServices.length === 1 && (
                     <button
                       className="mt-6 min-h-12 w-full max-w-xs rounded-full px-6 font-black text-white"
                       onClick={() => setWaitlistMode(true)}
@@ -564,20 +688,20 @@ export default function BookingPage() {
           </motion.section>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <motion.div
             animate="center"
             className="mt-5 space-y-4"
             custom={stepDirection}
             exit="exit"
             initial="enter"
-            key="step-3"
+            key="step-4"
             transition={{ duration: reduceMotion ? 0.12 : 0.26, ease: [0.22, 0.9, 0.28, 1] }}
             variants={stepVariants}
           >
-            <button type="button" className="text-sm font-black text-stone-500" onClick={() => setStep(2)}>← Cambia orario</button>
+            <button type="button" className="text-sm font-black text-stone-500" onClick={() => setStep(3)}>← Cambia orario</button>
             <div>
-              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 3 di 3</p>
+              <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Passo 4 di 4</p>
               <h1 className="mt-0.5 text-2xl font-bold text-stone-950">Conferma la prenotazione</h1>
             </div>
             {customerAuthStatus === "authenticated" && customer ? (
@@ -609,16 +733,32 @@ export default function BookingPage() {
         )}
         </AnimatePresence>
       </div>
-      {(step === 1 || (step === 2 && !waitlistMode && (loadingSlots || dayClosed || slots.some((slot) => slot.available)))) && (
+      {(step === 1 || step === 2 || (step === 3 && !waitlistMode && (loadingSlots || dayClosed || slots.some((slot) => slot.available)))) && (
         <footer
           className="fixed inset-x-0 bottom-[76px] z-40 border-t border-stone-200/80 bg-[#faf8f4]/95 px-4 pt-3 backdrop-blur"
           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
           <div className="mx-auto max-w-md">
+            {step === 1 && selectedServices.length > 0 && (
+              <div aria-label="Servizi selezionati" className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                {selectedServices.map((service) => (
+                  <button
+                    aria-label={`Rimuovi ${service.name}`}
+                    className="flex min-h-10 shrink-0 items-center gap-2 rounded-full border border-stone-200 bg-white px-3 text-sm font-black text-stone-800"
+                    key={service.id}
+                    onClick={() => toggleService(service.id)}
+                    type="button"
+                  >
+                    {service.name}
+                    <X aria-hidden="true" className="size-3.5 text-stone-500" strokeWidth={2.5} />
+                  </button>
+                ))}
+              </div>
+            )}
             <motion.button
               className="min-h-12 w-full rounded-full font-black text-white shadow-sm disabled:opacity-40"
-              disabled={step === 1 ? !serviceId : !startsAt}
-              onClick={() => setStep(step === 1 ? 2 : 3)}
+              disabled={step === 1 ? serviceIds.length === 0 : step === 3 ? !startsAt : false}
+              onClick={() => setStep(step + 1)}
               style={{ background: primary }}
               type="button"
               whileTap={{ scale: 0.97 }}

@@ -171,7 +171,13 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
                     </div>
                   </label>
                   {mode === "register" && (
-                    <label className="block text-sm font-black text-stone-800">Email{requireEmail ? "" : " (opzionale)"}<input className="mt-2 w-full" name="email" required={requireEmail} type="email" /></label>
+                    <label className="block text-sm font-black text-stone-800">
+                      Email{requireEmail ? "" : " (opzionale)"}
+                      <div className="relative mt-2">
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400" />
+                        <input className="w-full pl-9" name="email" required={requireEmail} type="email" />
+                      </div>
+                    </label>
                   )}
                   <label className="block text-sm font-black text-stone-800">
                     Password
