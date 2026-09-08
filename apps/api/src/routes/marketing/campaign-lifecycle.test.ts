@@ -12,6 +12,8 @@ import {
   communicationConsents,
   customers,
   marketingCampaigns,
+  platformEmailSettings,
+  salonSettings,
   salonModules,
   salons,
   users,
@@ -165,9 +167,16 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
     return { campaignQueue, jobs, messages, providers };
   }
 
+  function notConfiguredEmailDependencies() {
+    const dependencies = testDependencies();
+    dependencies.providers.status = () => ({ email: "not_configured" });
+    return dependencies;
+  }
+
   it("exposes readiness and test-send only to the authenticated tenant with permission", async () => {
     const data = await fixture();
     const dependencies = testDependencies();
+    await db.delete(platformEmailSettings);
     const app = createApp({
       campaignProviders: dependencies.providers,
       campaignQueue: dependencies.campaignQueue,
@@ -231,6 +240,77 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       expect(withoutConsent.json()).toEqual({ error: "WHATSAPP_MARKETING_CONSENT_REQUIRED" });
     } finally {
       await app.close();
+      await data.cleanup();
+    }
+  });
+
+  it("reports marketing email as ready from Platform email settings", async () => {
+    const data = await fixture();
+    const dependencies = notConfiguredEmailDependencies();
+    await db.delete(platformEmailSettings);
+    await db.insert(platformEmailSettings).values({
+      defaultFromEmail: "noreply@example.test",
+      defaultFromName: "EsseBeauty",
+      enabled: true,
+      host: "smtp.example.test",
+      port: 587,
+      secure: false,
+    });
+    const app = createApp({
+      campaignProviders: dependencies.providers,
+      campaignQueue: dependencies.campaignQueue,
+      db,
+      env: { API_CORS_ORIGIN: "http://localhost:3000" },
+    });
+    try {
+      const ready = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "GET",
+        url: `/api/salons/${data.salonId}/campaigns/readiness`,
+      });
+      expect(ready.statusCode, ready.body).toBe(200);
+      expect(ready.json()).toMatchObject({ email: "ready" });
+    } finally {
+      await app.close();
+      await db.delete(platformEmailSettings);
+      await data.cleanup();
+    }
+  });
+
+  it("reports marketing email as not configured when the salon email settings are disabled", async () => {
+    const data = await fixture();
+    const dependencies = testDependencies();
+    await db.delete(platformEmailSettings);
+    await db.insert(platformEmailSettings).values({
+      defaultFromEmail: "noreply@example.test",
+      defaultFromName: "EsseBeauty",
+      enabled: true,
+      host: "smtp.example.test",
+      port: 587,
+      secure: false,
+    });
+    await db.insert(salonSettings).values({
+      category: "email",
+      salonId: data.salonId,
+      settings: { enabled: false },
+    });
+    const app = createApp({
+      campaignProviders: dependencies.providers,
+      campaignQueue: dependencies.campaignQueue,
+      db,
+      env: { API_CORS_ORIGIN: "http://localhost:3000" },
+    });
+    try {
+      const ready = await app.inject({
+        headers: { cookie: `esse-session=${data.ownerToken}` },
+        method: "GET",
+        url: `/api/salons/${data.salonId}/campaigns/readiness`,
+      });
+      expect(ready.statusCode, ready.body).toBe(200);
+      expect(ready.json()).toMatchObject({ email: "not_configured" });
+    } finally {
+      await app.close();
+      await db.delete(platformEmailSettings);
       await data.cleanup();
     }
   });
@@ -512,6 +592,7 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
       ]);
     } finally {
       await app.close();
+      await db.delete(platformEmailSettings);
       await data.cleanup();
     }
   });

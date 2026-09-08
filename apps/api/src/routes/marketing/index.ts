@@ -19,6 +19,8 @@ import {
   customers,
   loyaltyPoints,
   marketingCampaigns,
+  platformEmailSettings,
+  salonSettings,
   salons,
 } from "@esse-beauty/db/schema";
 import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
@@ -30,6 +32,7 @@ import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
 import { pushPublicKey } from "../../lib/customer-push.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { getQueue, QUEUE_NAMES } from "../../jobs/queues.js";
+import { sendEmailFromDb } from "../../jobs/notifications.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import {
   createCommunicationProviderRegistry,
@@ -389,6 +392,48 @@ async function subscribedAppCustomerIds(
     ))).map((row) => row.customerId));
 }
 
+function emailCategoryEnabled(settings: Record<string, unknown> | null | undefined): boolean {
+  return settings?.enabled !== false;
+}
+
+async function marketingEmailReadiness(
+  db: DrizzleDB,
+  salonId: string,
+  fallback: "ready" | "not_configured",
+): Promise<"ready" | "not_configured"> {
+  if (!await salonMarketingEmailEnabled(db, salonId)) return "not_configured";
+  if (await platformMarketingEmailReady(db)) return "ready";
+  return fallback;
+}
+
+async function salonMarketingEmailEnabled(
+  db: DrizzleDB,
+  salonId: string,
+): Promise<boolean> {
+  const salonEmail = (await db
+    .select({ settings: salonSettings.settings })
+    .from(salonSettings)
+    .where(and(eq(salonSettings.salonId, salonId), eq(salonSettings.category, "email"))))[0];
+  return emailCategoryEnabled(salonEmail?.settings);
+}
+
+async function platformMarketingEmailReady(db: DrizzleDB): Promise<boolean> {
+  const settings = await latestPlatformEmailSettings(db);
+  return Boolean(settings?.enabled && settings.host.trim() && settings.defaultFromEmail.trim());
+}
+
+async function latestPlatformEmailSettings(db: DrizzleDB) {
+  return (await db
+    .select({
+      defaultFromEmail: platformEmailSettings.defaultFromEmail,
+      enabled: platformEmailSettings.enabled,
+      host: platformEmailSettings.host,
+    })
+    .from(platformEmailSettings)
+    .orderBy(desc(platformEmailSettings.updatedAt))
+    .limit(1))[0];
+}
+
 async function findCustomerByMarketingTestPhone(
   db: DrizzleDB,
   salonId: string,
@@ -491,9 +536,10 @@ export async function registerMarketingRoutes(
       const account = (await app.db.select({ enabled: communicationProviderAccounts.enabled, status: communicationProviderAccounts.status })
         .from(communicationProviderAccounts)
         .where(and(eq(communicationProviderAccounts.salonId, request.salonId), eq(communicationProviderAccounts.provider, "meta_cloud_api"))))[0];
+      const email = await marketingEmailReadiness(app.db, request.salonId, providers.status().email);
       return {
         app: pushPublicKey() ? "ready" : "not_configured",
-        email: providers.status().email,
+        email,
         whatsapp: account?.enabled && account.status === "ready" ? "ready" : "not_configured",
       };
     },
@@ -541,17 +587,27 @@ export async function registerMarketingRoutes(
           });
           return { accepted_at: new Date().toISOString(), provider: null, provider_message_id: null };
         }
-        const receipt = body.channel === "email" ? await providers.send(
-          body.channel === "email"
-            ? {
-                channel: "email",
-                html: body.content!,
-                idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
-                subject: body.subject?.trim() || "Test comunicazione",
-                to: body.destination,
-              }
-            : undefined as never,
-        ) : await enqueueCommunication(app.db, {
+        const receipt = body.channel === "email" ? await (async () => {
+          if (!await salonMarketingEmailEnabled(app.db, request.salonId)) {
+            throw new ProviderNotConfiguredError("email");
+          }
+          if (await platformMarketingEmailReady(app.db)) {
+            return sendEmailFromDb(
+              app.db,
+              body.destination,
+              body.subject?.trim() || "Test comunicazione",
+              body.content!,
+              { idempotencyKey: `test-send-${request.salonId}-${randomUUID()}` },
+            );
+          }
+          return providers.send({
+            channel: "email",
+            html: body.content!,
+            idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
+            subject: body.subject?.trim() || "Test comunicazione",
+            to: body.destination,
+          });
+        })() : await enqueueCommunication(app.db, {
           idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
           kind: "template",
           salonId: request.salonId,
@@ -875,8 +931,11 @@ export async function registerMarketingRoutes(
       eq(communicationProviderAccounts.enabled, true),
       eq(communicationProviderAccounts.status, "ready"),
     ))).length > 0;
+    const emailReady = campaign.channel === "email"
+      ? await marketingEmailReadiness(app.db, request.salonId, providers.status().email)
+      : "ready";
     if (
-      (campaign.channel === "email" && providers.status().email !== "ready") ||
+      (campaign.channel === "email" && emailReady !== "ready") ||
       (campaign.channel === "whatsapp" && !whatsappReady) ||
       (campaign.channel === "app" && !pushPublicKey())
     ) {
@@ -1036,7 +1095,7 @@ export async function registerMarketingRoutes(
         const campaign = campaigns[0];
         if (!campaign) return undefined;
         if (!isCampaignChannel(campaign.channel)) return undefined;
-        if (campaign.channel === "email" && providers.status().email !== "ready") return null;
+        if (campaign.channel === "email" && (await marketingEmailReadiness(app.db, request.salonId, providers.status().email)) !== "ready") return null;
         if (campaign.channel === "app" && !pushPublicKey()) return null;
         if (campaign.channel === "whatsapp") {
           const ready = (await tx.select({ id: communicationProviderAccounts.id }).from(communicationProviderAccounts).where(and(
