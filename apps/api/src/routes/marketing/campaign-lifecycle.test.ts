@@ -911,6 +911,127 @@ postgresSuite("campaign lifecycle routes with PostgreSQL", () => {
     }
   });
 
+  it("substitutes {{...}} wildcards with real customer/salon data and renders the branded email template", async () => {
+    const data = await fixture();
+    const maliciousCustomer = (
+      await db
+        .insert(customers)
+        .values({
+          email: "html@example.test",
+          firstName: "<b>Anna</b>",
+          fullName: "<b>Anna</b> Bianchi",
+          salonId: data.salonId,
+        })
+        .returning()
+    )[0]!;
+    const campaign = (
+      await db
+        .insert(marketingCampaigns)
+        .values({
+          channel: "email",
+          content: "<p>Ciao {{nome_cliente}}, grazie per essere cliente di {{nome_salone}}!</p>",
+          name: "Offerta per {{nome_cliente}}",
+          salonId: data.salonId,
+          status: "queued",
+          targetSegment: { type: "all" },
+        })
+        .returning()
+    )[0]!;
+    const recipientOne = (
+      await db
+        .insert(campaignRecipients)
+        .values({
+          campaignId: campaign.id,
+          customerId: data.customers[0]!.id,
+          destination: "uno@example.test",
+          salonId: data.salonId,
+          status: "queued",
+        })
+        .returning()
+    )[0]!;
+    const recipientTwo = (
+      await db
+        .insert(campaignRecipients)
+        .values({
+          campaignId: campaign.id,
+          customerId: maliciousCustomer.id,
+          destination: "html@example.test",
+          salonId: data.salonId,
+          status: "queued",
+        })
+        .returning()
+    )[0]!;
+    const sent: Array<{ html: string; subject: string; to: string }> = [];
+    const emailSender = async (to: string, subject: string, html: string) => {
+      sent.push({ html, subject, to });
+      return { acceptedAt: new Date(), provider: "smtp" as const, providerMessageId: "1" };
+    };
+    try {
+      await processCampaignBatch(
+        db,
+        { data: { campaignId: campaign.id, recipientIds: [recipientOne.id, recipientTwo.id] } },
+        undefined,
+        undefined,
+        emailSender,
+      );
+
+      const forCustomerOne = sent.find((entry) => entry.to === "uno@example.test");
+      expect(forCustomerOne?.subject).toBe("Offerta per Cliente Uno");
+      expect(forCustomerOne?.html).toContain("Ciao Cliente Uno, grazie per essere cliente di Marketing Test!");
+      expect(forCustomerOne?.html).toContain("#6d244c");
+      expect(forCustomerOne?.html).not.toContain("{{");
+
+      const forMaliciousCustomer = sent.find((entry) => entry.to === "html@example.test");
+      expect(forMaliciousCustomer?.html).toContain("Ciao &lt;b&gt;Anna&lt;/b&gt;, grazie");
+      expect(forMaliciousCustomer?.html).not.toContain("<b>Anna</b>");
+    } finally {
+      await data.cleanup();
+    }
+  });
+
+  it("substitutes {{...}} wildcards in app push campaign content", async () => {
+    const data = await fixture();
+    const campaign = (
+      await db
+        .insert(marketingCampaigns)
+        .values({
+          channel: "app",
+          content: "Ciao {{nome_cliente}}, da parte di {{nome_salone}}!",
+          name: "Ciao {{nome_cliente}}",
+          salonId: data.salonId,
+          status: "queued",
+          targetSegment: { type: "all" },
+        })
+        .returning()
+    )[0]!;
+    const recipient = (
+      await db
+        .insert(campaignRecipients)
+        .values({
+          campaignId: campaign.id,
+          customerId: data.customers[0]!.id,
+          destination: data.customers[0]!.id,
+          salonId: data.salonId,
+          status: "queued",
+        })
+        .returning()
+    )[0]!;
+    try {
+      await processCampaignBatch(db, { data: { campaignId: campaign.id, recipientIds: [recipient.id] } });
+      const [message] = await db
+        .select()
+        .from(customerAppMessages)
+        .where(and(
+          eq(customerAppMessages.customerId, data.customers[0]!.id),
+          eq(customerAppMessages.kind, "campaign"),
+        ));
+      expect(message?.title).toBe("Ciao Cliente Uno");
+      expect(message?.body).toBe("Ciao Cliente Uno, da parte di Marketing Test!");
+    } finally {
+      await data.cleanup();
+    }
+  });
+
   it("records queue publication failure durably so an operator can retry it", async () => {
     const data = await fixture();
     const dependencies = testDependencies();

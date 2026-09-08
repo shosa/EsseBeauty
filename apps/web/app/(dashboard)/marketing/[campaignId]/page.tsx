@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { EmailPreview, PushPreview, PushTextEditor, RichTextEditor } from "../_components/MarketingEditors";
 
 import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 interface Campaign {
-  channel: "email" | "whatsapp";
+  channel: "app" | "email" | "whatsapp";
   content: string;
   id: string;
   name: string;
@@ -35,7 +36,9 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [confirmSend, setConfirmSend] = useState(false);
-  const [readiness, setReadiness] = useState<Record<"email" | "whatsapp", "ready" | "not_configured">>();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [draftContent, setDraftContent] = useState("");
+  const [readiness, setReadiness] = useState<Record<"app" | "email" | "whatsapp", "ready" | "not_configured">>();
 
   async function load(showLoading = true) {
     if (!salon) return;
@@ -51,9 +54,11 @@ export default function CampaignDetailPage() {
       return;
     }
     const campaigns = await campaignsResponse.json() as Campaign[];
-    setCampaign(campaigns.find((item) => item.id === campaignId));
+    const current = campaigns.find((item) => item.id === campaignId);
+    setCampaign(current);
+    setDraftContent(current?.content ?? "");
     setStats(statsResponse.ok ? await statsResponse.json() as Stats : undefined);
-    if (readinessResponse.ok) setReadiness(await readinessResponse.json() as Record<"email" | "whatsapp", "ready" | "not_configured">);
+    if (readinessResponse.ok) setReadiness(await readinessResponse.json() as Record<"app" | "email" | "whatsapp", "ready" | "not_configured">);
     setLoading(false);
   }
 
@@ -73,7 +78,7 @@ export default function CampaignDetailPage() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name: data.get("name"),
-        content: data.get("content"),
+        content: campaign.channel === "whatsapp" ? data.get("content") : draftContent,
         scheduled_at: data.get("scheduled") || null,
       }),
     });
@@ -82,6 +87,13 @@ export default function CampaignDetailPage() {
       return;
     }
     await load();
+  }
+
+  async function removeDraft() {
+    if (!salon || !campaign) return;
+    const response = await fetch(`${api}/api/salons/${salon.id}/campaigns/${campaign.id}`, { method: "DELETE", credentials: "include" });
+    if (!response.ok) { setError("Puoi eliminare soltanto una campagna ancora in bozza."); setConfirmDelete(false); return; }
+    router.push("/marketing");
   }
 
   async function send() {
@@ -131,12 +143,13 @@ export default function CampaignDetailPage() {
               </div>
               {readiness?.[campaign.channel] !== "ready" && <InlineError>Provider non configurato per il canale {campaign.channel.toUpperCase()}.</InlineError>}
               <label className="text-sm font-semibold">Nome<input name="name" defaultValue={campaign.name} disabled={campaign.status !== "draft"} required className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3 disabled:bg-stone-100" /></label>
-              <label className="text-sm font-semibold">Contenuto<textarea name="content" defaultValue={campaign.content} disabled={campaign.status !== "draft"} rows={8} required className="mt-1 w-full rounded-xl border border-stone-200 p-3 disabled:bg-stone-100" /></label>
+              {campaign.channel === "email" ? <div><p className="mb-2 text-sm font-semibold">Contenuto RTF</p><RichTextEditor disabled={campaign.status !== "draft"} onChange={setDraftContent} value={draftContent} /><div className="mt-5"><EmailPreview html={draftContent} salonName={salon?.name} subject={campaign.name} /></div></div> : campaign.channel === "app" ? <><label className="text-sm font-semibold">Testo push<div className="mt-1"><PushTextEditor disabled={campaign.status !== "draft"} onChange={setDraftContent} value={draftContent} /></div></label><PushPreview body={draftContent} title={campaign.name} /></> : <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><strong className="text-sm text-emerald-900">Modello Meta bloccato</strong><p className="mt-2 whitespace-pre-wrap text-sm text-emerald-950">{campaign.content}</p></div>}
               <label className="text-sm font-semibold">Programma invio<input name="scheduled" type="datetime-local" disabled={campaign.status !== "draft"} defaultValue={campaign.scheduledAt?.slice(0, 16) ?? ""} className="mt-1 min-h-12 w-full rounded-xl border border-stone-200 px-3 disabled:bg-stone-100" /></label>
               <div className="rounded-xl border border-stone-200 bg-stone-50 p-4"><h2 className="font-bold">Anteprima destinatari</h2><p className="mt-1 text-sm text-stone-600">{campaign.recipientPreview?.filter((item) => item.destination).length ?? 0} recapiti mostrati · {campaign.recipientPreview?.filter((item) => !item.destination).length ?? 0} esclusi</p></div>
               <div className="flex flex-wrap justify-end gap-3">
                 <Button type="button" variant="ghost" onClick={() => router.push("/marketing")}>Torna</Button>
                 {campaign.status === "draft" && <Button type="submit" variant="secondary">Salva bozza</Button>}
+                {campaign.status === "draft" && <Button type="button" variant="ghost" onClick={() => setConfirmDelete(true)}>Elimina bozza</Button>}
                 {campaign.status === "draft" && <Button type="button" disabled={readiness?.[campaign.channel] !== "ready" || !campaign.recipientPreview?.some((item) => item.destination)} onClick={() => setConfirmSend(true)}>Conferma invio</Button>}
                 {["queued", "scheduled"].includes(campaign.status) && <Button type="button" variant="secondary" onClick={() => void operate("cancel")}>Annulla pianificazione</Button>}
                 {["failed", "partial"].includes(campaign.status) && stats && stats.failed_count > 0 && <Button type="button" onClick={() => void operate("retry-failures")}>Riprova falliti</Button>}
@@ -165,6 +178,7 @@ export default function CampaignDetailPage() {
         title="Confermare invio campagna?"
         description="L'invio partirà solo dopo questa conferma esplicita."
       />
+      <ConfirmDialog confirmLabel="Elimina bozza" onCancel={() => setConfirmDelete(false)} onConfirm={() => void removeDraft()} open={confirmDelete} title="Eliminare questa bozza?" description="La campagna verrà rimossa definitivamente e non potrà essere recuperata." />
     </AppPage>
   );
 }

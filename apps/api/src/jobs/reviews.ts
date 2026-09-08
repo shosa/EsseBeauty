@@ -14,6 +14,8 @@ import {
   services,
 } from "@esse-beauty/db/schema";
 
+import { BRAND_MARK_SVG } from "@esse-beauty/shared";
+
 import { sendCustomerAppMessage } from "../lib/customer-messages.js";
 import { issueStablePublicToken } from "../lib/public-tokens.js";
 import { sendEmail, sendEmailFromDb } from "./notifications.js";
@@ -97,7 +99,7 @@ export function reviewInvitationEmailHtml(input: {
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                   <tr>
                     <td style="font-family:Manrope,Georgia,serif;font-size:22px;font-weight:650;letter-spacing:-.03em;color:#24161d;">
-                      <span style="display:inline-block;margin-right:10px;border-radius:11px;background:#6d244c;padding:7px 10px;color:#ffffff;font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:900;line-height:1;">E</span>EsseBeauty
+                      <span style="display:inline-block;margin-right:10px;border-radius:11px;background:#6d244c;padding:8px 9px;line-height:0;">${BRAND_MARK_SVG}</span>EsseBeauty
                     </td>
                   </tr>
                 </table>

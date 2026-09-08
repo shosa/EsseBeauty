@@ -165,9 +165,9 @@ export default function SalonLanding() {
         {WEEKDAY_KEYS.map((key) => {
           const ranges = openingHours?.[key] ?? [];
           return (
-            <div className={`flex items-center justify-between gap-4 text-sm ${key === todayKey ? "font-black text-stone-950" : "text-stone-600"}`} key={key}>
-              <span>{WEEKDAY_LABELS[key]}</span>
-              <span className={ranges.length ? "" : "text-stone-400"}>{ranges.length ? ranges.map((range) => `${range.from}–${range.to}`).join(", ") : "Chiuso"}</span>
+            <div className={`flex items-center justify-between gap-3 text-sm ${key === todayKey ? "font-black text-stone-950" : "text-stone-600"}`} key={key}>
+              <span className="shrink-0 whitespace-nowrap">{WEEKDAY_LABELS[key]}</span>
+              <span className={`shrink-0 whitespace-nowrap ${ranges.length ? "" : "text-stone-400"}`}>{ranges.length ? ranges.map((range) => `${range.from}–${range.to}`).join(", ") : "Chiuso"}</span>
             </div>
           );
         })}
@@ -264,7 +264,7 @@ export default function SalonLanding() {
                 <Clock className="size-[18px]" />
               </button>
               {hoursOpen && (
-                <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-64 origin-top-right rounded-2xl border border-stone-200 bg-white p-4 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">
+                <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-[19rem] max-w-[calc(100vw-2.5rem)] origin-top-right rounded-2xl border border-stone-200 bg-white p-4 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="text-xs font-black uppercase tracking-[.14em] text-stone-400">Orari</p>
                     {hoursStatusBadge()}

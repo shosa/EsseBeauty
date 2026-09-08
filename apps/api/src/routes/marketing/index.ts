@@ -24,7 +24,7 @@ import {
   salons,
 } from "@esse-beauty/db/schema";
 import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
-import { PERMISSION_KEYS } from "@esse-beauty/shared";
+import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues, PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { aggregateCampaignStatus } from "../../jobs/marketing.js";
 import type { CampaignBatchJob, CampaignQueue } from "../../jobs/marketing.js";
@@ -441,7 +441,7 @@ async function findCustomerByMarketingTestPhone(
 ) {
   const phoneNormalized = normalizePhoneE164(destination);
   if (!phoneNormalized) return undefined;
-  return (await db.select({ id: customers.id }).from(customers).where(and(
+  return (await db.select({ firstName: customers.firstName, fullName: customers.fullName, id: customers.id }).from(customers).where(and(
     eq(customers.salonId, salonId),
     eq(customers.phoneNormalized, phoneNormalized),
   )))[0];
@@ -577,13 +577,18 @@ export async function registerMarketingRoutes(
               eq(customerPushSubscriptions.customerId, customer.id),
             )))[0];
           if (!subscribed) return reply.code(409).send({ error: "APP_PUSH_SUBSCRIPTION_NOT_FOUND" });
-          const salon = (await app.db.select({ slug: salons.slug }).from(salons).where(eq(salons.id, request.salonId)))[0];
+          const salon = (await app.db.select({ name: salons.name, slug: salons.slug }).from(salons).where(eq(salons.id, request.salonId)))[0];
           if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+          const wildcardValues = marketingWildcardValues({
+            customerFirstName: customer.firstName,
+            customerFullName: customer.fullName,
+            salonName: salon.name,
+          });
           await sendCustomerAppMessage(app.db, request.salonId, customer.id, {
-            body: body.content!,
+            body: applyMarketingWildcards(body.content!, wildcardValues),
             kind: "marketing_test",
             slug: salon.slug,
-            title: body.subject?.trim() || "Test comunicazione",
+            title: applyMarketingWildcards(body.subject?.trim() || "Test comunicazione", wildcardValues),
           });
           return { accepted_at: new Date().toISOString(), provider: null, provider_message_id: null };
         }
@@ -591,20 +596,29 @@ export async function registerMarketingRoutes(
           if (!await salonMarketingEmailEnabled(app.db, request.salonId)) {
             throw new ProviderNotConfiguredError("email");
           }
+          const salon = (await app.db.select({ name: salons.name }).from(salons).where(eq(salons.id, request.salonId)))[0];
+          const wildcardValues = marketingWildcardValues({ salonName: salon?.name });
+          const subject = applyMarketingWildcards(body.subject?.trim() || "Test comunicazione", wildcardValues);
+          const html = brandedEmailHtml({
+            bodyHtml: applyMarketingWildcards(body.content!, wildcardValues, { escapeValues: true }),
+            eyebrow: salon?.name ?? "EsseBeauty",
+            footerNote: `Comunicazione inviata tramite EsseBeauty per conto di ${salon?.name ?? "il salone"}.`,
+            title: subject,
+          });
           if (await platformMarketingEmailReady(app.db)) {
             return sendEmailFromDb(
               app.db,
               body.destination,
-              body.subject?.trim() || "Test comunicazione",
-              body.content!,
+              subject,
+              html,
               { idempotencyKey: `test-send-${request.salonId}-${randomUUID()}` },
             );
           }
           return providers.send({
             channel: "email",
-            html: body.content!,
+            html,
             idempotencyKey: `test-send-${request.salonId}-${randomUUID()}`,
-            subject: body.subject?.trim() || "Test comunicazione",
+            subject,
             to: body.destination,
           });
         })() : await enqueueCommunication(app.db, {
@@ -895,6 +909,22 @@ export async function registerMarketingRoutes(
       .returning();
     return rows[0] ?? reply.code(409).send({ error: "CAMPAIGN_NOT_EDITABLE" });
   });
+
+  app.delete<{ Params: { id: string; campaignId: string } }>(
+    "/api/salons/:id/campaigns/:campaignId",
+    { preHandler: guard },
+    async (request, reply) => {
+      const deleted = await app.db
+        .delete(marketingCampaigns)
+        .where(and(
+          eq(marketingCampaigns.id, request.params.campaignId),
+          eq(marketingCampaigns.salonId, request.salonId),
+          eq(marketingCampaigns.status, "draft"),
+        ))
+        .returning({ id: marketingCampaigns.id });
+      return deleted[0] ?? reply.code(409).send({ error: "CAMPAIGN_NOT_DELETABLE" });
+    },
+  );
 
   async function scheduleCampaign(
     request: { params: { campaignId: string }; salonId: string },

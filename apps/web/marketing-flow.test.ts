@@ -21,7 +21,7 @@ describe("campaign operations", () => {
     expect(source).toContain("xl:grid-cols-12");
     expect(source).toContain("xl:col-span-7");
     expect(source).toContain("xl:col-span-5");
-    expect(source).toContain("xl:col-span-8");
+    expect(source).toContain("xl:col-span-3");
     expect(source).toContain("xl:col-span-4");
     expect(source).toContain("xl:col-span-12");
   });

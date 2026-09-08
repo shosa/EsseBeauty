@@ -2,13 +2,13 @@ import { Worker, type Job, type JobsOptions } from "bullmq";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
-import { campaignRecipients, campaignTemplates, communicationConsents, marketingCampaigns, salons } from "@esse-beauty/db/schema";
+import { campaignRecipients, campaignTemplates, communicationConsents, customers, marketingCampaigns, salons } from "@esse-beauty/db/schema";
 
 import { refreshCampaignStatus } from "./campaign-status.js";
 
 export { aggregateCampaignStatus, type AggregatedCampaignStatus } from "./campaign-status.js";
 
-import { brandedEmailHtml } from "../lib/email-branding.js";
+import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues } from "../lib/email-branding.js";
 import { sendCustomerAppMessage } from "../lib/customer-messages.js";
 import {
   createCommunicationProviderRegistry,
@@ -89,8 +89,25 @@ export async function processCampaignBatch(
   const salon = (await db.select({ name: salons.name, slug: salons.slug }).from(salons).where(eq(salons.id, campaign.salonId)))[0];
   const salonSlug = salon?.slug;
 
+  // Email and app content can carry {{...}} wildcards; batch-load the recipients'
+  // customer rows once instead of a query per recipient.
+  const customerById = new Map<string, { firstName: string; fullName: string }>();
+  if (campaign.channel === "email" || campaign.channel === "app") {
+    const customerIds = [...new Set(claimed.map((recipient) => recipient.customerId).filter((id): id is string => Boolean(id)))];
+    if (customerIds.length > 0) {
+      const rows = await db.select({ firstName: customers.firstName, fullName: customers.fullName, id: customers.id }).from(customers).where(inArray(customers.id, customerIds));
+      for (const row of rows) customerById.set(row.id, row);
+    }
+  }
+
   for (const recipient of claimed) {
     try {
+      const wildcardValues = marketingWildcardValues({
+        customerFirstName: recipient.customerId ? customerById.get(recipient.customerId)?.firstName : undefined,
+        customerFullName: recipient.customerId ? customerById.get(recipient.customerId)?.fullName : undefined,
+        salonName: salon?.name,
+      });
+      const personalizedName = applyMarketingWildcards(campaign.name, wildcardValues);
       if (campaign.channel === "app" && (!recipient.customerId || !salonSlug)) {
         await db.update(campaignRecipients).set({ error: "APP_PUSH_DESTINATION_INVALID", status: "failed", updatedAt: new Date() })
           .where(eq(campaignRecipients.id, recipient.id));
@@ -134,21 +151,21 @@ export async function processCampaignBatch(
       const receipt = campaign.channel === "email"
         ? await emailSender(
             recipient.destination,
-            campaign.name,
+            personalizedName,
             brandedEmailHtml({
-              bodyHtml: campaign.content,
+              bodyHtml: applyMarketingWildcards(campaign.content, wildcardValues, { escapeValues: true }),
               eyebrow: salon?.name ?? "EsseBeauty",
               footerNote: `Comunicazione inviata tramite EsseBeauty per conto di ${salon?.name ?? "il salone"}.`,
-              title: campaign.name,
+              title: personalizedName,
             }),
             { idempotencyKey: `campaign-recipient-${recipient.id}` },
           )
         : campaign.channel === "app"
         ? await sendCustomerAppMessage(db, campaign.salonId, recipient.customerId!, {
-            body: campaign.content,
+            body: applyMarketingWildcards(campaign.content, wildcardValues),
             kind: "campaign",
             slug: salonSlug!,
-            title: campaign.name,
+            title: personalizedName,
           }).then(() => ({
             acceptedAt: new Date(),
             provider: null,

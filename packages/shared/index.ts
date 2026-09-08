@@ -87,6 +87,18 @@ export {
 } from "./permissions.js";
 export type { PermissionKey, UserRole } from "./permissions.js";
 export { computeAvailableSlots } from "./utils/slots.js";
+export {
+  applyMarketingWildcards,
+  BRAND_MARK_SVG,
+  brandedEmailHtml,
+  escapeHtml,
+  highlightMarketingWildcardsInHtml,
+  isMarketingWildcardToken,
+  MARKETING_WILDCARDS,
+  marketingWildcardValues,
+  splitMarketingWildcards,
+} from "./marketing-email.js";
+export type { BrandedEmailInput, MarketingWildcard } from "./marketing-email.js";
 export type {
   ComputeAvailableSlotsInput,
   AppointmentWithRelations,

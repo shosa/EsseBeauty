@@ -261,6 +261,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.79.0(react@19.2.7))
+      emoji-picker-react:
+        specifier: ^4.20.2
+        version: 4.20.2(react@19.2.7)
       lucide-react:
         specifier: ^1.21.0
         version: 1.21.0(react@19.2.7)
@@ -2820,6 +2823,12 @@ packages:
   electron-to-chromium@1.5.372:
     resolution: {integrity: sha512-M3yhbAlilnwqC8D21t28UCDGHyitShTmmLRU/H+b74P6Ski16Nb9HONYEaVpMj/pwC7BEo5B95FpjODLCWbtfA==}
 
+  emoji-picker-react@4.20.2:
+    resolution: {integrity: sha512-bE1Y6je2HNUm5TGjoTNYSjlpVxITC+rkvvMMaLPx9lYD283pDj6qtG2H62KOcPVgQUBaHed3dDtOPKZ2zXMXcQ==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      react: '>=16.8'
+
   emojis-list@3.0.0:
     resolution: {integrity: sha512-/kyM18EfinwXZbno9FyUGeFh87KC8HRQBQGildHZbEuRyWFOmv1U10o9BBp8XVZDVNNuQKyIGIu5ZYAAXJ0V2Q==}
     engines: {node: '>= 4'}
@@ -2994,6 +3003,9 @@ packages:
     resolution: {integrity: sha512-78/PXT1wlLLDgTzDs7sjq9hzz0vXD+zn+7wypEe4fXQxCmdmqfGsEPQxmiCSQI3ajFV91bVSsvNtrJRiW6nGng==}
     engines: {node: '>=10'}
 
+  flairup@1.1.2:
+    resolution: {integrity: sha512-AiTgxMXuGu5YpEe+39c61pe+0dhmzGMQkntbJjK9FdUY/UmtqlhIVGtrBR2zznbShArdjKWyYNV3mGBJC7fTWQ==}
+
   for-each@0.3.5:
     resolution: {integrity: sha512-dKx12eRCVIzqCxFGplyFKJMPvLEWgmNtUrpTiJIR5u97zEhRG8ySrtboPHZXx7daLxQVrl643cTzbab2tkQjxg==}
     engines: {node: '>= 0.4'}
@@ -3080,7 +3092,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+    deprecated: Glob versions prior to v9 are no longer supported
 
   globalthis@1.0.4:
     resolution: {integrity: sha512-DpLKbNU4WylpxJykQujfCcwYWiV/Jhm50Goo0wrVILAv5jOr9d+H+UR3PhSCD2rCCEIg0uc+G+muBTwD54JhDQ==}
@@ -6667,6 +6679,11 @@ snapshots:
 
   electron-to-chromium@1.5.372: {}
 
+  emoji-picker-react@4.20.2(react@19.2.7):
+    dependencies:
+      flairup: 1.1.2
+      react: 19.2.7
+
   emojis-list@3.0.0: {}
 
   end-of-stream@1.4.5:
@@ -7007,6 +7024,8 @@ snapshots:
     dependencies:
       locate-path: 6.0.0
       path-exists: 4.0.0
+
+  flairup@1.1.2: {}
 
   for-each@0.3.5:
     dependencies:
