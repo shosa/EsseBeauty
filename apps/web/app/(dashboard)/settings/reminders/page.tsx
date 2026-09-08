@@ -11,6 +11,7 @@ export default function ReminderSettingsPage() {
   const { salon } = useAuth();
   const [whatsapp, setWhatsapp] = useState(false);
   const [email, setEmail] = useState(true);
+  const [app, setApp] = useState(false);
   const [hours, setHours] = useState<number[]>([24]);
   const [log, setLog] = useState<Array<{ id: string; customer_name: string; channel: string; sent_at?: string; status: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -29,18 +30,18 @@ export default function ReminderSettingsPage() {
       if (!settingsResponse.ok || !remindersResponse.ok) throw new Error("LOAD_FAILED");
       const settings = await settingsResponse.json();
       const reminders = await remindersResponse.json();
-      setWhatsapp(settings.whatsappEnabled); setEmail(settings.emailEnabled); setHours(settings.hoursBefore); setLog(reminders);
+      setWhatsapp(settings.whatsappEnabled); setEmail(settings.emailEnabled); setApp(settings.appEnabled); setHours(settings.hoursBefore); setLog(reminders);
     }).catch(() => setError("Impossibile caricare le impostazioni dei promemoria."))
       .finally(() => setLoading(false));
   }, [salon]);
 
-  async function save(nextWhatsapp: boolean, nextEmail: boolean, nextHours: number[]) {
+  async function save(nextWhatsapp: boolean, nextEmail: boolean, nextApp: boolean, nextHours: number[]) {
     if (!salon || saving) return;
     setSaving(true);
     setSaved(false);
     setError("");
     try {
-      const response = await fetch(`${api}/api/salons/${salon.id}/reminders/settings`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsapp_enabled: nextWhatsapp, email_enabled: nextEmail, hours_before: nextHours }) });
+      const response = await fetch(`${api}/api/salons/${salon.id}/reminders/settings`, { method: "PATCH", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ whatsapp_enabled: nextWhatsapp, email_enabled: nextEmail, app_enabled: nextApp, hours_before: nextHours }) });
       if (!response.ok) throw new Error("SAVE_FAILED");
       setSaved(true);
     } catch {
@@ -58,8 +59,18 @@ export default function ReminderSettingsPage() {
       {loading ? <div aria-label="Caricamento promemoria" className="h-64 animate-pulse rounded-2xl bg-stone-100" role="status" /> : <>
       <SectionCard title="Regole promemoria">
         <div className="grid gap-5 md:grid-cols-2">
-          <fieldset><legend className="font-semibold">Canali attivi</legend>{[["WhatsApp", whatsapp, setWhatsapp], ["Email", email, setEmail]].map(([label, value, setter]) => <label key={label as string} className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-stone-200 p-4"><span>{label as string}</span><Switch aria-label={`Promemoria ${label as string}`} checked={value as boolean} disabled={saving} onCheckedChange={(checked) => { (setter as (value: boolean) => void)(checked); void save(label === "WhatsApp" ? checked : whatsapp, label === "Email" ? checked : email, hours); }} /></label>)}</fieldset>
-          <fieldset><legend className="font-semibold">Quando inviarli</legend><div className="mt-4 grid grid-cols-2 gap-3">{options.map((value) => <label key={value} className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border p-4 ${hours.includes(value) ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200"}`}><span>{value} ore prima</span><Switch checked={hours.includes(value)} disabled={saving} onCheckedChange={() => { const nextHours = hours.includes(value) ? hours.filter((item) => item !== value) : [...hours, value]; setHours(nextHours); void save(whatsapp, email, nextHours); }} /></label>)}</div></fieldset>
+          <fieldset>
+            <legend className="font-semibold">Canali attivi</legend>
+            {[["WhatsApp", whatsapp, setWhatsapp], ["Email", email, setEmail]].map(([label, value, setter]) => <label key={label as string} className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-stone-200 p-4"><span>{label as string}</span><Switch aria-label={`Promemoria ${label as string}`} checked={value as boolean} disabled={saving} onCheckedChange={(checked) => { (setter as (value: boolean) => void)(checked); void save(label === "WhatsApp" ? checked : whatsapp, label === "Email" ? checked : email, app, hours); }} /></label>)}
+            <label className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-stone-200 p-4">
+              <span>
+                App
+                <span className="mt-0.5 block text-xs font-normal text-stone-500">Solo per i clienti che hanno l’app installata con le notifiche attive.</span>
+              </span>
+              <Switch aria-label="Promemoria App" checked={app} disabled={saving} onCheckedChange={(checked) => { setApp(checked); void save(whatsapp, email, checked, hours); }} />
+            </label>
+          </fieldset>
+          <fieldset><legend className="font-semibold">Quando inviarli</legend><div className="mt-4 grid grid-cols-2 gap-3">{options.map((value) => <label key={value} className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border p-4 ${hours.includes(value) ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200"}`}><span>{value} ore prima</span><Switch checked={hours.includes(value)} disabled={saving} onCheckedChange={() => { const nextHours = hours.includes(value) ? hours.filter((item) => item !== value) : [...hours, value]; setHours(nextHours); void save(whatsapp, email, app, nextHours); }} /></label>)}</div></fieldset>
           <p aria-live="polite" className="text-right text-xs font-medium text-stone-500 md:col-span-2">{saving ? "Salvataggio automatico…" : saved ? "Modifiche salvate" : "Le modifiche vengono salvate all’azione."}</p>
         </div>
       </SectionCard>

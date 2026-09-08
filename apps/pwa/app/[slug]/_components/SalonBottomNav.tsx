@@ -14,6 +14,9 @@ const items = [
 
 export function SalonBottomNav({ slug }: { slug: string }) {
   const pathname = usePathname();
+  // A push-notification message opens as a standalone full-screen "read this and
+  // dismiss" view — the tab bar would make it look like just another app screen.
+  if (pathname.includes("/messages/")) return null;
   return (
     <nav aria-label="Navigazione cliente" className="fixed inset-x-3 bottom-3 z-30 mx-auto grid h-[68px] max-w-[430px] grid-cols-4 rounded-[1.4rem] border border-white/80 bg-white/94 p-1.5 shadow-[0_18px_50px_rgb(45_29_39_/_0.18)] backdrop-blur-xl">
       {items.map(({ icon: Icon, label, suffix }) => {

@@ -43,6 +43,7 @@ export async function registerReminderRoutes(app: FastifyInstance) {
   app.patch<{
     Params: { id: string };
     Body: {
+      app_enabled?: boolean;
       whatsapp_enabled: boolean;
       email_enabled: boolean;
       hours_before: number[];
@@ -60,12 +61,14 @@ export async function registerReminderRoutes(app: FastifyInstance) {
       if (hours.length === 0) {
         return reply.code(400).send({ error: "INVALID_HOURS_BEFORE" });
       }
+      const appEnabled = Boolean(request.body.app_enabled);
       const rows = await app.db
         .insert(reminderSettings)
         .values({
           salonId: request.salonId,
           whatsappEnabled: request.body.whatsapp_enabled,
           emailEnabled: request.body.email_enabled,
+          appEnabled,
           hoursBefore: hours,
           updatedAt: new Date(),
         })
@@ -74,6 +77,7 @@ export async function registerReminderRoutes(app: FastifyInstance) {
           set: {
             whatsappEnabled: request.body.whatsapp_enabled,
             emailEnabled: request.body.email_enabled,
+            appEnabled,
             hoursBefore: hours,
             updatedAt: new Date(),
           },

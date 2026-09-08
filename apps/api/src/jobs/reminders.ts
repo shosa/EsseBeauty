@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { DrizzleDB } from "@esse-beauty/db";
 import {
   appointments,
+  customerPushSubscriptions,
   customers,
   reminderSettings,
   reminders,
@@ -13,6 +14,7 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
+import { sendCustomerAppMessage } from "../lib/customer-messages.js";
 import { sendEmail } from "./notifications.js";
 import { enqueueCommunication } from "./communications.js";
 import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
@@ -41,11 +43,13 @@ export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
     const rows = await db
       .select({
         appointmentId: appointments.id,
+        customerId: appointments.customerId,
         startsAt: appointments.startsAt,
         customerName: customers.fullName,
         email: customers.email,
         phone: customers.phone,
         salonName: salons.name,
+        salonSlug: salons.slug,
         serviceName: services.name,
         staffName: staff.displayName,
       })
@@ -63,6 +67,11 @@ export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
         ),
       );
 
+    const pushSubscribedCustomerIds = setting.appEnabled && rows.length > 0
+      ? new Set((await db.select({ customerId: customerPushSubscriptions.customerId }).from(customerPushSubscriptions)
+        .where(inArray(customerPushSubscriptions.customerId, rows.map((row) => row.customerId)))).map((row) => row.customerId))
+      : new Set<string>();
+
     for (const item of rows) {
       for (const hours of setting.hoursBefore) {
         const scheduledAt = new Date(
@@ -74,6 +83,7 @@ export async function scheduleDueReminders(db: DrizzleDB): Promise<number> {
         const channels = [
           ...(setting.whatsappEnabled && item.phone ? ["whatsapp" as const] : []),
           ...(setting.emailEnabled && item.email ? ["email" as const] : []),
+          ...(setting.appEnabled && pushSubscribedCustomerIds.has(item.customerId) ? ["app" as const] : []),
         ];
         for (const channel of channels) {
           const existing = await db
@@ -121,10 +131,12 @@ export async function processReminder(
   const reminder = rows[0];
   if (!reminder || reminder.status === "sent") return;
   const payload = reminder.payload as {
+    customerId: string;
     customerName: string;
     email?: string | null;
     phone?: string | null;
     salonName: string;
+    salonSlug: string;
     serviceName: string;
     staffName: string;
     startsAt: string | Date;
@@ -132,7 +144,15 @@ export async function processReminder(
   const startsAt = new Date(payload.startsAt);
 
   try {
-    if (reminder.channel === "whatsapp" && payload.phone) {
+    if (reminder.channel === "app") {
+      await sendCustomerAppMessage(db, reminder.salonId, payload.customerId, {
+        body: `Ti ricordiamo ${payload.serviceName} con ${payload.staffName} il ${startsAt.toLocaleString("it-IT", { dateStyle: "full", timeStyle: "short" })}.`,
+        href: `/${payload.salonSlug}/appointments`,
+        kind: "reminder",
+        slug: payload.salonSlug,
+        title: "Promemoria appuntamento",
+      });
+    } else if (reminder.channel === "whatsapp" && payload.phone) {
       await (dependencies.enqueue ?? enqueueCommunication)(db, {
         idempotencyKey: `appointment-reminder-${reminder.id}`,
         kind: "template",

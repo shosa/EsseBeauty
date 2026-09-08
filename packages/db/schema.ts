@@ -53,7 +53,7 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "other",
 ]);
 // Historical SMS compatibility: retained so applied rows remain readable; runtime writes use WhatsApp.
-export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp"]);
+export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp", "app"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
   "pending",
   "queued",
@@ -1364,6 +1364,7 @@ export const reminderSettings = pgTable(
       .references(() => salons.id, { onDelete: "cascade" }),
     whatsappEnabled: boolean("whatsapp_enabled").default(false).notNull(),
     emailEnabled: boolean("email_enabled").default(true).notNull(),
+    appEnabled: boolean("app_enabled").default(false).notNull(),
     hoursBefore: jsonb("hours_before").$type<number[]>().default([24]).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .defaultNow()
@@ -1612,6 +1613,27 @@ export const customerPushSubscriptions = pgTable(
     uniqueIndex("customer_push_subscriptions_endpoint_unique").on(table.endpoint),
   ],
 );
+
+/**
+ * Full content behind a push notification's short preview — the app opens
+ * /{slug}/messages/{id} as a full-screen "read this" view instead of guessing
+ * where a reminder/campaign/review-request notification should navigate to.
+ */
+export const customerAppMessages = pgTable("customer_app_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  salonId: uuid("salon_id")
+    .notNull()
+    .references(() => salons.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id")
+    .notNull()
+    .references(() => customers.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  href: text("href"),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  ...timestamps,
+});
 
 export const salonClosures = pgTable(
   "salon_closures",
