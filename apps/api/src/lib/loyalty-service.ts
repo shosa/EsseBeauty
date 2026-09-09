@@ -7,6 +7,7 @@ import {
   loyaltyRewardRedemptions,
   loyaltyRewards,
   loyaltySettings,
+  purchaseVouchers,
   users,
 } from "@esse-beauty/db/schema";
 
@@ -95,12 +96,17 @@ export async function redeemLoyaltyReward(
       if (existing[0].customerId !== input.customerId || existing[0].rewardId !== input.rewardId) {
         throw new LoyaltyOperationError("IDEMPOTENCY_CONFLICT", 409);
       }
+      const existingVoucher = await tx
+        .select({ code: purchaseVouchers.code })
+        .from(purchaseVouchers)
+        .where(eq(purchaseVouchers.sourceRewardRedemptionId, existing[0].id));
       return {
         balance: await activeBalance(tx, input.salonId, input.customerId),
         id: existing[0].id,
         idempotent: true,
         pointsSpent: existing[0].pointsSpent,
         status: existing[0].status,
+        voucherCode: existingVoucher[0]?.code,
       };
     }
 
@@ -116,6 +122,12 @@ export async function redeemLoyaltyReward(
       ));
     const reward = rewardRows[0];
     if (!reward) throw new LoyaltyOperationError("REWARD_NOT_AVAILABLE", 404);
+    // Solo il tipo "credito" può essere riscattato fuori da una vendita: gli
+    // altri tipi (trattamento/prodotto omaggio, sconto fisso/%) hanno senso solo
+    // legati a un carrello e vanno riscattati in cassa (vedi redeemRewardsInSale).
+    if (reward.type !== "credit") {
+      throw new LoyaltyOperationError("REWARD_REQUIRES_CHECKOUT", 400);
+    }
 
     const balance = await activeBalance(tx, input.salonId, input.customerId);
     if (balance < reward.pointsRequired) {
@@ -125,6 +137,8 @@ export async function redeemLoyaltyReward(
     const redemptionRows = await tx
       .insert(loyaltyRewardRedemptions)
       .values({
+        appliedDiscountCents: reward.discountAmountCents,
+        appliedType: reward.type,
         approvedByUserId: input.actorUserId,
         customerId: input.customerId,
         idempotencyKey: input.idempotencyKey,
@@ -145,14 +159,181 @@ export async function redeemLoyaltyReward(
       redemptionId: redemption.id,
       salonId: input.salonId,
     });
+    const voucher = await issuePurchaseVoucher(tx, {
+      amountCents: reward.discountAmountCents!,
+      customerId: input.customerId,
+      issuedByUserId: input.actorUserId,
+      issuedSaleId: null,
+      message: `Generato dal premio fedeltà: ${reward.name}`,
+      salonId: input.salonId,
+      sourceRewardRedemptionId: redemption.id,
+    });
     return {
       balance: balance - reward.pointsRequired,
       id: redemption.id,
       idempotent: false,
       pointsSpent: reward.pointsRequired,
       status: redemption.status,
+      voucherCode: voucher.code,
     };
   });
+}
+
+export interface RewardSaleLine {
+  itemType: string;
+  packageQuantity: number;
+  productId?: string | null;
+  quantity: number;
+  serviceId?: string | null;
+  unitPriceCents: number;
+}
+
+export interface RewardRedemptionPlanEntry {
+  appliedDiscountCents: number;
+  appliedProductId: string | null;
+  appliedServiceId: string | null;
+  appliedType: string;
+  lineIndex: number | null;
+  pointsSpent: number;
+  rewardId: string;
+  rewardName: string;
+}
+
+/**
+ * Calcola (senza scrivere nulla) lo sconto che ogni premio selezionato in cassa deve
+ * produrre, validando cliente/punti/vincoli — mai un importo proposto dal client.
+ * Va chiamata PRIMA dell'insert della vendita (serve solo a calcolare i totali);
+ * la scrittura effettiva avviene con commitRewardRedemptions dopo che la vendita esiste.
+ */
+export async function planRewardRedemptions(
+  tx: any,
+  input: {
+    customerId?: string | null;
+    lines: RewardSaleLine[];
+    manualDiscountCents: number;
+    rewardIds: string[];
+    salonId: string;
+    voucherCents: number;
+  },
+): Promise<{
+  perLineDiscountCents: Map<number, number>;
+  plans: RewardRedemptionPlanEntry[];
+  totalRewardDiscountCents: number;
+}> {
+  if (!input.rewardIds.length) return { perLineDiscountCents: new Map(), plans: [], totalRewardDiscountCents: 0 };
+  if (!input.customerId) throw new LoyaltyOperationError("REWARD_CUSTOMER_REQUIRED", 400);
+
+  await lockCustomer(tx, input.salonId, input.customerId);
+
+  const grossSubtotalCents = input.lines.reduce(
+    (sum, line) => sum + Math.max(0, line.quantity - line.packageQuantity) * line.unitPriceCents,
+    0,
+  );
+  const perLineDiscountCents = new Map<number, number>();
+  const plans: RewardRedemptionPlanEntry[] = [];
+  let totalRewardDiscountCents = 0;
+  let totalPointsRequired = 0;
+  let remainingSaleValueCents = Math.max(0, grossSubtotalCents - input.manualDiscountCents - input.voucherCents);
+
+  for (const rewardId of input.rewardIds) {
+    const rewardRows = await tx
+      .select()
+      .from(loyaltyRewards)
+      .where(and(
+        eq(loyaltyRewards.id, rewardId),
+        eq(loyaltyRewards.salonId, input.salonId),
+        eq(loyaltyRewards.active, true),
+      ));
+    const reward = rewardRows[0];
+    if (!reward || reward.type === "credit") throw new LoyaltyOperationError("REWARD_NOT_AVAILABLE", 404);
+
+    let appliedDiscountCents = 0;
+    let lineIndex: number | null = null;
+    let appliedServiceId: string | null = null;
+    let appliedProductId: string | null = null;
+
+    if (reward.type === "free_treatment" || reward.type === "free_product") {
+      const wantsService = reward.type === "free_treatment";
+      const idx = input.lines.findIndex((line, i) =>
+        !perLineDiscountCents.has(i) &&
+        line.itemType === (wantsService ? "service" : "product") &&
+        (wantsService ? line.serviceId : line.productId) === (wantsService ? reward.serviceId : reward.productId));
+      if (idx === -1) throw new LoyaltyOperationError("REWARD_ITEM_NOT_IN_CART", 400);
+      const line = input.lines[idx]!;
+      const gross = Math.max(0, line.quantity - line.packageQuantity) * line.unitPriceCents;
+      if (gross <= 0) throw new LoyaltyOperationError("REWARD_ITEM_ALREADY_COVERED", 400);
+      appliedDiscountCents = gross;
+      lineIndex = idx;
+      perLineDiscountCents.set(idx, gross);
+      if (wantsService) appliedServiceId = reward.serviceId; else appliedProductId = reward.productId;
+    } else if (reward.type === "fixed_discount") {
+      if (reward.minSpendCents && remainingSaleValueCents < reward.minSpendCents) {
+        throw new LoyaltyOperationError("REWARD_MIN_SPEND_NOT_MET", 400);
+      }
+      appliedDiscountCents = Math.min(reward.discountAmountCents ?? 0, remainingSaleValueCents);
+    } else if (reward.type === "percent_discount") {
+      if (reward.minSpendCents && remainingSaleValueCents < reward.minSpendCents) {
+        throw new LoyaltyOperationError("REWARD_MIN_SPEND_NOT_MET", 400);
+      }
+      const raw = Math.round((remainingSaleValueCents * (reward.discountPercent ?? 0)) / 100);
+      const capped = reward.maxDiscountCents ? Math.min(raw, reward.maxDiscountCents) : raw;
+      appliedDiscountCents = Math.min(capped, remainingSaleValueCents);
+    }
+
+    remainingSaleValueCents = Math.max(0, remainingSaleValueCents - appliedDiscountCents);
+    totalRewardDiscountCents += appliedDiscountCents;
+    totalPointsRequired += reward.pointsRequired;
+    plans.push({
+      appliedDiscountCents,
+      appliedProductId,
+      appliedServiceId,
+      appliedType: reward.type,
+      lineIndex,
+      pointsSpent: reward.pointsRequired,
+      rewardId: reward.id,
+      rewardName: reward.name,
+    });
+  }
+
+  const balance = await activeBalance(tx, input.salonId, input.customerId);
+  if (balance < totalPointsRequired) throw new LoyaltyOperationError("INSUFFICIENT_POINTS", 409);
+
+  return { perLineDiscountCents, plans, totalRewardDiscountCents };
+}
+
+/** Scrive le redemption + il ledger punti dopo che la vendita è stata inserita (serve saleId). */
+export async function commitRewardRedemptions(
+  tx: any,
+  input: { actorUserId: string; customerId: string; plans: RewardRedemptionPlanEntry[]; saleId: string; salonId: string },
+) {
+  for (const plan of input.plans) {
+    const redemptionRows = await tx
+      .insert(loyaltyRewardRedemptions)
+      .values({
+        appliedDiscountCents: plan.appliedDiscountCents,
+        appliedProductId: plan.appliedProductId,
+        appliedServiceId: plan.appliedServiceId,
+        appliedType: plan.appliedType,
+        approvedByUserId: input.actorUserId,
+        customerId: input.customerId,
+        pointsSpent: plan.pointsSpent,
+        redeemedAt: new Date(),
+        rewardId: plan.rewardId,
+        saleId: input.saleId,
+        salonId: input.salonId,
+        status: "redeemed",
+      })
+      .returning();
+    const redemption = redemptionRows[0]!;
+    await tx.insert(loyaltyPoints).values({
+      createdByUserId: input.actorUserId,
+      customerId: input.customerId,
+      delta: -plan.pointsSpent,
+      reason: `Riscatto premio in cassa: ${plan.rewardName}`,
+      redemptionId: redemption.id,
+      salonId: input.salonId,
+    });
+  }
 }
 
 export async function adjustLoyaltyBalance(
