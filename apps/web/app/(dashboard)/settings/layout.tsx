@@ -21,7 +21,9 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
         ? pathname.replace("/settings/packages", "/packages")
         : pathname.startsWith("/settings/loyalty")
           ? pathname.replace("/settings/loyalty", "/loyalty")
-          : undefined;
+          : pathname.startsWith("/settings/permissions")
+            ? pathname.replace("/settings/permissions", "/staff/permissions")
+            : undefined;
 
   useEffect(() => {
     if (legacyDestination) router.replace(legacyDestination);

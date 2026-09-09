@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const staffDetail = readFileSync(
-  join(import.meta.dirname, "app", "(dashboard)", "settings", "staff", "[staffId]", "page.tsx"),
+  join(import.meta.dirname, "app", "(dashboard)", "staff", "[staffId]", "page.tsx"),
   "utf8",
 );
-const staffDirectory = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "settings", "staff", "page.tsx"), "utf8");
-const staffPermissions = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "settings", "permissions", "page.tsx"), "utf8");
+const staffDirectory = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "staff", "manage", "page.tsx"), "utf8");
+const staffPermissions = readFileSync(join(import.meta.dirname, "app", "(dashboard)", "staff", "permissions", "page.tsx"), "utf8");
 const sharedUi = readFileSync(join(import.meta.dirname, "..", "..", "packages", "ui", "index.tsx"), "utf8");
 
 describe("staff detail operational layout", () => {

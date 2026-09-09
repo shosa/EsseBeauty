@@ -225,7 +225,7 @@ describe("professional UI regression guard", () => {
   it("splits operational Staff and Services from core configuration pages", () => {
     const staff = readFileSync(join(dashboardRoot, "staff", "page.tsx"), "utf8");
     const services = readFileSync(join(dashboardRoot, "services", "page.tsx"), "utf8");
-    const settingsStaff = readFileSync(join(dashboardRoot, "settings", "staff", "page.tsx"), "utf8");
+    const staffManage = readFileSync(join(dashboardRoot, "staff", "manage", "page.tsx"), "utf8");
     const settingsServices = readFileSync(join(dashboardRoot, "settings", "services", "page.tsx"), "utf8");
     const appointmentNew = readFileSync(join(dashboardRoot, "calendar", "appointments", "new", "page.tsx"), "utf8");
     expect(staff).toContain("/operations/staff");
@@ -235,8 +235,8 @@ describe("professional UI regression guard", () => {
     expect(services).toContain("/operations/services");
     expect(services).not.toContain("/services/new");
     expect(services).not.toContain("method: \"PATCH\"");
-    expect(settingsStaff).toContain("setNewOpen(true)");
-    expect(settingsStaff).toContain("/api/salons/${salon.id}/staff");
+    expect(staffManage).toContain("setNewOpen(true)");
+    expect(staffManage).toContain("/api/salons/${salon.id}/staff");
     expect(settingsServices).toContain("/services/new");
     expect(settingsServices).toContain("/api/salons/${salon.id}/services");
     expect(appointmentNew).toContain("/operations/services");
@@ -244,7 +244,7 @@ describe("professional UI regression guard", () => {
   });
 
   it("opens a new-collaborator dialog instead of a standalone page, mirroring the clients directory", () => {
-    const collaborators = readFileSync(join(dashboardRoot, "settings", "staff", "page.tsx"), "utf8");
+    const collaborators = readFileSync(join(dashboardRoot, "staff", "manage", "page.tsx"), "utf8");
     expect(collaborators).toContain("PageHeader");
     expect(collaborators).toContain("Dialog");
     expect(collaborators).toContain('title="Collaboratori"');
@@ -252,7 +252,7 @@ describe("professional UI regression guard", () => {
     expect(collaborators).toContain('if (searchParams.get("new") === "1")');
     expect(collaborators).toContain("staffStatusAction(member.active).label");
     expect(collaborators).not.toContain("/settings/staff/new");
-    expect(existsSync(join(dashboardRoot, "settings", "staff", "new", "page.tsx"))).toBe(false);
+    expect(existsSync(join(dashboardRoot, "staff", "manage", "new", "page.tsx"))).toBe(false);
   });
 
   it("uses the consolidated header and workspace CTA pattern (inventory-style) in service management", () => {
@@ -484,7 +484,7 @@ describe("professional UI regression guard", () => {
   });
 
   it("supports staff PWA access, visible availability blocks, salon closures, and Italian weekdays", () => {
-    const staffDetail = readFileSync(join(dashboardRoot, "settings", "staff", "[staffId]", "page.tsx"), "utf8");
+    const staffDetail = readFileSync(join(dashboardRoot, "staff", "[staffId]", "page.tsx"), "utf8");
     const settings = readFileSync(join(dashboardRoot, "settings", "_components", "SettingsView.tsx"), "utf8");
     const calendar = readFileSync(join(dashboardRoot, "calendar", "page.tsx"), "utf8");
     const shared = readFileSync(join(process.cwd(), "..", "..", "packages", "shared", "index.ts"), "utf8");
@@ -507,7 +507,7 @@ describe("professional UI regression guard", () => {
   });
 
   it("mirrors the client detail hero and tab pattern in the staff detail page", () => {
-    const staffDetail = readFileSync(join(dashboardRoot, "settings", "staff", "[staffId]", "page.tsx"), "utf8");
+    const staffDetail = readFileSync(join(dashboardRoot, "staff", "[staffId]", "page.tsx"), "utf8");
     expect(staffDetail).not.toContain("SectionCard");
     expect(staffDetail).not.toContain("PageHeader");
     expect(staffDetail).toContain("PageTransition");
