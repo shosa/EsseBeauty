@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, FilePlus2, FileText } from "lucide-react";
 
 import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, SectionCard, Switch, Select} from "@esse-beauty/ui";
 
@@ -137,11 +137,11 @@ export default function DocumentVersionPage() {
       {!template ? <EmptyState description="Potrebbe essere stato rimosso o non essere accessibile." title="Documento non trovato" /> : <>
         <PageHeader eyebrow={`${template.type} · versione ${template.version}`} subtitle="Il testo di questa versione resta immutabile per preservare le firme già raccolte." title={template.name} />
         <div className="grid gap-5 lg:grid-cols-[0.85fr_1.15fr]">
-          <SectionCard subtitle="Questa è la versione canonica conservata dal server." title="Testo registrato">
+          <SectionCard icon={FileText} subtitle="Questa è la versione canonica conservata dal server." title="Testo registrato">
             <article className="max-h-[620px] overflow-y-auto whitespace-pre-wrap rounded-2xl bg-stone-50 p-5 text-sm leading-7 text-stone-700">{template.body}</article>
             {template.active && <Button className="mt-5" onClick={() => { setArchiveError(""); setArchiveOpen(true); }} variant="destructive">Archivia questa versione</Button>}
           </SectionCard>
-          <SectionCard subtitle="Il testo firmato in precedenza non cambia: verrà creato un nuovo record con il numero successivo." title="Crea nuova versione">
+          <SectionCard icon={FilePlus2} subtitle="Il testo firmato in precedenza non cambia: verrà creato un nuovo record con il numero successivo." title="Crea nuova versione">
             <div className="grid gap-4">
               <FormField label="Nome"><input className="w-full" onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} value={draft.name} /></FormField>
               <FormField label="Tipo"><Select className="w-full" onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))} value={draft.type}><option value="privacy">Privacy</option><option value="treatment">Trattamento</option><option value="anamnesis">Anamnesi</option><option value="photo_release">Uso immagini</option></Select></FormField>

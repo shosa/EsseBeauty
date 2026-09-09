@@ -22,6 +22,7 @@ interface Props {
   serviceId: string;
   serviceName: string;
   slug: string;
+  specialOpenings?: string[];
   staffId: string;
 }
 
@@ -39,7 +40,7 @@ function isoDate(value: Date) {
 
 const QUICK_DAY_COUNT = 8;
 
-export function RescheduleWizard({ closures, maxAdvanceDays, onClose, onSubmit, primary, serviceId, serviceName, slug, staffId }: Props) {
+export function RescheduleWizard({ closures, maxAdvanceDays, onClose, onSubmit, primary, serviceId, serviceName, slug, specialOpenings, staffId }: Props) {
   const reduceMotion = useReducedMotion();
   const [date, setDate] = useState(() => new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -133,7 +134,7 @@ export function RescheduleWizard({ closures, maxAdvanceDays, onClose, onSubmit, 
                 <p className="flex-1 truncate rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-bold capitalize text-stone-800">{formatDateSummary(date)}</p>
                 <DateField
                   compact
-                  isDateDisabled={(day) => isDateClosed(day, closures)}
+                  isDateDisabled={(day) => isDateClosed(day, closures, undefined, specialOpenings)}
                   max={new Date(Date.now() + maxAdvanceDays * 86400000).toISOString().slice(0, 10)}
                   min={new Date().toISOString().slice(0, 10)}
                   onChange={(nextValue) => setDate(nextValue)}
@@ -146,7 +147,7 @@ export function RescheduleWizard({ closures, maxAdvanceDays, onClose, onSubmit, 
             <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
               {quickDays.map((day) => {
                 const iso = isoDate(day);
-                const closed = isDateClosed(day, closures);
+                const closed = isDateClosed(day, closures, undefined, specialOpenings);
                 const active = date === iso;
                 return (
                   <button

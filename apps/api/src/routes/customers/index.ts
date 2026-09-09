@@ -16,6 +16,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { isValidBirthday } from "../../lib/birthday.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { hashPassword } from "../auth/local-auth.js";
 
@@ -380,6 +381,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
       last_name?: string;
       email?: string;
       phone?: string;
+      birthday?: string | null;
       notes?: string;
       tags?: string[];
     };
@@ -396,6 +398,10 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
     const fullName = customerFullName(firstName, lastName);
     if (!firstName || !lastName) {
       return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
+    }
+    const birthday = request.body.birthday?.trim() || undefined;
+    if (birthday && !isValidBirthday(birthday)) {
+      return reply.code(400).send({ error: "INVALID_BIRTHDAY" });
     }
     if (email || phoneNormalized) {
       const existing = await app.db
@@ -425,6 +431,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
         email,
         phone,
         phoneNormalized,
+        birthday,
         notes: request.body.notes,
         tags: request.body.tags ?? [],
       })
@@ -440,6 +447,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
       last_name: string;
       email: string | null;
       phone: string | null;
+      birthday: string | null;
       notes: string | null;
       tags: string[];
     }>;
@@ -463,6 +471,9 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
     if (nextName && (!nextName.firstName || !nextName.lastName)) {
       return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
     }
+    if (request.body.birthday && !isValidBirthday(request.body.birthday)) {
+      return reply.code(400).send({ error: "INVALID_BIRTHDAY" });
+    }
     const rows = await app.db
       .update(customers)
       .set({
@@ -472,6 +483,7 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
           phone: request.body.phone,
           phoneNormalized: normalizePhoneE164(request.body.phone),
         }),
+        ...(request.body.birthday !== undefined && { birthday: request.body.birthday }),
         ...(request.body.notes !== undefined && { notes: request.body.notes }),
         ...(request.body.tags !== undefined && { tags: request.body.tags }),
       })

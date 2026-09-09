@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 
 import {
   loyaltyEarningRules,
@@ -10,6 +10,8 @@ export const LOYALTY_RULE_DEFAULTS = [
   { action: "service_purchased", active: false, points: 5 },
   { action: "product_purchased", active: false, points: 1 },
   { action: "euro_spent", active: false, points: 1 },
+  { action: "birthday", active: false, points: 20 },
+  { action: "review_submitted", active: false, points: 5 },
 ] as const;
 
 export type LoyaltyRuleAction = (typeof LOYALTY_RULE_DEFAULTS)[number]["action"];
@@ -96,4 +98,42 @@ export async function awardSaleLoyalty(
     }).onConflictDoNothing();
   }
   return awards;
+}
+
+export async function awardReviewSubmission(
+  db: any,
+  input: { customerId: string; salonId: string },
+) {
+  const rules = await ensureLoyaltyRules(db, input.salonId);
+  const rule = rules.find((item: any) => item.action === "review_submitted");
+  if (!rule?.active || rule.points <= 0) return 0;
+  await db.insert(loyaltyPoints).values({
+    customerId: input.customerId,
+    delta: rule.points,
+    reason: "Recensione lasciata",
+    ruleKey: "review_submitted",
+    salonId: input.salonId,
+  });
+  return rule.points;
+}
+
+export async function awardBirthdayPoints(
+  db: any,
+  input: { customerId: string; points: number; salonId: string },
+): Promise<boolean> {
+  const yearStart = new Date(new Date().getFullYear(), 0, 1);
+  const alreadyAwarded = await db.select({ id: loyaltyPoints.id }).from(loyaltyPoints).where(and(
+    eq(loyaltyPoints.customerId, input.customerId),
+    eq(loyaltyPoints.ruleKey, "birthday"),
+    gte(loyaltyPoints.createdAt, yearStart),
+  ));
+  if (alreadyAwarded.length > 0) return false;
+  await db.insert(loyaltyPoints).values({
+    customerId: input.customerId,
+    delta: input.points,
+    reason: "Buon compleanno!",
+    ruleKey: "birthday",
+    salonId: input.salonId,
+  });
+  return true;
 }

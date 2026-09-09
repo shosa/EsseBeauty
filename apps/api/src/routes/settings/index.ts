@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import {
   calendarSettings,
@@ -10,9 +10,13 @@ import {
   salonClosures,
   salonLocations,
   salonResources,
+  salonSpecialOpenings,
+  salonSpecialOpeningStaff,
   serviceResources,
   salons,
   salonSettings,
+  staff,
+  type TimePeriods,
   type WorkingHours,
 } from "@esse-beauty/db/schema";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -605,6 +609,136 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         })
         .returning();
       return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/settings/staff-roster",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      return app.db
+        .select({ display_name: staff.displayName, id: staff.id })
+        .from(staff)
+        .where(and(eq(staff.salonId, request.salonId), eq(staff.active, true)))
+        .orderBy(asc(staff.displayName));
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/salons/:id/settings/special-openings",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const openings = await app.db
+        .select()
+        .from(salonSpecialOpenings)
+        .where(eq(salonSpecialOpenings.salonId, request.salonId))
+        .orderBy(asc(salonSpecialOpenings.date));
+      const staffRows = openings.length
+        ? await app.db
+          .select({
+            periods: salonSpecialOpeningStaff.periods,
+            specialOpeningId: salonSpecialOpeningStaff.specialOpeningId,
+            staffId: salonSpecialOpeningStaff.staffId,
+            staffName: staff.displayName,
+          })
+          .from(salonSpecialOpeningStaff)
+          .innerJoin(staff, eq(staff.id, salonSpecialOpeningStaff.staffId))
+          .where(inArray(salonSpecialOpeningStaff.specialOpeningId, openings.map((opening) => opening.id)))
+        : [];
+      return openings.map((opening) => ({
+        ...opening,
+        staff: staffRows.filter((row) => row.specialOpeningId === opening.id),
+      }));
+    },
+  );
+
+  function isValidPeriods(value: unknown): value is TimePeriods {
+    const timePattern = /^\d{2}:\d{2}$/;
+    return Array.isArray(value) && value.length > 0 && value.every((period) =>
+      period && typeof period === "object" &&
+      timePattern.test((period as { from?: unknown }).from as string) &&
+      timePattern.test((period as { to?: unknown }).to as string) &&
+      (period as { from: string }).from < (period as { to: string }).to,
+    );
+  }
+
+  app.post<{
+    Body: {
+      date: string;
+      periods: TimePeriods;
+      reason?: string;
+      staff: Array<{ periods?: TimePeriods | null; staff_id: string }>;
+    };
+    Params: { id: string };
+  }>(
+    "/api/salons/:id/settings/special-openings",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(request.body.date)) return reply.code(400).send({ error: "INVALID_DATE" });
+      if (!isValidPeriods(request.body.periods)) return reply.code(400).send({ error: "INVALID_TIME_RANGE" });
+      const staffEntries = request.body.staff ?? [];
+      if (staffEntries.some((entry) => entry.periods !== undefined && entry.periods !== null && !isValidPeriods(entry.periods))) {
+        return reply.code(400).send({ error: "INVALID_TIME_RANGE" });
+      }
+      if (staffEntries.length > 0) {
+        const staffIds = staffEntries.map((entry) => entry.staff_id);
+        const validStaff = await app.db.select({ id: staff.id }).from(staff).where(and(
+          inArray(staff.id, staffIds),
+          eq(staff.salonId, request.salonId),
+        ));
+        if (validStaff.length !== new Set(staffIds).size) return reply.code(400).send({ error: "INVALID_STAFF" });
+      }
+      const opening = await app.db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(salonSpecialOpenings)
+          .values({
+            date: request.body.date,
+            periods: request.body.periods,
+            reason: request.body.reason,
+            salonId: request.salonId,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            set: {
+              periods: request.body.periods,
+              reason: request.body.reason,
+              updatedAt: new Date(),
+            },
+            target: [salonSpecialOpenings.salonId, salonSpecialOpenings.date],
+          })
+          .returning();
+        const created = rows[0]!;
+        await tx.delete(salonSpecialOpeningStaff).where(eq(salonSpecialOpeningStaff.specialOpeningId, created.id));
+        if (staffEntries.length > 0) {
+          await tx.insert(salonSpecialOpeningStaff).values(staffEntries.map((entry) => ({
+            periods: entry.periods || null,
+            specialOpeningId: created.id,
+            staffId: entry.staff_id,
+          })));
+        }
+        return created;
+      });
+      return reply.code(201).send({ ...opening, staff: staffEntries });
+    },
+  );
+
+  app.delete<{ Params: { id: string; specialOpeningId: string } }>(
+    "/api/salons/:id/settings/special-openings/:specialOpeningId",
+    { preHandler: [authenticate, requirePermission(PERMISSION_KEYS.SETTINGS_SALON)] },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const rows = await app.db
+        .delete(salonSpecialOpenings)
+        .where(and(eq(salonSpecialOpenings.id, request.params.specialOpeningId), eq(salonSpecialOpenings.salonId, request.salonId)))
+        .returning();
+      return rows[0] ?? reply.code(404).send({ error: "SPECIAL_OPENING_NOT_FOUND" });
     },
   );
 

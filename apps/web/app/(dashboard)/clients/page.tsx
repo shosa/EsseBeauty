@@ -119,6 +119,7 @@ export default function ClientsPage() {
         last_name: formData.get("last_name"),
         email: formData.get("email") || undefined,
         phone: phone || undefined,
+        birthday: formData.get("birthday") || undefined,
         notes: formData.get("notes") || undefined,
         tags: newTags,
       }),
@@ -320,6 +321,7 @@ export default function ClientsPage() {
             <FormField label="Cognome" required><input autoComplete="family-name" name="last_name" required className="w-full" /></FormField>
             <FormField label="Email"><input name="email" type="email" className="w-full" /></FormField>
             <FormField label="Telefono"><input name="phone" className="w-full" /></FormField>
+            <FormField label="Compleanno"><input name="birthday" type="date" className="w-full" /></FormField>
           </div>
           <FormField label="Segmenti" description="Digita un nome e premi Invio per crearne uno nuovo.">
             <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-stone-200 px-3 py-2 focus-within:border-[#792f59]">

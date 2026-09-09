@@ -11,8 +11,9 @@ function toISODate(date: Date): string {
 
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
-export function isDateClosed(date: Date, closures: SalonClosure[] | undefined, openingHours?: WorkingHours): boolean {
+export function isDateClosed(date: Date, closures: SalonClosure[] | undefined, openingHours?: WorkingHours, specialOpenings?: string[]): boolean {
   const iso = toISODate(date);
+  if (specialOpenings?.includes(iso)) return false;
   const isClosure = closures?.some((closure) => closure.date === iso || (closure.recurringYearly && closure.date.slice(5) === iso.slice(5))) ?? false;
   const weekday = WEEKDAYS[date.getDay()] ?? "sun";
   const isNonWorkingDay = openingHours ? (openingHours[weekday]?.length ?? 0) === 0 : false;

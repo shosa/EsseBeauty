@@ -21,6 +21,8 @@ export type WorkingHours = Record<
   Array<{ from: string; to: string }>
 >;
 
+export type TimePeriods = Array<{ from: string; to: string }>;
+
 export const userRoleEnum = pgEnum("user_role", [
   "owner",
   "manager",
@@ -740,6 +742,7 @@ export const customers = pgTable("customers", {
   firstName: text("first_name").default("").notNull(),
   lastName: text("last_name").default("").notNull(),
   fullName: text("full_name").notNull(),
+  birthday: text("birthday"),
   notes: text("notes"),
   tags: text("tags").array().default([]).notNull(),
   blocked: boolean("blocked").default(false).notNull(),
@@ -1651,6 +1654,37 @@ export const salonClosures = pgTable(
     ...timestamps,
   },
   (table) => [uniqueIndex("salon_closures_salon_date_unique").on(table.salonId, table.date)],
+);
+
+export const salonSpecialOpenings = pgTable(
+  "salon_special_openings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    salonId: uuid("salon_id")
+      .notNull()
+      .references(() => salons.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    periods: jsonb("periods").$type<TimePeriods>().notNull(),
+    reason: text("reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex("salon_special_openings_salon_date_unique").on(table.salonId, table.date)],
+);
+
+export const salonSpecialOpeningStaff = pgTable(
+  "salon_special_opening_staff",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    specialOpeningId: uuid("special_opening_id")
+      .notNull()
+      .references(() => salonSpecialOpenings.id, { onDelete: "cascade" }),
+    staffId: uuid("staff_id")
+      .notNull()
+      .references(() => staff.id, { onDelete: "cascade" }),
+    periods: jsonb("periods").$type<TimePeriods>(),
+  },
+  (table) => [uniqueIndex("salon_special_opening_staff_unique").on(table.specialOpeningId, table.staffId)],
 );
 
 export const userInterfacePreferences = pgTable(

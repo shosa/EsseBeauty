@@ -14,6 +14,7 @@ import {
   services,
 } from "@esse-beauty/db/schema";
 import {
+  isModuleEnabled,
   MODULE_KEYS,
   requireModule,
 } from "@esse-beauty/feature-flags";
@@ -21,6 +22,7 @@ import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { clearCustomerAppMessage } from "../../lib/customer-messages.js";
+import { awardReviewSubmission } from "../../lib/loyalty-engine.js";
 import { inspectPublicToken } from "../../lib/public-tokens.js";
 import { retryReviewInvitation, scheduleReviewRequest, type ReviewQueue } from "../../jobs/reviews.js";
 
@@ -114,6 +116,13 @@ export async function registerReviewRoutes(
     }
     const inspected = inspectBodyToken(body.token);
     if (!inspected.ok) return tokenErrorReply(reply, "TOKEN_INVALID");
+    const invitationSalonRows = await app.db
+      .select({ salonId: reviewInvitations.salonId })
+      .from(reviewInvitations)
+      .where(eq(reviewInvitations.tokenHash, inspected.tokenHash));
+    const loyaltyEnabled = invitationSalonRows[0]
+      ? await isModuleEnabled(invitationSalonRows[0].salonId, MODULE_KEYS.LOYALTY, app.db)
+      : false;
 
     const result = await app.db.transaction(async (tx) => {
       const invitationRows = await tx
@@ -159,6 +168,9 @@ export async function registerReviewRoutes(
       });
       await tx.update(reviewInvitations).set({ consumedAt: new Date(), updatedAt: new Date() })
         .where(eq(reviewInvitations.id, invitation.id));
+      if (loyaltyEnabled) {
+        await awardReviewSubmission(tx, { customerId: appointment.customerId, salonId: invitation.salonId });
+      }
       return { customerId: appointment.customerId, salonId: invitation.salonId, submitted: true as const };
     });
     if ("error" in result && result.error) return tokenErrorReply(reply, result.error);

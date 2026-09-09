@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageHeaderMetrics, PageSkeleton, SectionCard, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
@@ -113,7 +114,7 @@ export default function ServiceDetailPage() {
             subtitle={service.category}
             title={service.name}
           />
-          <SectionCard title="Dati servizio">
+          <SectionCard icon={Sparkles} title="Dati servizio">
             <form action={save} className="grid gap-4">
               <FormField label="Nome servizio" required><input required name="name" defaultValue={service.name} className="min-h-12 w-full rounded-xl border px-3" /></FormField>
               <FormField label="Categoria" required>

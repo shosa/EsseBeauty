@@ -47,6 +47,17 @@ interface PreviewClosure {
   recurringYearly: boolean;
 }
 
+interface PreviewTimePeriod {
+  from: string;
+  to: string;
+}
+
+interface PreviewSpecialOpening {
+  date: string;
+  periods: PreviewTimePeriod[];
+  staff: Array<{ periods: PreviewTimePeriod[] | null; staff_id: string }>;
+}
+
 interface PreviewStaff {
   color: string;
   display_name: string;
@@ -121,6 +132,7 @@ export function DayAgendaPreview({ date }: { date: string }) {
   const [items, setItems] = useState<PreviewAppointment[]>([]);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<PreviewAvailabilityBlock[]>([]);
   const [closures, setClosures] = useState<PreviewClosure[]>([]);
+  const [specialOpenings, setSpecialOpenings] = useState<PreviewSpecialOpening[]>([]);
   const [staffMembers, setStaffMembers] = useState<PreviewStaff[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -143,10 +155,12 @@ export function DayAgendaPreview({ date }: { date: string }) {
           appointments?: PreviewAppointment[];
           availability_blocks?: PreviewAvailabilityBlock[];
           salon_closures?: PreviewClosure[];
+          special_openings?: PreviewSpecialOpening[];
         };
         setItems(data.appointments ?? []);
         setAvailabilityBlocks(data.availability_blocks ?? []);
         setClosures(data.salon_closures ?? []);
+        setSpecialOpenings(data.special_openings ?? []);
         if (staffResponse.ok) setStaffMembers(await staffResponse.json() as PreviewStaff[]);
         setError("");
       })
@@ -168,14 +182,24 @@ export function DayAgendaPreview({ date }: { date: string }) {
     [items, staffMembers],
   );
   const visibleStaff = staffFilter ? staffOptions.filter(([id]) => id === staffFilter) : staffOptions;
-  const dayClosures = closures.filter((closure) => closureMatchesDate(closure, date));
+  const specialOpening = specialOpenings.find((opening) => opening.date === date);
+  const dayClosures = specialOpening ? [] : closures.filter((closure) => closureMatchesDate(closure, date));
+
+  function workingPeriodsFor(staffId: string): PreviewTimePeriod[] {
+    if (specialOpening) {
+      const entry = specialOpening.staff.find((item) => item.staff_id === staffId);
+      if (entry) return entry.periods ?? specialOpening.periods;
+    }
+    const member = staffMembers.find((item) => item.id === staffId);
+    const dayKey = weekdayKeys[dayStart.getDay()] ?? "mon";
+    return member?.working_hours?.[dayKey] ?? [];
+  }
 
   const timelineRange = useMemo(() => {
-    const dayKey = weekdayKeys[dayStart.getDay()] ?? "mon";
     const visibleIds = new Set(visibleStaff.map(([id]) => id));
     const scheduleMinutes = staffMembers
       .filter((member) => visibleIds.has(member.id))
-      .flatMap((member) => member.working_hours?.[dayKey] ?? [])
+      .flatMap((member) => workingPeriodsFor(member.id))
       .flatMap((period) => [clockMinutes(period.from), clockMinutes(period.to)]);
     const eventMinutes = filteredItems.flatMap((item) => {
       const start = new Date(item.starts_at);
@@ -188,7 +212,7 @@ export function DayAgendaPreview({ date }: { date: string }) {
       endHour: Math.max(1, Math.min(24, Math.ceil(Math.max(...allMinutes) / 60))),
       startHour: Math.max(0, Math.min(23, Math.floor(Math.min(...allMinutes) / 60))),
     };
-  }, [dayStart, filteredItems, staffMembers, visibleStaff]);
+  }, [dayStart, filteredItems, specialOpening, staffMembers, visibleStaff]);
 
   const timelineStartHour = timelineRange.startHour;
   const timelineEndHour = Math.max(timelineStartHour + 1, timelineRange.endHour);
@@ -196,11 +220,10 @@ export function DayAgendaPreview({ date }: { date: string }) {
   const timelineHours = Array.from({ length: timelineEndHour - timelineStartHour + 1 }, (_, index) => timelineStartHour + index);
 
   const timelineCompression = useMemo(() => {
-    const dayKey = weekdayKeys[dayStart.getDay()] ?? "mon";
     const visibleIds = new Set(visibleStaff.map(([id]) => id));
     const workingPeriods = staffMembers
       .filter((member) => visibleIds.has(member.id))
-      .flatMap((member) => member.working_hours?.[dayKey] ?? [])
+      .flatMap((member) => workingPeriodsFor(member.id))
       .map((period) => ({ from: clockMinutes(period.from), to: clockMinutes(period.to) }));
     const occupiedPeriods = filteredItems.map((item) => {
       const start = new Date(item.starts_at);
@@ -215,7 +238,7 @@ export function DayAgendaPreview({ date }: { date: string }) {
       rangeStart: timelineStartHour * 60,
       workingPeriods,
     });
-  }, [dayStart, filteredItems, staffMembers, timelineEndHour, timelineStartHour, visibleStaff]);
+  }, [dayStart, filteredItems, specialOpening, staffMembers, timelineEndHour, timelineStartHour, visibleStaff]);
 
   const timelineHeight = timelineCompression.height;
   const timelineHourTop = (hour: number) => timelineCompression.timelineY(hour * 60);
@@ -238,11 +261,9 @@ export function DayAgendaPreview({ date }: { date: string }) {
   }
 
   function nonWorkingPeriods(staffId: string) {
-    const member = staffMembers.find((item) => item.id === staffId);
-    const dayKey = weekdayKeys[dayStart.getDay()] ?? "mon";
     const rangeStart = timelineStartHour * 60;
     const rangeEnd = timelineEndHour * 60;
-    const working = (member?.working_hours?.[dayKey] ?? [])
+    const working = workingPeriodsFor(staffId)
       .map((period) => ({ from: Math.max(rangeStart, clockMinutes(period.from)), to: Math.min(rangeEnd, clockMinutes(period.to)) }))
       .filter((period) => period.to > period.from)
       .sort((left, right) => left.from - right.from);

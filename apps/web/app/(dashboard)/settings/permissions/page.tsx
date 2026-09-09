@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { CalendarPlus, History, Inbox, ShieldCheck, Trash2 } from "lucide-react";
 
 import { AppPage, Button, ConfirmDialog, DateTimeField, EmptyState, FormField, InlineError, PageHeader, SaveActionButton, SaveToast, SectionCard, StatusBadge, Select} from "@esse-beauty/ui";
 
@@ -162,7 +162,7 @@ export default function PermissionsPage() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-12">
-      <SectionCard className="xl:col-span-7" title="Da revisionare" subtitle="Le richieste inviate dall’App Staff restano qui finché non vengono approvate o rifiutate.">
+      <SectionCard className="xl:col-span-7" icon={Inbox} title="Da revisionare" subtitle="Le richieste inviate dall’App Staff restano qui finché non vengono approvate o rifiutate.">
         {pending.length === 0 ? <EmptyState title="Nessuna richiesta in attesa" description="Le nuove richieste inviate dall’App Staff appariranno qui." /> : (
           <div className="space-y-4">
             {pending.map((item) => (
@@ -188,7 +188,7 @@ export default function PermissionsPage() {
         )}
       </SectionCard>
 
-      <SectionCard className="self-start xl:col-span-5" title="Inserimento manuale" subtitle="Registra direttamente ferie, permessi o altre indisponibilità.">
+      <SectionCard className="self-start xl:col-span-5" icon={CalendarPlus} title="Inserimento manuale" subtitle="Registra direttamente ferie, permessi o altre indisponibilità.">
         <form action={addBlock} className="grid gap-4">
           <FormField label="Collaboratore" required><Select className="w-full" name="staff_id" required><option value="">Seleziona</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</Select></FormField>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -200,7 +200,7 @@ export default function PermissionsPage() {
         </form>
       </SectionCard>
 
-      <SectionCard className="xl:col-span-7" title="Permessi attivi" subtitle="Blocchi correnti e futuri già presenti in agenda per tutto il team.">
+      <SectionCard className="xl:col-span-7" icon={ShieldCheck} title="Permessi attivi" subtitle="Blocchi correnti e futuri già presenti in agenda per tutto il team.">
         {activeBlocks.length === 0 ? <EmptyState title="Nessun permesso attivo" description="Le assenze approvate o inserite manualmente compariranno qui." /> : <div className="grid gap-3 md:grid-cols-2">
           {activeBlocks.map((item) => <article className="rounded-2xl border border-stone-200 bg-[#fbfaf8] p-4" key={item.id}>
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.staff_name}</p><strong className="mt-1 block">{item.reason || "Non disponibile"}</strong></div><Button aria-label={`Elimina permesso di ${item.staff_name}`} className="size-10 p-0" disabled={removingId === item.id} onClick={() => setConfirmRemove(item)} size="sm" title="Elimina permesso" variant="destructive"><Trash2 className="size-4" /></Button></div>
@@ -209,7 +209,7 @@ export default function PermissionsPage() {
         </div>}
       </SectionCard>
 
-      <SectionCard className="xl:col-span-5" title="Storico revisioni">
+      <SectionCard className="xl:col-span-5" icon={History} title="Storico revisioni">
         {reviewed.length === 0 ? <p className="text-sm text-stone-500">Nessuna richiesta revisionata.</p> : (
           <div className="space-y-2">
             {reviewed.map((item) => (

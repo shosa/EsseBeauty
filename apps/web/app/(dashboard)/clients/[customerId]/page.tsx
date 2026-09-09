@@ -42,6 +42,7 @@ interface LoyaltyTierProgress {
 }
 interface Customer {
   appointments: Appointment[];
+  birthday: string | null;
   blocked: boolean;
   email: string | null;
   firstName: string;
@@ -329,6 +330,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
                     <FormField label="Cognome"><input className="w-full" defaultValue={customer.lastName} onBlur={(event) => void patch({ first_name: customer.firstName, last_name: event.target.value }).catch((reason: Error) => setError(reason.message))} /></FormField>
                     <FormField label="Email"><input className="w-full" defaultValue={customer.email ?? ""} onBlur={(event) => void patch({ email: event.target.value || null }).catch((reason: Error) => setError(reason.message))} /></FormField>
                     <FormField label="Telefono"><input className="w-full" defaultValue={customer.phone ?? ""} onBlur={(event) => void patch({ phone: event.target.value || null }).catch((reason: Error) => setError(reason.message))} /></FormField>
+                    <FormField label="Compleanno"><input className="w-full" defaultValue={customer.birthday ?? ""} onChange={(event) => void patch({ birthday: event.target.value || null }).catch((reason: Error) => setError(reason.message))} type="date" /></FormField>
                     <FormField className="sm:col-span-2" description="Note interne, salvate quando esci dal campo." label="Note">
                       <textarea className="min-h-24 w-full resize-y" defaultValue={customer.notes ?? ""} onBlur={(event) => void patch({ notes: event.target.value || null }).catch((reason: Error) => setError(reason.message))} />
                     </FormField>

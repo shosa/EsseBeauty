@@ -1,13 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { and, asc, desc, eq, gt, ilike, inArray, lt, ne, or } from "drizzle-orm";
 
-import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, reviews, salonClosures, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, reviews, salonClosures, salonSpecialOpenings, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureCustomerCancellationNotification, ensureOnlineBookingNotifications, ensureRescheduleRequestNotifications } from "../../jobs/staff-request-notifications.js";
 import { pushPublicKey } from "../../lib/customer-push.js";
 import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
+import { applySpecialOpeningHours, findSpecialOpening } from "../../lib/special-openings.js";
 import { resolveCustomerId } from "./customer-auth.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {
@@ -51,7 +52,9 @@ async function slotsForServices(app: FastifyInstance, salon: any, member: any, s
     app.db.select({ startsAt: availabilityBlocks.startsAt, endsAt: availabilityBlocks.endsAt }).from(availabilityBlocks).where(and(
       eq(availabilityBlocks.staffId, member.id), lt(availabilityBlocks.startsAt, dayEnd), gt(availabilityBlocks.endsAt, dayStart))),
   ]);
-  const slots = computeAvailableSlots({ date, timezone: salon.timezone, workingHours: member.workingHours,
+  const specialOpening = await findSpecialOpening(app.db, salon.id, date);
+  const effectiveWorkingHours = applySpecialOpeningHours(member.workingHours, date, specialOpening, member.id);
+  const slots = computeAvailableSlots({ date, timezone: salon.timezone, workingHours: effectiveWorkingHours,
     durationMinutes: selectedServices.reduce((total, service) => total + service.durationMinutes, 0), appointments: busy, blocks });
   return Promise.all(slots.map(async (slot) => {
     if (!slot.available) return slot;
@@ -119,6 +122,7 @@ async function findServiceSequence(app: FastifyInstance, salon: any, selectedSer
 }
 
 async function isSalonClosed(app: FastifyInstance, salonId: string, date: string) {
+  if (await findSpecialOpening(app.db, salonId, date)) return false;
   const closures = await app.db.select({ date: salonClosures.date, recurringYearly: salonClosures.recurringYearly }).from(salonClosures).where(eq(salonClosures.salonId, salonId));
   return closures.some((closure) => closure.date === date || (closure.recurringYearly && closure.date.slice(5) === date.slice(5)));
 }
@@ -210,7 +214,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     if (!salon.onlineBookingEnabled) {
       return reply.code(503).send({ error: "BOOKING_UNAVAILABLE" });
     }
-    const [serviceRows, categoryRows, staffRows, staffServiceRows, brandingRows, pwa, closureRows] = await Promise.all([
+    const [serviceRows, categoryRows, staffRows, staffServiceRows, brandingRows, pwa, closureRows, specialOpeningRows] = await Promise.all([
       app.db.select({
         category: services.category,
         categoryIcon: serviceCategories.icon,
@@ -240,6 +244,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       app.db.select().from(pwaBrandingSettings).where(eq(pwaBrandingSettings.salonId, salon.id)),
       getPwaOptions(app, salon.id),
       app.db.select({ date: salonClosures.date, recurringYearly: salonClosures.recurringYearly }).from(salonClosures).where(eq(salonClosures.salonId, salon.id)),
+      app.db.select({ date: salonSpecialOpenings.date }).from(salonSpecialOpenings).where(eq(salonSpecialOpenings.salonId, salon.id)),
     ]);
     const waitlistEnabled = pwa.allowWaitlist && await isModuleEnabled(salon.id, MODULE_KEYS.WAITLIST, app.db);
     return {
@@ -248,6 +253,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
       categories: categoryRows,
       closures: closureRows,
       pwa,
+      special_openings: specialOpeningRows.map((row) => row.date),
       salon,
       services: serviceRows,
       staff: pwa.allowStaffPreference

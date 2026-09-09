@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { Calendar, Check, ChevronDown, Info, UserPlus, X } from "lucide-react";
-import { AppPage, Breadcrumbs, Button, DateTimeField, designTokens, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { Calendar, Check, ChevronDown, Info, MessageCircle, Tag, UserPlus, X } from "lucide-react";
+import { AppPage, Breadcrumbs, Button, DateTimeField, designTokens, Dialog, FormField, InlineError, PageSkeleton, Select, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 import { DayAgendaPreview } from "../../_components/DayAgendaPreview";
@@ -106,6 +106,11 @@ export default function NewAppointmentPage() {
   const [customerLoading, setCustomerLoading] = useState(false);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [newCustomerSaving, setNewCustomerSaving] = useState(false);
+  const [newCustomerTags, setNewCustomerTags] = useState<string[]>([]);
+  const [newCustomerTagInput, setNewCustomerTagInput] = useState("");
+  const [newCustomerWhatsAppConsent, setNewCustomerWhatsAppConsent] = useState(false);
+  const [newCustomerConsentSource, setNewCustomerConsentSource] = useState("in_person");
+  const [newCustomerConsentNote, setNewCustomerConsentNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [overlaps, setOverlaps] = useState<AppointmentOverlap[]>([]);
   const [schedulingWarnings, setSchedulingWarnings] = useState<SchedulingConflict[]>([]);
@@ -304,13 +309,31 @@ export default function NewAppointmentPage() {
   }, [customerLoading, customerQuery, customerResults.length, selectedCustomer]);
 
   const closeNewCustomerDialog = useCallback(() => {
-    if (!newCustomerSaving) setNewCustomerOpen(false);
+    if (newCustomerSaving) return;
+    setNewCustomerOpen(false);
+    setNewCustomerTags([]);
+    setNewCustomerTagInput("");
+    setNewCustomerWhatsAppConsent(false);
+    setNewCustomerConsentSource("in_person");
+    setNewCustomerConsentNote("");
   }, [newCustomerSaving]);
+
+  function addNewCustomerTag() {
+    const value = newCustomerTagInput.trim();
+    if (!value) return;
+    setNewCustomerTags((current) => current.some((item) => item.toLocaleLowerCase("it-IT") === value.toLocaleLowerCase("it-IT")) ? current : [...current, value]);
+    setNewCustomerTagInput("");
+  }
 
   async function createCustomerFromDialog(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!salon || newCustomerSaving) return;
     const formData = new FormData(event.currentTarget);
+    const phone = String(formData.get("phone") ?? "").trim();
+    if (newCustomerWhatsAppConsent && !phone) {
+      setError("Inserisci il numero di telefono per concedere il consenso WhatsApp.");
+      return;
+    }
     setNewCustomerSaving(true);
     setError("");
     try {
@@ -319,7 +342,10 @@ export default function NewAppointmentPage() {
           email: formData.get("email") || undefined,
           first_name: formData.get("first_name"),
           last_name: formData.get("last_name"),
-          phone: formData.get("phone") || undefined,
+          phone: phone || undefined,
+          birthday: formData.get("birthday") || undefined,
+          notes: formData.get("notes") || undefined,
+          tags: newCustomerTags,
         }),
         credentials: "include",
         headers: { "content-type": "application/json" },
@@ -327,6 +353,14 @@ export default function NewAppointmentPage() {
       });
       if (!response.ok) throw new Error("Cliente non creato.");
       const customer = await response.json() as { email: string | null; firstName?: string; first_name?: string; fullName?: string; full_name?: string; id: string; lastName?: string; last_name?: string; phone: string | null };
+      if (newCustomerWhatsAppConsent) {
+        await fetch(`${api}/api/salons/${salon.id}/customers/${customer.id}/communication-consents/whatsapp-marketing`, {
+          body: JSON.stringify({ evidence_note: newCustomerConsentNote, source: newCustomerConsentSource, status: "granted" }),
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          method: "PUT",
+        });
+      }
       const firstName = customer.firstName ?? customer.first_name ?? String(formData.get("first_name") ?? "");
       const lastName = customer.lastName ?? customer.last_name ?? String(formData.get("last_name") ?? "");
       const name = [firstName, lastName].filter(Boolean).join(" ") || customer.fullName || customer.full_name || "";
@@ -335,6 +369,11 @@ export default function NewAppointmentPage() {
       setCustomerQuery(name);
       setCustomerResults([]);
       setNewCustomerOpen(false);
+      setNewCustomerTags([]);
+      setNewCustomerTagInput("");
+      setNewCustomerWhatsAppConsent(false);
+      setNewCustomerConsentSource("in_person");
+      setNewCustomerConsentNote("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Cliente non creato.");
     } finally {
@@ -494,6 +533,48 @@ export default function NewAppointmentPage() {
             <FormField label="Cognome" required><input autoComplete="family-name" className="w-full" name="last_name" required /></FormField>
             <FormField label="Email"><input autoComplete="email" className="w-full" name="email" type="email" /></FormField>
             <FormField label="Telefono"><input autoComplete="tel" className="w-full" name="phone" /></FormField>
+            <FormField label="Compleanno"><input className="w-full" name="birthday" type="date" /></FormField>
+          </div>
+          <FormField label="Segmenti" description="Digita un nome e premi Invio per crearne uno nuovo.">
+            <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-stone-200 px-3 py-2 focus-within:border-[#792f59]">
+              {newCustomerTags.map((item) => (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-[#f4e4ec] px-2.5 py-1.5 text-xs font-bold text-[#682849]" key={item}>
+                  <Tag aria-hidden="true" size={13} />{item}
+                  <button aria-label={`Rimuovi segmento ${item}`} className="ml-1 text-[#7b3159] hover:text-red-700" onClick={() => setNewCustomerTags((current) => current.filter((tagItem) => tagItem !== item))} type="button"><X aria-hidden="true" size={13} /></button>
+                </span>
+              ))}
+              <input
+                className="min-w-40 flex-1 border-0 px-1 py-1.5 text-sm outline-none"
+                onChange={(event) => setNewCustomerTagInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addNewCustomerTag(); } }}
+                placeholder={newCustomerTags.length ? "Aggiungi un altro segmento" : "Scrivi un segmento e premi Invio"}
+                value={newCustomerTagInput}
+              />
+            </div>
+          </FormField>
+          <FormField label="Note interne"><textarea className="w-full" name="notes" rows={3} /></FormField>
+          <div className="overflow-hidden rounded-xl border border-emerald-100">
+            <div className="flex items-center justify-between gap-4 bg-emerald-50 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-600 text-white"><MessageCircle aria-hidden="true" size={18} /></span>
+                <div><h3 className="text-sm font-bold">Consenso marketing WhatsApp</h3><p className="text-xs text-stone-600">Richiede un numero di telefono valido.</p></div>
+              </div>
+              <Switch aria-label="Consenso marketing WhatsApp" checked={newCustomerWhatsAppConsent} onCheckedChange={setNewCustomerWhatsAppConsent} />
+            </div>
+            {newCustomerWhatsAppConsent && (
+              <div className="grid gap-4 border-t border-emerald-100 p-4 sm:grid-cols-2">
+                <FormField label="Fonte di acquisizione">
+                  <Select className="w-full" onChange={(event) => setNewCustomerConsentSource(event.target.value)} value={newCustomerConsentSource}>
+                    <option value="in_person">Acquisito in salone</option>
+                    <option value="customer_request">Richiesta del cliente</option>
+                    <option value="web_form">Modulo online</option>
+                    <option value="import_verified">Importazione verificata</option>
+                    <option value="manual_admin">Inserimento amministrativo</option>
+                  </Select>
+                </FormField>
+                <FormField label="Nota o evidenza"><textarea className="w-full" onChange={(event) => setNewCustomerConsentNote(event.target.value)} placeholder="Es. consenso espresso in reception" rows={2} value={newCustomerConsentNote} /></FormField>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button disabled={newCustomerSaving} onClick={closeNewCustomerDialog} type="button" variant="outline">Annulla</Button>

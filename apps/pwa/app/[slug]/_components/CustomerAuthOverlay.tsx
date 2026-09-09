@@ -59,6 +59,7 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
     const result = mode === "login"
       ? await customerLogin(slug, { password, phone })
       : await customerRegister(slug, {
+        birthday: String(data.get("birthday") ?? "").trim() || undefined,
         email: String(data.get("email") ?? "").trim() || undefined,
         first_name: String(data.get("first_name") ?? "").trim(),
         last_name: String(data.get("last_name") ?? "").trim(),
@@ -151,6 +152,7 @@ export function CustomerAuthOverlay({ accent, onClose, primary, requireEmail = t
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block text-sm font-black text-stone-800">Nome<input className="mt-2 w-full" name="first_name" required type="text" /></label>
                   <label className="block text-sm font-black text-stone-800">Cognome<input className="mt-2 w-full" name="last_name" required type="text" /></label>
+                  <label className="col-span-2 block text-sm font-black text-stone-800">Compleanno (opzionale)<input className="mt-2 w-full" name="birthday" type="date" /></label>
                 </div>
               )}
               {mode === "reset" ? (

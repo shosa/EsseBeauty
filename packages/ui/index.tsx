@@ -12,7 +12,7 @@ import type {
 import { Children, isValidElement, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, LoaderCircle, Trash2, X, type LucideIcon } from "lucide-react";
 
 export const designTokens = {
   layout: {
@@ -883,6 +883,7 @@ export function SectionCard({
   actions,
   children,
   className = "",
+  icon: Icon,
   id,
   subtitle,
   title,
@@ -890,6 +891,7 @@ export function SectionCard({
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
+  icon?: LucideIcon;
   id?: string;
   subtitle?: ReactNode;
   title?: ReactNode;
@@ -899,9 +901,12 @@ export function SectionCard({
     <section aria-labelledby={title ? titleId : undefined} id={id} className={`esse-panel relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm md:p-5 ${className}`}>
       {(title || actions || subtitle) && (
         <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            {title && <h2 className="text-xl font-bold text-stone-950" id={titleId}>{title}</h2>}
-            {subtitle && <p className="mt-1 text-sm leading-6 text-stone-500">{subtitle}</p>}
+          <div className="flex items-start gap-3">
+            {Icon && <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[#792f59]" />}
+            <div>
+              {title && <h2 className="text-xl font-bold text-stone-950" id={titleId}>{title}</h2>}
+              {subtitle && <p className="mt-1 text-sm leading-6 text-stone-500">{subtitle}</p>}
+            </div>
           </div>
           {actions}
         </div>

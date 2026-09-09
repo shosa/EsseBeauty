@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { customerCredentials, customerPasswordResetTokens, customers, customerSessions, salons } from "@esse-beauty/db/schema";
+import { isValidBirthday } from "../../lib/birthday.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { inspectPublicToken, issuePublicToken } from "../../lib/public-tokens.js";
 import {
@@ -103,7 +104,7 @@ export async function registerPublicCustomerAuthRoutes(app: FastifyInstance, dep
   const providers = dependencies.providers ?? createCommunicationProviderRegistry();
 
   app.post<{
-    Body: { email?: string; first_name?: string; last_name?: string; password?: string; phone?: string };
+    Body: { birthday?: string; email?: string; first_name?: string; last_name?: string; password?: string; phone?: string };
     Params: { slug: string };
   }>("/api/public/:slug/customer-auth/register", async (request, reply) => {
     const salon = await getSalon(app, request.params.slug);
@@ -113,9 +114,11 @@ export async function registerPublicCustomerAuthRoutes(app: FastifyInstance, dep
     const lastName = request.body.last_name?.trim() ?? "";
     const password = request.body.password ?? "";
     const phoneNormalized = normalizePhoneE164(request.body.phone);
+    const birthday = request.body.birthday?.trim() || undefined;
     if (!phoneNormalized) return reply.code(400).send({ error: "PHONE_INVALID" });
     if (!firstName || !lastName) return reply.code(400).send({ error: "CUSTOMER_NAME_PARTS_REQUIRED" });
     if (password.length < 8) return reply.code(400).send({ error: "PASSWORD_TOO_SHORT" });
+    if (birthday && !isValidBirthday(birthday)) return reply.code(400).send({ error: "INVALID_BIRTHDAY" });
 
     const existingCredentials = (await app.db.select({ id: customerCredentials.id }).from(customerCredentials)
       .where(and(eq(customerCredentials.salonId, salon.id), eq(customerCredentials.phoneNormalized, phoneNormalized))))[0];
@@ -126,6 +129,7 @@ export async function registerPublicCustomerAuthRoutes(app: FastifyInstance, dep
     if (existingCustomer?.blocked) return reply.code(403).send({ error: "CUSTOMER_BLOCKED" });
 
     const customer = existingCustomer ?? (await app.db.insert(customers).values({
+      birthday,
       email: request.body.email?.trim() || undefined,
       firstName,
       fullName: [firstName, lastName].filter(Boolean).join(" "),

@@ -17,8 +17,9 @@ interface Branding { accentColor?: string; primaryColor?: string; }
 interface Profile {
   branding?: Branding | null;
   closures?: SalonClosure[];
-  pwa?: { allowCancellation?: boolean; allowReschedule?: boolean; maxAdvanceDays?: number; requireEmail?: boolean };
+  pwa?: { allowCancellation?: boolean; allowReschedule?: boolean; cancellationPolicyHours?: number; maxAdvanceDays?: number; requireEmail?: boolean };
   salon: { name: string };
+  special_openings?: string[];
 }
 interface Item {
   ends_at: string;
@@ -78,14 +79,29 @@ export default function AppointmentsPage() {
   );
   const visibleItems = tab === "upcoming" ? upcomingItems : pastItems;
 
+  function cancellationFailureMessage(code: string | undefined) {
+    switch (code) {
+      case "CANCELLATION_DISABLED": return "Il salone ha disattivato la cancellazione online: contattalo direttamente per annullare.";
+      case "CANCELLATION_WINDOW_CLOSED": return `Non è più possibile annullare online: mancano meno di ${profile?.pwa?.cancellationPolicyHours ?? 24} ore all'appuntamento. Contatta il salone.`;
+      case "APPOINTMENT_NOT_FOUND": return "Appuntamento non trovato: potrebbe essere già stato annullato.";
+      case "CUSTOMER_IDENTIFICATION_REQUIRED": return "Non è stato possibile verificarti: esci e accedi di nuovo, poi riprova.";
+      default: return "Impossibile annullare l'appuntamento. Riprova più tardi o contatta il salone.";
+    }
+  }
+
   async function cancel(appointmentId: string) {
     if (!window.confirm("Vuoi annullare questo appuntamento?")) return;
     const response = await fetch(`${apiBaseUrl()}/api/public/${slug}/appointments/${appointmentId}/cancel`, {
       credentials: "include",
       method: "POST",
     });
-    setToast(response.ok ? "Appuntamento annullato." : "Impossibile annullare l'appuntamento.");
-    if (response.ok) await search();
+    if (response.ok) {
+      setToast("Appuntamento annullato.");
+      await search();
+      return;
+    }
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    setToast(cancellationFailureMessage(payload.error));
   }
 
   async function submitReschedule(appointmentId: string, requestedStartsAt: string) {
@@ -201,6 +217,7 @@ export default function AppointmentsPage() {
             serviceId={rescheduleTarget.service_id}
             serviceName={rescheduleTarget.service_name}
             slug={slug}
+            specialOpenings={profile?.special_openings}
             staffId={rescheduleTarget.staff_id}
           />
         )}

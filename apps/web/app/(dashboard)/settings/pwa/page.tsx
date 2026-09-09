@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, LoaderCircle } from "lucide-react";
+import { CalendarCheck, ClipboardList, ExternalLink, LoaderCircle, Palette, UserCheck } from "lucide-react";
 import { AppPage, FormField, PageHeader, SaveActionButton, SaveToast, SectionCard, Switch, Select} from "@esse-beauty/ui";
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
@@ -255,7 +255,7 @@ export default function AppClientiSettingsPage() {
       <SaveToast variant={message.includes("non riuscito") || message.includes("Impossibile") ? "error" : "success"} visible={Boolean(message)}>{message}</SaveToast>
       <PageHeader eyebrow="Canale clienti" title="App Clienti" subtitle="Prenotazioni online, autonomia del cliente e identità dell’app in un unico spazio." />
       <div className="grid gap-5 xl:grid-cols-2">
-        <SectionCard title="Prenotazioni online" subtitle="Decidi come entra in agenda una prenotazione inviata dal cliente.">
+        <SectionCard icon={CalendarCheck} title="Prenotazioni online" subtitle="Decidi come entra in agenda una prenotazione inviata dal cliente.">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold md:col-span-2">Prenotazioni online attive<Switch aria-label="Prenotazioni online attive" checked={settings.onlineBookingEnabled} onCheckedChange={(onlineBookingEnabled) => setSettings({ ...settings, onlineBookingEnabled })} /></label>
             <FormField className="md:col-span-2" label="Stato iniziale della prenotazione">
@@ -283,7 +283,7 @@ export default function AppClientiSettingsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Autonomia cliente" subtitle="Regole applicate nella sezione I miei appuntamenti.">
+        <SectionCard icon={UserCheck} title="Autonomia cliente" subtitle="Regole applicate nella sezione I miei appuntamenti.">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-stone-200 p-4 text-sm font-semibold md:col-span-2">Cancellazione autonoma<Switch aria-label="Cancellazione autonoma" checked={settings.allowCancellation} onCheckedChange={(allowCancellation) => setSettings({ ...settings, allowCancellation })} /></label>
             <div className="md:col-span-2"><HoursField disabled={!settings.allowCancellation} label="Cancellazione consentita fino a" onChange={(cancellationPolicyHours) => setSettings({ ...settings, cancellationPolicyHours })} options={cancellationOptions} value={settings.cancellationPolicyHours} /></div>
@@ -294,7 +294,7 @@ export default function AppClientiSettingsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Aspetto App Clienti" subtitle="Personalizza la home e il percorso di prenotazione.">
+        <SectionCard icon={Palette} title="Aspetto App Clienti" subtitle="Personalizza la home e il percorso di prenotazione.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Logo URL"><input className="w-full" onChange={(event) => setSettings({ ...settings, logoUrl: event.target.value })} value={settings.logoUrl} /></FormField>
             <FormField label="Titolo principale"><input className="w-full" onChange={(event) => setSettings({ ...settings, heroTitle: event.target.value })} value={settings.heroTitle} /></FormField>
@@ -308,7 +308,7 @@ export default function AppClientiSettingsPage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Comportamento scelto" subtitle="Riepilogo operativo e anteprima aggiornata dell’esperienza cliente.">
+        <SectionCard icon={ClipboardList} title="Comportamento scelto" subtitle="Riepilogo operativo e anteprima aggiornata dell’esperienza cliente.">
           <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,360px)_360px] xl:justify-between">
             <div className="space-y-3 text-sm">
               <p className="rounded-xl bg-sky-50 p-4 font-semibold text-sky-950">Le nuove prenotazioni entrano come <strong>{settings.bookingDefaultStatus === "confirmed" ? "Confermate" : "In attesa"}</strong>.</p>

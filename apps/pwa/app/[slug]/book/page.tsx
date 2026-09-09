@@ -57,6 +57,7 @@ interface Profile {
     requirePhone?: boolean;
   };
   salon: { name: string };
+  special_openings?: string[];
   services: Service[];
   staff: Member[];
 }
@@ -587,7 +588,7 @@ export default function BookingPage() {
               <DateField
                 compact
                 id="booking-date"
-                isDateDisabled={(day) => isDateClosed(day, profile.closures, profile.opening_hours)}
+                isDateDisabled={(day) => isDateClosed(day, profile.closures, profile.opening_hours, profile.special_openings)}
                 max={new Date(Date.now() + (profile.pwa?.maxAdvanceDays ?? 90) * 86400000).toISOString().slice(0, 10)}
                 min={new Date().toISOString().slice(0, 10)}
                 onChange={(nextValue) => setDate(nextValue)}
@@ -599,7 +600,7 @@ export default function BookingPage() {
             <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
               {quickDays.map((day) => {
                 const iso = isoDate(day);
-                const closed = isDateClosed(day, profile.closures, profile.opening_hours);
+                const closed = isDateClosed(day, profile.closures, profile.opening_hours, profile.special_openings);
                 const active = date === iso;
                 return (
                   <button

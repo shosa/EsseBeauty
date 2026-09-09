@@ -52,6 +52,17 @@ interface SalonClosure {
   recurringYearly: boolean;
 }
 
+interface TimePeriod {
+  from: string;
+  to: string;
+}
+
+interface SpecialOpening {
+  date: string;
+  periods: TimePeriod[];
+  staff: Array<{ periods: TimePeriod[] | null; staff_id: string }>;
+}
+
 interface StaffOption {
   color: string;
   display_name: string;
@@ -151,7 +162,10 @@ function sameDay(left: Date, right: Date) {
 }
 
 function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function weekdayShortLabel(date: Date) {
@@ -340,6 +354,7 @@ export default function CalendarPage() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<AvailabilityBlock[]>([]);
   const [salonClosures, setSalonClosures] = useState<SalonClosure[]>([]);
+  const [specialOpenings, setSpecialOpenings] = useState<SpecialOpening[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffOption[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [view, setView] = useState<CalendarView>("day");
@@ -380,6 +395,7 @@ export default function CalendarPage() {
   const appointmentDialogRef = useRef<HTMLElement>(null);
   const [curtainShake, setCurtainShake] = useState(false);
   const [pendingMove, setPendingMove] = useState<PendingAppointmentMove>();
+  const [moveError, setMoveError] = useState("");
   const [moveDraft, setMoveDraft] = useState<AppointmentMoveDraft>();
   const [deleteTarget, setDeleteTarget] = useState<Appointment>();
   const [moveSaving, setMoveSaving] = useState(false);
@@ -457,10 +473,11 @@ export default function CalendarPage() {
     ])
       .then(async ([eventsResponse, staffResponse]) => {
         if (!eventsResponse.ok) throw new Error("Impossibile caricare il calendario.");
-        const data = await eventsResponse.json() as { appointments?: Appointment[]; availability_blocks?: AvailabilityBlock[]; salon_closures?: SalonClosure[] };
+        const data = await eventsResponse.json() as { appointments?: Appointment[]; availability_blocks?: AvailabilityBlock[]; salon_closures?: SalonClosure[]; special_openings?: SpecialOpening[] };
         setItems(data.appointments ?? []);
         setAvailabilityBlocks(data.availability_blocks ?? []);
         setSalonClosures(data.salon_closures ?? []);
+        setSpecialOpenings(data.special_openings ?? []);
         if (staffResponse.ok) setStaffMembers(await staffResponse.json() as StaffOption[]);
         setError("");
       })
@@ -600,11 +617,10 @@ export default function CalendarPage() {
     [navigatorWeekStart],
   );
   const timelineRange = useMemo(() => {
-    const dayKey = weekdayKeys[range.from.getDay()] ?? "mon";
     const visibleIds = new Set(visibleStaff.map(([id]) => id));
     const scheduleMinutes = staffMembers
       .filter((member) => visibleIds.has(member.id))
-      .flatMap((member) => member.working_hours?.[dayKey] ?? [])
+      .flatMap((member) => workingPeriodsFor(member.id, range.from))
       .flatMap((period) => [clockMinutes(period.from), clockMinutes(period.to)]);
     const eventMinutes = [
       ...filteredItems.flatMap((item) => {
@@ -626,7 +642,7 @@ export default function CalendarPage() {
       endHour: Math.max(1, Math.min(24, Math.ceil(Math.max(...allMinutes) / 60))),
       startHour: Math.max(0, Math.min(23, Math.floor(Math.min(...allMinutes) / 60))),
     };
-  }, [availabilityBlocks, filteredItems, range.from, staffFilter, staffMembers, visibleStaff]);
+  }, [availabilityBlocks, filteredItems, range.from, specialOpenings, staffFilter, staffMembers, visibleStaff]);
 
   function itemsForDay(day: Date) {
     return filteredItems.filter((item) => sameDay(new Date(item.starts_at), day));
@@ -641,8 +657,24 @@ export default function CalendarPage() {
     );
   }
 
+  function specialOpeningForDay(day: Date) {
+    return specialOpenings.find((opening) => opening.date === dateKey(day));
+  }
+
   function closuresForDay(day: Date) {
+    if (specialOpeningForDay(day)) return [];
     return salonClosures.filter((closure) => closureMatchesDay(closure, day));
+  }
+
+  function workingPeriodsFor(staffId: string, day: Date): TimePeriod[] {
+    const opening = specialOpeningForDay(day);
+    if (opening) {
+      const entry = opening.staff.find((item) => item.staff_id === staffId);
+      if (entry) return entry.periods ?? opening.periods;
+    }
+    const member = staffMembers.find((item) => item.id === staffId);
+    const dayKey = weekdayKeys[day.getDay()] ?? "mon";
+    return member?.working_hours?.[dayKey] ?? [];
   }
 
   function selectNavigatorDay(day: Date) {
@@ -729,11 +761,10 @@ export default function CalendarPage() {
   const hourHeight = 112;
   const timelineHours = Array.from({ length: timelineEndHour - timelineStartHour + 1 }, (_, index) => timelineStartHour + index);
   const timelineCompression = useMemo(() => {
-    const dayKey = weekdayKeys[range.from.getDay()] ?? "mon";
     const visibleIds = new Set(visibleStaff.map(([id]) => id));
     const workingPeriods: TimelinePeriod[] = staffMembers
       .filter((member) => visibleIds.has(member.id))
-      .flatMap((member) => member.working_hours?.[dayKey] ?? [])
+      .flatMap((member) => workingPeriodsFor(member.id, range.from))
       .map((period) => ({
         from: clockMinutes(period.from),
         to: clockMinutes(period.to),
@@ -766,7 +797,7 @@ export default function CalendarPage() {
       rangeStart: timelineStartHour * 60,
       workingPeriods,
     });
-  }, [availabilityBlocks, filteredItems, range.from, staffFilter, staffMembers, timelineEndHour, timelineStartHour, visibleStaff]);
+  }, [availabilityBlocks, filteredItems, range.from, specialOpenings, staffFilter, staffMembers, timelineEndHour, timelineStartHour, visibleStaff]);
   const timelineHeight = timelineCompression.height;
   const timelineHourTop = (hour: number) => timelineCompression.timelineY(hour * 60);
   const visibleTimelineHours = timelineHours.filter((hour) =>
@@ -792,11 +823,9 @@ export default function CalendarPage() {
   }
 
   function nonWorkingPeriods(staffId: string) {
-    const member = staffMembers.find((item) => item.id === staffId);
-    const dayKey = weekdayKeys[range.from.getDay()] ?? "mon";
     const rangeStart = timelineStartHour * 60;
     const rangeEnd = timelineEndHour * 60;
-    const working = (member?.working_hours?.[dayKey] ?? [])
+    const working = workingPeriodsFor(staffId, range.from)
       .map((period) => ({
         from: Math.max(rangeStart, clockMinutes(period.from)),
         to: Math.min(rangeEnd, clockMinutes(period.to)),
@@ -846,6 +875,7 @@ export default function CalendarPage() {
     const targetDate = new Date(range.from);
     targetDate.setHours(Math.floor(roundedMinutes / 60), roundedMinutes % 60, 0, 0);
     const startsAt = targetDate.toISOString();
+    setMoveError("");
     setPendingMove({
       appointment,
       conflicts: [],
@@ -870,6 +900,7 @@ export default function CalendarPage() {
     const draft = moveDraft;
     if (!draft || !draft.date || !draft.time || !draft.staffId) return;
     const startsAt = new Date(`${draft.date}T${draft.time}:00`).toISOString();
+    setMoveError("");
     setPendingMove({
       appointment: draft.appointment,
       conflicts: [],
@@ -880,9 +911,24 @@ export default function CalendarPage() {
     setMoveDraft(undefined);
   }
 
+  function moveFailureMessage(code: string | undefined) {
+    switch (code) {
+      case "SALON_CLOSED": return "Il salone è chiuso in questa data.";
+      case "PERMISSION_DENIED": return "Non hai i permessi per spostare questo appuntamento.";
+      case "STAFF_NOT_FOUND": return "Il collaboratore selezionato non è più disponibile.";
+      case "STAFF_NOT_QUALIFIED": return "Il collaboratore selezionato non è abilitato per questo servizio.";
+      case "RESOURCE_NOT_COMPATIBLE": return "La cabina selezionata non è compatibile con questo servizio.";
+      case "APPOINTMENT_NOT_FOUND": return "Appuntamento non trovato: ricarica il calendario.";
+      case "INVALID_STARTS_AT": return "La data o l'ora selezionata non è valida.";
+      case "INVALID_DURATION": return "La durata dell'appuntamento non è valida.";
+      default: return "Spostamento non riuscito.";
+    }
+  }
+
   async function confirmMove(forceConflicts = false) {
     if (!salon || !pendingMove || moveSaving) return;
     setMoveSaving(true);
+    setMoveError("");
     try {
       const response = await fetch(`${api}/api/salons/${salon.id}/appointments/${pendingMove.appointment.id}`, {
         body: JSON.stringify({
@@ -905,12 +951,13 @@ export default function CalendarPage() {
           setPendingMove((current) => current ? { ...current, conflicts } : current);
           return;
         }
-        throw new Error(payload.error === "SALON_CLOSED" ? "Il salone è chiuso." : "Spostamento non riuscito.");
+        setMoveError(moveFailureMessage(payload.error));
+        return;
       }
       setPendingMove(undefined);
       setRefreshToken((value) => value + 1);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Spostamento non riuscito.");
+    } catch {
+      setMoveError("Spostamento non riuscito: verifica la connessione e riprova.");
     } finally {
       setMoveSaving(false);
     }
@@ -1572,7 +1619,7 @@ export default function CalendarPage() {
       <Dialog
         footer={
           <>
-            <Button onClick={() => setPendingMove(undefined)} variant="outline">Annulla</Button>
+            <Button onClick={() => { setPendingMove(undefined); setMoveError(""); }} variant="outline">Annulla</Button>
             <Button
               disabled={moveSaving || pendingMove?.conflicts.some((conflict) => !conflict.forceable)}
               onClick={() => void confirmMove(Boolean(pendingMove?.conflicts.length))}
@@ -1582,7 +1629,7 @@ export default function CalendarPage() {
             </Button>
           </>
         }
-        onClose={() => setPendingMove(undefined)}
+        onClose={() => { setPendingMove(undefined); setMoveError(""); }}
         open={Boolean(pendingMove)}
         title="Conferma spostamento"
       >
@@ -1599,6 +1646,7 @@ export default function CalendarPage() {
                 <ul className="mt-2 list-disc pl-5">{pendingMove.conflicts.map((conflict) => <li key={conflict.code}>{conflict.message}{!conflict.forceable ? " (non forzabile)" : ""}</li>)}</ul>
               </div>
             )}
+            {moveError && <InlineError>{moveError}</InlineError>}
           </div>
         )}
       </Dialog>

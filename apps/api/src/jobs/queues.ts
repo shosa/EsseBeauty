@@ -3,6 +3,7 @@ import { Queue } from "bullmq";
 export const QUEUE_NAMES = {
   CAMPAIGNS: "marketing-campaigns",
   COMMUNICATIONS: "whatsapp-communications",
+  LOYALTY_BIRTHDAYS: "loyalty-birthdays",
   REMINDERS: "appointment-reminders",
   REVIEWS: "review-requests",
 } as const;

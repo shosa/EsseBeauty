@@ -17,6 +17,10 @@ import {
   registerReviewRecoverySchedule,
   startReviewWorker,
 } from "./jobs/reviews.js";
+import {
+  registerLoyaltyBirthdaySchedule,
+  startLoyaltyBirthdayWorker,
+} from "./jobs/loyalty-birthdays.js";
 import { closeQueues } from "./jobs/queues.js";
 
 const env = loadEnvironment();
@@ -27,12 +31,14 @@ const workers = [
   startReminderWorker(db),
   startReviewWorker(db),
   startMarketingWorker(db),
+  startLoyaltyBirthdayWorker(db),
 ];
 await registerReminderSchedule();
 await recoverCommunicationOutbox(db);
 await registerCommunicationRecoverySchedule();
 await recoverReviewInvitations(db);
 await registerReviewRecoverySchedule();
+await registerLoyaltyBirthdaySchedule();
 
 app.addHook("onClose", async () => {
   await Promise.all(workers.map((worker) => worker.close()));

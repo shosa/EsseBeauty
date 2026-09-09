@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, LoaderCircle } from "lucide-react";
+import { Building2, CalendarClock, CalendarOff, ChevronDown, DoorOpen, LoaderCircle, MapPin, X } from "lucide-react";
 
 import type { WorkingHours } from "@esse-beauty/shared";
 import { AppPage, Button, DateField, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, ScheduleEditor, SectionCard, Switch, Select} from "@esse-beauty/ui";
@@ -70,7 +70,61 @@ interface SalonClosure {
   recurringYearly: boolean;
 }
 
-type SavingSection = "calendar" | "closure" | "location" | "salon";
+interface StaffRosterItem {
+  display_name: string;
+  id: string;
+}
+
+interface TimePeriod {
+  from: string;
+  to: string;
+}
+
+interface SpecialOpening {
+  date: string;
+  id: string;
+  periods: TimePeriod[];
+  reason?: string | null;
+  staff: Array<{ periods: TimePeriod[] | null; staffId: string; staffName: string }>;
+}
+
+interface SpecialOpeningStaffSelection {
+  customHours: boolean;
+  periods: TimePeriod[];
+  selected: boolean;
+}
+
+function periodsLabel(periods: TimePeriod[]) {
+  return periods.map((period) => `${period.from}–${period.to}`).join(", ");
+}
+
+function PeriodsEditor({ ariaLabelPrefix, periods, onChange }: { ariaLabelPrefix: string; onChange(next: TimePeriod[]): void; periods: TimePeriod[] }) {
+  function updatePeriod(index: number, field: "from" | "to", value: string) {
+    onChange(periods.map((period, itemIndex) => itemIndex === index ? { ...period, [field]: value } : period));
+  }
+  function addPeriod() {
+    const previous = periods.at(-1);
+    onChange([...periods, { from: previous?.to && previous.to < "18:00" ? previous.to : "14:00", to: "18:00" }]);
+  }
+  function removePeriod(index: number) {
+    onChange(periods.filter((_, itemIndex) => itemIndex !== index));
+  }
+  return (
+    <div className="space-y-2">
+      {periods.map((period, index) => (
+        <div className="flex items-center gap-2" key={index}>
+          <input aria-label={`${ariaLabelPrefix}: inizio fascia ${index + 1}`} className="w-full" onChange={(event) => updatePeriod(index, "from", event.target.value)} type="time" value={period.from} />
+          <span className="text-stone-400">–</span>
+          <input aria-label={`${ariaLabelPrefix}: fine fascia ${index + 1}`} className="w-full" onChange={(event) => updatePeriod(index, "to", event.target.value)} type="time" value={period.to} />
+          {periods.length > 1 && <button aria-label={`Rimuovi fascia ${index + 1} di ${ariaLabelPrefix}`} className="shrink-0 rounded-lg p-1.5 text-red-600 hover:bg-red-50" onClick={() => removePeriod(index)} type="button"><X aria-hidden="true" size={14} /></button>}
+        </div>
+      ))}
+      <button className="text-xs font-bold text-[#792f59]" onClick={addPeriod} type="button">+ Aggiungi fascia</button>
+    </div>
+  );
+}
+
+type SavingSection = "calendar" | "closure" | "location" | "salon" | "specialOpening";
 
 export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
   const { salon } = useAuth();
@@ -86,6 +140,12 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
   const [saveErrors, setSaveErrors] = useState<Partial<Record<SavingSection, string>>>({});
   const [locationNotice, setLocationNotice] = useState<{ error?: boolean; text: string }>();
   const [deletingClosureId, setDeletingClosureId] = useState<string>();
+  const [staffRoster, setStaffRoster] = useState<StaffRosterItem[]>([]);
+  const [specialOpenings, setSpecialOpenings] = useState<SpecialOpening[]>([]);
+  const [specialDate, setSpecialDate] = useState("");
+  const [specialPeriods, setSpecialPeriods] = useState<TimePeriod[]>([{ from: "09:00", to: "18:00" }]);
+  const [specialStaffSelection, setSpecialStaffSelection] = useState<Record<string, SpecialOpeningStaffSelection>>({});
+  const [deletingSpecialOpeningId, setDeletingSpecialOpeningId] = useState<string>();
 
   useEffect(() => {
     if (!salon) return;
@@ -103,7 +163,9 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
       readJson(`${api}/api/salons/${salon.id}/settings`),
       view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/control-center`) : Promise.resolve({ calendar: {} }),
       view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/closures`, []) : Promise.resolve([]),
-    ]).then(([salonSettings, control, closureRows]) => {
+      view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/staff-roster`, []) : Promise.resolve([]),
+      view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/special-openings`, []) : Promise.resolve([]),
+    ]).then(([salonSettings, control, closureRows, staffRosterRows, specialOpeningRows]) => {
       setSettings(salonSettings as Settings);
       setCalendar({
         allowOverbooking: control.calendar?.allowOverbooking ?? false,
@@ -116,6 +178,8 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
         overbookingLimit: control.calendar?.overbookingLimit ?? 0,
       });
       setClosures(Array.isArray(closureRows) ? closureRows as SalonClosure[] : []);
+      setStaffRoster(Array.isArray(staffRosterRows) ? staffRosterRows as StaffRosterItem[] : []);
+      setSpecialOpenings(Array.isArray(specialOpeningRows) ? specialOpeningRows as SpecialOpening[] : []);
     }).catch((error: unknown) => {
       if (!(error instanceof DOMException && error.name === "AbortError")) setLoadError("Impossibile caricare le impostazioni. Verifica la connessione e riprova.");
     });
@@ -270,6 +334,78 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
     }
   }
 
+  function toggleSpecialOpeningStaff(staffId: string, selected: boolean) {
+    setSpecialStaffSelection((current) => ({
+      ...current,
+      [staffId]: { customHours: current[staffId]?.customHours ?? false, periods: current[staffId]?.periods ?? [], selected },
+    }));
+  }
+
+  function toggleSpecialOpeningStaffCustomHours(staffId: string, customHours: boolean) {
+    setSpecialStaffSelection((current) => ({
+      ...current,
+      [staffId]: {
+        customHours,
+        periods: customHours && (current[staffId]?.periods.length ?? 0) === 0 ? specialPeriods.map((period) => ({ ...period })) : current[staffId]?.periods ?? [],
+        selected: current[staffId]?.selected ?? true,
+      },
+    }));
+  }
+
+  function setSpecialOpeningStaffPeriods(staffId: string, periods: TimePeriod[]) {
+    setSpecialStaffSelection((current) => ({
+      ...current,
+      [staffId]: { customHours: current[staffId]?.customHours ?? true, periods, selected: current[staffId]?.selected ?? true },
+    }));
+  }
+
+  async function reloadSpecialOpenings() {
+    if (!salon) return;
+    const rows = await fetch(`${api}/api/salons/${salon.id}/settings/special-openings`, { credentials: "include" }).then((response) => response.json());
+    setSpecialOpenings(Array.isArray(rows) ? rows as SpecialOpening[] : []);
+  }
+
+  async function addSpecialOpening(formData: FormData) {
+    if (!salon) return;
+    const selectedStaff = Object.entries(specialStaffSelection)
+      .filter(([, value]) => value.selected)
+      .map(([staffId, value]) => ({ periods: value.customHours && value.periods.length > 0 ? value.periods : null, staff_id: staffId }));
+    const response = await requestWithFeedback("specialOpening", () => fetch(`${api}/api/salons/${salon.id}/settings/special-openings`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        date: specialDate,
+        periods: specialPeriods,
+        reason: formData.get("reason") || undefined,
+        staff: selectedStaff,
+      }),
+    }), "Impossibile salvare l’apertura speciale. Verifica gli orari e riprova.");
+    if (response?.ok) {
+      setSpecialDate("");
+      setSpecialStaffSelection({});
+      await reloadSpecialOpenings();
+    }
+  }
+
+  async function removeSpecialOpening(specialOpeningId: string) {
+    if (!salon || deletingSpecialOpeningId) return;
+    setDeletingSpecialOpeningId(specialOpeningId);
+    setSaveErrors((current) => ({ ...current, specialOpening: undefined }));
+    try {
+      const response = await fetch(`${api}/api/salons/${salon.id}/settings/special-openings/${specialOpeningId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (response.ok) setSpecialOpenings((current) => current.filter((item) => item.id !== specialOpeningId));
+      else setSaveErrors((current) => ({ ...current, specialOpening: "Impossibile rimuovere l’apertura speciale. Riprova." }));
+    } catch {
+      setSaveErrors((current) => ({ ...current, specialOpening: "Impossibile rimuovere l’apertura speciale. Riprova." }));
+    } finally {
+      setDeletingSpecialOpeningId(undefined);
+    }
+  }
+
   if (loadError) {
     return <AppPage maxWidth="max-w-[1600px]"><InlineError>{loadError}</InlineError></AppPage>;
   }
@@ -288,9 +424,9 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
         subtitle={view === "salon" ? "Identità, orari e posizione del salone." : "Regole operative dell’agenda e giorni in cui le prenotazioni sono sospese."}
       />
 
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      <div className="grid gap-5 xl:grid-cols-2">
         {view === "salon" && <>
-        <SectionCard title="Dati del salone" subtitle="Informazioni generali e orari di apertura usati in tutto il gestionale.">
+        <SectionCard icon={Building2} title="Dati del salone" subtitle="Informazioni generali e orari di apertura usati in tutto il gestionale.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField className="md:col-span-2" label="Nome salone"><input className="w-full" value={settings.name} onChange={(event) => setSettings({ ...settings, name: event.target.value })} /></FormField>
             <FormField label="Lingua"><Select className="w-full" value={settings.locale} onChange={(event) => setSettings({ ...settings, locale: event.target.value })}><option value="it-IT">Italiano</option><option value="en-GB">English</option></Select></FormField>
@@ -312,7 +448,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Indirizzo e geolocalizzazione" subtitle="Questi dati permettono ai clienti di trovare il salone dall’App Clienti.">
+        <SectionCard icon={MapPin} title="Indirizzo e geolocalizzazione" subtitle="Questi dati permettono ai clienti di trovare il salone dall’App Clienti.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField className="md:col-span-2" label="Indirizzo">
               <input autoComplete="street-address" className="w-full" onChange={(event) => setSettings({ ...settings, address: event.target.value })} value={settings.address ?? ""} />
@@ -357,7 +493,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
         </>}
 
         {view === "agenda" && <>
-        <SectionCard title="Calendario e agenda" subtitle="Regole condivise da gestionale, App Clienti e App Staff.">
+        <SectionCard icon={CalendarClock} title="Calendario e agenda" subtitle="Regole condivise da gestionale, App Clienti e App Staff.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField description="Griglia usata per posizionare gli appuntamenti." label="Intervallo agenda">
               <Select className="w-full" value={calendar.minSlotMinutes ?? 15} onChange={(event) => setCalendar({ ...calendar, minSlotMinutes: Number(event.target.value) })}>{!slotOptions.includes(calendar.minSlotMinutes ?? 15) && <option value={calendar.minSlotMinutes}>{calendar.minSlotMinutes} minuti — valore attuale</option>}{slotOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes} minuti</option>)}</Select>
@@ -381,7 +517,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
             <div className="flex justify-end"><SaveActionButton busy={saving === "calendar"} disabled={Boolean(saving && saving !== "calendar")} idleLabel="Salva regole agenda" onClick={() => void saveCalendar()} saved={saved === "calendar"} /></div>
           </div>
         </SectionCard>
-        <SectionCard title="Giorni di chiusura" subtitle="Festività, ferie e chiusure straordinarie bloccano le prenotazioni e sono visibili in agenda.">
+        <SectionCard icon={CalendarOff} title="Giorni di chiusura" subtitle="Festività, ferie e chiusure straordinarie bloccano le prenotazioni e sono visibili in agenda.">
           <form action={addClosure} className="grid gap-4 md:grid-cols-2">
             <FormField label="Data chiusura" required><DateField aria-label="Data chiusura" name="date" onChange={setClosureDate} required value={closureDate} /></FormField>
             <FormField label="Motivo"><input className="w-full" name="reason" placeholder="Ferie, festività, formazione…" /></FormField>
@@ -399,6 +535,62 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
               <article className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 text-sm" key={closure.id}>
                 <span><b>{new Date(`${closure.date}T00:00:00`).toLocaleDateString("it-IT", { dateStyle: "full" })}</b>{closure.recurringYearly ? " - ogni anno" : ""}<br />{closure.reason || "Chiusura salone"}</span>
                 <Button aria-busy={deletingClosureId === closure.id} disabled={Boolean(saving) || Boolean(deletingClosureId)} size="sm" variant="destructive" onClick={() => void removeClosure(closure.id)}>{deletingClosureId === closure.id ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" />Eliminazione…</> : "Elimina"}</Button>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard className="xl:col-span-2" icon={DoorOpen} title="Aperture speciali" subtitle="Giornate eccezionali fuori dal normale orario: vincono su chiusure e turni configurati per i collaboratori selezionati.">
+          <form action={addSpecialOpening} className="grid gap-4 md:grid-cols-2">
+            <FormField label="Data apertura" required><DateField aria-label="Data apertura speciale" onChange={setSpecialDate} required value={specialDate} /></FormField>
+            <FormField label="Motivo"><input className="w-full" name="reason" placeholder="Evento speciale, promozione…" /></FormField>
+            <FormField className="md:col-span-2" description="Fasce usate di default dai collaboratori senza orario personalizzato. Puoi aggiungere più fasce, come per i giorni normali." label="Fasce orarie di apertura">
+              <PeriodsEditor ariaLabelPrefix="Fasce di apertura" onChange={setSpecialPeriods} periods={specialPeriods} />
+            </FormField>
+            <div className="md:col-span-2">
+              <h4 className="text-sm font-bold text-stone-900">Collaboratori presenti</h4>
+              <p className="mt-1 text-xs leading-5 text-stone-500">Chi non è selezionato non risulterà disponibile in questa data. Attiva l’orario personalizzato per assegnare fasce diverse da quelle di default.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {staffRoster.map((member) => {
+                  const selection = specialStaffSelection[member.id];
+                  return (
+                    <div className={`rounded-xl border p-3 ${selection?.selected ? "border-[#792f59] bg-[#fff8fc]" : "border-stone-200 bg-white"}`} key={member.id}>
+                      <label className="flex items-center gap-2 text-sm font-bold text-stone-900">
+                        <input checked={Boolean(selection?.selected)} onChange={(event) => toggleSpecialOpeningStaff(member.id, event.target.checked)} type="checkbox" />
+                        {member.display_name}
+                      </label>
+                      {selection?.selected && (
+                        <div className="mt-2">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-stone-600">
+                            <input checked={Boolean(selection.customHours)} onChange={(event) => toggleSpecialOpeningStaffCustomHours(member.id, event.target.checked)} type="checkbox" />
+                            Orario personalizzato
+                          </label>
+                          {selection.customHours && (
+                            <div className="mt-2">
+                              <PeriodsEditor ariaLabelPrefix={`Orario di ${member.display_name}`} onChange={(periods) => setSpecialOpeningStaffPeriods(member.id, periods)} periods={selection.periods.length > 0 ? selection.periods : specialPeriods} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {staffRoster.length === 0 && <p className="text-sm text-stone-500">Nessun collaboratore attivo trovato.</p>}
+              </div>
+            </div>
+            <div className="flex items-center justify-end md:col-span-2"><SaveActionButton busy={saving === "specialOpening"} disabled={!specialDate || specialPeriods.length === 0 || Boolean(saving && saving !== "specialOpening")} idleLabel="Aggiungi apertura speciale" saved={saved === "specialOpening"} type="submit" /></div>
+          </form>
+          {saveErrors.specialOpening && <div className="mt-4"><InlineError>{saveErrors.specialOpening}</InlineError></div>}
+          <div className="mt-5 grid gap-2 border-t border-stone-200 pt-4">
+            {specialOpenings.length === 0 && <p className="text-sm font-semibold text-stone-500">Nessuna apertura speciale configurata.</p>}
+            {specialOpenings.map((opening) => (
+              <article className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3 text-sm" key={opening.id}>
+                <span>
+                  <b>{new Date(`${opening.date}T00:00:00`).toLocaleDateString("it-IT", { dateStyle: "full" })}</b> · {periodsLabel(opening.periods)}
+                  <br />{opening.reason || "Apertura speciale"}
+                  {opening.staff.length > 0 && <><br /><span className="text-xs text-stone-500">Presenti: {opening.staff.map((item) => `${item.staffName}${item.periods ? ` (${periodsLabel(item.periods)})` : ""}`).join(", ")}</span></>}
+                </span>
+                <Button aria-busy={deletingSpecialOpeningId === opening.id} disabled={Boolean(saving) || Boolean(deletingSpecialOpeningId)} size="sm" variant="destructive" onClick={() => void removeSpecialOpening(opening.id)}>{deletingSpecialOpeningId === opening.id ? <><LoaderCircle aria-hidden="true" className="size-4 animate-spin" />Eliminazione…</> : "Elimina"}</Button>
               </article>
             ))}
           </div>

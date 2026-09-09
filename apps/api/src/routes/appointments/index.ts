@@ -1,11 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, lt, lte, ne } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
-import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, notifications, salonClosures, salonResources, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
+import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, notifications, salonClosures, salonResources, salonSpecialOpeningStaff, salonSpecialOpenings, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
 import { canTransitionAppointmentStatus, computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
 import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
+import { applySpecialOpeningHours, findSpecialOpening } from "../../lib/special-openings.js";
 import { authenticate } from "../../middleware/auth.js";
 
 async function ownStaffId(request: any): Promise<string | undefined> {
@@ -98,6 +99,7 @@ function closureMatchesDate(closure: { date: string; recurringYearly: boolean },
 }
 
 async function isSalonClosed(db: any, salonId: string, date: string) {
+  if (await findSpecialOpening(db, salonId, date)) return false;
   const rows = await db.select({ date: salonClosures.date, recurringYearly: salonClosures.recurringYearly }).from(salonClosures).where(eq(salonClosures.salonId, salonId));
   return rows.some((closure: { date: string; recurringYearly: boolean }) => closureMatchesDate(closure, date));
 }
@@ -287,14 +289,16 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
     }
     const dayStart = new Date(`${request.query.date}T00:00:00.000Z`);
     const dayEnd = new Date(dayStart.getTime() + 36 * 60 * 60_000);
-    const [busy, blocks] = await Promise.all([
+    const [busy, blocks, specialOpening] = await Promise.all([
       request.server.db.select({ startsAt: appointments.startsAt, endsAt: appointments.endsAt }).from(appointments).where(and(
         eq(appointments.staffId, member.id), ne(appointments.status, "cancelled"),
         lt(appointments.startsAt, dayEnd), gt(appointments.endsAt, dayStart))),
       request.server.db.select({ startsAt: availabilityBlocks.startsAt, endsAt: availabilityBlocks.endsAt }).from(availabilityBlocks).where(and(
         eq(availabilityBlocks.staffId, member.id), lt(availabilityBlocks.startsAt, dayEnd), gt(availabilityBlocks.endsAt, dayStart))),
+      findSpecialOpening(request.server.db, request.salonId, request.query.date),
     ]);
-    const slots = computeAvailableSlots({ date: request.query.date, timezone: salon.timezone, workingHours: member.workingHours,
+    const effectiveWorkingHours = applySpecialOpeningHours(member.workingHours, request.query.date, specialOpening, member.id);
+    const slots = computeAvailableSlots({ date: request.query.date, timezone: salon.timezone, workingHours: effectiveWorkingHours,
       durationMinutes: service.durationMinutes, appointments: busy, blocks });
     return Promise.all(slots.map(async (slot) => {
       if (!slot.available) return slot;
@@ -363,10 +367,24 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       if (closure.recurringYearly) return true;
       return closure.date >= fromDate && closure.date <= toDate;
     });
+    const specialOpeningRows = await request.server.db.select().from(salonSpecialOpenings)
+      .where(and(eq(salonSpecialOpenings.salonId, request.salonId), gte(salonSpecialOpenings.date, fromDate), lte(salonSpecialOpenings.date, toDate)));
+    const specialOpeningStaffRows = specialOpeningRows.length
+      ? await request.server.db.select().from(salonSpecialOpeningStaff)
+        .where(inArray(salonSpecialOpeningStaff.specialOpeningId, specialOpeningRows.map((opening: { id: string }) => opening.id)))
+      : [];
     return {
       appointments: appointmentRows,
       availability_blocks: blockRows,
       salon_closures: visibleClosures,
+      special_openings: specialOpeningRows.map((opening: typeof salonSpecialOpenings.$inferSelect) => ({
+        date: opening.date,
+        periods: opening.periods,
+        reason: opening.reason,
+        staff: specialOpeningStaffRows
+          .filter((row: typeof salonSpecialOpeningStaff.$inferSelect) => row.specialOpeningId === opening.id)
+          .map((row: typeof salonSpecialOpeningStaff.$inferSelect) => ({ periods: row.periods, staff_id: row.staffId })),
+      })),
     };
   });
 
@@ -391,15 +409,18 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const endsAt = new Date(startsAt.getTime() + service.durationMinutes * 60_000);
       const salonRows = await request.server.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, request.salonId));
       const timezone = salonRows[0]?.timezone ?? "Europe/Rome";
-      if (await isSalonClosed(request.server.db, request.salonId, startsAt.toISOString().slice(0, 10))) {
+      const startsAtDate = startsAt.toISOString().slice(0, 10);
+      if (await isSalonClosed(request.server.db, request.salonId, startsAtDate)) {
         return reply.code(409).send(conflictResponse([{ code: "SALON_CLOSED", forceable: false, message: "Il salone è chiuso in questa data." }]));
       }
+      const specialOpening = await findSpecialOpening(request.server.db, request.salonId, startsAtDate);
+      const effectiveWorkingHours = applySpecialOpeningHours(member.workingHours, startsAtDate, specialOpening, member.id);
       const rules = await getCalendarRules(request.server.db, request.salonId);
       const conflicts = await inspectAppointmentConflicts(
         request.server.db, request.salonId, request.body.staff_id, startsAt, endsAt, undefined, rules,
       );
       const schedulingConflicts: SchedulingConflict[] = [];
-      if (!isWithinWorkingHours(member.workingHours, startsAt, endsAt, timezone)) schedulingConflicts.push({
+      if (!isWithinWorkingHours(effectiveWorkingHours, startsAt, endsAt, timezone)) schedulingConflicts.push({
         code: "STAFF_OUTSIDE_WORKING_HOURS", forceable: true, message: "L’orario è fuori dal turno configurato del collaboratore.",
       });
       if (conflicts.hasAvailabilityBlock) schedulingConflicts.push({
@@ -504,16 +525,19 @@ export async function registerAppointmentRoutes(app: FastifyInstance) {
       const schedulingChanged = Boolean(request.body.starts_at || requestedDuration !== undefined || request.body.staff_id || request.body.resource_id !== undefined);
       const salonRows = await request.server.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, request.salonId));
       const timezone = salonRows[0]?.timezone ?? "Europe/Rome";
-      if (schedulingChanged && await isSalonClosed(request.server.db, request.salonId, startsAt.toISOString().slice(0, 10))) {
+      const startsAtDate = startsAt.toISOString().slice(0, 10);
+      if (schedulingChanged && await isSalonClosed(request.server.db, request.salonId, startsAtDate)) {
         return reply.code(409).send(conflictResponse([{ code: "SALON_CLOSED", forceable: false, message: "Il salone è chiuso in questa data." }]));
       }
       const rules = await getCalendarRules(request.server.db, request.salonId);
       if (schedulingChanged) {
+        const specialOpening = await findSpecialOpening(request.server.db, request.salonId, startsAtDate);
+        const effectiveWorkingHours = applySpecialOpeningHours(targetStaff.workingHours, startsAtDate, specialOpening, targetStaffId);
         const conflicts = await inspectAppointmentConflicts(
           request.server.db, request.salonId, targetStaffId, startsAt, endsAt, item.id, rules,
         );
         const schedulingConflicts: SchedulingConflict[] = [];
-        if (!isWithinWorkingHours(targetStaff.workingHours, startsAt, endsAt, timezone)) schedulingConflicts.push({
+        if (!isWithinWorkingHours(effectiveWorkingHours, startsAt, endsAt, timezone)) schedulingConflicts.push({
           code: "STAFF_OUTSIDE_WORKING_HOURS", forceable: true, message: "L’orario è fuori dal turno configurato del collaboratore.",
         });
         if (conflicts.hasAvailabilityBlock) schedulingConflicts.push({

@@ -149,7 +149,7 @@ export default function DocumentsSettingsPage() {
       <PageHeader eyebrow="Moduli" subtitle="Modelli versionati, richieste di firma ed evidenze verificabili per ogni cliente." title="Documenti e consensi" />
       {error && <InlineError className="mb-5">{error}</InlineError>}
       <div className="grid gap-5 xl:grid-cols-2">
-        <SectionCard className="xl:order-2" subtitle="Apri una versione per consultarne il testo, crearne una nuova o archiviarla." title="Archivio documenti">
+        <SectionCard className="xl:order-2" icon={Archive} subtitle="Apri una versione per consultarne il testo, crearne una nuova o archiviarla." title="Archivio documenti">
           {items.length === 0 ? (
             <EmptyState description="Crea il primo modello di consenso per attivare il flusso." title="Nessun documento" />
           ) : (
@@ -188,6 +188,7 @@ export default function DocumentsSettingsPage() {
         <SectionCard
           className="xl:order-1"
           actions={<span className="inline-flex items-center gap-2 rounded-full bg-[#faf3f7] px-3 py-1.5 text-xs font-bold text-[#792f59]"><FileSignature aria-hidden="true" className="size-4" />Versione iniziale</span>}
+          icon={FileSignature}
           subtitle="Prepara il testo iniziale, scegli quando attivarlo e collegalo solo ai servizi che lo richiedono."
           title="Nuovo modello"
         >

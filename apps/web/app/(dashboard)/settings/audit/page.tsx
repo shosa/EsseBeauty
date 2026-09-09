@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, CircleDollarSign, Settings, Users } from "lucide-react";
+import { CalendarDays, CircleDollarSign, History, Settings, Users } from "lucide-react";
 
 import {
   AppPage,
@@ -254,7 +254,7 @@ export default function AuditSettingsPage() {
         title="Registro attività"
       />
       <div aria-live="polite">{error && <InlineError className="mb-5">{error}</InlineError>}</div>
-      <SectionCard title="Cosa è successo" subtitle="Le attività più recenti del salone, ordinate per data e ora.">
+      <SectionCard icon={History} title="Cosa è successo" subtitle="Le attività più recenti del salone, ordinate per data e ora.">
         <div aria-label="Filtri registro attività" className="mb-5 flex flex-wrap gap-2 border-b border-stone-100 pb-5" role="group">
           {([
             ["all", "Tutto"],

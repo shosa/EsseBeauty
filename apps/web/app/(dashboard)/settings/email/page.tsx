@@ -98,7 +98,7 @@ export default function EmailSettingsPage() {
       <SaveToast visible={saved}>Personalizzazione email salvata.</SaveToast>
       {error && <InlineError className="mb-5">{error}</InlineError>}
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <SectionCard title="Identità mittente" subtitle="Il provider resta gestito da Platform; qui configuri nome, risposta e firma del salone.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Nome mittente" required>
