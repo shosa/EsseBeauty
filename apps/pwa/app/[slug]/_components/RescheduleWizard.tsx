@@ -143,7 +143,7 @@ export function RescheduleWizard({ closures, maxAdvanceDays, onClose, onSubmit, 
               </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
               {quickDays.map((day) => {
                 const iso = isoDate(day);
                 const closed = isDateClosed(day, closures);

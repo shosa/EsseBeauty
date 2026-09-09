@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useState } from "react";
+import { Bell, Mail, MessageCircle, UserRound } from "lucide-react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { Button, DateTimeField, Dialog, EmptyState, FormField, InlineError, StatusBadge, Switch, Select} from "@esse-beauty/ui";
@@ -11,7 +12,9 @@ import {
   copySigningLink,
   downloadEvidenceRecord,
   initialConsentDialogState,
+  loadConsentEligibility,
   loadConsentRecords,
+  type ConsentEligibility,
   type ConsentTemplateOption,
   type CustomerConsentRecord,
 } from "../consent-controller";
@@ -79,8 +82,23 @@ export function ConsentRecordsPanel({
   const [generatedLink, setGeneratedLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [clipboardError, setClipboardError] = useState("");
+  const [eligibility, setEligibility] = useState<ConsentEligibility>();
 
   const canEdit = hasPermission(PERMISSION_KEYS.CLIENTS_EDIT);
+  const channelDisabled: Record<ConsentDeliveryChannel, boolean> = {
+    email: Boolean(eligibility && !eligibility.has_email),
+    in_person: false,
+    push: Boolean(eligibility && (!eligibility.has_app_account || !eligibility.has_push_subscription)),
+    sms: false,
+    whatsapp: Boolean(eligibility && !eligibility.whatsapp_marketing_consent),
+  };
+  const channelHints: Record<ConsentDeliveryChannel, string> = {
+    email: "Aggiungi un indirizzo email in anagrafica per abilitare questo canale.",
+    in_person: "",
+    push: "Il cliente deve avere un account nell'app e le notifiche push attive per usare questo canale.",
+    sms: "",
+    whatsapp: "Concedi il consenso alle comunicazioni WhatsApp del cliente per abilitare questo canale.",
+  };
 
   const load = useCallback(async () => {
     if (!salon?.id) return;
@@ -100,6 +118,7 @@ export function ConsentRecordsPanel({
       setConsents(result.consents);
       setTemplates(result.templates);
       setLoadError("");
+      if (canEdit) setEligibility(await loadConsentEligibility(fetch, `${api}/api/salons/${salon.id}/customers/${customerId}/consent-eligibility`));
     } catch (reason) {
       setLoadError(reason instanceof Error ? reason.message : "Consensi non disponibili.");
     } finally {
@@ -314,10 +333,15 @@ export function ConsentRecordsPanel({
         title={dialog.mode === "resend" ? "Rigenera il link di firma" : "Richiedi consenso"}
       >
         <div className="grid gap-4">
-          {dialog.mode === "request" && <FormField label="Modello attivo"><Select onChange={(event) => dispatchDialog({ field: "templateId", type: "change", value: event.target.value })} value={dialog.templateId}><option value="">Seleziona un modello</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · v{template.version}</option>)}</Select></FormField>}
-          <FormField label="Canale"><Select onChange={(event) => dispatchDialog({ field: "deliveryChannel", type: "change", value: event.target.value as ConsentDeliveryChannel })} value={dialog.deliveryChannel}><option value="in_person">In presenza</option><option value="push">Notifica push app</option><option value="email">Email (genera link)</option><option value="whatsapp">WhatsApp (genera link)</option></Select></FormField>
+          {dialog.mode === "request" && <FormField label="Modello attivo"><Select className="w-full" onChange={(event) => dispatchDialog({ field: "templateId", type: "change", value: event.target.value })} value={dialog.templateId}><option value="">Seleziona un modello</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name} · v{template.version}</option>)}</Select></FormField>}
+          <FormField label="Canale"><Select className="w-full" onChange={(event) => dispatchDialog({ field: "deliveryChannel", type: "change", value: event.target.value as ConsentDeliveryChannel })} value={dialog.deliveryChannel}>
+            <option value="in_person"><span className="flex items-center gap-2"><UserRound aria-hidden="true" className="size-4 shrink-0 text-stone-500" />In presenza</span></option>
+            <option disabled={channelDisabled.push} value="push"><span className="flex items-center gap-2"><Bell aria-hidden="true" className="size-4 shrink-0 text-stone-500" />Notifica push app</span></option>
+            <option disabled={channelDisabled.email} value="email"><span className="flex items-center gap-2"><Mail aria-hidden="true" className="size-4 shrink-0 text-stone-500" />Email (genera link)</span></option>
+            <option disabled={channelDisabled.whatsapp} value="whatsapp"><span className="flex items-center gap-2"><MessageCircle aria-hidden="true" className="size-4 shrink-0 text-stone-500" />WhatsApp (genera link)</span></option>
+          </Select></FormField>
           <FormField label="Scadenza"><DateTimeField aria-label="Scadenza consenso" min={new Date().toISOString().slice(0, 16)} onChange={(value) => dispatchDialog({ field: "expiresAt", type: "change", value })} value={dialog.expiresAt} /></FormField>
-          <p className="text-xs leading-5 text-stone-500">Il sistema genera il link sicuro. La notifica push viene inviata solo se il cliente ha attivato le notifiche nell'app.</p>
+          <p className="text-xs leading-5 text-stone-500">{channelHints[dialog.deliveryChannel] || "Il sistema genera il link sicuro. La notifica push viene inviata solo se il cliente ha attivato le notifiche nell'app."}</p>
           {dialog.error && <InlineError>{dialog.error}</InlineError>}
         </div>
       </Dialog>
@@ -329,7 +353,7 @@ export function ConsentRecordsPanel({
         title="Firma in presenza"
       >
         <div className="grid gap-4">
-          <FormField label="Nome e cognome del firmatario"><input autoComplete="name" onChange={(event) => dispatchDialog({ field: "signerName", type: "change", value: event.target.value })} value={dialog.signerName} /></FormField>
+          <FormField label="Nome e cognome del firmatario"><input autoComplete="name" className="w-full" onChange={(event) => dispatchDialog({ field: "signerName", type: "change", value: event.target.value })} value={dialog.signerName} /></FormField>
           <label className="flex items-start gap-3 rounded-xl bg-stone-50 p-4 text-sm font-semibold"><Switch checked={dialog.accepted} className="mt-0.5 shrink-0" onCheckedChange={(value) => dispatchDialog({ field: "accepted", type: "change", value })} /><span>Il firmatario dichiara di aver letto e accettato il documento.</span></label>
           {dialog.error && <InlineError>{dialog.error}</InlineError>}
         </div>
@@ -343,7 +367,7 @@ export function ConsentRecordsPanel({
       >
         <div className="grid gap-4">
           <p className="text-sm leading-6 text-stone-600">La firma e l'evidenza restano conservate. Inserisci il motivo comunicato dal cliente.</p>
-          <FormField label="Motivo obbligatorio"><textarea onChange={(event) => dispatchDialog({ field: "revocationReason", type: "change", value: event.target.value })} rows={4} value={dialog.revocationReason} /></FormField>
+          <FormField label="Motivo obbligatorio"><textarea className="w-full resize-y" onChange={(event) => dispatchDialog({ field: "revocationReason", type: "change", value: event.target.value })} rows={4} value={dialog.revocationReason} /></FormField>
           {dialog.error && <InlineError>{dialog.error}</InlineError>}
         </div>
       </Dialog>

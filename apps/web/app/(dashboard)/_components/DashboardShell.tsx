@@ -530,7 +530,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   function replaceNotifications(items: NotificationItem[]) {
     notificationItemsRef.current = items;
     setNotificationItems(items);
-    setUnreadCount(items.reduce((total, item) => total + (item.read_at ? 0 : 1), 0));
+    setUnreadCount(items.length);
   }
 
   async function markRead(item: NotificationItem) {
@@ -701,7 +701,6 @@ function ShellContent({ children }: { children: ReactNode }) {
         logout={() => void logout()}
         onAppsOpen={() => setLauncherOpen(true)}
         onNavigate={() => setLauncherOpen(false)}
-        onNotificationsOpen={() => setNotificationsOpen(true)}
         pathname={pathname}
         unreadCount={unreadCount}
         userName={user?.full_name ?? ""}

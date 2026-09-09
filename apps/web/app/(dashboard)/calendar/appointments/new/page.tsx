@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Info, UserPlus, X } from "lucide-react";
-import { AppPage, Breadcrumbs, Button, DateTimeField, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { AnimatePresence, motion } from "motion/react";
+import { Calendar, Check, ChevronDown, Info, UserPlus, X } from "lucide-react";
+import { AppPage, Breadcrumbs, Button, DateTimeField, designTokens, Dialog, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
+import { DayAgendaPreview } from "../../_components/DayAgendaPreview";
 import { ServiceCategoryIcon } from "../../../services/ServiceCategoryIcon";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+function toLocalDateTimeValue(date: Date): string {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 interface Category {
   activeServiceCount: number;
@@ -105,6 +111,7 @@ export default function NewAppointmentPage() {
   const [schedulingWarnings, setSchedulingWarnings] = useState<SchedulingConflict[]>([]);
   const [sequenceIndex, setSequenceIndex] = useState(0);
   const [createdCount, setCreatedCount] = useState(0);
+  const [agendaOpen, setAgendaOpen] = useState(false);
 
   useEffect(() => {
     if (!salon) return;
@@ -142,9 +149,7 @@ export default function NewAppointmentPage() {
   useEffect(() => {
     const startsAtParam = searchParams.get("startsAt");
     if (startsAtParam) {
-      const date = new Date(startsAtParam);
-      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-      setStartsAt(local);
+      setStartsAt(toLocalDateTimeValue(new Date(startsAtParam)));
     }
   }, [searchParams]);
 
@@ -558,10 +563,25 @@ export default function NewAppointmentPage() {
                 </div>
               </FormField>
               <FormField description="Orario del primo servizio: gli altri seguono in sequenza." label="Data e ora" required>
-                <DateTimeField aria-label="Data e ora dell’appuntamento" onChange={setStartsAt} required step={300} value={startsAt} />
+                <DateTimeField aria-label="Data e ora dell’appuntamento" min={toLocalDateTimeValue(new Date())} onChange={setStartsAt} required step={300} value={startsAt} />
+                <button className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-[#792f59] hover:underline" onClick={() => setAgendaOpen((current) => !current)} type="button"><Calendar aria-hidden="true" className="size-3.5" />Controlla agenda<ChevronDown aria-hidden="true" className={`size-3.5 transition-transform ${agendaOpen ? "rotate-180" : ""}`} /></button>
               </FormField>
             </div>
           </section>
+
+          <AnimatePresence initial={false}>
+            {agendaOpen && (
+              <motion.div
+                animate={{ height: "auto", opacity: 1 }}
+                className="overflow-hidden"
+                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0 }}
+                transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
+              >
+                <DayAgendaPreview date={(startsAt || toLocalDateTimeValue(new Date())).slice(0, 10)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <section aria-labelledby="treatment-section-title" className="rounded-xl border border-stone-200 bg-white p-4 sm:p-5">
             <div className="mb-4">

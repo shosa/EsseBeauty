@@ -55,7 +55,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
     <div className="settings-shell w-full lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
       <div className="border-b border-[#ded6da] bg-[#f7f4f5] px-4 py-3 lg:hidden">
         <p className="mb-2 text-xs font-semibold text-stone-500">Impostazioni salone</p>
-        <nav aria-label="Navigazione impostazioni" className="-mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1">
+        <nav aria-label="Navigazione impostazioni" className="no-scrollbar -mx-1 flex snap-x gap-1.5 overflow-x-auto px-1 pb-1">
           {groups.flatMap((group) => group.links).map((item) => {
             const active = item.href === "/settings" ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;

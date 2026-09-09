@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 
 import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, SectionCard, Switch, Select} from "@esse-beauty/ui";
 
@@ -19,7 +20,7 @@ interface ConsentTemplate {
   version: number;
 }
 
-interface Service { active?: boolean; id: string; name: string }
+interface Service { active?: boolean; category?: string | null; id: string; name: string }
 
 export default function DocumentVersionPage() {
   const { templateId } = useParams<{ templateId: string }>();
@@ -60,6 +61,17 @@ export default function DocumentVersionPage() {
   }, [salon?.id, templateId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const serviceGroups = useMemo(() => {
+    const groups: [string, Service[]][] = [];
+    for (const service of services) {
+      const category = service.category?.trim() || "Senza categoria";
+      const group = groups.find(([name]) => name === category);
+      if (group) group[1].push(service);
+      else groups.push([category, [service]]);
+    }
+    return groups;
+  }, [services]);
 
   function toggleService(serviceId: string) {
     setDraft((current) => ({ ...current, requiredForServices: current.requiredForServices.includes(serviceId) ? current.requiredForServices.filter((id) => id !== serviceId) : [...current.requiredForServices, serviceId] }));
@@ -131,10 +143,18 @@ export default function DocumentVersionPage() {
           </SectionCard>
           <SectionCard subtitle="Il testo firmato in precedenza non cambia: verrà creato un nuovo record con il numero successivo." title="Crea nuova versione">
             <div className="grid gap-4">
-              <FormField label="Nome"><input onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} value={draft.name} /></FormField>
-              <FormField label="Tipo"><Select onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))} value={draft.type}><option value="privacy">Privacy</option><option value="treatment">Trattamento</option><option value="anamnesis">Anamnesi</option><option value="photo_release">Uso immagini</option></Select></FormField>
-              <FormField label="Nuovo testo"><textarea onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} rows={14} value={draft.body} /></FormField>
-              {services.length > 0 && <fieldset><legend className="text-sm font-bold text-stone-700">Obbligatorio per i servizi</legend><div className="mt-3 grid gap-2 sm:grid-cols-2">{services.map((service) => <label className="flex items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2 text-sm font-semibold" key={service.id}><span>{service.name}</span><Switch checked={draft.requiredForServices.includes(service.id)} onCheckedChange={() => toggleService(service.id)} /></label>)}</div></fieldset>}
+              <FormField label="Nome"><input className="w-full" onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} value={draft.name} /></FormField>
+              <FormField label="Tipo"><Select className="w-full" onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value }))} value={draft.type}><option value="privacy">Privacy</option><option value="treatment">Trattamento</option><option value="anamnesis">Anamnesi</option><option value="photo_release">Uso immagini</option></Select></FormField>
+              <FormField label="Nuovo testo"><textarea className="w-full resize-y" onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} rows={14} value={draft.body} /></FormField>
+              {services.length > 0 && <fieldset><legend className="text-sm font-bold text-stone-700">Obbligatorio per i servizi</legend><div className="mt-3 space-y-2">{serviceGroups.map(([category, groupServices]) => { const selectedCount = groupServices.filter((service) => draft.requiredForServices.includes(service.id)).length; return (
+                <details className="group rounded-xl border border-stone-200" key={category}>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-[.08em] text-stone-500 marker:content-none">
+                    <span className="flex items-center gap-2"><ChevronRight aria-hidden="true" className="size-3.5 text-stone-400 transition-transform group-open:rotate-90" />{category}</span>
+                    {selectedCount > 0 && <span className="rounded-full bg-[#f3e2eb] px-2 py-0.5 text-[11px] font-bold text-[#792f59]">{selectedCount}</span>}
+                  </summary>
+                  <div className="grid gap-2 border-t border-stone-100 p-3 sm:grid-cols-2">{groupServices.map((service) => <label className="flex items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2 text-sm font-semibold" key={service.id}><span>{service.name}</span><Switch checked={draft.requiredForServices.includes(service.id)} onCheckedChange={() => toggleService(service.id)} /></label>)}</div>
+                </details>
+              ); })}</div></fieldset>}
               <label className="flex min-h-12 items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm font-semibold"><span>Nuova versione attiva</span><Switch aria-label="Attiva la nuova versione" checked={draft.active} onCheckedChange={(active: boolean) => setDraft((current) => ({ ...current, active }))} /></label>
               {versionError && <InlineError>{versionError}</InlineError>}
               <SaveActionButton busy={saving} disabled={!draft.name.trim() || !draft.body.trim()} idleLabel="Crea nuova versione" onClick={() => void createVersion()} saved={saved} />

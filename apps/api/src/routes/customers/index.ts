@@ -5,6 +5,7 @@ import {
   appointments,
   communicationConsents,
   customerCredentials,
+  customerPushSubscriptions,
   customers,
   customerSessions,
   loyaltyPoints,
@@ -208,6 +209,47 @@ export async function registerCustomerRoutes(app: FastifyInstance) {
               history: points,
             }
           : null,
+      };
+    },
+  );
+
+  app.get<{ Params: { id: string; customerId: string } }>(
+    "/api/salons/:id/customers/:customerId/consent-eligibility",
+    { preHandler: editGuard },
+    async (request, reply) => {
+      if (request.params.id !== request.salonId) {
+        return reply.code(403).send({ error: "FORBIDDEN" });
+      }
+      const customer = (await app.db
+        .select({ email: customers.email })
+        .from(customers)
+        .where(and(eq(customers.id, request.params.customerId), eq(customers.salonId, request.salonId)))
+        .limit(1))[0];
+      if (!customer) return reply.code(404).send({ error: "CUSTOMER_NOT_FOUND" });
+
+      const [account, subscription, whatsappConsent] = await Promise.all([
+        app.db.select({ id: customerCredentials.id }).from(customerCredentials)
+          .where(eq(customerCredentials.customerId, request.params.customerId)),
+        app.db.select({ id: customerPushSubscriptions.id }).from(customerPushSubscriptions)
+          .where(and(
+            eq(customerPushSubscriptions.salonId, request.salonId),
+            eq(customerPushSubscriptions.customerId, request.params.customerId),
+          )),
+        app.db.select({ id: communicationConsents.id }).from(communicationConsents)
+          .where(and(
+            eq(communicationConsents.salonId, request.salonId),
+            eq(communicationConsents.customerId, request.params.customerId),
+            eq(communicationConsents.channel, "whatsapp"),
+            eq(communicationConsents.purpose, "marketing"),
+            eq(communicationConsents.status, "granted"),
+          )),
+      ]);
+
+      return {
+        has_app_account: account.length > 0,
+        has_email: Boolean(customer.email),
+        has_push_subscription: subscription.length > 0,
+        whatsapp_marketing_consent: whatsappConsent.length > 0,
       };
     },
   );

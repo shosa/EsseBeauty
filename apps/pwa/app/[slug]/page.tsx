@@ -335,7 +335,7 @@ export default function SalonLanding() {
           <section className="mt-7">
             <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[.2em]" style={{ color: primary }}><Sparkles className="size-4" />Da dove vuoi iniziare?</p>
             <h2 className="mt-2 text-2xl font-bold text-stone-950">Scegli un trattamento</h2>
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible">
+            <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-visible">
               {categories.map((category) => (
                 <Link
                   className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-stone-200 bg-white px-4 text-sm font-bold text-stone-800 transition hover:border-stone-300"

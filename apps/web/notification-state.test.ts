@@ -95,9 +95,10 @@ describe("shell notification state", () => {
     });
   });
 
-  it("removes the badge count immediately when a notification is read", () => {
+  it("keeps the badge count until a notification is archived, not just read", () => {
     const result = markNotificationRead([first], "first", "2026-08-25T08:01:00.000Z");
     expect(result[0]?.read_at).toBe("2026-08-25T08:01:00.000Z");
-    expect(applyNotificationSnapshot(result, result, true).unreadCount).toBe(0);
+    expect(applyNotificationSnapshot(result, result, true).unreadCount).toBe(1);
+    expect(applyNotificationSnapshot(result, [], true).unreadCount).toBe(0);
   });
 });

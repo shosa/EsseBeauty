@@ -137,6 +137,11 @@ function timeInputValue(value: string) {
   return new Date(value).toLocaleTimeString("it-IT", { hour: "2-digit", hour12: false, minute: "2-digit" });
 }
 
+function nowLocalDateTimeValue() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
 export default function AppointmentDetailPanel({
   appointmentId,
   onChanged,
@@ -403,7 +408,7 @@ export default function AppointmentDetailPanel({
       >
         <p className="text-sm leading-6 text-stone-600">Aggiorna data, orario, durata e note senza modificare il servizio a catalogo.</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-[minmax(0,1fr)_130px]">
-          <div className="min-w-0"><p className="text-xs font-bold text-stone-600">Data e ora</p><DateTimeField aria-label="Data e ora dell’appuntamento" className="mt-2" onChange={(value) => { setAppointmentDate(value.slice(0, 10)); setAppointmentTime(value.slice(11, 16)); }} required step={300} value={`${appointmentDate}T${appointmentTime}`} /></div>
+          <div className="min-w-0"><p className="text-xs font-bold text-stone-600">Data e ora</p><DateTimeField aria-label="Data e ora dell’appuntamento" className="mt-2" min={nowLocalDateTimeValue()} onChange={(value) => { setAppointmentDate(value.slice(0, 10)); setAppointmentTime(value.slice(11, 16)); }} required step={300} value={`${appointmentDate}T${appointmentTime}`} /></div>
           <label className="text-xs font-bold text-stone-600">Durata<input className="mt-2 w-full" max={720} min={5} onChange={(event) => setAppointmentDuration(event.target.value)} step={5} type="number" value={appointmentDuration} />{editedEndTime && <span className="mt-1.5 block text-[11px] font-semibold text-stone-500">Termina alle {editedEndTime}</span>}</label>
           <label className="text-xs font-bold text-stone-600 sm:col-span-2">Note<textarea className="mt-2 min-h-24 w-full resize-y" onChange={(event) => setAppointmentNotes(event.target.value)} value={appointmentNotes} /></label>
         </div>
@@ -455,20 +460,24 @@ export default function AppointmentDetailPanel({
           <Link aria-label={appointment ? `Apri anagrafica di ${appointment.customer_name}` : "Appuntamento"} className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-sm font-black text-[#792f59]" href={appointment ? `/clients/${appointment.customer_id}` : "/clients"}>{appointment ? initials(appointment.customer_name) : "—"}</Link>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p>{appointment && <StatusBadge status={appointment.status} />}{isClosed && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">Conto chiuso</span>}</div>
-            <h1 className="mt-1 truncate text-xl font-black tracking-tight text-stone-950 sm:text-2xl">{appointment?.customer_name ?? "Appuntamento"}</h1>
-            {appointment && <p className="mt-1 truncate text-xs font-semibold text-stone-500 sm:text-sm">{appointment.service_name} · {formatDate(appointment.starts_at)} · {formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)}</p>}
+            <h1 className="mt-1 text-xl font-black tracking-tight text-stone-950 sm:truncate sm:text-2xl">{appointment?.customer_name ?? "Appuntamento"}</h1>
+            {appointment && <p className="mt-1 text-xs font-semibold text-stone-500 sm:truncate sm:text-sm">{appointment.service_name} · {formatDate(appointment.starts_at)} · {formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)}</p>}
           </div>
-          {appointment && !isClosed && <Button className="hidden sm:inline-flex" onClick={() => setEditingAppointment(true)} size="sm" variant="secondary"><Pencil aria-hidden="true" className="size-4" />Modifica</Button>}
           <button aria-label="Chiudi gestione appuntamento" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" data-appointment-close onClick={onClose} title="Chiudi" type="button"><X aria-hidden="true" className="size-5" /></button>
         </div>
-        {appointment && <div className="mt-4 flex min-w-0 items-center gap-2">
-          <span className="mr-1 shrink-0 text-[10px] font-black uppercase tracking-[.14em] text-stone-400">Stato</span>
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">{statusActions.map((status) => {
+        {appointment && <div className="mt-4 flex flex-col gap-2 sm:min-w-0 sm:flex-row sm:items-center">
+          <span className="shrink-0 text-[10px] font-black uppercase tracking-[.14em] text-stone-400 sm:mr-1">Stato</span>
+          <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+            <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">{statusActions.map((status) => {
               const active = appointment.status === status;
               const palette = statusActionPalette(status, active);
               return <button aria-pressed={active} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed ${active ? "shadow-sm disabled:opacity-100" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50 disabled:opacity-35"}`} disabled={isClosed || statusUpdating || active || !nextAppointmentStatuses(appointment.status).includes(status)} key={status} onClick={() => void updateStatus(status)} style={active ? { background: palette?.background, borderColor: palette?.border, color: palette?.text } : undefined} title={isClosed ? "Stato bloccato: vendita registrata" : appointmentStatusLabel(status)} type="button"><span className="[&_svg]:size-4"><StatusActionIcon status={status} /></span>{appointmentStatusLabel(status)}</button>;
             })}</div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">{!isClosed && <Button className="sm:hidden" onClick={() => setEditingAppointment(true)} size="sm" variant="outline"><Pencil aria-hidden="true" className="size-4" />Modifica</Button>}<button aria-label="Elimina appuntamento" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100" onClick={() => setConfirmDelete(true)} type="button"><Trash2 aria-hidden="true" className="size-4" /><span className="hidden sm:inline">Elimina</span></button></div>
+            <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+              {!isClosed && <Button onClick={() => setEditingAppointment(true)} size="sm" variant="secondary"><Pencil aria-hidden="true" className="size-4" /><span className="hidden sm:inline">Modifica</span></Button>}
+              <button aria-label="Elimina appuntamento" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100" onClick={() => setConfirmDelete(true)} type="button"><Trash2 aria-hidden="true" className="size-4" /><span className="hidden sm:inline">Elimina</span></button>
+            </div>
+          </div>
         </div>}
       </header>
       {!appointment ? (

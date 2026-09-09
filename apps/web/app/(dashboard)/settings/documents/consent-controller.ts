@@ -26,6 +26,26 @@ export interface CustomerConsentRecord {
   template_version: number;
 }
 
+export interface ConsentEligibility {
+  has_app_account: boolean;
+  has_email: boolean;
+  has_push_subscription: boolean;
+  whatsapp_marketing_consent: boolean;
+}
+
+export async function loadConsentEligibility(
+  fetcher: typeof fetch,
+  url: string,
+): Promise<ConsentEligibility | undefined> {
+  try {
+    const response = await fetcher(url, { credentials: "include" });
+    if (!response.ok) return undefined;
+    return await response.json() as ConsentEligibility;
+  } catch {
+    return undefined;
+  }
+}
+
 export type ConsentDialogMode = "request" | "resend" | "revoke" | "sign";
 
 export interface ConsentDialogState {

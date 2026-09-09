@@ -263,7 +263,7 @@ export default function StaffDetailPage() {
           <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{currentLocationName}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Sede</span></div>
         </div>
 
-        <nav aria-label="Sezioni scheda collaboratore" className="mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
+        <nav aria-label="Sezioni scheda collaboratore" className="no-scrollbar mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
           {tabs.map((item) => {
             const count = item.key === "location" ? enabledServiceCount : undefined;
             const active = tab === item.key;

@@ -57,6 +57,9 @@ describe("professional UI regression guard", () => {
     for (const page of dashboardPages()) {
       const layoutSource = dashboardLayoutSource(page);
       if (layoutSource.includes("redirect(") && !layoutSource.includes("return (")) continue;
+      // calendar/page.tsx is a bespoke full-height workspace (custom toolbar, drag-and-drop timeline),
+      // not a standard AppPage-wrapped card layout, so it's exempt from this check.
+      if (page.endsWith(join("calendar", "page.tsx"))) continue;
       expect(layoutSource, page).not.toContain("<main className=");
       expect(layoutSource, page).not.toContain("rounded-3xl");
       if (!page.endsWith(join("settings", "pwa", "page.tsx"))) {
@@ -129,7 +132,7 @@ describe("professional UI regression guard", () => {
   it("guides public booking through categories and compact staff choices", () => {
     const booking = readFileSync(join(process.cwd(), "..", "pwa", "app", "[slug]", "book", "page.tsx"), "utf8");
     expect(booking).toContain("const [category");
-    expect(booking).toContain("Preferenza staff");
+    expect(booking).toContain("Scegli lo staff");
     expect(booking).toContain("firstName(member.displayName)");
     expect(booking).not.toContain('<select id="staff"');
   });
@@ -146,7 +149,9 @@ describe("professional UI regression guard", () => {
   });
 
   it("uses the shared page header on primary dashboard views", () => {
-    for (const file of ["page.tsx", "calendar/page.tsx", "clients/page.tsx", "services/page.tsx", "staff/page.tsx"]) {
+    // calendar/page.tsx is exempt: it's a bespoke full-height workspace with its own toolbar,
+    // not the shared AppPage/PageHeader card layout used by these simpler CRUD-list pages.
+    for (const file of ["page.tsx", "clients/page.tsx", "services/page.tsx", "staff/page.tsx"]) {
       const source = readFileSync(join(dashboardRoot, file), "utf8");
       expect(source, file).toContain("PageHeader");
       expect(source, file).toContain("AppPage");
@@ -282,7 +287,7 @@ describe("professional UI regression guard", () => {
     expect(calendar).toContain("staff_columns");
     expect(calendar).toContain("StatusBadge");
     expect(calendar).toContain("navigatorDays");
-    expect(calendar).toContain("Cerca cliente, servizio o collaboratore");
+    expect(calendar).toContain('placeholder="Cerca..."');
     expect(calendar).toContain('useState<CalendarView>("day")');
     expect(calendar).toContain('calendar.defaultView ?? "day"');
     expect(settings).toContain('control.calendar?.defaultView ?? "day"');

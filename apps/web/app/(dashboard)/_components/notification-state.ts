@@ -82,7 +82,10 @@ export function applyNotificationSnapshot(
   return {
     items: incoming,
     previews: initialized ? incoming.filter((item) => !item.read_at && !known.has(item.id)) : [],
-    unreadCount: incoming.reduce((total, item) => total + (item.read_at ? 0 : 1), 0),
+    // `incoming` only ever holds non-archived notifications (the API excludes archived ones by
+    // default), so the badge should track "still pending" (not yet archived) rather than "unread" —
+    // reading a notification doesn't mean it's handled, archiving it does.
+    unreadCount: incoming.length,
   };
 }
 

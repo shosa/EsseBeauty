@@ -296,7 +296,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
           <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{packages.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Pacchetti attivi</span></div>
         </div>
 
-        <nav aria-label="Sezioni scheda cliente" className="mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
+        <nav aria-label="Sezioni scheda cliente" className="no-scrollbar mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
           {tabs.map((item) => {
             const count = item.key === "appointments" ? customer.appointments.length : item.key === "packages" ? packages.length : undefined;
             const active = tab === item.key;

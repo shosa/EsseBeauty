@@ -1524,6 +1524,7 @@ export default function CalendarPage() {
                 <input
                   aria-label="Nuova data"
                   className="mt-2 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 font-semibold text-stone-950"
+                  min={localDateValue(new Date().toISOString())}
                   onChange={(event) => setMoveDraft((current) => current ? { ...current, date: event.target.value } : current)}
                   type="date"
                   value={moveDraft.date}
@@ -1534,6 +1535,7 @@ export default function CalendarPage() {
                 <input
                   aria-label="Nuovo orario"
                   className="mt-2 min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 font-semibold text-stone-950"
+                  min={moveDraft.date === localDateValue(new Date().toISOString()) ? localTimeValue(new Date().toISOString()) : undefined}
                   onChange={(event) => setMoveDraft((current) => current ? { ...current, time: event.target.value } : current)}
                   step={rules.minSlotMinutes * 60}
                   type="time"

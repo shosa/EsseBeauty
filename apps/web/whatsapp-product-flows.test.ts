@@ -31,7 +31,8 @@ describe("active product communication UI", () => {
 
   it("offers app push as a document consent delivery channel", async () => {
     const source = await readFile(resolve(import.meta.dirname, "app/(dashboard)/settings/documents/_components/ConsentRecordsPanel.tsx"), "utf8");
-    expect(source).toContain('<option value="push">Notifica push app</option>');
+    expect(source).toContain('value="push"');
+    expect(source).toContain("Notifica push app");
     expect(source).toContain("cliente ha attivato le notifiche nell'app");
   });
 });

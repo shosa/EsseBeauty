@@ -26,7 +26,6 @@ export function AppRail({
   logout,
   onAppsOpen,
   onNavigate,
-  onNotificationsOpen,
   pathname,
   unreadCount,
   userName,
@@ -35,7 +34,6 @@ export function AppRail({
   logout(): void;
   onAppsOpen(): void;
   onNavigate(): void;
-  onNotificationsOpen(): void;
   pathname: string;
   unreadCount: number;
   userName: string;
@@ -58,7 +56,7 @@ export function AppRail({
         </div>
       </nav>
       <div className="flex flex-col items-center gap-1.5">
-        <button aria-label="Apri notifiche" className="relative grid size-12 place-items-center rounded-xl text-white/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white hover:bg-white/10 hover:text-white" onClick={() => { onNavigate(); onNotificationsOpen(); }} type="button"><BellIcon />{unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black">{Math.min(unreadCount, 9)}</span>}</button>
+        <Link aria-label="Apri centro notifiche" className="relative grid size-12 place-items-center rounded-xl text-white/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white hover:bg-white/10 hover:text-white" href="/notifications" onClick={onNavigate}><BellIcon />{unreadCount > 0 && <span className="absolute right-1 top-1 grid size-5 place-items-center rounded-full bg-red-600 text-[10px] font-black">{Math.min(unreadCount, 9)}</span>}</Link>
         {settings && <Link aria-label="Impostazioni" className="grid size-12 place-items-center rounded-xl text-white/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white hover:bg-white/10 hover:text-white" href={settings.href} onClick={onNavigate}><SettingsIcon /></Link>}
         <button aria-label="Esci" className="group relative grid size-12 place-items-center rounded-xl bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white text-xs font-black text-white hover:bg-white hover:text-[#792f59]" onClick={() => { onNavigate(); logout(); }} title="Esci" type="button"><span className="group-hover:hidden">{initials}</span><LogoutIcon className="hidden group-hover:block" /></button>
       </div>

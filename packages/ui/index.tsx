@@ -154,6 +154,7 @@ export function Select({
     .map((option) => ({
       disabled: Boolean(option.props.disabled),
       label: String(option.props.children ?? option.props.value ?? ""),
+      node: option.props.children,
       value: String(option.props.value ?? option.props.children ?? ""),
     }));
   const initialValue = String(defaultValue ?? options.find((option) => !option.disabled)?.value ?? "");
@@ -230,7 +231,7 @@ export function Select({
         ref={buttonRef}
         type="button"
       >
-        <span className="block truncate">{selectedOption?.label || "Seleziona"}</span>
+        <span className="flex min-w-0 items-center gap-2 truncate">{selectedOption?.node || "Seleziona"}</span>
         <ChevronDown aria-hidden="true" className={`pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#792f59] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <input
@@ -259,7 +260,7 @@ export function Select({
               role="option"
               type="button"
             >
-              <span>{option.label}</span>
+              <span className="flex min-w-0 items-center gap-2 truncate">{option.node}</span>
               {option.value === selectedValue && <Check aria-hidden="true" className="size-4 shrink-0 text-[#792f59]" />}
             </button>
           ))}
@@ -547,6 +548,8 @@ export function DateTimeField({
     () => Array.from({ length: Math.ceil(60 / minuteStep) }, (_, index) => String(index * minuteStep).padStart(2, "0")),
     [minuteStep],
   );
+  const isMinDate = Boolean(min && dateValue === min.slice(0, 10));
+  const [minHour = "00", minMinute = "00"] = isMinDate ? min!.slice(11, 16).split(":") : [];
 
   function placeTimePopup() {
     const trigger = timeTriggerRef.current;
@@ -600,13 +603,13 @@ export function DateTimeField({
           <div>
             <p className="mb-2 text-xs font-bold text-stone-600">Ora</p>
             <div className="grid max-h-52 grid-cols-4 gap-1 overflow-y-auto pr-1">
-              {hours.map((hour) => <button aria-pressed={hour === selectedHour} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${hour === selectedHour ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>)}
+              {hours.map((hour) => { const disabledHour = isMinDate && hour < minHour; return <button aria-pressed={hour === selectedHour} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${hour === selectedHour ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} disabled={disabledHour} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>; })}
             </div>
           </div>
           <div>
             <p className="mb-2 text-xs font-bold text-stone-600">Minuti</p>
             <div className="grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pr-1">
-              {minutes.map((minute) => <button aria-pressed={minute === selectedMinute} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${minute === selectedMinute ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>)}
+              {minutes.map((minute) => { const disabledMinute = isMinDate && selectedHour === minHour && minute < minMinute; return <button aria-pressed={minute === selectedMinute} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${minute === selectedMinute ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} disabled={disabledMinute} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>; })}
             </div>
           </div>
         </div>

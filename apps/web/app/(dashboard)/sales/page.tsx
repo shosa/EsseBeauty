@@ -774,7 +774,7 @@ export default function SalesPage() {
 
               <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                 {mode === "service" && (
-                  <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                  <div className="no-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1">
                     {serviceCategories.map((category) => (
                       <button
                         className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-xs font-bold transition ${selectedServiceCategoryId === category.id ? "border-[#792f59] bg-[#792f59] text-white" : "border-[#e8dfe4] bg-white text-stone-600 hover:border-[#d7a6c1]"}`}

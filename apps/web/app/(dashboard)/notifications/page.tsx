@@ -217,7 +217,7 @@ export default function NotificationsPage() {
     </div>
   );
 
-  return <AppPage maxWidth="max-w-[1400px]"><PageTransition>
+  return <AppPage maxWidth="max-w-[1600px]"><PageTransition>
     <PageHeader actions={globalActions} actionsAlign="right" eyebrow="Operatività" subtitle="Prenotazioni, magazzino, recensioni e staff, in un unico posto." title="Centro notifiche" />
 
     <StatGrid className="mb-5">

@@ -436,7 +436,7 @@ export default function BookingPage() {
               <p className="mt-1 text-sm text-stone-500">Puoi selezionare più trattamenti: verranno prenotati uno dopo l’altro.</p>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
               {categories.map((item) => (
                 <button
                   className={`flex h-10 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-bold transition ${category === item.name ? "text-white" : "border-stone-200 bg-white text-stone-700 hover:border-stone-300"}`}
@@ -596,7 +596,7 @@ export default function BookingPage() {
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
               {quickDays.map((day) => {
                 const iso = isoDate(day);
                 const closed = isDateClosed(day, profile.closures, profile.opening_hours);
@@ -740,7 +740,7 @@ export default function BookingPage() {
         >
           <div className="mx-auto max-w-md lg:max-w-3xl">
             {step === 1 && selectedServices.length > 0 && (
-              <div aria-label="Servizi selezionati" className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              <div aria-label="Servizi selezionati" className="no-scrollbar mb-3 flex gap-2 overflow-x-auto pb-1">
                 {selectedServices.map((service) => (
                   <button
                     aria-label={`Rimuovi ${service.name}`}
