@@ -10,6 +10,8 @@ import {
   users,
 } from "@esse-beauty/db/schema";
 
+import { issuePurchaseVoucher } from "./purchase-vouchers.js";
+
 export class LoyaltyOperationError extends Error {
   constructor(
     public readonly code: string,
