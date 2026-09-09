@@ -38,7 +38,7 @@ const checkedFiles = [
   "inventory/_components/StockMovementModal.tsx",
   "reviews/page.tsx",
   "services/page.tsx",
-  "settings/loyalty/page.tsx",
+  "loyalty/page.tsx",
   "settings/users/page.tsx",
   "staff/page.tsx",
   "waitlist/page.tsx",
@@ -116,8 +116,8 @@ describe("professional UI regression guard", () => {
       "settings/services/new/page.tsx",
       "settings/services/[serviceId]/page.tsx",
       "settings/users/invite/page.tsx",
-      "settings/loyalty/rewards/new/page.tsx",
-      "settings/loyalty/rewards/[rewardId]/page.tsx",
+      "loyalty/rewards/new/page.tsx",
+      "loyalty/rewards/[rewardId]/page.tsx",
     ]) {
       const source = readFileSync(join(dashboardRoot, file), "utf8");
       expect(source, file).toContain("FormField");

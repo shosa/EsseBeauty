@@ -269,6 +269,18 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     moduleKey: MODULE_KEYS.LOYALTY,
     paths: ["/loyalty"],
     permissions: [PERMISSION_KEYS.LOYALTY_MANAGE],
+    quickActions: [{
+      href: "/loyalty/rewards/new",
+      label: "Nuovo premio",
+      permissions: [PERMISSION_KEYS.LOYALTY_MANAGE],
+    }],
+    tabs: [
+      { href: "/loyalty", label: "Panoramica" },
+      { href: "/loyalty/customers", label: "Clienti" },
+      { href: "/loyalty/rewards", label: "Premi" },
+      { href: "/loyalty/tiers", label: "Livelli" },
+      { href: "/loyalty/settings", label: "Impostazioni" },
+    ],
   },
   {
     accent: "#ca8a04",
