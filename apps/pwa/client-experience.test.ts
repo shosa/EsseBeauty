@@ -75,9 +75,26 @@ describe("client PWA experience", () => {
   });
 
   it("lets customer notifications close back to the salon home", () => {
-    const source = readFileSync(join(process.cwd(), "app", "[slug]", "messages", "[id]", "page.tsx"), "utf8");
+    const source = readFileSync(join(process.cwd(), "app", "[slug]", "_components", "NotificationDetailView.tsx"), "utf8");
     expect(source).toContain('aria-label="Chiudi notifica"');
     expect(source).toContain("router.push(`/${slug}`)");
+  });
+
+  it("gives reminder and campaign push notifications their own dedicated landing page instead of the generic message view", () => {
+    const reminder = readFileSync(join(process.cwd(), "app", "[slug]", "notifications", "reminder", "[id]", "page.tsx"), "utf8");
+    expect(reminder).toContain("NotificationDetailView");
+    expect(reminder).toContain("CalendarClock");
+
+    const campaign = readFileSync(join(process.cwd(), "app", "[slug]", "notifications", "campaign", "[id]", "page.tsx"), "utf8");
+    expect(campaign).toContain("NotificationDetailView");
+    expect(campaign).toContain("Sparkles");
+  });
+
+  it("hides the tab bar on dedicated notification landing pages", () => {
+    const bottom = readFileSync(join(process.cwd(), "app", "[slug]", "_components", "SalonBottomNav.tsx"), "utf8");
+    expect(bottom).toContain('pathname.includes("/notifications/")');
+    const top = readFileSync(join(process.cwd(), "app", "[slug]", "_components", "SalonTopNav.tsx"), "utf8");
+    expect(top).toContain('pathname.includes("/notifications/")');
   });
 
   it("shows a salon overview with a public reviews tab", () => {

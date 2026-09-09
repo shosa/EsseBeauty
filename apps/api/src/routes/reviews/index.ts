@@ -20,6 +20,7 @@ import {
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+import { clearCustomerAppMessage } from "../../lib/customer-messages.js";
 import { inspectPublicToken } from "../../lib/public-tokens.js";
 import { retryReviewInvitation, scheduleReviewRequest, type ReviewQueue } from "../../jobs/reviews.js";
 
@@ -158,10 +159,11 @@ export async function registerReviewRoutes(
       });
       await tx.update(reviewInvitations).set({ consumedAt: new Date(), updatedAt: new Date() })
         .where(eq(reviewInvitations.id, invitation.id));
-      return { submitted: true as const };
+      return { customerId: appointment.customerId, salonId: invitation.salonId, submitted: true as const };
     });
     if ("error" in result && result.error) return tokenErrorReply(reply, result.error);
-    return reply.code(201).send(result);
+    await clearCustomerAppMessage(app.db, result.salonId, result.customerId, "review_request", `token=${encodeURIComponent(body.token as string)}`);
+    return reply.code(201).send({ submitted: result.submitted });
   });
 
   app.post<{ Params: { id: string; invitationId: string } }>(

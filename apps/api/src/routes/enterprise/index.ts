@@ -40,7 +40,7 @@ import {
   type ConsentLifecycleRepository,
   type ConsentRequestRecord,
 } from "../../lib/consent-evidence.js";
-import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
+import { clearCustomerAppMessage, sendCustomerAppMessage } from "../../lib/customer-messages.js";
 import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -785,14 +785,16 @@ export async function registerEnterpriseModuleRoutes(
       const body = parseBody(signConsentBodySchema, request, reply);
       if (!body) return;
       try {
-        return consentDto(await signConsent(consentRepository, request.params.token, {
+        const signed = await signConsent(consentRepository, request.params.token, {
           accepted: body.accepted,
           signature: body.signature,
           signerName: body.signer_name,
         }, {
           ipAddress: request.ip,
           userAgent: request.headers["user-agent"],
-        }));
+        });
+        await clearCustomerAppMessage(app.db, signed.salonId, signed.customerId, "consent_request", encodeURIComponent(request.params.token));
+        return consentDto(signed);
       } catch (error) {
         return sendConsentError(reply, error);
       }

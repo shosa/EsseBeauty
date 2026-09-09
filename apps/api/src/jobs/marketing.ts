@@ -163,6 +163,7 @@ export async function processCampaignBatch(
         : campaign.channel === "app"
         ? await sendCustomerAppMessage(db, campaign.salonId, recipient.customerId!, {
             body: applyMarketingWildcards(campaign.content, wildcardValues),
+            href: `/${salonSlug}/book`,
             kind: "campaign",
             slug: salonSlug!,
             title: personalizedName,
