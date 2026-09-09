@@ -3,6 +3,8 @@ import { Fraunces, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
+import { StaffAuthProvider } from "./_components/StaffAuthProvider";
+import { StaffShell } from "./_components/StaffShell";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -38,7 +40,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html className={`${manrope.variable} ${fraunces.variable}`} lang="it">
-      <body>{children}</body>
+      <body>
+        <StaffAuthProvider>
+          <StaffShell>{children}</StaffShell>
+        </StaffAuthProvider>
+      </body>
     </html>
   );
 }
