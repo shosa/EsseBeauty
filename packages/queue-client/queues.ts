@@ -10,9 +10,9 @@ export const QUEUE_NAMES = {
   CAMPAIGNS: "marketing-campaigns",
   CAMPAIGN_STATUS_REFRESH: "campaign-status-refresh",
   COMMUNICATIONS: "whatsapp-communications",
+  LOYALTY_AWARDS: "loyalty-awards",
   LOYALTY_BIRTHDAYS: "loyalty-birthdays",
   REMINDERS: "appointment-reminders",
-  REVIEW_LOYALTY_AWARDS: "review-loyalty-awards",
   REVIEWS: "review-requests",
 } as const;
 

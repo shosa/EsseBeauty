@@ -23,9 +23,9 @@ import { inspectPublicToken } from "@esse-beauty/server-shared";
 import {
   clearCustomerAppMessage,
   scheduleReviewRequest,
-  scheduleReviewSubmittedLoyaltyAward,
   type ReviewQueue,
 } from "@esse-beauty/comms-contracts";
+import { scheduleReviewSubmittedLoyaltyAward } from "@esse-beauty/domain-events";
 
 import { retryReviewInvitation } from "../../jobs/reviews.js";
 

@@ -1,4 +1,4 @@
-import { and, eq, gte } from "drizzle-orm";
+import { and, eq, gte, isNull } from "drizzle-orm";
 
 import {
   loyaltyEarningRules,
@@ -115,6 +115,17 @@ export async function awardReviewSubmission(
     salonId: input.salonId,
   });
   return rule.points;
+}
+
+export async function expireSaleLoyaltyPoints(
+  db: any,
+  input: { saleId: string; salonId: string },
+): Promise<void> {
+  await db.update(loyaltyPoints).set({ expiredAt: new Date() }).where(and(
+    eq(loyaltyPoints.salonId, input.salonId),
+    eq(loyaltyPoints.saleId, input.saleId),
+    isNull(loyaltyPoints.expiredAt),
+  ));
 }
 
 export async function awardBirthdayPoints(

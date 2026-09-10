@@ -1,12 +1,12 @@
 import type { JobsOptions } from "bullmq";
 
-import { getQueue, QUEUE_NAMES } from "./queues.js";
+import { getQueue, QUEUE_NAMES } from "@esse-beauty/queue-client";
 
 // The apps/communications outbox worker updates campaignRecipients directly
 // (same shared Postgres, a plain row update) when a WhatsApp send accepts
 // or fails, but recomputing the campaign's aggregate status is marketing
-// business logic owned by apps/api. It enqueues this event instead of
-// importing that logic across the process boundary.
+// business logic owned by the loyalty/marketing service. It enqueues this
+// event instead of importing that logic across the process boundary.
 export interface CampaignStatusRefreshJob {
   campaignId: string;
 }

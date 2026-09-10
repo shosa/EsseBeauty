@@ -25,3 +25,4 @@ export type {
   EncryptedSecret,
   ProviderSecretContext,
 } from "./provider-credentials.js";
+export { CUSTOMER_SESSION_COOKIE, resolveCustomerIdFromSession } from "./customer-session.js";

@@ -2,8 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, asc, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { customers, salons, salonSettings, services, staff, waitlistEntries } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
-import { PERMISSION_KEYS } from "@esse-beauty/shared";
-import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
+import { normalizePhoneE164, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 
 const guard = [authenticate, requireModule(MODULE_KEYS.WAITLIST), requirePermission(PERMISSION_KEYS.WAITLIST_MANAGE)];

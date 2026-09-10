@@ -1,5 +1,5 @@
 {
-  "name": "@esse-beauty/server-shared",
+  "name": "@esse-beauty/queue-client",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,8 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@esse-beauty/db": "workspace:*",
-    "drizzle-orm": "^0.44.2"
+    "bullmq": "^5.56.7"
   },
   "devDependencies": {
     "@types/node": "^22.15.32",

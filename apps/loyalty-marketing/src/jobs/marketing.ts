@@ -10,11 +10,10 @@ import { refreshCampaignStatus } from "./campaign-status.js";
 export { aggregateCampaignStatus, type AggregatedCampaignStatus } from "./campaign-status.js";
 
 import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues } from "@esse-beauty/shared";
+import { QUEUE_NAMES, redisConnection } from "@esse-beauty/queue-client";
 import {
   createCommunicationProviderRegistry,
   enqueueCommunication,
-  QUEUE_NAMES,
-  redisConnection,
   sendCustomerAppMessage,
   sendEmailFromDb,
   type CommunicationProviderRegistry,

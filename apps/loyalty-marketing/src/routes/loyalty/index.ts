@@ -14,9 +14,9 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
+import { resolveCustomerIdFromSession } from "@esse-beauty/server-shared";
 
 import { ensureLoyaltyRules, LOYALTY_RULE_DEFAULTS, type LoyaltyRuleAction } from "../../lib/loyalty-engine.js";
-import { resolveCustomerId } from "../public/customer-auth.js";
 import {
   activeLoyaltyBalanceSql,
   adjustLoyaltyBalance,
@@ -279,7 +279,7 @@ export async function registerLoyaltyRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string }; Querystring: { email?: string } }>("/api/public/:slug/loyalty", async (request, reply) => {
     const salon = (await app.db.select().from(salons).where(eq(salons.slug, request.params.slug)))[0];
     if (!salon || !(await isModuleEnabled(salon.id, MODULE_KEYS.LOYALTY, app.db))) return reply.code(404).send({ error: "NOT_FOUND" });
-    const customerId = request.query.email?.trim() ? undefined : await resolveCustomerId(app, request, salon.id);
+    const customerId = request.query.email?.trim() ? undefined : await resolveCustomerIdFromSession(app.db, request.cookies, salon.id);
     if (!request.query.email?.trim() && !customerId) return reply.code(400).send({ error: "INVALID_REQUEST" });
     const customer = (await app.db.select().from(customers).where(and(
       eq(customers.salonId, salon.id),

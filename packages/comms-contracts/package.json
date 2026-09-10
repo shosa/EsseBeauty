@@ -18,6 +18,7 @@
   "dependencies": {
     "@esse-beauty/db": "workspace:*",
     "@esse-beauty/feature-flags": "workspace:*",
+    "@esse-beauty/queue-client": "workspace:*",
     "@esse-beauty/server-shared": "workspace:*",
     "@esse-beauty/shared": "workspace:*",
     "bullmq": "^5.56.7",

@@ -109,3 +109,5 @@ export type {
   Weekday,
   WorkingHours,
 } from "./types.js";
+export { isValidBirthday, todayMonthDayInTimezone } from "./birthday.js";
+export { normalizePhoneE164 } from "./phone-normalization.js";

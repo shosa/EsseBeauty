@@ -11,7 +11,7 @@ import {
   communicationProviderAccounts,
 } from "@esse-beauty/db/schema";
 
-import { getQueue, QUEUE_NAMES } from "./queues.js";
+import { getQueue, QUEUE_NAMES } from "@esse-beauty/queue-client";
 
 // This is the producer half of the WhatsApp outbox: it durably records the
 // message and wakes the delivery queue. The consumer (claiming a lease,

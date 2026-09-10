@@ -27,12 +27,13 @@ import {
   type CommunicationProviderRegistry,
 } from "@esse-beauty/comms-contracts";
 
+import { hashSessionToken } from "@esse-beauty/server-shared";
+
 import { createApp } from "../../app.js";
 import {
   aggregateCampaignStatus,
   processCampaignBatch,
 } from "../../jobs/marketing.js";
-import { hashSessionToken } from "../auth/local-auth.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
 
 const databaseUrl = testDatabaseUrl();

@@ -24,14 +24,13 @@ import {
   salons,
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
-import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues, normalizePhoneE164, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { getQueue, QUEUE_NAMES } from "@esse-beauty/queue-client";
 
 import {
   createCommunicationProviderRegistry,
   enqueueCommunication,
-  getQueue,
   pushPublicKey,
-  QUEUE_NAMES,
   sendCustomerAppMessage,
   sendEmailFromDb,
   type CommunicationProviderRegistry,
@@ -40,7 +39,6 @@ import {
 
 import { aggregateCampaignStatus } from "../../jobs/marketing.js";
 import type { CampaignBatchJob, CampaignQueue } from "../../jobs/marketing.js";
-import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 
 type CampaignChannel = "app" | "email" | "whatsapp";

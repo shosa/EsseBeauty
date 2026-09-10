@@ -3,13 +3,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { customerCredentials, customerPasswordResetTokens, customers, customerSessions, salons } from "@esse-beauty/db/schema";
+import { isValidBirthday, normalizePhoneE164 } from "@esse-beauty/shared";
 import { inspectPublicToken, issuePublicToken } from "@esse-beauty/server-shared";
 import {
   createCommunicationProviderRegistry,
   type CommunicationProviderRegistry,
 } from "@esse-beauty/comms-contracts";
-import { isValidBirthday } from "../../lib/birthday.js";
-import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import {
   createSessionToken,
   hashPassword,

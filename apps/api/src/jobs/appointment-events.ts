@@ -15,16 +15,13 @@ import {
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import {
   enqueueCommunication,
-  getQueue,
-  QUEUE_NAMES,
-  redisConnection,
   scheduledReviewTime,
   scheduleReviewInvitation,
   scheduleReviewRequest,
   sendEmail,
 } from "@esse-beauty/comms-contracts";
-
-import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
+import { getQueue, QUEUE_NAMES, redisConnection } from "@esse-beauty/queue-client";
+import { scheduleAppointmentCompletedLoyaltyAward } from "@esse-beauty/domain-events";
 
 interface Transition {
   appointmentId: string;
@@ -140,7 +137,7 @@ export async function processLoyaltyAward(
   )[0];
   if (!appointment || appointment.status !== "completed") return;
   if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.LOYALTY, db))) return;
-  await awardAppointmentCompletion(db, {
+  await scheduleAppointmentCompletedLoyaltyAward({
     appointmentId: appointment.id,
     customerId: appointment.customerId,
     salonId: appointment.salonId,

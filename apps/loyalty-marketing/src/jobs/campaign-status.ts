@@ -3,11 +3,8 @@ import { eq } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import { campaignRecipients, marketingCampaigns } from "@esse-beauty/db/schema";
-import {
-  QUEUE_NAMES,
-  redisConnection,
-  type CampaignStatusRefreshJob,
-} from "@esse-beauty/comms-contracts";
+import { QUEUE_NAMES, redisConnection } from "@esse-beauty/queue-client";
+import { type CampaignStatusRefreshJob } from "@esse-beauty/domain-events";
 
 export type AggregatedCampaignStatus =
   | "queued"

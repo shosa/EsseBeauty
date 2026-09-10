@@ -63,7 +63,7 @@ foreach ($address in $detectedDevOrigins) {
   "Process"
 )
 
-$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003, 3004, 3011, 3013 -State Listen -ErrorAction SilentlyContinue
+$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003, 3004, 3006, 3011, 3013 -State Listen -ErrorAction SilentlyContinue
 if ($busyPorts) {
   $ports = ($busyPorts | Select-Object -ExpandProperty LocalPort -Unique) -join ", "
   throw "Development ports already in use: $ports. Stop the existing dev server or free these ports before running pnpm run dev."
@@ -72,7 +72,10 @@ if ($busyPorts) {
 corepack pnpm `
   --filter @esse-beauty/db `
   --filter @esse-beauty/shared `
+  --filter @esse-beauty/server-shared `
   --filter @esse-beauty/feature-flags `
+  --filter @esse-beauty/queue-client `
+  --filter @esse-beauty/domain-events `
   --filter @esse-beauty/comms-contracts `
   --filter @esse-beauty/ui `
   run build
@@ -97,13 +100,15 @@ finally {
   $migrationMutex.Dispose()
 }
 
-# apps/api and apps/communications each read PORT from the environment, so
-# they run as separate background jobs with distinct ports behind a small
-# local proxy (scripts/dev-gateway.mjs) that stands in for gateway/nginx.conf
-# — this keeps every frontend's NEXT_PUBLIC_API_URL (port 3001) working
-# unchanged whether it's calling api or communications routes.
+# apps/api, apps/communications and apps/loyalty-marketing each read PORT
+# from the environment, so they run as separate background jobs with
+# distinct ports behind a small local proxy (scripts/dev-gateway.mjs) that
+# stands in for gateway/nginx.conf — this keeps every frontend's
+# NEXT_PUBLIC_API_URL (port 3001) working unchanged no matter which backend
+# actually owns a given route.
 $apiInternalPort = 3011
 $communicationsPort = 3013
+$loyaltyMarketingPort = 3006
 $backendEnv = @{}
 foreach ($entry in [Environment]::GetEnvironmentVariables("Process").GetEnumerator()) {
   $backendEnv[$entry.Key] = $entry.Value
@@ -125,13 +130,22 @@ $communicationsJob = Start-Job -Name "esse-beauty-communications" -ScriptBlock {
   corepack pnpm --filter @esse-beauty/communications run dev
 } -ArgumentList (Join-Path $PSScriptRoot ".."), $backendEnv, $communicationsPort
 
+$loyaltyMarketingJob = Start-Job -Name "esse-beauty-loyalty-marketing" -ScriptBlock {
+  param($repoRoot, $env, $port)
+  foreach ($key in $env.Keys) { [Environment]::SetEnvironmentVariable($key, $env[$key], "Process") }
+  [Environment]::SetEnvironmentVariable("PORT", $port, "Process")
+  Set-Location $repoRoot
+  corepack pnpm --filter @esse-beauty/loyalty-marketing run dev
+} -ArgumentList (Join-Path $PSScriptRoot ".."), $backendEnv, $loyaltyMarketingPort
+
 $gatewayJob = Start-Job -Name "esse-beauty-dev-gateway" -ScriptBlock {
-  param($repoRoot, $apiPort, $communicationsPort)
+  param($repoRoot, $apiPort, $communicationsPort, $loyaltyMarketingPort)
   $env:API_INTERNAL_PORT = $apiPort
   $env:COMMUNICATIONS_PORT = $communicationsPort
+  $env:LOYALTY_MARKETING_PORT = $loyaltyMarketingPort
   Set-Location $repoRoot
   node scripts/dev-gateway.mjs
-} -ArgumentList (Join-Path $PSScriptRoot ".."), $apiInternalPort, $communicationsPort
+} -ArgumentList (Join-Path $PSScriptRoot ".."), $apiInternalPort, $communicationsPort, $loyaltyMarketingPort
 
 try {
   corepack pnpm --parallel `
@@ -142,6 +156,6 @@ try {
     run dev
 }
 finally {
-  $apiJob, $communicationsJob, $gatewayJob | Stop-Job -PassThru | Receive-Job
-  $apiJob, $communicationsJob, $gatewayJob | Remove-Job -Force
+  $apiJob, $communicationsJob, $loyaltyMarketingJob, $gatewayJob | Stop-Job -PassThru | Receive-Job
+  $apiJob, $communicationsJob, $loyaltyMarketingJob, $gatewayJob | Remove-Job -Force
 }

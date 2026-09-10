@@ -3,7 +3,7 @@ export {
   getQueue,
   QUEUE_NAMES,
   redisConnection,
-} from "./queues.js";
+} from "@esse-beauty/queue-client";
 export {
   createCommunicationProviderRegistry,
   ProviderNotConfiguredError,
@@ -46,10 +46,3 @@ export {
   scheduleReviewRequest,
 } from "./review-scheduling.js";
 export type { ReviewQueue, ReviewRequestJob } from "./review-scheduling.js";
-export { scheduleReviewSubmittedLoyaltyAward } from "./loyalty-events.js";
-export type {
-  LoyaltyEventQueue,
-  ReviewSubmittedLoyaltyAwardJob,
-} from "./loyalty-events.js";
-export { scheduleCampaignStatusRefresh } from "./campaign-events.js";
-export type { CampaignEventQueue, CampaignStatusRefreshJob } from "./campaign-events.js";

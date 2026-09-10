@@ -27,9 +27,9 @@ import {
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
+import { scheduleSaleCompletedLoyaltyAward, scheduleSaleVoidedLoyaltyExpiry } from "@esse-beauty/domain-events";
 
 import { authenticate } from "../../middleware/auth.js";
-import { awardSaleLoyalty } from "../../lib/loyalty-engine.js";
 import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
 import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
 import { renderAccountingPdf } from "../../lib/accounting-pdf.js";
@@ -697,18 +697,12 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         saleId: sale.id,
         salonId: request.salonId,
       });
-      if (loyaltyEnabled) {
-        await awardSaleLoyalty(tx, {
-          customerId: request.body.customer_id,
-          discountCents,
-          items: lines,
-          saleId: sale.id,
-          salonId: request.salonId,
-        });
-      }
       return { assigned_packages: assignedPackages, issued_vouchers: issuedVouchers, sale };
     }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "CHECKOUT_FAILED" }));
     if ("error" in result) return reply.code(400).send({ error: result.error });
+    if (loyaltyEnabled) {
+      await scheduleSaleCompletedLoyaltyAward({ saleId: result.sale.id, salonId: request.salonId });
+    }
     return reply.code(201).send(result);
   });
 
@@ -957,16 +951,6 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           eq(notifications.entityId, appointment.id),
           eq(notifications.type, "online_booking_received"),
         ));
-        if (loyaltyEnabled) {
-          await awardSaleLoyalty(tx, {
-            appointmentId: appointment.id,
-            customerId: appointment.customerId,
-            discountCents,
-            items: lines,
-            saleId: sale.id,
-            salonId: request.salonId,
-          });
-        }
         const issuedVouchers = await issueVouchers(tx, {
           issuedVouchers: request.body.issued_vouchers,
           purchaserCustomerId: appointment.customerId,
@@ -984,6 +968,9 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: result.error });
       }
       if (result.conflict) return reply.code(409).send({ error: "SALE_ALREADY_CLOSED" });
+      if (loyaltyEnabled) {
+        await scheduleSaleCompletedLoyaltyAward({ saleId: result.sale.id, salonId: request.salonId });
+      }
       return reply.code(201).send(result.sale);
     },
   );
@@ -1204,6 +1191,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     if (result.error === "SALE_NOT_FOUND") return reply.code(404).send({ error: result.error });
     if (result.error === "SALE_NOT_VOIDABLE" || result.error === "SALE_VOID_BLOCKED") return reply.code(409).send({ error: result.error });
     if (result.error) return reply.code(400).send({ error: result.error });
+    await scheduleSaleVoidedLoyaltyExpiry({ saleId: request.params.saleId, salonId: request.salonId });
     return reply.code(200).send(result.plan);
   });
 }

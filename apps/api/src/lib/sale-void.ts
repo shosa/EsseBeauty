@@ -253,11 +253,9 @@ export async function voidSale(
     await tx.delete(servicePackageUsages).where(eq(servicePackageUsages.id, usage.id));
   }
 
-  await tx.update(loyaltyPoints).set({ expiredAt: new Date() }).where(and(
-    eq(loyaltyPoints.salonId, input.salonId),
-    eq(loyaltyPoints.saleId, input.saleId),
-    sql`${loyaltyPoints.expiredAt} is null`,
-  ));
+  // Loyalty points earned by this sale are expired asynchronously by the
+  // loyalty service (see scheduleSaleVoidedLoyaltyExpiry in the caller) —
+  // loyalty_points is no longer this domain's table to write.
 
   await tx.update(sales).set({
     status: "void",

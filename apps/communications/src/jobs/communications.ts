@@ -17,10 +17,10 @@ import {
   getQueue,
   QUEUE_NAMES,
   redisConnection,
-  scheduleCampaignStatusRefresh,
   type CommunicationOutboxJob,
   type CommunicationQueue,
 } from "@esse-beauty/comms-contracts";
+import { scheduleCampaignStatusRefresh } from "@esse-beauty/domain-events";
 
 import {
   sendWhatsApp,

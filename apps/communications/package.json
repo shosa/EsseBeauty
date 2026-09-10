@@ -14,7 +14,9 @@
   "dependencies": {
     "@esse-beauty/comms-contracts": "workspace:*",
     "@esse-beauty/db": "workspace:*",
+    "@esse-beauty/domain-events": "workspace:*",
     "@esse-beauty/feature-flags": "workspace:*",
+    "@esse-beauty/queue-client": "workspace:*",
     "@esse-beauty/server-shared": "workspace:*",
     "@esse-beauty/shared": "workspace:*",
     "@fastify/cookie": "^11.0.2",

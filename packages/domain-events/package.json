@@ -1,5 +1,5 @@
 {
-  "name": "@esse-beauty/server-shared",
+  "name": "@esse-beauty/domain-events",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@esse-beauty/db": "workspace:*",
-    "drizzle-orm": "^0.44.2"
+    "@esse-beauty/queue-client": "workspace:*",
+    "bullmq": "^5.56.7"
   },
   "devDependencies": {
     "@types/node": "^22.15.32",

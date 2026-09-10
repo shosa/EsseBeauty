@@ -9,7 +9,7 @@ import {
   reviewInvitations,
 } from "@esse-beauty/db/schema";
 
-import { getQueue, QUEUE_NAMES } from "./queues.js";
+import { getQueue, QUEUE_NAMES } from "@esse-beauty/queue-client";
 
 // The producer half of review scheduling: durably records that an
 // appointment is (or should be) getting a review invitation and wakes the

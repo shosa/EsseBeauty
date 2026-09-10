@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import type { Job } from "bullmq";
 
 import { createDatabase, type DrizzleDB } from "@esse-beauty/db";
@@ -17,6 +17,9 @@ import {
 
 import { testDatabaseUrl } from "../test/postgres.js";
 
+const scheduleAppointmentCompletedLoyaltyAward = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("@esse-beauty/domain-events", () => ({ scheduleAppointmentCompletedLoyaltyAward }));
+
 import {
   processLoyaltyAward,
   processWaitlistRematch,
@@ -31,7 +34,7 @@ postgresSuite("appointment follow-up worker with PostgreSQL", () => {
   beforeAll(() => { db = createDatabase(databaseUrl!); });
   afterAll(async () => { await db.$client.end(); });
 
-  it("awards loyalty points for a completed appointment exactly once even if processed twice", async () => {
+  it("schedules the loyalty-award event for a completed appointment with a loyalty-enabled salon", async () => {
     const salonId = randomUUID();
     const customerId = randomUUID();
     const staffId = randomUUID();
@@ -45,18 +48,17 @@ postgresSuite("appointment follow-up worker with PostgreSQL", () => {
       await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "completed" });
       await db.insert(salonModules).values({ enabled: true, moduleKey: "loyalty", salonId });
 
+      scheduleAppointmentCompletedLoyaltyAward.mockClear();
       const job = { data: { appointmentId } } as Job<AppointmentFollowupJobData>;
       await processLoyaltyAward(db, job);
-      await processLoyaltyAward(db, job);
 
-      const rows = await db.execute(sql<{ count: number }>`select count(*)::int as count from loyalty_points where appointment_id = ${appointmentId}::uuid`);
-      expect(rows[0]?.count).toBe(1);
+      expect(scheduleAppointmentCompletedLoyaltyAward).toHaveBeenCalledWith({ appointmentId, customerId, salonId });
     } finally {
       await db.delete(salons).where(eq(salons.id, salonId));
     }
   });
 
-  it("skips loyalty award when the module is disabled or the appointment is no longer completed", async () => {
+  it("does not schedule a loyalty award when the module is disabled or the appointment is no longer completed", async () => {
     const salonId = randomUUID();
     const customerId = randomUUID();
     const staffId = randomUUID();
@@ -69,11 +71,11 @@ postgresSuite("appointment follow-up worker with PostgreSQL", () => {
       await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Pulizia viso", priceCents: 5000, salonId });
       await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "cancelled" });
 
+      scheduleAppointmentCompletedLoyaltyAward.mockClear();
       const job = { data: { appointmentId } } as Job<AppointmentFollowupJobData>;
       await processLoyaltyAward(db, job);
 
-      const rows = await db.execute(sql<{ count: number }>`select count(*)::int as count from loyalty_points where appointment_id = ${appointmentId}::uuid`);
-      expect(rows[0]?.count).toBe(0);
+      expect(scheduleAppointmentCompletedLoyaltyAward).not.toHaveBeenCalled();
     } finally {
       await db.delete(salons).where(eq(salons.id, salonId));
     }
