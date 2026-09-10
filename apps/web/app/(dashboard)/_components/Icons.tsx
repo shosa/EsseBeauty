@@ -1,9 +1,10 @@
 import {
   Bell, BellRing, Blocks, Boxes, BriefcaseBusiness, CalendarDays, ChartNoAxesCombined, ClipboardClock,
   DoorOpen, FileSignature, Gift, Grid2X2, Ellipsis, HandCoins, HeartHandshake, History, Landmark,
-  LayoutDashboard, LogOut, Megaphone, MessageCircleMore, MoreHorizontal, Package,
+  LayoutDashboard, LogOut, Megaphone, MoreHorizontal, Package,
   PackageOpen, PanelLeft, Scissors, Settings, ShoppingBag, Star, Users, UserRound,
 } from "lucide-react";
+import { SiWhatsapp } from "@icons-pack/react-simple-icons";
 import type { ComponentProps } from "react";
 
 type IconProps = ComponentProps<typeof LayoutDashboard>;
@@ -37,4 +38,6 @@ export const PackageIcon = Package;
 export const ShoppingIcon = ShoppingBag;
 export const DoorIcon = DoorOpen;
 export const BriefcaseIcon = BriefcaseBusiness;
-export const WhatsAppIcon = MessageCircleMore;
+export function WhatsAppIcon(props: ComponentProps<"svg">) {
+  return <SiWhatsapp {...props} color="currentColor" title="WhatsApp" />;
+}

@@ -2,8 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import * as Toast from "@radix-ui/react-toast";
-import { BellRing, CalendarDays, Check, ChevronRight, MessageSquareText, PackageSearch, Volume2, X } from "lucide-react";
+import { BellRing, CalendarDays, Check, ChevronRight, PackageSearch, Volume2, X } from "lucide-react";
 
+import { WhatsAppIcon } from "../../_components/Icons";
 import { playIncomingMessageSound } from "../../_components/notification-state";
 
 type PreviewKind = "booking" | "whatsapp" | null;
@@ -32,7 +33,7 @@ export function WhatsAppIncomingToast({ onOpen }: { onOpen?: () => void }) {
   return <Toast.Root className="group relative overflow-visible" duration={8_000} type="foreground">
     <div className="relative overflow-hidden rounded-xl border border-[#b8dfc9] bg-white shadow-[0_16px_36px_rgb(35_116_73_/_0.16)]">
       <div className="flex min-w-0 items-start gap-3 p-4">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" strokeWidth={2.1} /></span>
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><WhatsAppIcon aria-hidden="true" className="size-5" /></span>
         <Toast.Title className="min-w-0 flex-1 text-left text-sm font-extrabold text-stone-950">Nuovo messaggio da Elena Ferri</Toast.Title>
         <Toast.Close aria-label="Chiudi messaggio" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"><X className="size-4" /></Toast.Close>
       </div>
