@@ -15,7 +15,7 @@ function ticketDate(value?: string) {
 }
 
 export function WhatsAppIncomingToast({ body, onDismiss, onOpen, title }: { body?: string; onDismiss(): void; onOpen(): void; title: string }) {
-  return <Toast.Root className="group relative overflow-visible" duration={8_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
+  return <Toast.Root className="pointer-events-auto group relative overflow-visible" duration={8_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
     <div className="relative overflow-hidden rounded-xl border border-[#b8dfc9] bg-white shadow-[0_16px_36px_rgb(35_116_73_/_0.16)]">
       <div className="flex min-w-0 items-start gap-3 p-4">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><WhatsAppIcon aria-hidden="true" className="size-5" /></span>
@@ -32,7 +32,7 @@ export function WhatsAppIncomingToast({ body, onDismiss, onOpen, title }: { body
 
 export function BookingArrivalToast({ body, onDismiss, onOpen, startsAt, title }: { body?: string | null; onDismiss(): void; onOpen(): void; startsAt?: string; title: string }) {
   const date = ticketDate(startsAt);
-  return <Toast.Root className="overflow-hidden rounded-xl border border-[#d7a6c1] bg-white shadow-[0_16px_36px_rgb(121_47_89_/_0.16)]" duration={9_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
+  return <Toast.Root className="pointer-events-auto overflow-hidden rounded-xl border border-[#d7a6c1] bg-white shadow-[0_16px_36px_rgb(121_47_89_/_0.16)]" duration={9_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
     <div className="flex items-stretch">
       <div className="flex w-16 shrink-0 flex-col items-center justify-center bg-[#792f59] px-2 text-center text-white"><span className="text-2xl font-black leading-none">{date.day}</span>{date.month && <span className="mt-1 text-[10px] font-bold">{date.month}</span>}</div>
       <div className="min-w-0 flex-1 p-4"><div className="flex items-start gap-2"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#f3e2eb] text-[#792f59]"><CalendarDays className="size-4" /></span><div className="min-w-0 flex-1"><Toast.Title className="text-sm font-extrabold text-stone-950">{title}</Toast.Title>{body && <Toast.Description className="mt-0.5 line-clamp-2 text-sm leading-5 text-stone-600">{body}</Toast.Description>}</div><Toast.Close aria-label="Chiudi prenotazione" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-stone-100"><X className="size-4" /></Toast.Close></div><Toast.Action altText="Gestisci richiesta appuntamento" asChild><button className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#402334] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#2d1824] active:translate-y-px" onClick={onOpen} type="button">Gestisci richiesta <ChevronRight className="size-3.5" /></button></Toast.Action></div>
