@@ -88,7 +88,7 @@ export const DEMO_VOLUME_PROFILE = {
   locations: 1,
   products: 120,
   sales: 600,
-  services: 48,
+  services: 20,
   staff: 5,
 } as const;
 
