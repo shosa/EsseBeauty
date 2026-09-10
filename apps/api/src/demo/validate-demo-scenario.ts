@@ -69,10 +69,10 @@ const MINIMUM_VOLUMES: Record<string, number> = {
   appointments: 1_500,
   customers: 300,
   inventoryProducts: 100,
-  salonLocations: 3,
-  salonResources: 10,
-  services: 40,
-  staff: 12,
+  salonLocations: 1,
+  salonResources: 3,
+  services: 20,
+  staff: 5,
 };
 
 function checkForeignKeys(rows: Record<string, Array<Record<string, unknown>>>, errors: string[]): void {

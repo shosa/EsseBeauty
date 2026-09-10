@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("purchase vouchers", () => {
   const routeSource = readFileSync(join(process.cwd(), "src", "routes", "vouchers", "index.ts"), "utf8");
   const salesSource = readFileSync(join(process.cwd(), "src", "routes", "sales", "index.ts"), "utf8");
-  const helperSource = readFileSync(join(process.cwd(), "src", "lib", "purchase-vouchers.ts"), "utf8");
+  const helperSource = readFileSync(join(process.cwd(), "..", "..", "packages", "server-shared", "purchase-vouchers.ts"), "utf8");
 
   it("supports customer-linked issue, partial redemption and movement history", () => {
     expect(routeSource).toContain('"/api/salons/:id/vouchers"');

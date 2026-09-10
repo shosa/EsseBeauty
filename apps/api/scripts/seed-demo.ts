@@ -3,6 +3,7 @@ import { MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { applyDemoScenario } from "../src/demo/apply-demo-scenario.js";
 import { buildDemoScenario } from "../src/demo/build-demo-scenario.js";
+import { compactDemoScenario } from "../src/demo/compact-demo-scenario.js";
 import { DEMO_IDENTITY } from "../src/demo/scenario-types.js";
 import { validateDemoScenario } from "../src/demo/validate-demo-scenario.js";
 import { testDatabaseUrl } from "../src/test/postgres.js";
@@ -92,11 +93,11 @@ async function main(): Promise<void> {
 
   const db = createDatabase(databaseUrl);
   try {
-    const scenario = buildDemoScenario({
+    const scenario = compactDemoScenario(buildDemoScenario({
       anchor,
       moduleKeys: Object.values(MODULE_KEYS),
       seed: options.seed,
-    });
+    }));
 
     const validation = validateDemoScenario(scenario);
     console.log(`Scenario anchor: ${anchor.toISOString()} (seed ${options.seed})`);

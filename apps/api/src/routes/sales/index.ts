@@ -29,9 +29,10 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { scheduleSaleCompletedLoyaltyAward, scheduleSaleVoidedLoyaltyExpiry } from "@esse-beauty/domain-events";
 import { scheduleAutomaticReviewRequest } from "@esse-beauty/comms-contracts";
+import { issuePurchaseVoucher, redeemPurchaseVoucher } from "@esse-beauty/server-shared";
+import { commitRewardRedemptions, planRewardRedemptions, type RewardSaleLine } from "@esse-beauty/loyalty-contracts";
 
 import { authenticate } from "../../middleware/auth.js";
-import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
 import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
 import { renderAccountingPdf } from "../../lib/accounting-pdf.js";
 import { buildSaleVoidPlan, voidSale } from "../../lib/sale-void.js";
@@ -58,6 +59,10 @@ interface CheckoutPayment {
   method: PaymentMethod;
   reference?: string;
   voucher_code?: string;
+}
+
+interface RedeemedReward {
+  reward_id: string;
 }
 
 interface IssuedVoucher {
@@ -549,6 +554,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       items: CheckoutItem[];
       notes?: string;
       payments: CheckoutPayment[];
+      redeemed_rewards?: RedeemedReward[];
       staff_id?: string;
     };
     Params: { id: string };
@@ -606,13 +612,37 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "VOUCHER_CANNOT_BE_DISCOUNTED" });
     }
     if (voucherCents > saleValueCents) return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH" });
-    const discountCents = manualDiscountCents + voucherCents;
-    const totalCents = saleValueCents - voucherCents;
-    if (cashCents !== totalCents) return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH" });
     const loyaltyEnabled = Boolean(request.body.customer_id) &&
       await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db);
+    const rewardIds = (request.body.redeemed_rewards ?? []).map((entry) => entry.reward_id);
+    if (rewardIds.length && !loyaltyEnabled) return reply.code(400).send({ error: "REWARD_MODULE_DISABLED" });
 
     const result = await app.db.transaction(async (tx) => {
+      const rewardPlan = await planRewardRedemptions(tx, {
+        customerId: request.body.customer_id,
+        lines: lines.map((item): RewardSaleLine => ({
+          itemType: item.item_type,
+          packageQuantity: item.packageQuantity,
+          productId: item.product_id,
+          quantity: item.quantity,
+          serviceId: item.service_id,
+          unitPriceCents: item.unitPriceCents,
+        })),
+        manualDiscountCents,
+        rewardIds,
+        salonId: request.salonId,
+        voucherCents,
+      });
+      const finalLines = lines.map((line, index) => {
+        const forcedDiscount = rewardPlan.perLineDiscountCents.get(index);
+        if (forcedDiscount === undefined) return line;
+        const gross = Math.max(0, line.quantity - line.packageQuantity) * line.unitPriceCents;
+        return { ...line, discountCents: forcedDiscount, totalCents: gross - forcedDiscount };
+      });
+      const discountCents = manualDiscountCents + voucherCents + rewardPlan.totalRewardDiscountCents;
+      const totalCents = saleValueCents - voucherCents - rewardPlan.totalRewardDiscountCents;
+      if (cashCents !== totalCents) throw new Error("PAYMENT_TOTAL_MISMATCH");
+
       const saleRows = await tx.insert(sales).values({
         customerId: request.body.customer_id || null,
         discountCents,
@@ -626,7 +656,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         closedByUserId: request.user.id,
       }).returning();
       const sale = saleRows[0]!;
-      const insertedItems = await tx.insert(saleItems).values(lines.map((item) => ({
+      const insertedItems = await tx.insert(saleItems).values(finalLines.map((item) => ({
         description: item.description,
         discountCents: item.discountCents,
         itemType: item.item_type,
@@ -641,7 +671,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       }))).returning({ id: saleItems.id });
       await consumePackageItems(tx, {
         customerId: request.body.customer_id,
-        lines,
+        lines: finalLines,
         saleId: sale.id,
         saleItemIds: insertedItems.map((item) => item.id),
         salonId: request.salonId,
@@ -654,7 +684,16 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         salonId: request.salonId,
         userId: request.user.id,
       });
-      for (const line of lines.filter((item) => item.item_type === "product" && item.product_id)) {
+      if (rewardPlan.plans.length) {
+        await commitRewardRedemptions(tx, {
+          actorUserId: request.user.id,
+          customerId: request.body.customer_id!,
+          plans: rewardPlan.plans,
+          saleId: sale.id,
+          salonId: request.salonId,
+        });
+      }
+      for (const line of finalLines.filter((item) => item.item_type === "product" && item.product_id)) {
         const productRows = await tx.select().from(inventoryProducts).where(and(
           eq(inventoryProducts.id, line.product_id!),
           eq(inventoryProducts.salonId, request.salonId),
@@ -698,7 +737,12 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         saleId: sale.id,
         salonId: request.salonId,
       });
-      return { assigned_packages: assignedPackages, issued_vouchers: issuedVouchers, sale };
+      return {
+        assigned_packages: assignedPackages,
+        issued_vouchers: issuedVouchers,
+        redeemed_rewards: rewardPlan.plans.map((plan) => ({ points_spent: plan.pointsSpent, reward_id: plan.rewardId })),
+        sale,
+      };
     }).catch((error: unknown) => ({ error: error instanceof Error ? error.message : "CHECKOUT_FAILED" }));
     if ("error" in result) return reply.code(400).send({ error: result.error });
     if (loyaltyEnabled) {
@@ -790,6 +834,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       items: CheckoutItem[];
       notes?: string;
       payments: CheckoutPayment[];
+      redeemed_rewards?: RedeemedReward[];
     };
     Params: { id: string; appointmentId: string };
   }>(
@@ -834,12 +879,9 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       if (voucherCents > saleValueCents) {
         return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH", expected_cents: saleValueCents, paid_cents: voucherCents });
       }
-      const discountCents = manualDiscountCents + voucherCents;
-      const totalCents = saleValueCents - voucherCents;
-      if (cashCents !== totalCents) {
-        return reply.code(400).send({ error: "PAYMENT_TOTAL_MISMATCH", expected_cents: totalCents, paid_cents: cashCents });
-      }
       const loyaltyEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db);
+      const rewardIds = (request.body.redeemed_rewards ?? []).map((entry) => entry.reward_id);
+      if (rewardIds.length && !loyaltyEnabled) return reply.code(400).send({ error: "REWARD_MODULE_DISABLED" });
 
       const result = await app.db.transaction(async (tx) => {
         const existingRows = await tx.select().from(sales).where(and(
@@ -849,6 +891,30 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         if (existingRows[0]?.status === "paid") {
           return { conflict: true as const };
         }
+        const rewardPlan = await planRewardRedemptions(tx, {
+          customerId: appointment.customerId,
+          lines: lines.map((item): RewardSaleLine => ({
+            itemType: item.item_type,
+            packageQuantity: item.packageQuantity,
+            productId: item.product_id,
+            quantity: item.quantity,
+            serviceId: item.service_id,
+            unitPriceCents: item.unitPriceCents,
+          })),
+          manualDiscountCents,
+          rewardIds,
+          salonId: request.salonId,
+          voucherCents,
+        });
+        const finalLines = lines.map((line, index) => {
+          const forcedDiscount = rewardPlan.perLineDiscountCents.get(index);
+          if (forcedDiscount === undefined) return line;
+          const gross = Math.max(0, line.quantity - line.packageQuantity) * line.unitPriceCents;
+          return { ...line, discountCents: forcedDiscount, totalCents: gross - forcedDiscount };
+        });
+        const discountCents = manualDiscountCents + voucherCents + rewardPlan.totalRewardDiscountCents;
+        const totalCents = saleValueCents - voucherCents - rewardPlan.totalRewardDiscountCents;
+        if (cashCents !== totalCents) throw new Error("PAYMENT_TOTAL_MISMATCH");
 
         const saleRows = existingRows[0]
           ? await tx.update(sales).set({
@@ -877,7 +943,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         const sale = saleRows[0]!;
         await tx.delete(saleItems).where(eq(saleItems.saleId, sale.id));
         await tx.delete(salePayments).where(eq(salePayments.saleId, sale.id));
-        const insertedItems = await tx.insert(saleItems).values(lines.map((item) => ({
+        const insertedItems = await tx.insert(saleItems).values(finalLines.map((item) => ({
           description: item.description,
           discountCents: item.discountCents,
           itemType: item.item_type,
@@ -893,7 +959,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         await consumePackageItems(tx, {
           appointmentId: appointment.id,
           customerId: appointment.customerId,
-          lines,
+          lines: finalLines,
           saleId: sale.id,
           saleItemIds: insertedItems.map((item) => item.id),
           salonId: request.salonId,
@@ -907,7 +973,17 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           userId: request.user.id,
         });
 
-        for (const line of lines.filter((item) => item.item_type === "product" && item.product_id)) {
+        if (rewardPlan.plans.length) {
+          await commitRewardRedemptions(tx, {
+            actorUserId: request.user.id,
+            customerId: appointment.customerId,
+            plans: rewardPlan.plans,
+            saleId: sale.id,
+            salonId: request.salonId,
+          });
+        }
+
+        for (const line of finalLines.filter((item) => item.item_type === "product" && item.product_id)) {
           const productRows = await tx.select().from(inventoryProducts).where(and(
             eq(inventoryProducts.id, line.product_id!),
             eq(inventoryProducts.salonId, request.salonId),

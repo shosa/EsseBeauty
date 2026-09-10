@@ -29,10 +29,11 @@ export async function issuePurchaseVoucher(
     amountCents: number;
     customerId: string;
     issuedByUserId: string;
-    issuedSaleId: string;
+    issuedSaleId: string | null;
     message?: string;
     purchaserCustomerId?: string;
     salonId: string;
+    sourceRewardRedemptionId?: string;
   },
 ) {
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -52,6 +53,7 @@ export async function issuePurchaseVoucher(
       originalAmountCents: input.amountCents,
       purchaserCustomerId: input.purchaserCustomerId || null,
       salonId: input.salonId,
+      sourceRewardRedemptionId: input.sourceRewardRedemptionId ?? null,
       status: "active",
     }).returning();
     const voucher = rows[0]!;

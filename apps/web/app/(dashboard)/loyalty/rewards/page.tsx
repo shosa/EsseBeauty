@@ -11,7 +11,9 @@ import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-interface Reward { active: boolean; description: string | null; id: string; name: string; pointsRequired: number; }
+type RewardType = "free_treatment" | "free_product" | "fixed_discount" | "percent_discount" | "credit";
+interface Reward { active: boolean; description: string | null; id: string; name: string; pointsRequired: number; type: RewardType; }
+const rewardTypeLabel: Record<RewardType, string> = { credit: "Credito", fixed_discount: "Sconto fisso", free_product: "Prodotto omaggio", free_treatment: "Trattamento omaggio", percent_discount: "Sconto %" };
 
 export default function LoyaltyRewardsPage() {
   const { salon } = useAuth();
@@ -72,7 +74,7 @@ export default function LoyaltyRewardsPage() {
         {loading ? <div className="h-40 animate-pulse rounded-2xl bg-stone-100" /> : (
           <SectionCard icon={Gift} title="Catalogo premi" subtitle="Attiva, archivia o apri un premio per modificarlo.">
             <div className="space-y-2">
-              {rewards.map((reward) => <div className={`grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-stone-200 p-3 ${reward.active ? "bg-white" : "bg-stone-50 opacity-65"}`} key={reward.id}><div className="min-w-0"><Link className="font-bold text-stone-950 hover:text-[#6f244e]" href={`/loyalty/rewards/${reward.id}`}>{reward.name}</Link><p className="truncate text-xs text-stone-500">{reward.description || "Nessuna descrizione"}</p></div><div className="flex items-center gap-2"><b className="whitespace-nowrap text-[#6f244e]">{reward.pointsRequired} pt</b><Button onClick={() => void toggleReward(reward)} size="sm" variant="outline">{reward.active ? "Archivia" : "Riattiva"}</Button></div></div>)}
+              {rewards.map((reward) => <div className={`grid grid-cols-[1fr_auto] items-center gap-3 rounded-xl border border-stone-200 p-3 ${reward.active ? "bg-white" : "bg-stone-50 opacity-65"}`} key={reward.id}><div className="min-w-0"><Link className="font-bold text-stone-950 hover:text-[#6f244e]" href={`/loyalty/rewards/${reward.id}`}>{reward.name}</Link><p className="mt-1 flex items-center gap-2 truncate text-xs text-stone-500"><span className="rounded-full bg-[#f5e8ef] px-2 py-0.5 font-bold text-[#792f59]">{rewardTypeLabel[reward.type]}</span>{reward.description || "Nessuna descrizione"}</p></div><div className="flex items-center gap-2"><b className="whitespace-nowrap text-[#6f244e]">{reward.pointsRequired} pt</b><Button onClick={() => void toggleReward(reward)} size="sm" variant="outline">{reward.active ? "Archivia" : "Riattiva"}</Button></div></div>)}
               {rewards.length === 0 && <EmptyState title="Nessun premio" description="Crea il primo vantaggio concreto del programma." />}
             </div>
           </SectionCard>

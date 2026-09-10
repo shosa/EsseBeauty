@@ -116,9 +116,9 @@ describe("global WhatsApp workspace", () => {
     expect(newlyUnreadConversations(previous, staleServerResponse, true)).toEqual([]);
   });
 
-  it("clips the WhatsApp preview progress bar inside the speech bubble", () => {
-    const shell = readFileSync(resolve("app/(dashboard)/_components/DashboardShell.tsx"), "utf8");
-    expect(shell).toContain("animate-[notification-life_6s_linear_forwards] bg-[#25D366]");
+  it("keeps the WhatsApp preview progress bar in its dedicated toast", () => {
+    const toast = readFileSync(resolve("app/(dashboard)/notifications/_components/LiveNotificationToasts.tsx"), "utf8");
+    expect(toast).toContain("bg-[#25D366] motion-safe:animate-[notification-life_8s_linear_forwards]");
   });
 
   it("ignores a stale refresh response after a conversation was marked read", () => {

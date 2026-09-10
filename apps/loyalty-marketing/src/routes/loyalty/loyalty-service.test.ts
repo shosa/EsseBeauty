@@ -53,7 +53,16 @@ postgresSuite("loyalty reward redemption with PostgreSQL", () => {
     ]);
     await db.insert(customers).values({ email: `${customerId}@example.invalid`, fullName: "Mario Rossi", id: customerId, salonId });
     await db.insert(users).values({ email: `${actorUserId}@example.invalid`, fullName: "Owner", id: actorUserId, role: "owner", salonId });
-    await db.insert(loyaltyRewards).values({ id: rewardId, name: "Trattamento omaggio", pointsRequired: 80, salonId });
+    // Questo servizio testa il riscatto diretto: solo i premi credito possono
+    // essere riscattati fuori dalla cassa.
+    await db.insert(loyaltyRewards).values({
+      discountAmountCents: 1_000,
+      id: rewardId,
+      name: "Credito omaggio",
+      pointsRequired: 80,
+      salonId,
+      type: "credit",
+    });
     await db.insert(loyaltyPoints).values({ customerId, delta: 100, reason: "Saldo iniziale", salonId });
     return { actorUserId, customerId, otherSalonId, rewardId, salonId };
   }

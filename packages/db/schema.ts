@@ -54,6 +54,13 @@ export const paymentMethodEnum = pgEnum("payment_method", [
   "voucher",
   "other",
 ]);
+export const rewardTypeEnum = pgEnum("reward_type", [
+  "free_treatment",
+  "free_product",
+  "fixed_discount",
+  "percent_discount",
+  "credit",
+]);
 // Historical SMS compatibility: retained so applied rows remain readable; runtime writes use WhatsApp.
 export const reminderChannelEnum = pgEnum("reminder_channel", ["sms", "email", "whatsapp", "app"]);
 export const reminderStatusEnum = pgEnum("reminder_status", [
@@ -1247,6 +1254,10 @@ export const purchaseVouchers = pgTable(
       onDelete: "set null",
     }),
     exhaustedAt: timestamp("exhausted_at", { withTimezone: true }),
+    sourceRewardRedemptionId: uuid("source_reward_redemption_id").references(
+      (): AnyPgColumn => loyaltyRewardRedemptions.id,
+      { onDelete: "set null" },
+    ),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
     ...timestamps,
   },
@@ -1821,7 +1832,32 @@ export const loyaltyRewards = pgTable("loyalty_rewards", {
   pointsRequired: integer("points_required").notNull(),
   description: text("description"),
   active: boolean("active").default(true).notNull(),
-});
+  type: rewardTypeEnum("type").default("fixed_discount").notNull(),
+  serviceId: uuid("service_id").references(() => services.id, {
+    onDelete: "set null",
+  }),
+  productId: uuid("product_id").references(
+    (): AnyPgColumn => inventoryProducts.id,
+    { onDelete: "set null" },
+  ),
+  discountAmountCents: integer("discount_amount_cents"),
+  discountPercent: integer("discount_percent"),
+  minSpendCents: integer("min_spend_cents"),
+  maxDiscountCents: integer("max_discount_cents"),
+}, (table) => [
+  // No cross-field CHECK for the type-specific required columns here: premi creati
+  // prima di questa migrazione hanno type di default ma nessun campo di config
+  // popolato, e un CHECK validante fallirebbe su quelle righe esistenti. La forma
+  // per tipo è invece validata in apps/api (rewardBody) a ogni creazione/modifica.
+  check(
+    "loyalty_rewards_min_spend_non_negative",
+    sql`${table.minSpendCents} IS NULL OR ${table.minSpendCents} >= 0`,
+  ),
+  check(
+    "loyalty_rewards_max_discount_non_negative",
+    sql`${table.maxDiscountCents} IS NULL OR ${table.maxDiscountCents} >= 0`,
+  ),
+]);
 
 export const loyaltyEarningRules = pgTable(
   "loyalty_earning_rules",
@@ -1866,6 +1902,18 @@ export const loyaltyRewardRedemptions = pgTable("loyalty_reward_redemptions", {
   }),
   redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
   notes: text("notes"),
+  saleId: uuid("sale_id").references(() => sales.id, { onDelete: "set null" }),
+  // Nullable: le redemption create prima di questa migrazione non hanno uno
+  // snapshot del tipo applicato.
+  appliedType: rewardTypeEnum("applied_type"),
+  appliedDiscountCents: integer("applied_discount_cents"),
+  appliedServiceId: uuid("applied_service_id").references(() => services.id, {
+    onDelete: "set null",
+  }),
+  appliedProductId: uuid("applied_product_id").references(
+    (): AnyPgColumn => inventoryProducts.id,
+    { onDelete: "set null" },
+  ),
   ...timestamps,
 }, (table) => [
   uniqueIndex("loyalty_redemptions_salon_idempotency_unique").on(

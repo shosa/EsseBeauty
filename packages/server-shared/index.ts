@@ -26,3 +26,8 @@ export type {
   ProviderSecretContext,
 } from "./provider-credentials.js";
 export { CUSTOMER_SESSION_COOKIE, resolveCustomerIdFromSession } from "./customer-session.js";
+export {
+  generateVoucherCode,
+  issuePurchaseVoucher,
+  redeemPurchaseVoucher,
+} from "./purchase-vouchers.js";

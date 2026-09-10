@@ -7,17 +7,13 @@ import {
   loyaltyRewardRedemptions,
   loyaltyRewards,
   loyaltySettings,
+  purchaseVouchers,
   users,
 } from "@esse-beauty/db/schema";
+import { issuePurchaseVoucher } from "@esse-beauty/server-shared";
+import { LoyaltyOperationError } from "@esse-beauty/loyalty-contracts";
 
-export class LoyaltyOperationError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly statusCode: number,
-  ) {
-    super(code);
-  }
-}
+export { LoyaltyOperationError } from "@esse-beauty/loyalty-contracts";
 
 export interface LoyaltyTierLike {
   id: string;
@@ -93,12 +89,17 @@ export async function redeemLoyaltyReward(
       if (existing[0].customerId !== input.customerId || existing[0].rewardId !== input.rewardId) {
         throw new LoyaltyOperationError("IDEMPOTENCY_CONFLICT", 409);
       }
+      const existingVoucher = await tx
+        .select({ code: purchaseVouchers.code })
+        .from(purchaseVouchers)
+        .where(eq(purchaseVouchers.sourceRewardRedemptionId, existing[0].id));
       return {
         balance: await activeBalance(tx, input.salonId, input.customerId),
         id: existing[0].id,
         idempotent: true,
         pointsSpent: existing[0].pointsSpent,
         status: existing[0].status,
+        voucherCode: existingVoucher[0]?.code,
       };
     }
 
@@ -114,6 +115,12 @@ export async function redeemLoyaltyReward(
       ));
     const reward = rewardRows[0];
     if (!reward) throw new LoyaltyOperationError("REWARD_NOT_AVAILABLE", 404);
+    // Solo il tipo "credito" può essere riscattato fuori da una vendita: gli
+    // altri tipi (trattamento/prodotto omaggio, sconto fisso/%) hanno senso solo
+    // legati a un carrello e vanno riscattati in cassa (vedi redeemRewardsInSale).
+    if (reward.type !== "credit") {
+      throw new LoyaltyOperationError("REWARD_REQUIRES_CHECKOUT", 400);
+    }
 
     const balance = await activeBalance(tx, input.salonId, input.customerId);
     if (balance < reward.pointsRequired) {
@@ -123,6 +130,8 @@ export async function redeemLoyaltyReward(
     const redemptionRows = await tx
       .insert(loyaltyRewardRedemptions)
       .values({
+        appliedDiscountCents: reward.discountAmountCents,
+        appliedType: reward.type,
         approvedByUserId: input.actorUserId,
         customerId: input.customerId,
         idempotencyKey: input.idempotencyKey,
@@ -143,12 +152,22 @@ export async function redeemLoyaltyReward(
       redemptionId: redemption.id,
       salonId: input.salonId,
     });
+    const voucher = await issuePurchaseVoucher(tx, {
+      amountCents: reward.discountAmountCents!,
+      customerId: input.customerId,
+      issuedByUserId: input.actorUserId,
+      issuedSaleId: null,
+      message: `Generato dal premio fedeltà: ${reward.name}`,
+      salonId: input.salonId,
+      sourceRewardRedemptionId: redemption.id,
+    });
     return {
       balance: balance - reward.pointsRequired,
       id: redemption.id,
       idempotent: false,
       pointsSpent: reward.pointsRequired,
       status: redemption.status,
+      voucherCode: voucher.code,
     };
   });
 }

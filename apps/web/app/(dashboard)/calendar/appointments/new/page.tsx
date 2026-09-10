@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { Calendar, Check, ChevronDown, Info, MessageCircle, Tag, UserPlus, X } from "lucide-react";
-import { AppPage, Breadcrumbs, Button, DateTimeField, designTokens, Dialog, FormField, InlineError, PageSkeleton, Select, Switch } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, DateTimeField, designTokens, Dialog, FormField, PageSkeleton, SaveToast, Select, Switch } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../../lib/auth-context";
 import { DayAgendaPreview } from "../../_components/DayAgendaPreview";
@@ -599,7 +599,7 @@ export default function NewAppointmentPage() {
         </div>
       )}
 
-      {error && <InlineError className="mt-4">{error}</InlineError>}
+      <SaveToast variant="error" visible={Boolean(error)}>{error}</SaveToast>
 
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-3">

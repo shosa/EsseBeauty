@@ -119,6 +119,7 @@ describe("shell route helpers", () => {
       }),
     ).toEqual({
       action_pending: false,
+      appointment_starts_at: null,
       category: "inventory",
       channel: "in_app",
       entity_id: "p1",

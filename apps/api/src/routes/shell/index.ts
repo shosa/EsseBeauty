@@ -109,6 +109,7 @@ export function buildSearchResponse(results: SearchResult[]): SearchResponse {
 
 export function notificationToDto(row: NotificationRow & { actionPending?: boolean }) {
   const href = typeof row.payload.href === "string" ? row.payload.href : null;
+  const appointmentStartsAt = typeof row.payload.appointmentStartsAt === "string" ? row.payload.appointmentStartsAt : null;
 
   return {
     id: row.id,
@@ -121,6 +122,7 @@ export function notificationToDto(row: NotificationRow & { actionPending?: boole
     entity_id: row.entityId,
     entity_type: row.entityType,
     href,
+    appointment_starts_at: appointmentStartsAt,
     read_at: row.readAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
     unread: !row.readAt,

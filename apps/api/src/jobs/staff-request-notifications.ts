@@ -108,7 +108,7 @@ export async function ensureOnlineBookingNotifications(
         category: "calendar",
         entityId: booking.id,
         entityType: "appointment",
-        payload: { href: `/calendar/appointments/${booking.id}` },
+        payload: { appointmentStartsAt: booking.startsAt.toISOString(), href: `/calendar/appointments/${booking.id}` },
         priority: booking.status === "pending" ? "high" : "normal",
         salonId,
         targetRole: role,
