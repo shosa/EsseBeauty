@@ -1,32 +1,16 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import * as Toast from "@radix-ui/react-toast";
+import { createUISFX, type CueName, type PackName, type UISFXPlayer } from "uisfx";
 import { BellRing, CalendarDays, Check, ChevronRight, PackageSearch, Volume2, X } from "lucide-react";
 
 import { WhatsAppIcon } from "../../_components/Icons";
-import { playIncomingMessageSound } from "../../_components/notification-state";
-
 type PreviewKind = "booking" | "whatsapp" | null;
+type SoundFeel = Extract<PackName, "glass" | "soft" | "studio">;
 
-function playBookingSound() {
-  const Audio = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!Audio) return;
-  const context = new Audio();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(580, context.currentTime);
-  oscillator.frequency.exponentialRampToValueAtTime(720, context.currentTime + 0.16);
-  gain.gain.setValueAtTime(0.0001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.016);
-  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.26);
-  oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.27);
-  oscillator.addEventListener("ended", () => void context.close());
-}
-
-function PreviewButton({ children, kind, onClick }: { children: ReactNode; kind: Exclude<PreviewKind, null>; onClick: () => void }) {
-  return <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold text-stone-700 transition hover:border-[#b87898] hover:text-[#792f59] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#792f59]" onClick={() => { kind === "whatsapp" ? playIncomingMessageSound() : playBookingSound(); onClick(); }} type="button"><Volume2 className="size-4" />{children}</button>;
+function PreviewButton({ children, cue, onClick, play }: { children: ReactNode; cue: CueName; onClick: () => void; play(cue: CueName): void }) {
+  return <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold text-stone-700 transition hover:border-[#b87898] hover:text-[#792f59] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#792f59]" onClick={() => { play(cue); onClick(); }} type="button"><Volume2 className="size-4" />{children}</button>;
 }
 
 export function WhatsAppIncomingToast({ onOpen }: { onOpen?: () => void }) {
@@ -58,11 +42,18 @@ export function BookingArrivalToast({ onOpen }: { onOpen?: () => void }) {
 export function FeedbackSystemPreview() {
   const [preview, setPreview] = useState<PreviewKind>("whatsapp");
   const [notice, setNotice] = useState("");
+  const [soundFeel, setSoundFeel] = useState<SoundFeel>("soft");
+  const soundPlayer = useRef<UISFXPlayer | null>(null);
   function openPreview(kind: Exclude<PreviewKind, null>) { setPreview(null); setNotice(kind === "whatsapp" ? "In produzione questo aprirà la conversazione WhatsApp." : "In produzione questo aprirà la richiesta nel calendario."); }
+  function play(cue: CueName) {
+    if (!soundPlayer.current) soundPlayer.current = createUISFX({ pack: soundFeel, volume: 0.42 });
+    soundPlayer.current.setPack(soundFeel);
+    void soundPlayer.current.unlock().then(() => soundPlayer.current?.play(cue));
+  }
 
   return <Toast.Provider swipeDirection="right"><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
     <div className="space-y-5">
-      <section className="rounded-2xl border border-stone-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-extrabold text-stone-950">Un evento, una forma riconoscibile</p><p className="mt-1 max-w-xl text-sm leading-5 text-stone-500">Il messaggio conserva la bolla WhatsApp già presente. La prenotazione usa il giorno e l’orario come informazione dominante.</p></div><BellRing className="size-5 text-[#792f59]" /></div><div className="mt-4 flex flex-wrap gap-2"><PreviewButton kind="whatsapp" onClick={() => { setNotice(""); setPreview("whatsapp"); }}>Simula WhatsApp</PreviewButton><PreviewButton kind="booking" onClick={() => { setNotice(""); setPreview("booking"); }}>Simula prenotazione</PreviewButton></div></section>
+      <section className="rounded-2xl border border-stone-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-extrabold text-stone-950">Un evento, una forma riconoscibile</p><p className="mt-1 max-w-xl text-sm leading-5 text-stone-500">Il messaggio conserva la bolla WhatsApp già presente. La prenotazione usa il giorno e l’orario come informazione dominante.</p></div><BellRing className="size-5 text-[#792f59]" /></div><div className="mt-4"><p className="text-xs font-bold text-stone-500">Carattere sonoro</p><div className="mt-2 flex flex-wrap gap-2">{([{ id: "soft", label: "Soft", note: "caldo" }, { id: "glass", label: "Glass", note: "nitido" }, { id: "studio", label: "Studio", note: "materico" }] as const).map((item) => <button aria-pressed={soundFeel === item.id} className={`min-h-10 rounded-xl border px-3 text-sm font-bold transition ${soundFeel === item.id ? "border-[#792f59] bg-[#fbf3f7] text-[#792f59]" : "border-stone-200 bg-white text-stone-600 hover:border-[#b87898]"}`} key={item.id} onClick={() => { setSoundFeel(item.id); setNotice(`Profilo ${item.label}: ${item.note}. Ora prova un evento.`); }} type="button">{item.label} <span className="ml-1 text-xs font-medium opacity-70">{item.note}</span></button>)}</div></div><div className="mt-4 flex flex-wrap gap-2"><PreviewButton cue="receive" onClick={() => { setNotice(""); setPreview("whatsapp"); }} play={play}>Simula WhatsApp</PreviewButton><PreviewButton cue="notification" onClick={() => { setNotice(""); setPreview("booking"); }} play={play}>Simula prenotazione</PreviewButton><PreviewButton cue="mention" onClick={() => setNotice("Avviso urgente: il suono è solo un test, non apre un toast.")} play={play}>Prova urgenza</PreviewButton></div></section>
       <section className="rounded-2xl border border-[#efc48f] bg-[#fffaf3] p-4" role="status"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#fff0dc] text-[#9a561b]"><PackageSearch className="size-[18px]" /></span><div><h3 className="text-sm font-extrabold text-stone-950">Scorta bassa: Olaplex N°3</h3><p className="mt-1 text-sm leading-5 text-stone-600">Questo resta nel Magazzino. Non è un toast e non fa suoni: è un problema da risolvere, non un semplice aggiornamento.</p></div></div></section>
       <section className="rounded-2xl border border-emerald-200 bg-[#f6fcf8] p-4" role="status"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><Check className="size-[18px]" /></span><div><h3 className="text-sm font-extrabold text-stone-950">Pagamento registrato</h3><p className="mt-1 text-sm leading-5 text-stone-600">Micro-conferma silenziosa. Un suono per ogni salvataggio diventa rumore dopo pochi minuti.</p></div></div></section>
     </div>

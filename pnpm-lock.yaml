@@ -291,6 +291,9 @@ importers:
       react-hook-form:
         specifier: ^7.79.0
         version: 7.79.0(react@19.2.7)
+      uisfx:
+        specifier: ^0.4.0
+        version: 0.4.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -4499,6 +4502,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  uisfx@0.4.0:
+    resolution: {integrity: sha512-W891N75C09cvpaNeChP+7BiP0Yp5VSbrIcRgZvzpFUT3o/2DxZqROmUcX50oxeyMnY4Hqxu4jEfjndVUpmheEQ==}
+
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
     engines: {node: '>= 0.4'}
@@ -8697,6 +8703,8 @@ snapshots:
       reflect.getprototypeof: 1.0.10
 
   typescript@5.9.3: {}
+
+  uisfx@0.4.0: {}
 
   unbox-primitive@1.1.0:
     dependencies:
