@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import * as Toast from "@radix-ui/react-toast";
+import { SaveToast } from "@esse-beauty/ui";
 import { createUISFX, type CueName, type UISFXPlayer } from "uisfx";
 import { BellRing, CalendarDays, Check, ChevronRight, PackageSearch, Volume2, X } from "lucide-react";
 
@@ -58,5 +59,6 @@ export function FeedbackSystemPreview() {
       <section className="rounded-2xl border border-emerald-200 bg-[#f6fcf8] p-4" role="status"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><Check className="size-[18px]" /></span><div><h3 className="text-sm font-extrabold text-stone-950">Pagamento registrato</h3><p className="mt-1 text-sm leading-5 text-stone-600">Micro-conferma silenziosa. Un suono per ogni salvataggio diventa rumore dopo pochi minuti.</p></div></div></section>
     </div>
     <aside className="relative min-h-[370px] overflow-hidden rounded-2xl border border-stone-200 bg-[#f6f2f4] p-5"><p className="text-sm font-extrabold text-stone-800">Come appare nell’app</p><p className="mt-1 text-sm leading-5 text-stone-500">Radix gestisce focus, coda, pausa su hover e swipe. Il visual resta EsseBeauty.</p><Toast.Viewport className="absolute inset-x-5 top-24 m-0 flex list-none flex-col gap-3 p-0 outline-none">{preview === "whatsapp" && <WhatsAppIncomingToast onOpen={() => openPreview("whatsapp")} />}{preview === "booking" && <BookingArrivalToast onOpen={() => openPreview("booking")} />}</Toast.Viewport>{!preview && <div className="absolute inset-x-5 top-28 rounded-xl border border-dashed border-stone-300 bg-white/70 p-5 text-center text-sm text-stone-500">Scegli un evento per riprodurre la sua notifica.</div>}{notice && <p className="absolute inset-x-5 bottom-5 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#792f59]" role="status">{notice}</p>}</aside>
+    <SaveToast visible>Trattamento aggiornato. Le modifiche sono subito disponibili in agenda.</SaveToast>
   </div></Toast.Provider>;
 }

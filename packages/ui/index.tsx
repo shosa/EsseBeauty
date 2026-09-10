@@ -1196,19 +1196,22 @@ export function FormField({
 
 export function SaveToast({
   children,
+  duration = 7_000,
   variant = "success",
   visible,
 }: {
   children: ReactNode;
+  duration?: number;
   variant?: "error" | "info" | "success" | "warning";
   visible: boolean;
 }) {
   const [dismissed, setDismissed] = useState(false);
+  const [instance, setInstance] = useState(0);
   const variants = {
-    error: "border-red-300 bg-red-50 text-red-800 shadow-[0_16px_42px_rgb(185_28_28_/_0.16)]",
-    info: "border-sky-300 bg-sky-50 text-sky-800 shadow-[0_16px_42px_rgb(2_132_199_/_0.16)]",
-    success: "border-emerald-300 bg-emerald-50 text-emerald-800 shadow-[0_16px_42px_rgb(5_150_105_/_0.16)]",
-    warning: "border-amber-300 bg-amber-50 text-amber-900 shadow-[0_16px_42px_rgb(217_119_6_/_0.16)]",
+    error: { accent: "bg-red-600", icon: "bg-red-100 text-red-700", surface: "border-red-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(185_28_28_/_0.18)]" },
+    info: { accent: "bg-sky-600", icon: "bg-sky-100 text-sky-700", surface: "border-sky-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(2_132_199_/_0.18)]" },
+    success: { accent: "bg-emerald-600", icon: "bg-emerald-100 text-emerald-700", surface: "border-emerald-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(5_150_105_/_0.18)]" },
+    warning: { accent: "bg-amber-500", icon: "bg-amber-100 text-amber-700", surface: "border-amber-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(217_119_6_/_0.18)]" },
   };
 
   useEffect(() => {
@@ -1217,9 +1220,12 @@ export function SaveToast({
       return;
     }
     setDismissed(false);
-    const timeout = window.setTimeout(() => setDismissed(true), 6000);
+    setInstance((current) => current + 1);
+    const timeout = window.setTimeout(() => setDismissed(true), duration);
     return () => window.clearTimeout(timeout);
-  }, [visible, children]);
+  }, [duration, visible, children]);
+
+  const Icon = variant === "error" ? X : variant === "warning" ? Clock3 : variant === "info" ? ChevronRight : Check;
 
   return (
     <AnimatePresence>
@@ -1227,21 +1233,30 @@ export function SaveToast({
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           aria-live={variant === "error" ? "assertive" : "polite"}
-          className={`fixed bottom-5 right-5 z-50 flex max-w-[min(420px,calc(100vw-2rem))] items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold ${variants[variant]}`}
+          className={`fixed inset-x-4 bottom-5 z-50 mx-auto flex min-h-16 w-auto max-w-[min(720px,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant].surface}`}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           initial={{ opacity: 0, y: 10, scale: 0.98 }}
           role={variant === "error" ? "alert" : "status"}
           transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
         >
-          <span className="min-w-0 flex-1">{children}</span>
+          <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${variants[variant].icon}`}><Icon aria-hidden="true" className="size-[18px]" /></span>
+          <span className="min-w-0 flex-1 leading-5">{children}</span>
           <button
             aria-label="Chiudi notifica"
-            className="grid size-7 shrink-0 place-items-center rounded-lg border border-current/20 transition hover:bg-black/5"
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
             onClick={() => setDismissed(true)}
             type="button"
           >
             <X aria-hidden="true" className="size-4" />
           </button>
+          <motion.span
+            animate={{ scaleX: 0 }}
+            aria-hidden="true"
+            className={`absolute inset-x-0 bottom-0 h-1 origin-left ${variants[variant].accent}`}
+            initial={{ scaleX: 1 }}
+            key={instance}
+            transition={{ duration: duration / 1_000, ease: "linear" }}
+          />
         </motion.div>
       )}
     </AnimatePresence>
