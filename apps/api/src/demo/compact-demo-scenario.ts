@@ -89,9 +89,9 @@ function cloneRows(rows: DemoTableRows): DemoTableRows {
   return Object.fromEntries(
     Object.entries(rows).map(([table, tableRows]) => [
       table,
-      tableRows.map((row) => ({ ...row })),
+      (tableRows as Array<Record<string, unknown>>).map((row) => ({ ...row })),
     ]),
-  ) as DemoTableRows;
+  ) as unknown as DemoTableRows;
 }
 
 function compactAppointmentGroup(
