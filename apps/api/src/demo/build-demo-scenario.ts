@@ -94,6 +94,7 @@ export function buildDemoScenario(options: DemoSeedOptions): DemoScenario {
     displayOrder: index,
     email: `${name!.toLowerCase()}@salonedemo.invalid`,
     id: random.uuid("location"),
+    isDefault: index === 0,
     name: name!,
     phone,
     salonId,

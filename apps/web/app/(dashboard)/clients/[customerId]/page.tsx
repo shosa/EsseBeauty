@@ -247,7 +247,10 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     return past ? new Date(past.starts_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "Mai";
   }, [customer, now]);
   const voucherBalance = useMemo(() => vouchers.filter((voucher) => voucher.status === "active").reduce((sum, voucher) => sum + voucher.balance_cents, 0), [vouchers]);
-  const visibleTabs = useMemo(() => tabs.filter((item) => item.key !== "packages" || packagesEnabled), [packagesEnabled]);
+  const visibleTabs = useMemo(
+    () => tabs.filter((item) => (item.key !== "packages" || packagesEnabled) && (item.key !== "loyalty" || loyaltyEnabled)),
+    [loyaltyEnabled, packagesEnabled],
+  );
 
   if (error && !customer) return <AppPage maxWidth="max-w-[1600px]"><p className="text-red-700">{error}</p></AppPage>;
   if (!customer) return <AppPage maxWidth="max-w-[1600px]"><div className="h-72 animate-pulse rounded-2xl bg-stone-100" /></AppPage>;
