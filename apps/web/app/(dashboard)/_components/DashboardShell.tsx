@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ComponentType, type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Toast from "@radix-ui/react-toast";
-import { MessageSquareText, Plus, X } from "lucide-react";
+import { BellRing, Plus, X } from "lucide-react";
 
 import { MODULE_KEYS, ModuleProvider, useModuleEnabled, useModules } from "@esse-beauty/feature-flags";
 import { Button, Dialog, Drawer, EmptyState, InlineError, StatusBadge } from "@esse-beauty/ui";
@@ -287,26 +287,14 @@ function NotificationCenter({ error, items, notice, onArchive, onArchiveRead, on
 }
 
 function NotificationPreviewCard({ item, onDismiss, onOpen }: { item: Pick<NotificationItem, "body" | "title">; onDismiss(): void; onOpen(): void }) {
-  const dismissRef = useRef(onDismiss);
-  useEffect(() => { dismissRef.current = onDismiss; }, [onDismiss]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => dismissRef.current(), 6_000);
-    return () => window.clearTimeout(timer);
-  }, []);
-  return (
-    <article className="pointer-events-auto relative isolate mb-3 w-[min(360px,calc(100vw-1.5rem))]" role="status">
-      <div className="relative z-10 overflow-hidden rounded-xl border border-[#b8dfc9] bg-white shadow-md">
-        <div className="flex min-w-0 items-start gap-3 bg-white p-4">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" /></span>
-          <button className="min-w-0 flex-1 text-left" onClick={onOpen} type="button"><b className="block truncate text-sm text-stone-950">{item.title}</b>{item.body && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-stone-500">{item.body}</span>}</button>
-          <button aria-label="Chiudi anteprima notifica" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-stone-100" onClick={onDismiss} type="button"><X className="size-4" /></button>
-        </div>
-        <div className="h-1 origin-left animate-[notification-life_6s_linear_forwards] bg-[#25D366]" />
-      </div>
-      <span aria-hidden="true" className="absolute -bottom-[11px] right-5 z-0 h-3 w-[18px] bg-[#b8dfc9]" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
-      <span aria-hidden="true" className="absolute -bottom-[9px] right-[21px] z-20 h-[10px] w-4 bg-white" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
-    </article>
-  );
+  return <Toast.Root className="pointer-events-auto overflow-hidden rounded-xl border border-sky-200 bg-white shadow-[0_16px_36px_rgb(2_132_199_/_0.16)]" duration={7_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
+    <div className="flex min-w-0 items-start gap-3 p-4">
+      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-700"><BellRing aria-hidden="true" className="size-5" /></span>
+      <div className="min-w-0 flex-1"><Toast.Title className="block text-sm font-extrabold text-stone-950">{item.title}</Toast.Title>{item.body && <Toast.Description className="mt-1 line-clamp-2 block text-sm leading-5 text-stone-600">{item.body}</Toast.Description>}<Toast.Action altText="Apri notifica" asChild><button className="mt-3 text-xs font-extrabold text-sky-700 hover:underline" onClick={onOpen} type="button">Apri</button></Toast.Action></div>
+      <Toast.Close aria-label="Chiudi anteprima notifica" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"><X className="size-4" /></Toast.Close>
+    </div>
+    <div className="h-1 origin-left bg-sky-500 motion-safe:animate-[notification-life_7s_linear_forwards]" />
+  </Toast.Root>;
 }
 
 function UnifiedSideNavigation({
