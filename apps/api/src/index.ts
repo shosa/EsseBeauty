@@ -21,6 +21,7 @@ import {
   registerLoyaltyBirthdaySchedule,
   startLoyaltyBirthdayWorker,
 } from "./jobs/loyalty-birthdays.js";
+import { startAppointmentFollowupWorker } from "./jobs/appointment-events.js";
 import { closeQueues } from "./jobs/queues.js";
 
 const env = loadEnvironment();
@@ -32,6 +33,7 @@ const workers = [
   startReviewWorker(db),
   startMarketingWorker(db),
   startLoyaltyBirthdayWorker(db),
+  startAppointmentFollowupWorker(db),
 ];
 await registerReminderSchedule();
 await recoverCommunicationOutbox(db);

@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { Worker, type Job, type JobsOptions } from "bullmq";
 import { and, asc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm";
 
+import type { DrizzleDB } from "@esse-beauty/db";
 import {
   appointments,
   customers,
@@ -17,6 +19,7 @@ import { sendEmail } from "./notifications.js";
 import { enqueueCommunication } from "./communications.js";
 import { scheduleReviewInvitation, scheduleReviewRequest } from "./reviews.js";
 import { scheduledReviewTime } from "./review-policy.js";
+import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
 interface Transition {
   appointmentId: string;
@@ -57,9 +60,35 @@ export function detectAppointmentTransition(input: {
   };
 }
 
+// Both follow-ups key their BullMQ job id off the appointment id alone: a
+// re-add while the previous job is still queued/active is a no-op dedup
+// (matches the existing double-checkout dedup the review scheduler relies
+// on), and a re-add after the previous job has completed/expired starts a
+// fresh, still-idempotent attempt (loyalty award is guarded by the
+// loyalty_points_appointment_unique index; waitlist rematch is guarded by
+// the "status = waiting" filter it queries against).
+export const APPOINTMENT_FOLLOWUP_JOB_OPTIONS = {
+  attempts: 5,
+  backoff: { delay: 30_000, type: "exponential" as const },
+  removeOnComplete: { age: 24 * 60 * 60, count: 1_000 },
+  removeOnFail: { age: 7 * 24 * 60 * 60 },
+} satisfies JobsOptions;
+
+export interface AppointmentFollowupJobData {
+  appointmentId: string;
+}
+
+export interface AppointmentFollowupQueue {
+  add(
+    name: "award-loyalty" | "rematch-waitlist",
+    data: AppointmentFollowupJobData,
+    options?: JobsOptions,
+  ): Promise<unknown>;
+}
+
 interface AppointmentEventDependencies {
+  followupQueue?: AppointmentFollowupQueue;
   scheduleReviewInvitation?: typeof scheduleReviewInvitation;
-  enqueue?: typeof enqueueCommunication;
 }
 
 function transitionFrom(request: FastifyRequest) {
@@ -71,68 +100,71 @@ function transitionFrom(request: FastifyRequest) {
   });
 }
 
-async function awardLoyalty(
-  app: FastifyInstance,
-  appointment: typeof appointments.$inferSelect,
-) {
-  if (
-    !(await isModuleEnabled(
-      appointment.salonId,
-      MODULE_KEYS.LOYALTY,
-      app.db,
-    ))
-  ) {
-    return;
-  }
-  await awardAppointmentCompletion(app.db, {
+export async function scheduleLoyaltyAward(
+  db: DrizzleDB,
+  appointment: Pick<typeof appointments.$inferSelect, "id" | "salonId">,
+  queue: AppointmentFollowupQueue = getQueue(QUEUE_NAMES.APPOINTMENT_FOLLOWUPS),
+): Promise<void> {
+  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.LOYALTY, db))) return;
+  await queue.add(
+    "award-loyalty",
+    { appointmentId: appointment.id },
+    { ...APPOINTMENT_FOLLOWUP_JOB_OPTIONS, jobId: `loyalty-award-${appointment.id}` },
+  );
+}
+
+export async function scheduleWaitlistRematch(
+  db: DrizzleDB,
+  appointment: Pick<typeof appointments.$inferSelect, "id" | "salonId">,
+  queue: AppointmentFollowupQueue = getQueue(QUEUE_NAMES.APPOINTMENT_FOLLOWUPS),
+): Promise<void> {
+  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.WAITLIST, db))) return;
+  await queue.add(
+    "rematch-waitlist",
+    { appointmentId: appointment.id },
+    { ...APPOINTMENT_FOLLOWUP_JOB_OPTIONS, jobId: `waitlist-rematch-${appointment.id}` },
+  );
+}
+
+export async function processLoyaltyAward(
+  db: DrizzleDB,
+  job: Job<AppointmentFollowupJobData>,
+): Promise<void> {
+  const appointment = (
+    await db.select().from(appointments).where(eq(appointments.id, job.data.appointmentId))
+  )[0];
+  if (!appointment || appointment.status !== "completed") return;
+  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.LOYALTY, db))) return;
+  await awardAppointmentCompletion(db, {
     appointmentId: appointment.id,
     customerId: appointment.customerId,
     salonId: appointment.salonId,
   });
 }
 
-async function enqueueReview(
-  app: FastifyInstance,
-  appointment: typeof appointments.$inferSelect,
-  dependencies: AppointmentEventDependencies,
-) {
-  if (
-    await isModuleEnabled(
-      appointment.salonId,
-      MODULE_KEYS.REVIEWS,
-      app.db,
-    )
-  ) {
-    const policy = (await app.db.select().from(reviewRequestSettings).where(eq(reviewRequestSettings.salonId, appointment.salonId)))[0];
-    if (!policy?.automaticEnabled) return;
-    const salon = (await app.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, appointment.salonId)))[0];
-    if (!salon) return;
-    if (dependencies.scheduleReviewInvitation) await dependencies.scheduleReviewInvitation(app.db, appointment.id);
-    else await scheduleReviewRequest(app.db, appointment.id, { channels: policy.channels, scheduledAt: scheduledReviewTime(new Date(), policy.delayPreset, salon.timezone) });
-  }
+interface WaitlistRematchDependencies {
+  enqueue?: typeof enqueueCommunication;
+  sendEmail?: typeof sendEmail;
 }
 
-async function notifyWaitlist(
-  app: FastifyInstance,
-  appointment: typeof appointments.$inferSelect,
-  dependencies: AppointmentEventDependencies,
-) {
-  if (
-    !(await isModuleEnabled(
-      appointment.salonId,
-      MODULE_KEYS.WAITLIST,
-      app.db,
-    ))
-  ) {
-    return;
-  }
+export async function processWaitlistRematch(
+  db: DrizzleDB,
+  job: Job<AppointmentFollowupJobData>,
+  dependencies: WaitlistRematchDependencies = {},
+): Promise<void> {
+  const appointment = (
+    await db.select().from(appointments).where(eq(appointments.id, job.data.appointmentId))
+  )[0];
+  if (!appointment || appointment.status !== "cancelled") return;
+  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.WAITLIST, db))) return;
+
   const start = new Date(appointment.startsAt);
   const dayStart = new Date(start);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
   const timePreference = start.getHours() < 12 ? "morning" : start.getHours() < 18 ? "afternoon" : "evening";
-  const entries = await app.db
+  const entries = await db
     .select({
       id: waitlistEntries.id,
       salonId: waitlistEntries.salonId,
@@ -166,7 +198,7 @@ async function notifyWaitlist(
     .limit(1);
   const entry = entries[0];
   if (!entry) return;
-  await app.db
+  await db
     .update(waitlistEntries)
     .set({ status: "notified" })
     .where(eq(waitlistEntries.id, entry.id));
@@ -176,13 +208,13 @@ async function notifyWaitlist(
   const message = `A slot has opened on ${start.toLocaleDateString("it-IT")} for ${entry.serviceName}. Book now: ${bookingUrl}`;
   try {
     if (entry.email) {
-      await sendEmail(
+      await (dependencies.sendEmail ?? sendEmail)(
         entry.email,
         `Posto disponibile per ${entry.serviceName}`,
         `<p>Ciao ${entry.customerName},</p><p>${message}</p>`,
       );
     } else if (entry.phone) {
-      await (dependencies.enqueue ?? enqueueCommunication)(app.db, {
+      await (dependencies.enqueue ?? enqueueCommunication)(db, {
         idempotencyKey: `waitlist-notification-${entry.id}`,
         kind: "template",
         salonId: entry.salonId,
@@ -202,10 +234,43 @@ async function notifyWaitlist(
       });
     }
   } catch {
-    await app.db
+    await db
       .update(waitlistEntries)
       .set({ status: "waiting" })
       .where(eq(waitlistEntries.id, entry.id));
+    throw new Error("WAITLIST_REMATCH_NOTIFY_FAILED");
+  }
+}
+
+export function startAppointmentFollowupWorker(db: DrizzleDB): Worker<AppointmentFollowupJobData> {
+  return new Worker<AppointmentFollowupJobData>(
+    QUEUE_NAMES.APPOINTMENT_FOLLOWUPS,
+    async (job) => {
+      if (job.name === "award-loyalty") await processLoyaltyAward(db, job);
+      else if (job.name === "rematch-waitlist") await processWaitlistRematch(db, job);
+    },
+    { connection: redisConnection() },
+  );
+}
+
+async function enqueueReview(
+  app: FastifyInstance,
+  appointment: typeof appointments.$inferSelect,
+  dependencies: AppointmentEventDependencies,
+) {
+  if (
+    await isModuleEnabled(
+      appointment.salonId,
+      MODULE_KEYS.REVIEWS,
+      app.db,
+    )
+  ) {
+    const policy = (await app.db.select().from(reviewRequestSettings).where(eq(reviewRequestSettings.salonId, appointment.salonId)))[0];
+    if (!policy?.automaticEnabled) return;
+    const salon = (await app.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, appointment.salonId)))[0];
+    if (!salon) return;
+    if (dependencies.scheduleReviewInvitation) await dependencies.scheduleReviewInvitation(app.db, appointment.id);
+    else await scheduleReviewRequest(app.db, appointment.id, { channels: policy.channels, scheduledAt: scheduledReviewTime(new Date(), policy.delayPreset, salon.timezone) });
   }
 }
 
@@ -252,12 +317,12 @@ export function registerAppointmentEventHooks(
       ));
       if (transition.nextStatus === "completed") {
         await Promise.all([
-          awardLoyalty(app, appointment),
+          scheduleLoyaltyAward(app.db, appointment, dependencies.followupQueue),
           enqueueReview(app, appointment, dependencies),
         ]);
       } else {
         await Promise.all([
-          notifyWaitlist(app, appointment, dependencies),
+          scheduleWaitlistRematch(app.db, appointment, dependencies.followupQueue),
         ]);
       }
     } catch (error) {
