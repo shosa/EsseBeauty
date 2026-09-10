@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { Banknote, CalendarClock, ChevronDown, CreditCard, Gift, Landmark, MoreHorizontal, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, designTokens, Dialog, EmptyState, FormField, InlineError, Select} from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
+import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -25,6 +27,8 @@ interface IssuedVoucherDraft { amount_cents: number; id: string; message?: strin
 interface VoucherLookup { balance_cents: number; code: string; customer_id: string; customer_name: string; id: string; status: string; }
 interface IssuedVoucherResult { balanceCents: number; code: string; customerId: string; id: string; originalAmountCents: number; }
 interface CustomerPackage { expiresAt?: string | null; id: string; items: Array<{ itemType: CartItemType; name: string; packageItemId: string; productId?: string | null; remainingQuantity: number; serviceId?: string | null }>; name: string; }
+type RewardType = "free_treatment" | "free_product" | "fixed_discount" | "percent_discount" | "credit";
+interface AvailableReward { active: boolean; available: boolean; discountAmountCents?: number | null; discountPercent?: number | null; id: string; maxDiscountCents?: number | null; minSpendCents?: number | null; name: string; pointsRequired: number; productId?: string | null; serviceId?: string | null; type: RewardType; }
 interface AgendaAppointment { color?: string | null; customer_name: string; ends_at: string; id: string; service_name: string; staff_id: string; staff_name: string; starts_at: string; status: string; }
 interface AppointmentCheckoutPreview {
   appointment: {
@@ -122,7 +126,9 @@ function allocatePayments(sourcePayments: Payment[], targets: number[]): Payment
 }
 
 export default function SalesPage() {
-  const { salon } = useAuth();
+  const { hasPermission, salon } = useAuth();
+  const loyaltyEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
+  const canManageLoyalty = hasPermission(PERMISSION_KEYS.LOYALTY_MANAGE);
   const searchParams = useSearchParams();
   const appointmentFromUrl = searchParams.get("appointment");
   const loadedAppointmentFromUrlRef = useRef("");
@@ -146,6 +152,9 @@ export default function SalesPage() {
   const [issuedVouchers, setIssuedVouchers] = useState<IssuedVoucherDraft[]>([]);
   const [customerVouchers, setCustomerVouchers] = useState<VoucherLookup[]>([]);
   const [customerPackages, setCustomerPackages] = useState<CustomerPackage[]>([]);
+  const [customerRewards, setCustomerRewards] = useState<AvailableReward[]>([]);
+  const [appliedRewardIds, setAppliedRewardIds] = useState<string[]>([]);
+  const [rewardDialogOpen, setRewardDialogOpen] = useState(false);
   const [staffId, setStaffId] = useState("");
   const [discountCents, setDiscountCents] = useState(0);
   const [payments, setPayments] = useState<Payment[]>([{ amount_cents: 0, method: "cash" }]);
@@ -281,6 +290,17 @@ export default function SalesPage() {
       .catch(() => setCustomerVouchers([]));
   }, [customerId, salon?.id]);
   useEffect(() => {
+    if (!salon || !customerId || !loyaltyEnabled || !canManageLoyalty) {
+      setCustomerRewards([]);
+      setAppliedRewardIds([]);
+      return;
+    }
+    void fetch(`${api}/api/salons/${salon.id}/loyalty/customers/${customerId}`, { credentials: "include" })
+      .then(async (response) => response.ok ? response.json() as Promise<{ available_rewards?: AvailableReward[] }> : {})
+      .then((result: { available_rewards?: AvailableReward[] }) => setCustomerRewards(result.available_rewards ?? []))
+      .catch(() => setCustomerRewards([]));
+  }, [canManageLoyalty, customerId, loyaltyEnabled, salon?.id]);
+  useEffect(() => {
     if (!salon || !customerId) {
       setCustomerPackages([]);
       return;
@@ -295,7 +315,25 @@ export default function SalesPage() {
   }, [customerId, salon?.id]);
 
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + lineNetTotal(line), 0), [cart]);
-  const total = Math.max(0, subtotal - discountCents);
+  const appliedRewards = useMemo(() => appliedRewardIds.map((id) => customerRewards.find((reward) => reward.id === id)).filter((reward): reward is AvailableReward => Boolean(reward)), [appliedRewardIds, customerRewards]);
+  const rewardDiscountCents = useMemo(() => {
+    let remaining = Math.max(0, subtotal - discountCents);
+    const coveredLines = new Set<number>();
+    return appliedRewards.reduce((sum, reward) => {
+      let discount = 0;
+      if (reward.type === "free_treatment" || reward.type === "free_product") {
+        const lineIndex = cart.findIndex((line, index) => !coveredLines.has(index) && line.item_type === (reward.type === "free_treatment" ? "service" : "product") && (reward.type === "free_treatment" ? line.service_id === reward.serviceId : line.product_id === reward.productId) && lineNetTotal(line) > 0);
+        if (lineIndex >= 0) { discount = lineNetTotal(cart[lineIndex]!); coveredLines.add(lineIndex); }
+      } else if (reward.type === "fixed_discount") {
+        discount = Math.min(reward.discountAmountCents ?? 0, remaining);
+      } else if (reward.type === "percent_discount") {
+        discount = Math.min(Math.round(remaining * (reward.discountPercent ?? 0) / 100), reward.maxDiscountCents ?? Number.MAX_SAFE_INTEGER, remaining);
+      }
+      remaining = Math.max(0, remaining - discount);
+      return sum + discount;
+    }, 0);
+  }, [appliedRewards, cart, discountCents, subtotal]);
+  const total = Math.max(0, subtotal - discountCents - rewardDiscountCents);
   const paid = payments.reduce((sum, item) => sum + item.amount_cents, 0);
   useEffect(() => { if (payments.length === 1) setPayments((current) => [{ ...current[0]!, amount_cents: total }]); }, [total]);
   const serviceCategories = useMemo(() => {
@@ -339,6 +377,11 @@ export default function SalesPage() {
     () => Array.from(new Set(cart.map((line) => line.appointment_id).filter((id): id is string => Boolean(id)))),
     [cart],
   );
+  const multipleSaleGroups = useMemo(() => new Set(cart.map((line) => line.appointment_id ?? "walk-in")).size > 1, [cart]);
+  const rewardCheckoutSupported = !multipleSaleGroups;
+  useEffect(() => {
+    if (!rewardCheckoutSupported && appliedRewardIds.length) setAppliedRewardIds([]);
+  }, [appliedRewardIds.length, rewardCheckoutSupported]);
 
   function selectMode(next: RegisterMode) {
     setMode(next);
@@ -460,12 +503,14 @@ export default function SalesPage() {
     setSelectedCustomer(undefined);
     setCustomerVouchers([]);
     setCustomerPackages([]);
+    setCustomerRewards([]);
+    setAppliedRewardIds([]);
     setCart((current) => current.filter((line) => !line.assigned_package_id && !line.appointment_id));
     setPayments((current) => current.map((payment) => payment.method === "voucher"
       ? { amount_cents: payment.amount_cents, method: "cash" }
       : payment));
   }
-  function resetRegister() { setCart([]); setIssuedVouchers([]); clearCustomer(); setStaffId(""); setDiscountCents(0); setPayments([{ amount_cents: 0, method: "cash" }]); setNotes(""); }
+  function resetRegister() { setCart([]); setIssuedVouchers([]); setAppliedRewardIds([]); clearCustomer(); setStaffId(""); setDiscountCents(0); setPayments([{ amount_cents: 0, method: "cash" }]); setNotes(""); }
 
   function applyVoucher(voucher: VoucherLookup, paymentIndex?: number) {
     const voucherAmount = Math.min(total, voucher.balance_cents);
@@ -496,6 +541,12 @@ export default function SalesPage() {
     PACKAGE_CUSTOMER_REQUIRED: "Seleziona il cliente a cui intestare il pacchetto.",
     PACKAGE_NOT_FOUND: "Pacchetto non disponibile.",
     APPOINTMENT_NOT_CONFIRMED: "L'appuntamento deve essere confermato prima dell'incasso.",
+    INSUFFICIENT_POINTS: "Il cliente non ha punti sufficienti per i premi selezionati.",
+    REWARD_CUSTOMER_REQUIRED: "Seleziona un cliente prima di applicare un premio.",
+    REWARD_ITEM_ALREADY_COVERED: "La voce del premio è già coperta da un pacchetto.",
+    REWARD_ITEM_NOT_IN_CART: "Aggiungi al carrello la voce richiesta dal premio.",
+    REWARD_MIN_SPEND_NOT_MET: "La spesa minima del premio non è stata raggiunta.",
+    REWARD_NOT_AVAILABLE: "Uno dei premi selezionati non è più disponibile.",
   };
 
   async function checkout() {
@@ -529,7 +580,8 @@ export default function SalesPage() {
         body: JSON.stringify({
           assigned_packages: lines.filter((line) => line.assigned_package_id).map((line) => ({ package_id: line.assigned_package_id })),
           ...(appointmentId ? {} : { customer_id: customerId || undefined, staff_id: staffId || undefined }),
-          discount_cents: groupSubtotals[index]! - groupTargets[index]!,
+          discount_cents: Math.max(0, groupSubtotals[index]! - groupTargets[index]! - (rewardCheckoutSupported ? rewardDiscountCents : 0)),
+          redeemed_rewards: rewardCheckoutSupported ? appliedRewardIds.map((reward_id) => ({ reward_id })) : [],
           issued_vouchers: appointmentId ? [] : issuedVouchers.map(({ amount_cents, message, recipient_customer_id }) => ({ amount_cents, message, recipient_customer_id })),
           items: lines,
           notes,
@@ -600,6 +652,30 @@ export default function SalesPage() {
         <div className="mt-5 border-t border-stone-100 pt-4">
           <Button onClick={() => { clearCustomer(); setCustomerDialogOpen(false); }} variant="ghost">Continua come cliente occasionale</Button>
         </div>
+      </Dialog>
+      <Dialog onClose={() => setRewardDialogOpen(false)} open={rewardDialogOpen} title="Applica premio fedeltà">
+        <p className="text-sm text-stone-600">Scegli esplicitamente i premi da applicare a questo conto. I punti saranno scalati solo alla conferma dell'incasso.</p>
+        <div className="mt-4 space-y-2">
+          {customerRewards.filter((reward) => reward.available && reward.type !== "credit").map((reward) => {
+            const selected = appliedRewardIds.includes(reward.id);
+            const requiredItemPresent = reward.type === "free_treatment"
+              ? cart.some((line) => line.item_type === "service" && line.service_id === reward.serviceId && lineNetTotal(line) > 0)
+              : reward.type === "free_product"
+                ? cart.some((line) => line.item_type === "product" && line.product_id === reward.productId && lineNetTotal(line) > 0)
+                : true;
+            const label = reward.type === "free_treatment" ? "Trattamento omaggio" : reward.type === "free_product" ? "Prodotto omaggio" : reward.type === "fixed_discount" ? "Sconto fisso" : "Sconto percentuale";
+            const requiredItemName = reward.type === "free_treatment"
+              ? catalog?.services.find((service) => service.id === reward.serviceId)?.name
+              : reward.type === "free_product"
+                ? catalog?.products.find((product) => product.id === reward.productId)?.name
+                : undefined;
+            return <button className={`w-full rounded-xl border p-3 text-left transition ${selected ? "border-[#792f59] bg-[#fff4f8]" : "border-stone-200 bg-white hover:border-[#c98cac]"} disabled:cursor-not-allowed disabled:opacity-45`} disabled={!requiredItemPresent} key={reward.id} onClick={() => setAppliedRewardIds((current) => selected ? current.filter((id) => id !== reward.id) : [...current, reward.id])} type="button">
+              <span className="flex items-start justify-between gap-3"><span><b className="block text-sm text-stone-900">{reward.name}</b><span className="mt-1 block text-xs text-stone-500">{requiredItemPresent ? label : `Aggiungi ${requiredItemName ?? "la voce richiesta"} al carrello`}</span></span><span className="text-right"><b className="block text-sm text-[#792f59]">{reward.pointsRequired} pt</b><span className="text-xs text-stone-500">{selected ? "Selezionato" : "Seleziona"}</span></span></span>
+            </button>;
+          })}
+          {customerRewards.filter((reward) => reward.available && reward.type !== "credit").length === 0 && <EmptyState title="Nessun premio applicabile" description="Il cliente non ha premi disponibili per il contenuto di questo carrello." />}
+        </div>
+        <div className="mt-5 flex justify-end"><Button onClick={() => setRewardDialogOpen(false)}>Conferma selezione</Button></div>
       </Dialog>
       <Dialog onClose={() => setVoucherDialogOpen(false)} open={voucherDialogOpen} title="Emetti buono acquisto">
         <div className="grid gap-5">
@@ -876,6 +952,16 @@ export default function SalesPage() {
                   </div>
                 </section>
               )}
+              {loyaltyEnabled && canManageLoyalty && selectedCustomer && (
+                <section className="mt-3 rounded-2xl border border-[#e7cad8] bg-[#fff8fb] p-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div><p className="text-[10px] font-black uppercase tracking-[.12em] text-[#792f59]">Premi fedeltà</p><p className="mt-1 text-xs text-stone-600">{appliedRewards.length ? `${appliedRewards.length} ${appliedRewards.length === 1 ? "premio selezionato" : "premi selezionati"}` : "Seleziona un premio da applicare."}</p></div>
+                    <Button disabled={!rewardCheckoutSupported} onClick={() => setRewardDialogOpen(true)} size="sm" title={!rewardCheckoutSupported ? "I premi sono applicabili soltanto a una singola vendita." : undefined} variant="outline">+ Premio</Button>
+                  </div>
+                  {!rewardCheckoutSupported && <p className="mt-2 text-[11px] font-medium text-stone-500">I premi sono disponibili solo per un conto con una singola vendita.</p>}
+                  {appliedRewards.length > 0 && <div className="mt-2.5 flex flex-wrap gap-1.5">{appliedRewards.map((reward) => <button className="rounded-full border border-[#dcb4c9] bg-white px-2.5 py-1 text-[11px] font-bold text-[#792f59]" key={reward.id} onClick={() => setAppliedRewardIds((current) => current.filter((id) => id !== reward.id))} type="button">{reward.name} ×</button>)}</div>}
+                </section>
+              )}
               {selectedCustomer && customerPackages.some((pack) => pack.items.some((item) => item.remainingQuantity > 0)) && (
                 <section className="mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-3.5">
                   <div className="flex items-center justify-between gap-3">
@@ -1037,6 +1123,7 @@ export default function SalesPage() {
               <div className="mb-3 space-y-1 text-xs">
                 <div className="flex items-center justify-between text-stone-500"><span>Subtotale</span><b className="tabular-nums text-stone-900">{euro(subtotal)}</b></div>
                 <label className="flex items-center justify-between text-stone-500">Sconto conto<input className="w-24 rounded-lg border border-stone-200 p-1.5 text-right text-xs font-bold text-stone-950 disabled:bg-stone-100" disabled={issuedVouchers.length > 0} min={0} onChange={(event) => setDiscountCents(cents(event.target.value))} type="number" value={(discountCents / 100).toFixed(2)} /></label>
+                {rewardDiscountCents > 0 && <div className="flex items-center justify-between text-[#792f59]"><span>Premi fedeltà</span><b className="tabular-nums">-{euro(rewardDiscountCents)}</b></div>}
               </div>
 
               <FormField label="Nota interna"><textarea className="min-h-9 w-full resize-y" onChange={(event) => setNotes(event.target.value)} rows={1} value={notes} /></FormField>

@@ -22,7 +22,8 @@ import { useAuth } from "../../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-interface Reward { active: boolean; description: string | null; id: string; name: string; pointsRequired: number; }
+type RewardType = "free_treatment" | "free_product" | "fixed_discount" | "percent_discount" | "credit";
+interface Reward { active: boolean; description: string | null; id: string; name: string; pointsRequired: number; type: RewardType; }
 interface Tier { id: string; minPoints: number; name: string; }
 interface CustomerSummary {
   balance: number;
@@ -45,6 +46,7 @@ function formatDate(value: string) {
 function errorMessage(code?: string) {
   if (code === "INSUFFICIENT_POINTS") return "Il saldo disponibile non è sufficiente per questa operazione.";
   if (code === "REWARD_NOT_AVAILABLE") return "Il premio non è più disponibile.";
+  if (code === "REWARD_REQUIRES_CHECKOUT") return "Questo premio si applica direttamente in cassa.";
   if (code === "INVALID_ADJUSTMENT") return "Inserisci punti validi e un motivo obbligatorio.";
   return "Operazione non riuscita. Riprova.";
 }
@@ -176,7 +178,7 @@ export default function LoyaltyCustomersPage() {
                 <div>
                   <h3 className="mb-2 text-sm font-black text-stone-900">Riscatta premio</h3>
                   <div className="grid gap-2">
-                    {customer.available_rewards.filter((reward) => reward.active).map((reward) => <button className="flex items-center justify-between rounded-xl border border-stone-200 p-3 text-left hover:border-[#c887aa] disabled:cursor-not-allowed disabled:opacity-45" disabled={!reward.available} key={reward.id} onClick={() => prepareRedemption(reward)} type="button"><span><b className="block text-sm">{reward.name}</b><span className="text-xs text-stone-500">{reward.available ? "Disponibile ora" : `Mancano ${reward.pointsRequired - customer.balance} punti`}</span></span><span className="font-black text-[#6f244e]">{reward.pointsRequired} pt</span></button>)}
+                    {customer.available_rewards.filter((reward) => reward.active).map((reward) => <div className="flex items-center justify-between rounded-xl border border-stone-200 p-3" key={reward.id}><span><b className="block text-sm">{reward.name}</b><span className="text-xs text-stone-500">{reward.type === "credit" ? (reward.available ? "Disponibile ora" : `Mancano ${reward.pointsRequired - customer.balance} punti`) : "Si applica in cassa"}</span></span><span className="flex items-center gap-2"><span className="rounded-full bg-stone-100 px-2 py-1 text-[11px] font-bold text-stone-600">{{ free_treatment: "Trattamento", free_product: "Prodotto", fixed_discount: "Sconto fisso", percent_discount: "Sconto %", credit: "Credito" }[reward.type]}</span><b className="font-black text-[#6f244e]">{reward.pointsRequired} pt</b>{reward.type === "credit" && <Button disabled={!reward.available} onClick={() => prepareRedemption(reward)} size="sm" variant="outline">Riscatta</Button>}</span></div>)}
                     {customer.available_rewards.length === 0 && <p className="text-sm text-stone-500">Nessun premio attivo.</p>}
                   </div>
                 </div>

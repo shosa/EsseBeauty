@@ -1,6 +1,13 @@
 # Premi Fedeltà tipizzati + integrazione in cassa
 
-## Stato di avanzamento (2026-09-09, interrotto per limite token)
+## Stato di avanzamento (2026-09-10, ripreso)
+
+Aggiornamento successivo:
+- **§3 e gran parte di §4** — completati nella branch dai commit `7578f5b` e `11c080f`: il premio credito genera un voucher, e `pos-checkout` pianifica/committa i premi non-credito nella stessa transazione. L'endpoint checkout da appuntamento resta da allineare/verificare.
+- **§2** — completato il CRUD API tipizzato: configurazione discriminata e validata, persistenza dei campi per tipo e picker minimale `GET /api/salons/:id/products?active=true` protetto dalle stesse guardie Loyalty.
+- **§5 e §7** — il riscatto diretto dalla pagina clienti è disponibile solo per il credito; gli altri tipi mostrano chiaramente che si applicano in cassa. Creazione, modifica e catalogo premi espongono ora il tipo e i relativi campi di configurazione.
+- Verifica eseguita dopo questo aggiornamento: `pnpm --filter @esse-beauty/api typecheck` e `pnpm --filter @esse-beauty/web typecheck` superati.
+- Il test API completo è stato eseguito: 239 test passano, 6 falliscono perché il database di test non contiene ancora la migrazione `0059` (`loyalty_rewards.type` assente). `db:migrate` richiede un `DATABASE_URL` esplicitamente disponibile nel processo; non è stato possibile eseguirlo nell'ambiente corrente.
 
 Fatto finora:
 - **§1 Schema** — completo. `packages/db/schema.ts`: nuovo `rewardTypeEnum`, nuove colonne su `loyaltyRewards` (`type`, `serviceId`, `productId`, `discountAmountCents`, `discountPercent`, `minSpendCents`, `maxDiscountCents`), nuove colonne su `loyaltyRewardRedemptions` (`saleId`, `appliedType` **nullable**, `appliedDiscountCents`, `appliedServiceId`, `appliedProductId`), nuova colonna `purchaseVouchers.sourceRewardRedemptionId`. Migrazione generata: `packages/db/migrations/0059_loyalty_reward_types.sql` (+ snapshot/journal aggiornati). **Deliberatamente NON è stato aggiunto** il CHECK discriminato per tipo su `loyalty_rewards` (fallirebbe su righe esistenti con `discount_amount_cents` NULL) — la validazione per tipo resta solo lato API (§2). `applied_type` è nullable per lo stesso motivo (redemption storiche non hanno lo snapshot). **La migrazione non è stata ancora eseguita (`db:migrate`)** — va lanciata su un DB locale prima di procedere.

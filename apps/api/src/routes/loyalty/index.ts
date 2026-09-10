@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, ilike, sql } from "drizzle-orm";
 
 import {
   customers,
+  inventoryProducts,
   loyaltyEarningRules,
   loyaltyPoints,
   loyaltyRewardRedemptions,
@@ -50,16 +51,69 @@ function tierBody(value: unknown): value is { tiers: Array<{ benefits?: string; 
   return new Set(tiers.map((tier) => Number(tier.min_points))).size === tiers.length;
 }
 
-function rewardBody(value: unknown, partial = false): value is { active?: boolean; description?: string | null; name?: string; points_required?: number } {
+type RewardType = "free_treatment" | "free_product" | "fixed_discount" | "percent_discount" | "credit";
+type RewardBody = {
+  active?: boolean; description?: string | null; name?: string; points_required?: number;
+  type?: RewardType; service_id?: string; product_id?: string; discount_amount_cents?: number;
+  discount_percent?: number; min_spend_cents?: number | null; max_discount_cents?: number | null;
+};
+
+function rewardBody(value: unknown, partial = false): value is RewardBody {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
   if (!partial && (typeof body.name !== "string" || !integer(body.points_required, 1))) return false;
-  return (
+  const baseValid = (
     (body.name === undefined || (typeof body.name === "string" && body.name.trim().length > 0)) &&
     (body.points_required === undefined || integer(body.points_required, 1)) &&
     (body.description === undefined || body.description === null || typeof body.description === "string") &&
     (body.active === undefined || typeof body.active === "boolean")
   );
+  if (!baseValid) return false;
+
+  const configKeys = ["type", "service_id", "product_id", "discount_amount_cents", "discount_percent", "min_spend_cents", "max_discount_cents"];
+  const hasConfig = configKeys.some((key) => body[key] !== undefined);
+  if (partial && !hasConfig) return true;
+  if (!(["free_treatment", "free_product", "fixed_discount", "percent_discount", "credit"] as const).includes(body.type as RewardType)) return false;
+  const optionalCents = (key: "min_spend_cents" | "max_discount_cents") =>
+    body[key] === undefined || body[key] === null || integer(body[key], 0);
+  if (!optionalCents("min_spend_cents") || !optionalCents("max_discount_cents")) return false;
+
+  switch (body.type) {
+    case "free_treatment":
+      return typeof body.service_id === "string" && body.service_id.length > 0 && body.product_id === undefined &&
+        body.discount_amount_cents === undefined && body.discount_percent === undefined && body.min_spend_cents === undefined && body.max_discount_cents === undefined;
+    case "free_product":
+      return typeof body.product_id === "string" && body.product_id.length > 0 && body.service_id === undefined &&
+        body.discount_amount_cents === undefined && body.discount_percent === undefined && body.min_spend_cents === undefined && body.max_discount_cents === undefined;
+    case "fixed_discount":
+      return integer(body.discount_amount_cents, 1) && body.service_id === undefined && body.product_id === undefined &&
+        body.discount_percent === undefined && body.max_discount_cents === undefined;
+    case "percent_discount":
+      return integer(body.discount_percent, 1) && Number(body.discount_percent) <= 100 && body.service_id === undefined && body.product_id === undefined &&
+        body.discount_amount_cents === undefined;
+    case "credit":
+      return integer(body.discount_amount_cents, 1) && body.service_id === undefined && body.product_id === undefined &&
+        body.discount_percent === undefined && body.min_spend_cents === undefined && body.max_discount_cents === undefined;
+  }
+  return false;
+}
+
+function rewardValues(body: RewardBody) {
+  return {
+    ...(body.active !== undefined && { active: body.active }),
+    ...(body.description !== undefined && { description: body.description?.trim() || null }),
+    ...(body.name !== undefined && { name: body.name.trim() }),
+    ...(body.points_required !== undefined && { pointsRequired: body.points_required }),
+    ...(body.type !== undefined && {
+      type: body.type,
+      serviceId: body.service_id ?? null,
+      productId: body.product_id ?? null,
+      discountAmountCents: body.discount_amount_cents ?? null,
+      discountPercent: body.discount_percent ?? null,
+      minSpendCents: body.min_spend_cents ?? null,
+      maxDiscountCents: body.max_discount_cents ?? null,
+    }),
+  };
 }
 
 function operationError(reply: any, error: unknown) {
@@ -218,20 +272,24 @@ export async function registerLoyaltyRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>("/api/salons/:id/loyalty/rewards", { preHandler: guard }, async (request) => app.db.select().from(loyaltyRewards).where(eq(loyaltyRewards.salonId, request.salonId)).orderBy(desc(loyaltyRewards.active), asc(loyaltyRewards.pointsRequired)));
 
+  // Picker minimale per il form premi: non riusa il catalogo magazzino, che
+  // richiede permessi diversi e restituisce molti dati non necessari qui.
+  app.get<{ Params: { id: string }; Querystring: { active?: string } }>("/api/salons/:id/products", { preHandler: guard }, async (request) => {
+    const filters = [eq(inventoryProducts.salonId, request.salonId)];
+    if (request.query.active !== undefined) filters.push(eq(inventoryProducts.active, request.query.active === "true"));
+    return app.db.select({ id: inventoryProducts.id, name: inventoryProducts.name, price_cents: inventoryProducts.unitPriceCents })
+      .from(inventoryProducts).where(and(...filters)).orderBy(asc(inventoryProducts.name));
+  });
+
   app.post<{ Params: { id: string }; Body: unknown }>("/api/salons/:id/loyalty/rewards", { preHandler: guard }, async (request, reply) => {
-    if (!rewardBody(request.body)) return reply.code(400).send({ error: "INVALID_REWARD" });
-    const rows = await app.db.insert(loyaltyRewards).values({ description: request.body.description?.trim() || null, name: request.body.name!.trim(), pointsRequired: request.body.points_required!, salonId: request.salonId }).returning();
+    if (!rewardBody(request.body)) return reply.code(400).send({ error: "INVALID_REWARD_CONFIG" });
+    const rows = await app.db.insert(loyaltyRewards).values({ ...rewardValues(request.body), salonId: request.salonId } as typeof loyaltyRewards.$inferInsert).returning();
     return reply.code(201).send(rows[0]);
   });
 
   app.patch<{ Params: { id: string; rewardId: string }; Body: unknown }>("/api/salons/:id/loyalty/rewards/:rewardId", { preHandler: guard }, async (request, reply) => {
-    if (!rewardBody(request.body, true)) return reply.code(400).send({ error: "INVALID_REWARD" });
-    const rows = await app.db.update(loyaltyRewards).set({
-      ...(request.body.active !== undefined && { active: request.body.active }),
-      ...(request.body.description !== undefined && { description: request.body.description?.trim() || null }),
-      ...(request.body.name !== undefined && { name: request.body.name.trim() }),
-      ...(request.body.points_required !== undefined && { pointsRequired: request.body.points_required }),
-    }).where(and(eq(loyaltyRewards.id, request.params.rewardId), eq(loyaltyRewards.salonId, request.salonId))).returning();
+    if (!rewardBody(request.body, true)) return reply.code(400).send({ error: "INVALID_REWARD_CONFIG" });
+    const rows = await app.db.update(loyaltyRewards).set(rewardValues(request.body)).where(and(eq(loyaltyRewards.id, request.params.rewardId), eq(loyaltyRewards.salonId, request.salonId))).returning();
     return rows[0] ?? reply.code(404).send({ error: "REWARD_NOT_FOUND" });
   });
 
