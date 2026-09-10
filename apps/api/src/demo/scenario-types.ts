@@ -85,11 +85,11 @@ export const DEMO_IDENTITY = {
 export const DEMO_VOLUME_PROFILE = {
   appointments: 1_650,
   customers: 420,
-  locations: 3,
+  locations: 1,
   products: 120,
   sales: 600,
   services: 48,
-  staff: 14,
+  staff: 5,
 } as const;
 
 export interface DemoSeedOptions {
