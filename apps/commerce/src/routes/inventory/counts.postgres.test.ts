@@ -16,13 +16,10 @@ import {
 import { MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { clearPermissionCache } from "@esse-beauty/shared";
 
+import { hashSessionToken, WEB_SESSION_COOKIE } from "@esse-beauty/server-shared";
+
 import { createApp } from "../../app.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
-import {
-  createSessionToken,
-  hashSessionToken,
-  WEB_SESSION_COOKIE,
-} from "../auth/local-auth.js";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;
@@ -44,7 +41,7 @@ postgresSuite("inventory count persistence with PostgreSQL", () => {
     const productId = randomUUID();
     const countId = randomUUID();
     const countLineId = randomUUID();
-    const token = createSessionToken();
+    const token = `session-${randomUUID()}`;
 
     await db.insert(salons).values({ id: salonId, locale: "it-IT", name: "Count Test", slug: `count-${salonId}`, timezone: "Europe/Rome" });
     await db.insert(users).values({ active: true, email: `${userId}@example.invalid`, fullName: "Count Owner", id: userId, role: "owner", salonId });

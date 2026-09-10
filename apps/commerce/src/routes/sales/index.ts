@@ -29,11 +29,17 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { scheduleSaleCompletedLoyaltyAward, scheduleSaleVoidedLoyaltyExpiry } from "@esse-beauty/domain-events";
 import { scheduleAutomaticReviewRequest } from "@esse-beauty/comms-contracts";
-import { issuePurchaseVoucher, redeemPurchaseVoucher } from "@esse-beauty/server-shared";
+import {
+  createWorkbook,
+  excelContentType,
+  issuePurchaseVoucher,
+  redeemPurchaseVoucher,
+  styleWorksheet,
+  workbookBuffer,
+} from "@esse-beauty/server-shared";
 import { commitRewardRedemptions, planRewardRedemptions, type RewardSaleLine } from "@esse-beauty/loyalty-contracts";
 
 import { authenticate } from "../../middleware/auth.js";
-import { createWorkbook, excelContentType, styleWorksheet, workbookBuffer } from "../../lib/excel-workbook.js";
 import { renderAccountingPdf } from "../../lib/accounting-pdf.js";
 import { buildSaleVoidPlan, voidSale } from "../../lib/sale-void.js";
 

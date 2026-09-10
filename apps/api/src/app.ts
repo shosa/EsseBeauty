@@ -17,7 +17,6 @@ import { registerAuditLogHooks } from "./jobs/audit-log.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
 import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
-import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerOnboardingRoutes } from "./routes/onboarding/index.js";
 import { registerPlatformRoutes } from "./routes/platform/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
@@ -25,13 +24,11 @@ import { registerPublicCustomerAuthRoutes } from "./routes/public/customer-auth.
 import { registerPublicMessageRoutes } from "./routes/public/messages.js";
 import { registerPublicPushSubscriptionRoutes } from "./routes/public/push-subscriptions.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
-import { registerSalesRoutes } from "./routes/sales/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerSettingsRoutes } from "./routes/settings/index.js";
 import { registerShellRoutes } from "./routes/shell/index.js";
 import { registerStaffAppRoutes } from "./routes/staff-app/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
-import { registerVoucherRoutes } from "./routes/vouchers/index.js";
 
 interface ApiEnvironment {
   API_CORS_ORIGIN: string;
@@ -133,10 +130,7 @@ export function createApp({
   void registerPublicCustomerAuthRoutes(app, { providers: authProviders });
   void registerPublicPushSubscriptionRoutes(app);
   void registerPublicMessageRoutes(app);
-  void registerVoucherRoutes(app);
   void registerOnboardingRoutes(app);
-  void registerInventoryRoutes(app);
-  void registerSalesRoutes(app);
   void registerReportRoutes(app);
   void registerSettingsRoutes(app);
   void registerShellRoutes(app);

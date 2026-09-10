@@ -31,3 +31,9 @@ export {
   issuePurchaseVoucher,
   redeemPurchaseVoucher,
 } from "./purchase-vouchers.js";
+export {
+  createWorkbook,
+  excelContentType,
+  styleWorksheet,
+  workbookBuffer,
+} from "./excel-workbook.js";

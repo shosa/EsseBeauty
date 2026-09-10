@@ -265,12 +265,12 @@ Write-Ok "Development origins configured"
 
 Write-Step 5 $TotalSteps "Checking development ports"
 
-# 3001/3002/3003/3004/3000 are the public frontend/gateway ports; 3006/3007
-# are the loyalty-marketing/booking services, and 3011/3013 are apps/api and
-# apps/communications running on internal ports behind the dev gateway (see
-# scripts/dev-gateway.mjs) — every one of them has to be free before the
-# backend jobs below are started.
-$requiredPorts = @(3000, 3001, 3002, 3003, 3004, 3006, 3007, 3011, 3013)
+# 3001/3002/3003/3004/3000 are the public frontend/gateway ports; 3006/3007/3008
+# are the loyalty-marketing/booking/commerce services, and 3011/3013 are
+# apps/api and apps/communications running on internal ports behind the dev
+# gateway (see scripts/dev-gateway.mjs) — every one of them has to be free
+# before the backend jobs below are started.
+$requiredPorts = @(3000, 3001, 3002, 3003, 3004, 3006, 3007, 3008, 3011, 3013)
 
 $busyPorts = Get-NetTCPConnection `
   -LocalPort $requiredPorts `
@@ -375,9 +375,9 @@ finally {
 # Start backend services
 # ============================================================
 #
-# apps/api, apps/communications, apps/loyalty-marketing and apps/booking each
-# read PORT from the environment, so they run as separate background jobs
-# with distinct internal ports behind a small local proxy
+# apps/api, apps/communications, apps/loyalty-marketing, apps/booking and
+# apps/commerce each read PORT from the environment, so they run as separate
+# background jobs with distinct internal ports behind a small local proxy
 # (scripts/dev-gateway.mjs) that stands in for gateway/nginx.conf — this
 # keeps every frontend's NEXT_PUBLIC_API_URL (port 3001) working unchanged
 # no matter which backend actually owns a given route.
@@ -386,6 +386,7 @@ $apiInternalPort = 3011
 $communicationsPort = 3013
 $loyaltyMarketingPort = 3006
 $bookingPort = 3007
+$commercePort = 3008
 $backendEnv = @{}
 foreach ($entry in [Environment]::GetEnvironmentVariables("Process").GetEnumerator()) {
   $backendEnv[$entry.Key] = $entry.Value
@@ -423,17 +424,26 @@ $bookingJob = Start-Job -Name "esse-beauty-booking" -ScriptBlock {
   corepack pnpm --filter @esse-beauty/booking run dev
 } -ArgumentList $ProjectRoot, $backendEnv, $bookingPort
 
+$commerceJob = Start-Job -Name "esse-beauty-commerce" -ScriptBlock {
+  param($repoRoot, $env, $port)
+  foreach ($key in $env.Keys) { [Environment]::SetEnvironmentVariable($key, $env[$key], "Process") }
+  [Environment]::SetEnvironmentVariable("PORT", $port, "Process")
+  Set-Location $repoRoot
+  corepack pnpm --filter @esse-beauty/commerce run dev
+} -ArgumentList $ProjectRoot, $backendEnv, $commercePort
+
 $gatewayJob = Start-Job -Name "esse-beauty-dev-gateway" -ScriptBlock {
-  param($repoRoot, $apiPort, $communicationsPort, $loyaltyMarketingPort, $bookingPort)
+  param($repoRoot, $apiPort, $communicationsPort, $loyaltyMarketingPort, $bookingPort, $commercePort)
   $env:API_INTERNAL_PORT = $apiPort
   $env:COMMUNICATIONS_PORT = $communicationsPort
   $env:LOYALTY_MARKETING_PORT = $loyaltyMarketingPort
   $env:BOOKING_PORT = $bookingPort
+  $env:COMMERCE_PORT = $commercePort
   Set-Location $repoRoot
   node scripts/dev-gateway.mjs
-} -ArgumentList $ProjectRoot, $apiInternalPort, $communicationsPort, $loyaltyMarketingPort, $bookingPort
+} -ArgumentList $ProjectRoot, $apiInternalPort, $communicationsPort, $loyaltyMarketingPort, $bookingPort, $commercePort
 
-Write-Ok "Backend services starting (api, communications, loyalty-marketing, booking, gateway)"
+Write-Ok "Backend services starting (api, communications, loyalty-marketing, booking, commerce, gateway)"
 
 
 # ============================================================
@@ -457,7 +467,7 @@ Write-Host "http://localhost:3000" -ForegroundColor Cyan
 
 Write-Host "  API        " -ForegroundColor DarkGray -NoNewline
 Write-Host "http://localhost:3001" -ForegroundColor Cyan
-Write-Host "               (gateway: api, communications, loyalty-marketing, booking)" -ForegroundColor DarkGray
+Write-Host "               (gateway: api, communications, loyalty-marketing, booking, commerce)" -ForegroundColor DarkGray
 
 Write-Host "  PWA        " -ForegroundColor DarkGray -NoNewline
 Write-Host "http://localhost:3002" -ForegroundColor Cyan
@@ -527,6 +537,6 @@ try {
   Assert-LastExitCode "Running development services"
 }
 finally {
-  $apiJob, $communicationsJob, $loyaltyMarketingJob, $bookingJob, $gatewayJob | Stop-Job -PassThru | Receive-Job
-  $apiJob, $communicationsJob, $loyaltyMarketingJob, $bookingJob, $gatewayJob | Remove-Job -Force
+  $apiJob, $communicationsJob, $loyaltyMarketingJob, $bookingJob, $commerceJob, $gatewayJob | Stop-Job -PassThru | Receive-Job
+  $apiJob, $communicationsJob, $loyaltyMarketingJob, $bookingJob, $commerceJob, $gatewayJob | Remove-Job -Force
 }
