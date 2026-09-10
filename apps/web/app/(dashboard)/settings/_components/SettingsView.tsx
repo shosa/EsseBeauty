@@ -199,7 +199,6 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
       const response = await request();
       if (response.ok) {
         setSaved(section);
-        window.setTimeout(() => setSaved((current) => current === section ? undefined : current), 1800);
       } else {
         setSaveErrors((current) => ({ ...current, [section]: errorMessage }));
       }

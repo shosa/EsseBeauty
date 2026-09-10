@@ -9,12 +9,13 @@ export async function ensurePrimaryLocation(db: DrizzleDB, salon: SalonRow) {
   const existing = await db.select().from(salonLocations)
     .where(eq(salonLocations.salonId, salon.id))
     .orderBy(asc(salonLocations.displayOrder), asc(salonLocations.createdAt));
-  if (existing[0]) return existing[0];
+  if (existing[0]) return existing.find((item) => item.isDefault) ?? existing[0];
   try {
     const inserted = await db.insert(salonLocations).values({
       address: salon.address,
       displayOrder: 0,
       email: salon.email,
+      isDefault: true,
       name: salon.name,
       phone: salon.phone,
       salonId: salon.id,
@@ -25,7 +26,7 @@ export async function ensurePrimaryLocation(db: DrizzleDB, salon: SalonRow) {
     const concurrent = await db.select().from(salonLocations)
       .where(eq(salonLocations.salonId, salon.id))
       .orderBy(asc(salonLocations.displayOrder), asc(salonLocations.createdAt));
-    if (concurrent[0]) return concurrent[0];
+    if (concurrent[0]) return concurrent.find((item) => item.isDefault) ?? concurrent[0];
     throw new Error("PRIMARY_LOCATION_NOT_CREATED");
   }
   throw new Error("PRIMARY_LOCATION_NOT_CREATED");

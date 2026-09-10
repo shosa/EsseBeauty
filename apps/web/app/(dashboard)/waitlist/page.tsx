@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Mail, Phone } from "lucide-react";
 import { AppPage, Button, ConfirmDialog, EmptyState, InlineError, PageHeader, PageTransition, StatusBadge, TableSkeleton } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { useAuth } from "../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -26,6 +27,7 @@ function chipClass(active: boolean) {
 
 export default function WaitlistPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.WAITLIST);
   const [items, setItems] = useState<Entry[]>([]);
   const [status, setStatus] = useState("");
   const [date, setDate] = useState("");
@@ -39,7 +41,7 @@ export default function WaitlistPage() {
   const [bulkPending, setBulkPending] = useState(false);
 
   const load = useCallback(async () => {
-    if (!salon) return;
+    if (!moduleEnabled || !salon) return;
     setLoading(true); setError(""); setMessage("");
     const query = new URLSearchParams();
     if (date) query.set("date", date);
@@ -51,7 +53,7 @@ export default function WaitlistPage() {
       setSelected((current) => current.filter((id) => data.some((item) => item.id === id)));
     } catch { setError("Impossibile caricare la lista d’attesa. Riprova."); }
     finally { setLoading(false); }
-  }, [date, salon]);
+  }, [date, moduleEnabled, salon]);
   useEffect(() => { void load(); }, [load]);
 
   const counts = useMemo(() => Object.fromEntries(Object.keys(statusLabels).map((key) => [key, items.filter((item) => item.status === key).length])), [items]);
@@ -99,6 +101,19 @@ export default function WaitlistPage() {
       <Button disabled={pending === item.id} onClick={() => setDeleteId(item.id)} size="sm" variant="destructive">Elimina</Button>
     </div>
   );
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Disponibilità" title="Lista d’attesa" subtitle="Trasforma gli slot liberati in nuovi appuntamenti." />
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Il modulo Lista d’attesa non è attivo per questo salone. Attivalo dalla pagina App e moduli per gestire le richieste dei clienti."
+          title="Modulo Lista d’attesa non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

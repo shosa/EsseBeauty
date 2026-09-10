@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, FormField, InlineError } from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, EmptyState, FormField, InlineError } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -13,18 +15,19 @@ interface CatalogItem { id: string; name: string; priceCents?: number; price_cen
 export default function NewRewardPage() {
   const { salon } = useAuth();
   const router = useRouter();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const [error, setError] = useState("");
   const [type, setType] = useState<RewardType>("fixed_discount");
   const [services, setServices] = useState<CatalogItem[]>([]);
   const [products, setProducts] = useState<CatalogItem[]>([]);
 
   useEffect(() => {
-    if (!salon) return;
+    if (!salon || !moduleEnabled) return;
     void Promise.all([
       fetch(`${api}/api/salons/${salon.id}/services?active=true`, { credentials: "include" }).then(async (response) => response.ok ? response.json() as Promise<CatalogItem[]> : []),
       fetch(`${api}/api/salons/${salon.id}/products?active=true`, { credentials: "include" }).then(async (response) => response.ok ? response.json() as Promise<CatalogItem[]> : []),
     ]).then(([loadedServices, loadedProducts]) => { setServices(loadedServices); setProducts(loadedProducts); });
-  }, [salon]);
+  }, [moduleEnabled, salon]);
 
   async function create(data: FormData) {
     if (!salon) return;
@@ -54,6 +57,7 @@ export default function NewRewardPage() {
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
+      {!moduleEnabled ? <><Breadcrumbs items={[{ href: "/loyalty", label: "Fedeltà" }, { href: "/loyalty/rewards", label: "Premi" }, { label: "Nuovo premio" }]} /><div className="mt-5"><EmptyState action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>} description="Attiva il modulo Fedeltà dalla pagina App e moduli per creare nuovi premi." title="Modulo Fedeltà non attivo" /></div></> :
       <form action={create} className="grid gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
         <Breadcrumbs items={[{ href: "/loyalty", label: "Fedeltà" }, { href: "/loyalty/rewards", label: "Premi" }, { label: "Nuovo premio" }]} />
         <h1 className="text-3xl font-bold">Nuovo premio</h1>
@@ -72,7 +76,7 @@ export default function NewRewardPage() {
         {(type === "fixed_discount" || type === "percent_discount") && <FormField label="Spesa minima (€)"><input className="min-h-12 w-full rounded-xl border px-3" min="0" name="min_spend" step="0.01" type="number" /></FormField>}
         <FormField label="Descrizione"><textarea name="description" className="min-h-28 w-full rounded-xl border p-3" /></FormField>
         <Button type="submit">Salva</Button>
-      </form>
+      </form>}
     </AppPage>
   );
 }

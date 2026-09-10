@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 
+import type { DrizzleDB } from "@esse-beauty/db";
 import {
   calendarSettings,
   dataExchangeSettings,
@@ -20,8 +21,43 @@ import {
   type WorkingHours,
 } from "@esse-beauty/db/schema";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
+
+/**
+ * La sede principale (`isDefault`) di un salone resta sempre gestibile senza il modulo
+ * MULTI_LOCATION (è configurata per prima in onboarding). Assegnare una risorsa a una sede
+ * diversa richiede il modulo attivo. Ritorna "invalid" se la sede non appartiene al salone,
+ * true se l'assegnazione va bloccata (sede non principale + modulo disattivo), false altrimenti.
+ */
+async function isNonDefaultLocationBlocked(
+  db: DrizzleDB,
+  salonId: string,
+  locationId: string,
+): Promise<"invalid" | boolean> {
+  const locations = await db
+    .select({
+      createdAt: salonLocations.createdAt,
+      displayOrder: salonLocations.displayOrder,
+      id: salonLocations.id,
+      isDefault: salonLocations.isDefault,
+    })
+    .from(salonLocations)
+    .where(eq(salonLocations.salonId, salonId));
+  const target = locations.find((item) => item.id === locationId);
+  if (!target) return "invalid";
+  // Nessun salone dovrebbe mai avere zero sedi con isDefault (onboarding/settings lo garantiscono),
+  // ma per difesa in profondità (es. dati seminati fuori da questi percorsi) trattiamo la sede più
+  // vecchia come principale finché nessuna riga ha esplicitamente isDefault true.
+  const hasExplicitDefault = locations.some((item) => item.isDefault);
+  const isEffectiveDefault = hasExplicitDefault
+    ? target.isDefault
+    : target.id === [...locations].sort((a, b) =>
+      a.displayOrder - b.displayOrder || a.createdAt.getTime() - b.createdAt.getTime())[0]?.id;
+  if (isEffectiveDefault) return false;
+  return !(await isModuleEnabled(salonId, MODULE_KEYS.MULTI_LOCATION, db));
+}
 
 export async function registerSettingsRoutes(app: FastifyInstance) {
   function assertSalon(request: { params: { id: string }; salonId: string }, reply: { code(statusCode: number): { send(payload: unknown): unknown } }) {
@@ -192,6 +228,8 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         request.body.cancellation_policy_hours < 0 ||
         request.body.max_advance_days < 1
       ) return reply.code(400).send({ error: "INVALID_PWA_SETTINGS" });
+      const allowWaitlist = request.body.allow_waitlist &&
+        (await isModuleEnabled(request.salonId, MODULE_KEYS.WAITLIST, app.db));
       await app.db.transaction(async (tx) => {
         await tx.update(salons).set({
           cancellationPolicyHours: request.body.cancellation_policy_hours,
@@ -240,7 +278,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
             allowCancellation: request.body.allow_cancellation,
             allowReschedule: request.body.allow_reschedule,
             allowStaffPreference: request.body.allow_staff_preference,
-            allowWaitlist: request.body.allow_waitlist,
+            allowWaitlist,
             bookingDefaultStatus: request.body.booking_default_status,
             maxAdvanceDays: request.body.max_advance_days,
             requireEmail: request.body.require_email,
@@ -254,7 +292,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
               allowCancellation: request.body.allow_cancellation,
               allowReschedule: request.body.allow_reschedule,
               allowStaffPreference: request.body.allow_staff_preference,
-              allowWaitlist: request.body.allow_waitlist,
+              allowWaitlist,
               bookingDefaultStatus: request.body.booking_default_status,
               maxAdvanceDays: request.body.max_advance_days,
               requireEmail: request.body.require_email,
@@ -503,11 +541,22 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = assertSalon(request, reply);
       if (denied) return denied;
+      const existingLocations = await app.db
+        .select({ id: salonLocations.id })
+        .from(salonLocations)
+        .where(eq(salonLocations.salonId, request.salonId));
+      if (
+        existingLocations.length >= 1 &&
+        !(await isModuleEnabled(request.salonId, MODULE_KEYS.MULTI_LOCATION, app.db))
+      ) {
+        return reply.code(403).send({ error: "MODULE_DISABLED", module: MODULE_KEYS.MULTI_LOCATION });
+      }
       const rows = await app.db
         .insert(salonLocations)
         .values({
           address: request.body.address,
           email: request.body.email,
+          isDefault: existingLocations.length === 0,
           name: request.body.name,
           phone: request.body.phone,
           salonId: request.salonId,
@@ -539,18 +588,37 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = assertSalon(request, reply);
       if (denied) return denied;
-      const rows = await app.db.update(salonLocations).set({
-        ...(request.body.active !== undefined && { active: request.body.active }),
-        ...(request.body.address !== undefined && { address: request.body.address }),
-        ...(request.body.email !== undefined && { email: request.body.email }),
-        ...(request.body.name !== undefined && { name: request.body.name }),
-        ...(request.body.phone !== undefined && { phone: request.body.phone }),
-        ...(request.body.timezone !== undefined && { timezone: request.body.timezone }),
-      }).where(and(
-        eq(salonLocations.id, request.params.locationId),
-        eq(salonLocations.salonId, request.salonId),
-      )).returning();
-      return rows[0] ?? reply.code(404).send({ error: "LOCATION_NOT_FOUND" });
+      const updated = await app.db.transaction(async (tx) => {
+        const rows = await tx.update(salonLocations).set({
+          ...(request.body.active !== undefined && { active: request.body.active }),
+          ...(request.body.address !== undefined && { address: request.body.address }),
+          ...(request.body.email !== undefined && { email: request.body.email }),
+          ...(request.body.name !== undefined && { name: request.body.name }),
+          ...(request.body.phone !== undefined && { phone: request.body.phone }),
+          ...(request.body.timezone !== undefined && { timezone: request.body.timezone }),
+        }).where(and(
+          eq(salonLocations.id, request.params.locationId),
+          eq(salonLocations.salonId, request.salonId),
+        )).returning();
+        const location = rows[0];
+        if (!location) return undefined;
+        // Se la sede principale viene disattivata, promuovi un'altra sede attiva così una sede
+        // principale (esente dal gate multi-sede) esiste sempre finché ce n'è almeno una attiva.
+        if (location.isDefault && request.body.active === false) {
+          const [next] = await tx.select().from(salonLocations).where(and(
+            eq(salonLocations.salonId, request.salonId),
+            eq(salonLocations.active, true),
+            ne(salonLocations.id, location.id),
+          )).orderBy(asc(salonLocations.displayOrder), asc(salonLocations.createdAt)).limit(1);
+          if (next) {
+            await tx.update(salonLocations).set({ isDefault: false }).where(eq(salonLocations.id, location.id));
+            await tx.update(salonLocations).set({ isDefault: true }).where(eq(salonLocations.id, next.id));
+            location.isDefault = false;
+          }
+        }
+        return location;
+      });
+      return updated ?? reply.code(404).send({ error: "LOCATION_NOT_FOUND" });
     },
   );
 
@@ -764,6 +832,11 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = assertSalon(request, reply);
       if (denied) return denied;
+      if (request.body.location_id) {
+        const blocked = await isNonDefaultLocationBlocked(app.db, request.salonId, request.body.location_id);
+        if (blocked === "invalid") return reply.code(400).send({ error: "INVALID_LOCATION" });
+        if (blocked) return reply.code(403).send({ error: "MODULE_DISABLED", module: MODULE_KEYS.MULTI_LOCATION });
+      }
       const rows = await app.db.update(salonResources).set({
         ...(request.body.active !== undefined && { active: request.body.active }),
         ...(request.body.capacity !== undefined && { capacity: request.body.capacity }),
@@ -851,6 +924,11 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = assertSalon(request, reply);
       if (denied) return denied;
+      if (request.body.location_id) {
+        const blocked = await isNonDefaultLocationBlocked(app.db, request.salonId, request.body.location_id);
+        if (blocked === "invalid") return reply.code(400).send({ error: "INVALID_LOCATION" });
+        if (blocked) return reply.code(403).send({ error: "MODULE_DISABLED", module: MODULE_KEYS.MULTI_LOCATION });
+      }
       const rows = await app.db
         .insert(salonResources)
         .values({

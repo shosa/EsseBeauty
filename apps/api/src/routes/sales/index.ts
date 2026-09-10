@@ -483,6 +483,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     if (request.params.id !== request.salonId) return reply.code(403).send({ error: "FORBIDDEN" });
     if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
     const packagesEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.PACKAGES, app.db);
+    const inventoryEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.INVENTORY, app.db);
     const [serviceRows, productRows, staffRows, packageRows] = await Promise.all([
       app.db.select({
         category: services.category,
@@ -494,12 +495,14 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       }).from(services)
         .leftJoin(serviceCategories, eq(serviceCategories.id, services.categoryId))
         .where(and(eq(services.salonId, request.salonId), eq(services.active, true))),
-      app.db.select({
-        id: inventoryProducts.id,
-        name: inventoryProducts.name,
-        price_cents: inventoryProducts.unitPriceCents,
-        stock_quantity: inventoryProducts.stockQuantity,
-      }).from(inventoryProducts).where(and(eq(inventoryProducts.salonId, request.salonId), eq(inventoryProducts.active, true))),
+      inventoryEnabled
+        ? app.db.select({
+            id: inventoryProducts.id,
+            name: inventoryProducts.name,
+            price_cents: inventoryProducts.unitPriceCents,
+            stock_quantity: inventoryProducts.stockQuantity,
+          }).from(inventoryProducts).where(and(eq(inventoryProducts.salonId, request.salonId), eq(inventoryProducts.active, true)))
+        : Promise.resolve([]),
       app.db.select({
         color: staff.color,
         id: staff.id,
@@ -559,6 +562,15 @@ export async function registerSalesRoutes(app: FastifyInstance) {
     if (!(await canUsePos(request))) return reply.code(403).send({ error: "PERMISSION_DENIED" });
     const lines = request.body.items.map(normalizedLine).filter((item) => item.description && item.totalCents >= 0);
     if (lines.length === 0) return reply.code(400).send({ error: "EMPTY_CHECKOUT" });
+    const inventoryEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.INVENTORY, app.db);
+    const packagesEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.PACKAGES, app.db);
+    if (lines.some((item) => item.item_type === "product") && !inventoryEnabled) {
+      return reply.code(400).send({ error: "INVENTORY_MODULE_DISABLED" });
+    }
+    const requestsPackages = (request.body.assigned_packages?.length ?? 0) > 0 || lines.some((item) => item.packageQuantity > 0);
+    if (requestsPackages && !packagesEnabled) {
+      return reply.code(400).send({ error: "PACKAGES_MODULE_DISABLED" });
+    }
     if (!validateIssuedVouchers(lines, request.body.issued_vouchers)) {
       return reply.code(400).send({ error: "VOUCHER_ISSUE_TOTAL_MISMATCH" });
     }
@@ -792,6 +804,7 @@ export async function registerSalesRoutes(app: FastifyInstance) {
         )).orderBy(desc(appointmentRescheduleRequests.createdAt)),
       ]);
       const sale = saleRows[0];
+      const inventoryEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.INVENTORY, app.db);
       const [items, payments, serviceCatalog, productCatalog] = await Promise.all([
         sale ? app.db.select().from(saleItems).where(eq(saleItems.saleId, sale.id)) : Promise.resolve([]),
         sale ? app.db.select().from(salePayments).where(eq(salePayments.saleId, sale.id)) : Promise.resolve([]),
@@ -801,12 +814,14 @@ export async function registerSalesRoutes(app: FastifyInstance) {
           name: services.name,
           price_cents: services.priceCents,
         }).from(services).where(and(eq(services.salonId, request.salonId), eq(services.active, true))),
-        app.db.select({
-          id: inventoryProducts.id,
-          name: inventoryProducts.name,
-          price_cents: inventoryProducts.unitPriceCents,
-          stock_quantity: inventoryProducts.stockQuantity,
-        }).from(inventoryProducts).where(and(eq(inventoryProducts.salonId, request.salonId), eq(inventoryProducts.active, true))),
+        inventoryEnabled
+          ? app.db.select({
+              id: inventoryProducts.id,
+              name: inventoryProducts.name,
+              price_cents: inventoryProducts.unitPriceCents,
+              stock_quantity: inventoryProducts.stockQuantity,
+            }).from(inventoryProducts).where(and(eq(inventoryProducts.salonId, request.salonId), eq(inventoryProducts.active, true)))
+          : Promise.resolve([]),
       ]);
       return {
         appointment,
@@ -847,6 +862,14 @@ export async function registerSalesRoutes(app: FastifyInstance) {
 
       const lines = request.body.items.map(normalizedLine).filter((item) => item.description && item.totalCents >= 0);
       if (lines.length === 0) return reply.code(400).send({ error: "EMPTY_CHECKOUT" });
+      const inventoryEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.INVENTORY, app.db);
+      const packagesEnabled = await isModuleEnabled(request.salonId, MODULE_KEYS.PACKAGES, app.db);
+      if (lines.some((item) => item.item_type === "product") && !inventoryEnabled) {
+        return reply.code(400).send({ error: "INVENTORY_MODULE_DISABLED" });
+      }
+      if (lines.some((item) => item.packageQuantity > 0) && !packagesEnabled) {
+        return reply.code(400).send({ error: "PACKAGES_MODULE_DISABLED" });
+      }
       if (!validateIssuedVouchers(lines, request.body.issued_vouchers)) {
         return reply.code(400).send({ error: "VOUCHER_ISSUE_TOTAL_MISMATCH" });
       }

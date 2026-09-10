@@ -213,11 +213,12 @@ describe("professional UI regression guard", () => {
     const shell = readFileSync(join(dashboardRoot, "_components", "DashboardShell.tsx"), "utf8");
     const staffPackage = readFileSync(join(process.cwd(), "..", "staff-pwa", "package.json"), "utf8");
     const staffApp = readFileSync(join(process.cwd(), "..", "staff-pwa", "app", "page.tsx"), "utf8");
+    const staffAuthLib = readFileSync(join(process.cwd(), "..", "staff-pwa", "lib", "staff-auth.ts"), "utf8");
     const staffManifest = readFileSync(join(process.cwd(), "..", "staff-pwa", "app", "manifest.ts"), "utf8");
     expect(shell).not.toContain("/staff-pwa");
     expect(staffPackage).toContain("@esse-beauty/staff-pwa");
     expect(staffPackage).toContain("next-pwa");
-    expect(staffApp).toContain("/api/staff-app/me");
+    expect(staffAuthLib).toContain("/api/staff-app/me");
     expect(staffApp).toContain("/api/staff-app/appointments");
     expect(staffManifest).toContain("EsseBeauty Staff");
   });

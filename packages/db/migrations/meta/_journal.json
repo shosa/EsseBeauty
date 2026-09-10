@@ -418,8 +418,15 @@
     {
       "idx": 59,
       "version": "7",
-      "when": 1788981384537,
-      "tag": "0059_loyalty_reward_types",
+      "when": 1789039986711,
+      "tag": "0059_dizzy_captain_cross",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1789070201506,
+      "tag": "0060_bent_king_bedlam",
       "breakpoints": true
     }
   ]

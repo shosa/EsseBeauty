@@ -1,5 +1,5 @@
 {
-  "id": "390e0b36-322d-436e-92cf-462b95523835",
+  "id": "1170247c-cb3b-44d7-bce0-49214a35c0eb",
   "prevId": "bb32ef0c-c4e4-4008-9629-2f1ea30f45e2",
   "version": "7",
   "dialect": "postgresql",
@@ -7938,37 +7938,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "sale_id": {
-          "name": "sale_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "applied_type": {
-          "name": "applied_type",
-          "type": "reward_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "applied_discount_cents": {
-          "name": "applied_discount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "applied_service_id": {
-          "name": "applied_service_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "applied_product_id": {
-          "name": "applied_product_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -8052,45 +8021,6 @@
           ],
           "onDelete": "set null",
           "onUpdate": "no action"
-        },
-        "loyalty_reward_redemptions_sale_id_sales_id_fk": {
-          "name": "loyalty_reward_redemptions_sale_id_sales_id_fk",
-          "tableFrom": "loyalty_reward_redemptions",
-          "tableTo": "sales",
-          "columnsFrom": [
-            "sale_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "loyalty_reward_redemptions_applied_service_id_services_id_fk": {
-          "name": "loyalty_reward_redemptions_applied_service_id_services_id_fk",
-          "tableFrom": "loyalty_reward_redemptions",
-          "tableTo": "services",
-          "columnsFrom": [
-            "applied_service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "loyalty_reward_redemptions_applied_product_id_inventory_products_id_fk": {
-          "name": "loyalty_reward_redemptions_applied_product_id_inventory_products_id_fk",
-          "tableFrom": "loyalty_reward_redemptions",
-          "tableTo": "inventory_products",
-          "columnsFrom": [
-            "applied_product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -8145,50 +8075,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "type": {
-          "name": "type",
-          "type": "reward_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'fixed_discount'"
-        },
-        "service_id": {
-          "name": "service_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "product_id": {
-          "name": "product_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "discount_amount_cents": {
-          "name": "discount_amount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "discount_percent": {
-          "name": "discount_percent",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "min_spend_cents": {
-          "name": "min_spend_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "max_discount_cents": {
-          "name": "max_discount_cents",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -8205,47 +8091,12 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "loyalty_rewards_service_id_services_id_fk": {
-          "name": "loyalty_rewards_service_id_services_id_fk",
-          "tableFrom": "loyalty_rewards",
-          "tableTo": "services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "loyalty_rewards_product_id_inventory_products_id_fk": {
-          "name": "loyalty_rewards_product_id_inventory_products_id_fk",
-          "tableFrom": "loyalty_rewards",
-          "tableTo": "inventory_products",
-          "columnsFrom": [
-            "product_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "loyalty_rewards_min_spend_non_negative": {
-          "name": "loyalty_rewards_min_spend_non_negative",
-          "value": "\"loyalty_rewards\".\"min_spend_cents\" IS NULL OR \"loyalty_rewards\".\"min_spend_cents\" >= 0"
-        },
-        "loyalty_rewards_max_discount_non_negative": {
-          "name": "loyalty_rewards_max_discount_non_negative",
-          "value": "\"loyalty_rewards\".\"max_discount_cents\" IS NULL OR \"loyalty_rewards\".\"max_discount_cents\" >= 0"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.loyalty_settings": {
@@ -10040,12 +9891,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "source_reward_redemption_id": {
-          "name": "source_reward_redemption_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -10143,19 +9988,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "issued_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "purchase_vouchers_source_reward_redemption_id_loyalty_reward_redemptions_id_fk": {
-          "name": "purchase_vouchers_source_reward_redemption_id_loyalty_reward_redemptions_id_fk",
-          "tableFrom": "purchase_vouchers",
-          "tableTo": "loyalty_reward_redemptions",
-          "columnsFrom": [
-            "source_reward_redemption_id"
           ],
           "columnsTo": [
             "id"
@@ -11805,6 +11637,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "display_order": {
           "name": "display_order",
@@ -14602,17 +14441,6 @@
         "failed",
         "skipped",
         "exhausted"
-      ]
-    },
-    "public.reward_type": {
-      "name": "reward_type",
-      "schema": "public",
-      "values": [
-        "free_treatment",
-        "free_product",
-        "fixed_discount",
-        "percent_discount",
-        "credit"
       ]
     },
     "public.sale_item_type": {

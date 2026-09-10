@@ -10,6 +10,7 @@ import {
   SectionCard,
   StatusBadge,
 } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -27,16 +28,18 @@ interface Campaign {
 
 export default function MarketingPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.MARKETING);
   const [items, setItems] = useState<Campaign[]>([]);
 
   useEffect(() => {
+    if (!moduleEnabled) return;
     if (!salon) return;
     void fetch(`${api}/api/salons/${salon.id}/campaigns`, {
       credentials: "include",
     })
-      .then((response) => response.json())
+      .then((response) => (response.ok ? response.json() : []))
       .then(setItems);
-  }, [salon]);
+  }, [moduleEnabled, salon]);
 
   const scheduled = useMemo(
     () => items.filter((item) => item.status === "scheduled").length,
@@ -50,6 +53,19 @@ export default function MarketingPage() {
     () => items.filter((item) => item.status === "draft").length,
     [items],
   );
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeaderMetrics eyebrow="Marketing" metrics={[]} title="Campagne" subtitle="Prepara comunicazioni mirate per clienti, liste e promozioni senza perdere il controllo dello stato." />
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#63204a]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Marketing dalla pagina App e moduli per creare e gestire campagne."
+          title="Modulo Marketing non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

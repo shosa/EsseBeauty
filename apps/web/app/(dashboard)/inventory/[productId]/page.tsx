@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton, Switch, Select} from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -55,6 +56,7 @@ export default function InventoryProductPage() {
   const { productId } = useParams<{ productId: string }>();
   const router = useRouter();
   const { salon } = useAuth();
+  const inventoryEnabled = useModuleEnabled(MODULE_KEYS.INVENTORY);
   const [product, setProduct] = useState<Product>();
   const [movements, setMovements] = useState<Movement[]>([]);
   const [error, setError] = useState("");
@@ -82,7 +84,10 @@ export default function InventoryProductPage() {
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, [salon?.id, productId]);
+  useEffect(() => {
+    if (!inventoryEnabled) return;
+    void load();
+  }, [inventoryEnabled, salon?.id, productId]);
   useEffect(() => {
     if (!product) return;
     setTrackStock(product.trackStock ?? true);
@@ -138,6 +143,18 @@ export default function InventoryProductPage() {
       return;
     }
     router.push("/inventory");
+  }
+
+  if (!inventoryEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Attiva il modulo Magazzino dalla pagina App e moduli per accedere a questa sezione."
+          title="Modulo Magazzino non attivo"
+        />
+      </AppPage>
+    );
   }
 
   if (loading) return <PageSkeleton />;

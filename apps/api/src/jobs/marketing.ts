@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import { campaignRecipients, campaignTemplates, communicationConsents, customers, marketingCampaigns, salons } from "@esse-beauty/db/schema";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { refreshCampaignStatus } from "./campaign-status.js";
 
@@ -45,6 +46,20 @@ export async function processCampaignBatch(
     .where(eq(marketingCampaigns.id, job.data.campaignId));
   const campaign = campaigns[0];
   if (!campaign || campaign.status === "cancelled") return;
+  if (!(await isModuleEnabled(campaign.salonId, MODULE_KEYS.MARKETING, db))) {
+    await db
+      .update(campaignRecipients)
+      .set({ error: "MODULE_DISABLED", status: "failed", updatedAt: new Date() })
+      .where(
+        and(
+          eq(campaignRecipients.campaignId, campaign.id),
+          eq(campaignRecipients.salonId, campaign.salonId),
+          inArray(campaignRecipients.id, job.data.recipientIds),
+          eq(campaignRecipients.status, "queued"),
+        ),
+      );
+    return;
+  }
   // Historical campaigns retain their recorded channel and are never repurposed
   // into a different delivery channel at runtime.
   if (campaign.channel !== "email" && campaign.channel !== "whatsapp" && campaign.channel !== "app") return;

@@ -149,19 +149,19 @@ export default function CommunicationsSettingsPage() {
           <SectionCard title="Account Meta" subtitle="Gli identificativi restano separati dai segreti cifrati.">
             <div className="grid gap-4 md:grid-cols-2">
               <FormField label="WhatsApp Business Account ID" required>
-                <input autoComplete="off" onChange={(event) => setForm((value) => ({ ...value, wabaId: event.target.value }))} placeholder="WABA ID" value={form.wabaId} />
+                <input autoComplete="off" className="w-full" onChange={(event) => setForm((value) => ({ ...value, wabaId: event.target.value }))} placeholder="WABA ID" value={form.wabaId} />
               </FormField>
               <FormField label="Phone Number ID" required>
-                <input autoComplete="off" onChange={(event) => setForm((value) => ({ ...value, phoneNumberId: event.target.value }))} placeholder="Phone Number ID" value={form.phoneNumberId} />
+                <input autoComplete="off" className="w-full" onChange={(event) => setForm((value) => ({ ...value, phoneNumberId: event.target.value }))} placeholder="Phone Number ID" value={form.phoneNumberId} />
               </FormField>
               <FormField label="Business Portfolio ID">
-                <input autoComplete="off" onChange={(event) => setForm((value) => ({ ...value, businessPortfolioId: event.target.value }))} placeholder="Portfolio ID" value={form.businessPortfolioId} />
+                <input autoComplete="off" className="w-full" onChange={(event) => setForm((value) => ({ ...value, businessPortfolioId: event.target.value }))} placeholder="Portfolio ID" value={form.businessPortfolioId} />
               </FormField>
               <FormField label="Numero visualizzato" description={settings.display_phone_number_masked ? `Attuale: ${settings.display_phone_number_masked}` : "Usato solo come riferimento visivo nella chat."}>
-                <input autoComplete="tel" onChange={(event) => setForm((value) => ({ ...value, displayPhoneNumber: event.target.value }))} placeholder="+39 333 123 4567" type="tel" value={form.displayPhoneNumber} />
+                <input autoComplete="tel" className="w-full" onChange={(event) => setForm((value) => ({ ...value, displayPhoneNumber: event.target.value }))} placeholder="+39 333 123 4567" type="tel" value={form.displayPhoneNumber} />
               </FormField>
               <FormField label="Versione Graph API">
-                <input onChange={(event) => setForm((value) => ({ ...value, graphApiVersion: event.target.value }))} placeholder="v23.0" value={form.graphApiVersion} />
+                <input className="w-full" onChange={(event) => setForm((value) => ({ ...value, graphApiVersion: event.target.value }))} placeholder="v23.0" value={form.graphApiVersion} />
               </FormField>
               <label className="flex min-h-11 items-center justify-between rounded-xl border border-stone-200 px-4 text-sm font-bold">
                 <span>Abilita il provider</span>
@@ -173,10 +173,10 @@ export default function CommunicationsSettingsPage() {
               <div className="mb-4 flex items-center gap-2"><ShieldCheck className="size-5 text-[#792f59]" /><h3 className="font-black">Credenziali protette</h3></div>
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField label="Access token" description={settings.credential_present ? "Credenziale presente. Lascia vuoto per mantenerla." : "Token permanente o system-user generato in Meta."} required={!settings.credential_present}>
-                  <input autoComplete="new-password" onChange={(event) => setForm((value) => ({ ...value, accessToken: event.target.value }))} placeholder={settings.credential_present ? "••••••••••••" : "Incolla il token"} type="password" value={form.accessToken} />
+                  <input autoComplete="new-password" className="w-full" onChange={(event) => setForm((value) => ({ ...value, accessToken: event.target.value }))} placeholder={settings.credential_present ? "••••••••••••" : "Incolla il token"} type="password" value={form.accessToken} />
                 </FormField>
                 <FormField label="Token verifica webhook" description={settings.webhook_credential_present ? "Token presente. Lascia vuoto per mantenerlo." : "Scegli un valore lungo e casuale."} required={!settings.webhook_credential_present}>
-                  <input autoComplete="new-password" onChange={(event) => setForm((value) => ({ ...value, webhookVerifyToken: event.target.value }))} placeholder={settings.webhook_credential_present ? "••••••••••••" : "Token di verifica"} type="password" value={form.webhookVerifyToken} />
+                  <input autoComplete="new-password" className="w-full" onChange={(event) => setForm((value) => ({ ...value, webhookVerifyToken: event.target.value }))} placeholder={settings.webhook_credential_present ? "••••••••••••" : "Token di verifica"} type="password" value={form.webhookVerifyToken} />
                 </FormField>
               </div>
             </div>

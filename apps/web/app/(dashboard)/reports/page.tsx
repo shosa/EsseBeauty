@@ -2,9 +2,11 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { ArrowDown, ArrowUp, ChevronRight, Download, RefreshCw, Search } from "lucide-react";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { AppPage, Button, DateField, Drawer, EmptyState, InlineError, Switch } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { useAuth } from "../../../lib/auth-context";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -93,6 +95,7 @@ export default function ReportsPage() {
   const section: Section = sectionByPath[pathname] ?? "overview";
   const canAll = hasPermission(PERMISSION_KEYS.REPORTS_VIEW_ALL);
   const canExport = hasPermission(PERMISSION_KEYS.REPORTS_EXPORT);
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.STAFF_PERF);
 
   const [compareEnabled, setCompareEnabled] = useState(true);
   const [preset, setPreset] = useState<Preset | "custom">("month");
@@ -114,7 +117,7 @@ export default function ReportsPage() {
   const [selectedService, setSelectedService] = useState<ServiceRow>();
 
   async function load(signal?: AbortSignal) {
-    if (!salon) return;
+    if (!moduleEnabled || !salon) return;
     const query = new URLSearchParams(requestDates(fromDate, toDate));
     const previousRange = shiftRangeBack(fromDate, toDate);
     const previousQuery = new URLSearchParams(requestDates(previousRange.from, previousRange.to));
@@ -137,7 +140,7 @@ export default function ReportsPage() {
       if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(reason instanceof Error ? reason.message : "Impossibile caricare i report.");
     } finally { setLoading(false); }
   }
-  useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [canAll, compareEnabled, fromDate, salon?.id, toDate]);
+  useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [canAll, compareEnabled, fromDate, moduleEnabled, salon?.id, toDate]);
 
   const summary = summaryFrom(overview, staffRows);
   const previousSummary = summaryFrom(previousOverview, previousStaffRows);
@@ -193,6 +196,18 @@ export default function ReportsPage() {
 
   function selectPreset(value: Preset) { const next = presetDates(value); setPreset(value); setFromDate(next.from); setToDate(next.to); }
   function exportRegister() { if (salon) window.location.href = `${api}/api/salons/${salon.id}/reports/export?${new URLSearchParams(requestDates(fromDate, toDate))}`; }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Attiva il modulo Report dalla pagina App e moduli per accedere a questa sezione."
+          title="Modulo Report non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Gift } from "lucide-react";
 
 import { AppPage, Button, EmptyState, InlineError, PageHeader, PageTransition, SectionCard } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -16,11 +17,13 @@ const rewardTypeLabel: Record<RewardType, string> = { credit: "Credito", fixed_d
 
 export default function LoyaltyRewardsPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   async function loadRewards() {
+    if (!moduleEnabled) return;
     if (!salon) return;
     setLoading(true);
     setError("");
@@ -34,7 +37,7 @@ export default function LoyaltyRewardsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { void loadRewards(); }, [salon?.id]);
+  useEffect(() => { void loadRewards(); }, [moduleEnabled, salon?.id]);
 
   async function toggleReward(reward: Reward) {
     if (!salon) return;
@@ -43,6 +46,19 @@ export default function LoyaltyRewardsPage() {
     });
     if (!response.ok) return setError("Aggiornamento premio non riuscito.");
     await loadRewards();
+  }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Fedeltà" title="Premi" subtitle="Disponibilità, costo punti e accesso rapido alla modifica." />
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Fedeltà dalla pagina App e moduli per gestire il catalogo premi."
+          title="Modulo Fedeltà non attivo"
+        />
+      </AppPage>
+    );
   }
 
   return (

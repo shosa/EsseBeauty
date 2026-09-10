@@ -166,13 +166,28 @@ export async function registerOnboardingRoutes(app: FastifyInstance) {
       const existingIds = new Set(existing.map((item) => item.id));
       if (drafts.some((item) => item.id && !existingIds.has(item.id))) return reply.code(400).send({ error: "INVALID_LOCATION" });
       await app.db.transaction(async (tx) => {
+        const savedIds: string[] = [];
         for (const item of drafts) {
           const values = { active: item.active ?? true, address: item.address?.trim() || null, email: item.email?.trim() || null, name: item.name.trim(), phone: item.phone?.trim() || null, timezone: item.timezone?.trim() || null };
-          if (item.id) await tx.update(salonLocations).set(values).where(eq(salonLocations.id, item.id));
-          else await tx.insert(salonLocations).values({ ...values, salonId: request.salonId });
+          if (item.id) {
+            await tx.update(salonLocations).set(values).where(eq(salonLocations.id, item.id));
+            savedIds.push(item.id);
+          } else {
+            const [inserted] = await tx.insert(salonLocations).values({ ...values, salonId: request.salonId }).returning({ id: salonLocations.id });
+            if (inserted) savedIds.push(inserted.id);
+          }
         }
         const kept = new Set(drafts.flatMap((item) => item.id ? [item.id] : []));
         for (const item of existing) if (!kept.has(item.id)) await tx.update(salonLocations).set({ active: false }).where(eq(salonLocations.id, item.id));
+
+        // La sede principale (isDefault) è quella configurata per prima in onboarding. Se quella
+        // esistente è stata rimossa/disattivata in questo salvataggio, promuovi la prima sede rimasta.
+        const stillHasDefault = existing.some((item) => item.isDefault && kept.has(item.id));
+        const defaultCandidateId = savedIds[0];
+        if (!stillHasDefault && defaultCandidateId) {
+          await tx.update(salonLocations).set({ isDefault: false }).where(eq(salonLocations.salonId, request.salonId));
+          await tx.update(salonLocations).set({ isDefault: true }).where(eq(salonLocations.id, defaultCandidateId));
+        }
       });
       return { saved: drafts.length };
     },

@@ -82,7 +82,6 @@ export default function EmailSettingsPage() {
       });
       if (!response.ok) throw new Error("SAVE_FAILED");
       setSaved(true);
-      window.setTimeout(() => setSaved(false), 1800);
     } catch {
       setError("Impostazioni email non salvate. Controlla i campi e riprova.");
     } finally {

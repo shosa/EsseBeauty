@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ListChecks } from "lucide-react";
 
-import { AppPage, Button, FormField, InlineError, PageHeader, PageTransition, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, FormField, InlineError, PageHeader, PageTransition, SaveToast, SectionCard, Switch } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -32,6 +34,7 @@ const ruleMeta: Record<EarningAction, { label: string; unit: string }> = {
 
 export default function LoyaltySettingsPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const [settings, setSettings] = useState<LoyaltySettings>();
   const [rules, setRules] = useState(defaultRules);
   const [loading, setLoading] = useState(true);
@@ -39,6 +42,7 @@ export default function LoyaltySettingsPage() {
   const [message, setMessage] = useState("");
 
   async function loadSettings() {
+    if (!moduleEnabled) return;
     if (!salon) return;
     setLoading(true);
     setError("");
@@ -54,7 +58,7 @@ export default function LoyaltySettingsPage() {
     setLoading(false);
   }
 
-  useEffect(() => { void loadSettings(); }, [salon?.id]);
+  useEffect(() => { void loadSettings(); }, [moduleEnabled, salon?.id]);
   useEffect(() => {
     if (!message) return;
     const timeout = window.setTimeout(() => setMessage(""), 3000);
@@ -76,6 +80,19 @@ export default function LoyaltySettingsPage() {
     setError("");
     setMessage("Regole di accumulo aggiornate.");
     await loadSettings();
+  }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Fedeltà" title="Impostazioni" subtitle="Punti assegnati automaticamente da appuntamenti e vendite reali." />
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Fedeltà dalla pagina App e moduli per configurare le regole di accumulo punti."
+          title="Modulo Fedeltà non attivo"
+        />
+      </AppPage>
+    );
   }
 
   return (

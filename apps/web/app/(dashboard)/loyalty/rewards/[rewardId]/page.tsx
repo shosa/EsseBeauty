@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, FormField, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -29,6 +31,7 @@ export default function RewardDetailPage() {
   const { rewardId } = useParams<{ rewardId: string }>();
   const { salon } = useAuth();
   const router = useRouter();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const [reward, setReward] = useState<Reward>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -38,7 +41,7 @@ export default function RewardDetailPage() {
   const [products, setProducts] = useState<CatalogItem[]>([]);
 
   async function load() {
-    if (!salon) return;
+    if (!salon || !moduleEnabled) return;
     setLoading(true);
     const response = await fetch(`${api}/api/salons/${salon.id}/loyalty/rewards`, { credentials: "include" });
     if (!response.ok) {
@@ -53,14 +56,14 @@ export default function RewardDetailPage() {
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, [salon?.id, rewardId]);
+  useEffect(() => { void load(); }, [moduleEnabled, salon?.id, rewardId]);
   useEffect(() => {
-    if (!salon) return;
+    if (!salon || !moduleEnabled) return;
     void Promise.all([
       fetch(`${api}/api/salons/${salon.id}/services?active=true`, { credentials: "include" }).then(async (response) => response.ok ? response.json() as Promise<CatalogItem[]> : []),
       fetch(`${api}/api/salons/${salon.id}/products?active=true`, { credentials: "include" }).then(async (response) => response.ok ? response.json() as Promise<CatalogItem[]> : []),
     ]).then(([loadedServices, loadedProducts]) => { setServices(loadedServices); setProducts(loadedProducts); });
-  }, [salon]);
+  }, [moduleEnabled, salon]);
 
   async function save(data: FormData) {
     if (!salon) return;
@@ -100,6 +103,7 @@ export default function RewardDetailPage() {
     router.push("/loyalty/rewards");
   }
 
+  if (!moduleEnabled) return <AppPage maxWidth="max-w-[1600px]"><Breadcrumbs items={[{ href: "/loyalty", label: "Fedeltà" }, { href: "/loyalty/rewards", label: "Premi" }, { label: "Premio" }]} /><div className="mt-5"><EmptyState action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>} description="Attiva il modulo Fedeltà dalla pagina App e moduli per modificare questo premio." title="Modulo Fedeltà non attivo" /></div></AppPage>;
   if (loading) return <PageSkeleton />;
 
   return (

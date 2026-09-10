@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { CalendarDays, CircleDollarSign, History, Settings, Users } from "lucide-react";
 
 import {
@@ -11,6 +12,7 @@ import {
   PageHeaderMetrics,
   SectionCard,
 } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -150,6 +152,7 @@ function ActivityIcon({ kind }: { kind: Exclude<ActivityKind, "all"> }) {
 
 export default function AuditSettingsPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.AUDIT_COMPLIANCE);
   const [items, setItems] = useState<AuditItem[]>([]);
   const [error, setError] = useState("");
   const [kind, setKind] = useState<ActivityKind>("all");
@@ -157,7 +160,7 @@ export default function AuditSettingsPage() {
   const [selectedActivity, setSelectedActivity] = useState<AuditItem>();
 
   useEffect(() => {
-    if (!salon?.id) return;
+    if (!moduleEnabled || !salon?.id) return;
     void fetch(`${api}/api/salons/${salon.id}/audit-log`, { credentials: "include" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Registro attività non disponibile.");
@@ -165,7 +168,7 @@ export default function AuditSettingsPage() {
         setError("");
       })
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Registro attività non disponibile."));
-  }, [salon?.id]);
+  }, [moduleEnabled, salon?.id]);
 
   const operationalItems = useMemo(() => items.filter((item) => !ignoredActions.has(item.action)), [items]);
   const visibleItems = useMemo(() => operationalItems.filter((item) => {
@@ -183,6 +186,18 @@ export default function AuditSettingsPage() {
     (Number(item.quantity) || 1) * (Number(item.unit_price_cents) || 0) - (Number(item.discount_cents) || 0),
   ), 0);
   const selectedDiscount = Number(selectedBody?.discount_cents) || 0;
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Il modulo Attività non è attivo per questo salone. Attivalo dalla pagina App e moduli per consultare il registro delle attività."
+          title="Modulo Attività non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

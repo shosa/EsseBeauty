@@ -17,6 +17,7 @@ import {
   StatusBadge,
   Switch,
 } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -59,6 +60,7 @@ const dateFormatter = new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: 
 
 export default function DocumentsSettingsPage() {
   const { salon } = useAuth();
+  const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [items, setItems] = useState<ConsentTemplate[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -71,7 +73,7 @@ export default function DocumentsSettingsPage() {
   const [form, setForm] = useState({ active: true, body: "", name: "", requiredForServices: [] as string[], type: "privacy" });
 
   const load = useCallback(async () => {
-    if (!salon?.id) return;
+    if (!salon?.id || !documentsEnabled) return;
     try {
       const [templateResponse, serviceResponse, categoryResponse] = await Promise.all([
         fetch(`${api}/api/salons/${salon.id}/consent-templates`, { credentials: "include" }),
@@ -89,7 +91,7 @@ export default function DocumentsSettingsPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Documenti non disponibili.");
     }
-  }, [salon?.id]);
+  }, [salon?.id, documentsEnabled]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -143,6 +145,19 @@ export default function DocumentsSettingsPage() {
     const uncategorized = services.filter((service) => !service.categoryId || !categoryById.has(service.categoryId));
     return uncategorized.length > 0 ? [...groups, { id: "uncategorized", name: "Senza categoria", services: uncategorized }] : groups;
   }, [categories, services]);
+
+  if (!documentsEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Moduli" subtitle="Modelli versionati, richieste di firma ed evidenze verificabili per ogni cliente." title="Documenti e consensi" />
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Documenti dalla pagina App e moduli per creare modelli di consenso e raccogliere firme."
+          title="Modulo Documenti non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

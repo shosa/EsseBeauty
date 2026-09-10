@@ -19,7 +19,7 @@ import {
   staffAvailabilityRequests,
   users,
 } from "@esse-beauty/db/schema";
-import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
+import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
@@ -761,6 +761,9 @@ export async function registerEnterpriseModuleRoutes(
     async (request, reply) => {
       try {
         const consent = await resolveConsent(consentRepository, request.params.token);
+        if (!(await isModuleEnabled(consent.salonId, MODULE_KEYS.DOCUMENTS, app.db))) {
+          return reply.code(403).send({ error: "MODULE_DISABLED", module: MODULE_KEYS.DOCUMENTS });
+        }
         return {
           consent: {
             body: consent.templateBody,
@@ -785,6 +788,10 @@ export async function registerEnterpriseModuleRoutes(
       const body = parseBody(signConsentBodySchema, request, reply);
       if (!body) return;
       try {
+        const consent = await resolveConsent(consentRepository, request.params.token);
+        if (!(await isModuleEnabled(consent.salonId, MODULE_KEYS.DOCUMENTS, app.db))) {
+          return reply.code(403).send({ error: "MODULE_DISABLED", module: MODULE_KEYS.DOCUMENTS });
+        }
         const signed = await signConsent(consentRepository, request.params.token, {
           accepted: body.accepted,
           signature: body.signature,

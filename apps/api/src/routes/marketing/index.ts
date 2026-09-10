@@ -23,7 +23,7 @@ import {
   salonSettings,
   salons,
 } from "@esse-beauty/db/schema";
-import { MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
+import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues, PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { aggregateCampaignStatus } from "../../jobs/marketing.js";
@@ -660,6 +660,12 @@ export async function registerMarketingRoutes(
       if (!isCampaignChannel(body.channel) || !validSegment(body.target_segment)) {
         return reply.code(400).send({ error: "INVALID_REQUEST" });
       }
+      if (
+        body.target_segment.type === "high_loyalty" &&
+        !(await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db))
+      ) {
+        return reply.code(400).send({ error: "LOYALTY_MODULE_DISABLED" });
+      }
       const preview = await resolveSegmentPreview(
         app,
         request.salonId,
@@ -835,6 +841,12 @@ export async function registerMarketingRoutes(
     }
     if (template && !hasMatchingTemplateParameters(template, request.body.whatsapp_template_parameters ?? [])) {
       return reply.code(400).send({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH" });
+    }
+    if (
+      request.body.target_segment.type === "high_loyalty" &&
+      !(await isModuleEnabled(request.salonId, MODULE_KEYS.LOYALTY, app.db))
+    ) {
+      return reply.code(400).send({ error: "LOYALTY_MODULE_DISABLED" });
     }
     const preview = await resolveSegmentPreview(
       app,

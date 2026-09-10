@@ -13,6 +13,7 @@ import {
   salons,
   services,
 } from "@esse-beauty/db/schema";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { BRAND_MARK_SVG } from "@esse-beauty/shared";
 
@@ -266,6 +267,7 @@ export async function recoverReviewInvitations(
       deliveryGeneration: reviewInvitations.deliveryGeneration,
       createdAt: reviewInvitations.createdAt,
       id: reviewInvitations.id,
+      salonId: reviewInvitations.salonId,
     })
     .from(reviewInvitations)
     .where(and(
@@ -288,6 +290,7 @@ export async function recoverReviewInvitations(
     .limit(100);
   let enqueued = 0;
   for (const invitation of candidates) {
+    if (!(await isModuleEnabled(invitation.salonId, MODULE_KEYS.REVIEWS, db))) continue;
     try {
       await enqueueInvitation(queue, invitation);
       enqueued += 1;
@@ -377,6 +380,16 @@ async function prepareDelivery(db: DrizzleDB, invitationId: string) {
       invitation.deliveredAt ||
       invitation.revokedAt
     ) return undefined;
+    if (!(await isModuleEnabled(invitation.salonId, MODULE_KEYS.REVIEWS, db))) {
+      await tx.update(reviewInvitations).set({
+        deliveryClaimId: null,
+        deliveryFailure: "MODULE_DISABLED",
+        deliveryLeaseExpiresAt: null,
+        deliveryStatus: "failed",
+        updatedAt: new Date(),
+      }).where(eq(reviewInvitations.id, invitationId));
+      return undefined;
+    }
     if (invitation.deliveryAttempts >= REVIEW_MAX_DELIVERY_ATTEMPTS) {
       await tx.update(reviewInvitations).set({
         deliveryClaimId: null,
@@ -554,6 +567,10 @@ async function prepareChannelDelivery(db: DrizzleDB, deliveryId: string) {
       .where(eq(reviewInvitationDeliveries.id, deliveryId)).for("update");
     const delivery = rows[0];
     if (!delivery || delivery.consumedAt || delivery.revokedAt || ["delivered", "sent", "queued", "skipped", "exhausted", "processing"].includes(delivery.status)) return undefined;
+    if (!(await isModuleEnabled(delivery.salonId, MODULE_KEYS.REVIEWS, db))) {
+      await tx.update(reviewInvitationDeliveries).set({ failureReason: "MODULE_DISABLED", status: "failed" }).where(eq(reviewInvitationDeliveries.id, deliveryId));
+      return undefined;
+    }
     const hasPushSubscription = delivery.channel === "app"
       ? Boolean((await tx.select({ id: customerPushSubscriptions.id }).from(customerPushSubscriptions).where(eq(customerPushSubscriptions.customerId, delivery.customerId)))[0])
       : false;

@@ -127,6 +127,8 @@ function allocatePayments(sourcePayments: Payment[], targets: number[]): Payment
 
 export default function SalesPage() {
   const { hasPermission, salon } = useAuth();
+  const inventoryEnabled = useModuleEnabled(MODULE_KEYS.INVENTORY);
+  const packagesEnabled = useModuleEnabled(MODULE_KEYS.PACKAGES);
   const loyaltyEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const canManageLoyalty = hasPermission(PERMISSION_KEYS.LOYALTY_MANAGE);
   const searchParams = useSearchParams();
@@ -753,7 +755,7 @@ export default function SalesPage() {
 
           {/* mode rail */}
           <div className="flex w-24 shrink-0 flex-col items-stretch gap-1.5 overflow-y-auto border-r border-[#e8dfe4] p-2.5">
-            {railModes.map((item) => {
+            {railModes.filter((item) => (item.key !== "product" || inventoryEnabled) && (item.key !== "package" || packagesEnabled)).map((item) => {
               const active = mode === item.key;
               return (
                 <button

@@ -2,9 +2,11 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { ChevronDown, Search } from "lucide-react";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { AppPage, Button, Dialog, Drawer, EmptyState, InlineError, SaveToast, Switch, Select} from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../lib/auth-context";
 
@@ -70,6 +72,7 @@ export default function PackagesPage() {
   const pathname = usePathname();
   const section: Section = sectionByPath[pathname] ?? "catalog";
   const canManageCatalog = hasPermission(PERMISSION_KEYS.SETTINGS_SERVICES);
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.PACKAGES);
 
   const [catalog, setCatalog] = useState<ServicePackage[]>([]);
   const [posCatalog, setPosCatalog] = useState<Catalog>({ products: [], services: [] });
@@ -90,7 +93,7 @@ export default function PackagesPage() {
   const [drawerUsages, setDrawerUsages] = useState<UsageRow[]>([]);
 
   async function load() {
-    if (!salon?.id) return;
+    if (!moduleEnabled || !salon?.id) return;
     const [packagesResponse, posCatalogResponse, assignmentsResponse] = await Promise.all([
       fetch(`${api}/api/salons/${salon.id}/service-packages`, { credentials: "include" }),
       fetch(`${api}/api/salons/${salon.id}/pos-catalog`, { credentials: "include" }),
@@ -102,7 +105,7 @@ export default function PackagesPage() {
     if (assignmentsResponse.ok) setAssignments(await assignmentsResponse.json() as CustomerPackage[]);
     setError("");
   }
-  useEffect(() => { void load(); }, [salon?.id]);
+  useEffect(() => { void load(); }, [moduleEnabled, salon?.id]);
 
   async function loadDrawerUsages(customerPackageId: string) {
     if (!salon) return;
@@ -210,6 +213,18 @@ export default function PackagesPage() {
       .filter((row) => assignStatusFilter === "all" || row.status === assignStatusFilter)
       .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
   }, [assignSearch, assignStatusFilter, assignmentsWithStatus]);
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Attiva il modulo Pacchetti dalla pagina App e moduli per accedere a questa sezione."
+          title="Modulo Pacchetti non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
