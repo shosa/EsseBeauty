@@ -287,7 +287,7 @@ function NotificationCenter({ error, items, notice, onArchive, onArchiveRead, on
 }
 
 function NotificationPreviewCard({ item, onDismiss, onOpen }: { item: Pick<NotificationItem, "body" | "title">; onDismiss(): void; onOpen(): void }) {
-  return <Toast.Root className="pointer-events-auto overflow-hidden rounded-xl border border-sky-200 bg-white shadow-[0_16px_36px_rgb(2_132_199_/_0.16)]" duration={7_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
+  return <Toast.Root className="pointer-events-auto overflow-hidden rounded-xl border-[1.5px] border-sky-200 bg-white shadow-[0_14px_30px_rgb(28_25_27_/_0.14)]" duration={7_000} onOpenChange={(open) => { if (!open) onDismiss(); }} type="foreground">
     <div className="flex min-w-0 items-start gap-3 p-4">
       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-100 text-sky-700"><BellRing aria-hidden="true" className="size-5" /></span>
       <div className="min-w-0 flex-1"><Toast.Title className="block text-sm font-extrabold text-stone-950">{item.title}</Toast.Title>{item.body && <Toast.Description className="mt-1 line-clamp-2 block text-sm leading-5 text-stone-600">{item.body}</Toast.Description>}<Toast.Action altText="Apri notifica" asChild><button className="mt-3 text-xs font-extrabold text-sky-700 hover:underline" onClick={onOpen} type="button">Apri</button></Toast.Action></div>

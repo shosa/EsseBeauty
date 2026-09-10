@@ -1208,10 +1208,10 @@ export function SaveToast({
   const [dismissed, setDismissed] = useState(false);
   const [instance, setInstance] = useState(0);
   const variants = {
-    error: { accent: "bg-red-600", icon: "bg-red-100 text-red-700", surface: "border-red-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(185_28_28_/_0.18)]" },
-    info: { accent: "bg-sky-600", icon: "bg-sky-100 text-sky-700", surface: "border-sky-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(2_132_199_/_0.18)]" },
-    success: { accent: "bg-emerald-600", icon: "bg-emerald-100 text-emerald-700", surface: "border-emerald-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(5_150_105_/_0.18)]" },
-    warning: { accent: "bg-amber-500", icon: "bg-amber-100 text-amber-700", surface: "border-amber-200 bg-white text-stone-900 shadow-[0_20px_52px_rgb(217_119_6_/_0.18)]" },
+    error: { accent: "bg-red-600", icon: "bg-red-100 text-red-700", surface: "border-red-200 bg-white text-stone-900 shadow-[0_14px_30px_rgb(28_25_27_/_0.14)]" },
+    info: { accent: "bg-sky-600", icon: "bg-sky-100 text-sky-700", surface: "border-sky-200 bg-white text-stone-900 shadow-[0_14px_30px_rgb(28_25_27_/_0.14)]" },
+    success: { accent: "bg-emerald-600", icon: "bg-emerald-100 text-emerald-700", surface: "border-emerald-200 bg-white text-stone-900 shadow-[0_14px_30px_rgb(28_25_27_/_0.14)]" },
+    warning: { accent: "bg-amber-500", icon: "bg-amber-100 text-amber-700", surface: "border-amber-200 bg-white text-stone-900 shadow-[0_14px_30px_rgb(28_25_27_/_0.14)]" },
   };
 
   useEffect(() => {
@@ -1233,7 +1233,7 @@ export function SaveToast({
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           aria-live={variant === "error" ? "assertive" : "polite"}
-          className={`fixed inset-x-4 bottom-5 z-50 mx-auto flex min-h-16 w-[min(720px,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant].surface}`}
+          className={`fixed inset-x-4 bottom-5 z-50 mx-auto flex min-h-16 w-[min(720px,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-2xl border-[1.5px] px-4 py-3 text-sm font-semibold ${variants[variant].surface}`}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           initial={{ opacity: 0, y: 10, scale: 0.98 }}
           role={variant === "error" ? "alert" : "status"}
