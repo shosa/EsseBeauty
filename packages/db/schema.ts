@@ -431,6 +431,7 @@ export const salonLocations = pgTable(
     email: text("email"),
     timezone: text("timezone"),
     active: boolean("active").default(true).notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
     ...timestamps,
   },

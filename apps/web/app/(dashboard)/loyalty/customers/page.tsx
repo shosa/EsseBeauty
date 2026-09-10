@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronRight, Search } from "lucide-react";
@@ -17,6 +18,7 @@ import {
   SectionCard,
   StatusBadge,
 } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -51,6 +53,7 @@ function errorMessage(code?: string) {
 
 export default function LoyaltyCustomersPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const searchParams = useSearchParams();
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [customer, setCustomer] = useState<CustomerDetail>();
@@ -70,6 +73,7 @@ export default function LoyaltyCustomersPage() {
   }, [customers, search]);
 
   async function loadCustomers() {
+    if (!moduleEnabled) return;
     if (!salon) return;
     setLoading(true);
     setError("");
@@ -84,6 +88,7 @@ export default function LoyaltyCustomersPage() {
   }
 
   async function loadCustomer(customerId: string) {
+    if (!moduleEnabled) return;
     if (!salon || !customerId) return;
     setSelectedCustomerId(customerId);
     const response = await fetch(`${api}/api/salons/${salon.id}/loyalty/customers/${customerId}`, { credentials: "include" });
@@ -94,12 +99,12 @@ export default function LoyaltyCustomersPage() {
     setCustomer(await response.json() as CustomerDetail);
   }
 
-  useEffect(() => { void loadCustomers(); }, [salon?.id]);
+  useEffect(() => { void loadCustomers(); }, [moduleEnabled, salon?.id]);
   useEffect(() => {
     const customerId = searchParams.get("customerId");
     if (customerId) void loadCustomer(customerId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salon?.id, searchParams]);
+  }, [moduleEnabled, salon?.id, searchParams]);
   useEffect(() => {
     if (!message) return;
     const timeout = window.setTimeout(() => setMessage(""), 3000);
@@ -139,6 +144,19 @@ export default function LoyaltyCustomersPage() {
     setRedeemReward(undefined);
     setMessage(`Premio “${redeemReward.name}” riscattato.`);
     await Promise.all([loadCustomers(), loadCustomer(selectedCustomerId)]);
+  }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Fedeltà" title="Clienti" subtitle="Cerca un cliente, controlla la progressione e opera sul saldo." />
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Fedeltà dalla pagina App e moduli per consultare i clienti iscritti e operare sul loro saldo."
+          title="Modulo Fedeltà non attivo"
+        />
+      </AppPage>
+    );
   }
 
   return (

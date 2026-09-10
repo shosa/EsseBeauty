@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Bell, Mail, MessageCircleMore } from "lucide-react";
 import { AppPage, Breadcrumbs, Button, EmptyState, InlineError, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { useAuth } from "../../../../lib/auth-context";
 import { EmailPreview, PushPreview, PushTextEditor, RichTextEditor } from "../_components/MarketingEditors";
 
@@ -12,14 +14,28 @@ interface CampaignTemplate { active: boolean; channel: Channel; content: string;
 const tabs = [{ id: "email" as const, label: "Email", icon: Mail }, { id: "whatsapp" as const, label: "WhatsApp", icon: MessageCircleMore }, { id: "app" as const, label: "Push app", icon: Bell }];
 
 export default function CampaignTemplatesPage() {
-  const { salon } = useAuth(); const [templates, setTemplates] = useState<CampaignTemplate[]>([]); const [editing, setEditing] = useState<CampaignTemplate>(); const [channel, setChannel] = useState<Channel>("email"); const [content, setContent] = useState(""); const [name, setName] = useState(""); const [variables, setVariables] = useState(""); const [error, setError] = useState("");
-  const load = useCallback(async () => { if (!salon) return; const response = await fetch(`${api}/api/salons/${salon.id}/campaign-templates?include_archived=true`, { credentials: "include" }); if (!response.ok) return setError("Impossibile caricare i modelli."); setTemplates(await response.json() as CampaignTemplate[]); }, [salon]);
+  const { salon } = useAuth(); const moduleEnabled = useModuleEnabled(MODULE_KEYS.MARKETING); const [templates, setTemplates] = useState<CampaignTemplate[]>([]); const [editing, setEditing] = useState<CampaignTemplate>(); const [channel, setChannel] = useState<Channel>("email"); const [content, setContent] = useState(""); const [name, setName] = useState(""); const [variables, setVariables] = useState(""); const [error, setError] = useState("");
+  const load = useCallback(async () => { if (!moduleEnabled) return; if (!salon) return; const response = await fetch(`${api}/api/salons/${salon.id}/campaign-templates?include_archived=true`, { credentials: "include" }); if (!response.ok) return setError("Impossibile caricare i modelli."); setTemplates(await response.json() as CampaignTemplate[]); }, [moduleEnabled, salon]);
   useEffect(() => { void load(); }, [load]);
   function reset(nextChannel = channel) { setEditing(undefined); setName(""); setContent(""); setVariables(""); setChannel(nextChannel); }
   function edit(template: CampaignTemplate) { setEditing(template); setChannel(template.channel); setName(template.name); setContent(template.content); setVariables(template.variables.join(", ")); }
   async function save(data: FormData) { if (!salon) return; setError(""); const response = await fetch(`${api}/api/salons/${salon.id}/campaign-templates${editing ? `/${editing.id}` : ""}`, { method: editing ? "PATCH" : "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify({ channel, content, name, variables: channel === "whatsapp" ? variables.split(",").map((item) => item.trim()).filter(Boolean) : [], whatsapp_template_name: channel === "whatsapp" ? data.get("whatsapp_template_name") : null, whatsapp_template_locale: channel === "whatsapp" ? data.get("whatsapp_template_locale") : null }) }); if (!response.ok) return setError("Modello non salvato. Controlla i campi richiesti."); reset(channel); await load(); }
   async function archive(id: string) { if (!salon) return; const response = await fetch(`${api}/api/salons/${salon.id}/campaign-templates/${id}/archive`, { method: "POST", credentials: "include" }); if (!response.ok) return setError("Modello non archiviato."); if (editing?.id === id) reset(channel); await load(); }
   const visible = templates.filter((item) => item.channel === channel);
+
+  if (!moduleEnabled) {
+    return <AppPage maxWidth="max-w-[1600px]">
+      <Breadcrumbs items={[{ href: "/marketing", label: "Marketing" }, { label: "Modelli" }]} />
+      <div className="mt-5">
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#63204a]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Marketing dalla pagina App e moduli per gestire la libreria modelli."
+          title="Modulo Marketing non attivo"
+        />
+      </div>
+    </AppPage>;
+  }
+
   return <AppPage maxWidth="max-w-[1600px]"><Breadcrumbs items={[{ href: "/marketing", label: "Marketing" }, { label: "Modelli" }]} />
     <header className="mt-5 border-b border-stone-200 pb-6"><h1 className="text-3xl font-bold tracking-tight">Libreria modelli</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">Ogni canale ha un formato proprio. I modelli non vengono più mescolati nello stesso elenco.</p></header>
     <div className="no-scrollbar mt-5 flex gap-2 overflow-x-auto" role="tablist" aria-label="Tipo di modello">{tabs.map(({ id, icon: Icon, label }) => <button aria-selected={channel === id} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold ${channel === id ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white text-stone-700"}`} key={id} onClick={() => reset(id)} role="tab" type="button"><Icon className="size-4" />{label}<span className={`rounded-full px-2 py-0.5 text-xs ${channel === id ? "bg-white/20" : "bg-stone-100"}`}>{templates.filter((item) => item.channel === id && item.active).length}</span></button>)}</div>

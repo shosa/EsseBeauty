@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { Banknote, CalendarClock, ChevronDown, CreditCard, Gift, Landmark, MoreHorizontal, Package, Plus, RotateCcw, Scissors, Search, ShoppingBag, UserRound, WalletCards, X } from "lucide-react";
 import { AppPage, Button, designTokens, Dialog, EmptyState, FormField, InlineError, Select} from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../lib/auth-context";
 import { ServiceCategoryIcon } from "../services/ServiceCategoryIcon";
@@ -123,6 +124,8 @@ function allocatePayments(sourcePayments: Payment[], targets: number[]): Payment
 
 export default function SalesPage() {
   const { salon } = useAuth();
+  const inventoryEnabled = useModuleEnabled(MODULE_KEYS.INVENTORY);
+  const packagesEnabled = useModuleEnabled(MODULE_KEYS.PACKAGES);
   const searchParams = useSearchParams();
   const appointmentFromUrl = searchParams.get("appointment");
   const loadedAppointmentFromUrlRef = useRef("");
@@ -677,7 +680,7 @@ export default function SalesPage() {
 
           {/* mode rail */}
           <div className="flex w-24 shrink-0 flex-col items-stretch gap-1.5 overflow-y-auto border-r border-[#e8dfe4] p-2.5">
-            {railModes.map((item) => {
+            {railModes.filter((item) => (item.key !== "product" || inventoryEnabled) && (item.key !== "package" || packagesEnabled)).map((item) => {
               const active = mode === item.key;
               return (
                 <button

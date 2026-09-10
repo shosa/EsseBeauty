@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AppPage, Breadcrumbs, Button, InlineError, Switch, Select} from "@esse-beauty/ui";
+import { AppPage, Breadcrumbs, Button, EmptyState, InlineError, Switch, Select} from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -17,6 +19,7 @@ const text = (value: FormDataEntryValue | null) => {
 export default function NewInventoryProductPage() {
   const { salon } = useAuth();
   const router = useRouter();
+  const inventoryEnabled = useModuleEnabled(MODULE_KEYS.INVENTORY);
   const [error, setError] = useState("");
   const [trackStock, setTrackStock] = useState(true);
   const [sellable, setSellable] = useState(true);
@@ -60,6 +63,18 @@ export default function NewInventoryProductPage() {
     }
     const product = await response.json() as { id: string };
     router.push(`/inventory/${product.id}`);
+  }
+
+  if (!inventoryEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Attiva il modulo Magazzino dalla pagina App e moduli per accedere a questa sezione."
+          title="Modulo Magazzino non attivo"
+        />
+      </AppPage>
+    );
   }
 
   return (

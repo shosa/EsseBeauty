@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CircleMinus, CirclePlus, TrendingUp } from "lucide-react";
 
-import { AppPage, Button, InlineError, PageHeader, PageTransition, SaveToast, SectionCard } from "@esse-beauty/ui";
+import { AppPage, Button, EmptyState, InlineError, PageHeader, PageTransition, SaveToast, SectionCard } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
 
@@ -14,6 +16,7 @@ interface TierDistribution { id: string; members: number; min_points: number; na
 
 export default function LoyaltyTiersPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [distribution, setDistribution] = useState<TierDistribution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +24,7 @@ export default function LoyaltyTiersPage() {
   const [message, setMessage] = useState("");
 
   async function loadAll() {
+    if (!moduleEnabled) return;
     if (!salon) return;
     setLoading(true);
     setError("");
@@ -39,7 +43,7 @@ export default function LoyaltyTiersPage() {
     setLoading(false);
   }
 
-  useEffect(() => { void loadAll(); }, [salon?.id]);
+  useEffect(() => { void loadAll(); }, [moduleEnabled, salon?.id]);
   useEffect(() => {
     if (!message) return;
     const timeout = window.setTimeout(() => setMessage(""), 3000);
@@ -56,6 +60,19 @@ export default function LoyaltyTiersPage() {
     setError("");
     setMessage("Livelli fedeltà salvati.");
     await loadAll();
+  }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Fedeltà" title="Livelli" subtitle="Soglie ordinate e beneficio visibile allo staff e al cliente." />
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Fedeltà dalla pagina App e moduli per configurare i livelli."
+          title="Modulo Fedeltà non attivo"
+        />
+      </AppPage>
+    );
   }
 
   return (

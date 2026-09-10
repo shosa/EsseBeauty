@@ -176,9 +176,9 @@ export default function PermissionsPage() {
                   <StatusBadge status="pending">In attesa</StatusBadge>
                 </div>
                 <FormField className="mt-4" label="Nota per il collaboratore">
-                  <textarea onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Opzionale" value={notes[item.id] ?? ""} />
+                  <textarea className="w-full" onChange={(event) => setNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Opzionale" value={notes[item.id] ?? ""} />
                 </FormField>
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
                   <Button disabled={reviewingId === item.id} onClick={() => void review(item.id, "approved")} variant="primary">{reviewingId === item.id ? "Attendere…" : "Approva"}</Button>
                   <Button disabled={reviewingId === item.id} onClick={() => void review(item.id, "rejected")} variant="destructive">Rifiuta</Button>
                 </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AppPage, EmptyState, InlineError, PageHeader, PageTransition, SectionCard, StatCard, StatGrid } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { Receipt, Award } from "lucide-react";
 
 import { useAuth } from "../../../lib/auth-context";
@@ -23,11 +24,13 @@ function formatDate(value: string) {
 
 export default function LoyaltyDashboardPage() {
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
   const [summary, setSummary] = useState<LoyaltySummary>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!moduleEnabled) return;
     if (!salon) return;
     setLoading(true);
     setError("");
@@ -39,9 +42,22 @@ export default function LoyaltyDashboardPage() {
       .then((data) => setSummary(data as LoyaltySummary))
       .catch(() => setError("Non riesco a caricare il programma fedeltà."))
       .finally(() => setLoading(false));
-  }, [salon?.id]);
+  }, [moduleEnabled, salon?.id]);
 
   const metrics = summary?.metrics ?? { earned_period: 0, members: 0, outstanding_balance: 0, redeemed_period: 0 };
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <PageHeader eyebrow="Fedeltà" title="Panoramica" subtitle="Andamento del programma fedeltà: saldo in circolo, punti guadagnati e riscattati." />
+        <EmptyState
+          action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#6f244e] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#58203f]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Fedeltà dalla pagina App e moduli per gestire punti, premi e livelli dei tuoi clienti."
+          title="Modulo Fedeltà non attivo"
+        />
+      </AppPage>
+    );
+  }
 
   return (
     <AppPage maxWidth="max-w-[1600px]">

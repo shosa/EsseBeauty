@@ -13,6 +13,7 @@ import {
   staffAvailabilityRequests,
   userInterfacePreferences,
 } from "@esse-beauty/db/schema";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import {
@@ -455,7 +456,10 @@ export async function registerShellRoutes(app: FastifyInstance) {
         );
       }
 
-      if (await canSearch(app, userId, [PERMISSION_KEYS.MARKETING_SEND])) {
+      if (
+        await canSearch(app, userId, [PERMISSION_KEYS.MARKETING_SEND]) &&
+        await isModuleEnabled(request.salonId, MODULE_KEYS.MARKETING, app.db)
+      ) {
         const rows = await app.db
           .select({
             id: marketingCampaigns.id,
@@ -484,7 +488,10 @@ export async function registerShellRoutes(app: FastifyInstance) {
         );
       }
 
-      if (await canSearch(app, userId, [PERMISSION_KEYS.INVENTORY_MANAGE])) {
+      if (
+        await canSearch(app, userId, [PERMISSION_KEYS.INVENTORY_MANAGE]) &&
+        await isModuleEnabled(request.salonId, MODULE_KEYS.INVENTORY, app.db)
+      ) {
         const rows = await app.db
           .select({
             id: inventoryProducts.id,

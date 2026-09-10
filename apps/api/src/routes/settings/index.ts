@@ -20,6 +20,7 @@ import {
   type WorkingHours,
 } from "@esse-beauty/db/schema";
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 
@@ -192,6 +193,8 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
         request.body.cancellation_policy_hours < 0 ||
         request.body.max_advance_days < 1
       ) return reply.code(400).send({ error: "INVALID_PWA_SETTINGS" });
+      const allowWaitlist = request.body.allow_waitlist &&
+        (await isModuleEnabled(request.salonId, MODULE_KEYS.WAITLIST, app.db));
       await app.db.transaction(async (tx) => {
         await tx.update(salons).set({
           cancellationPolicyHours: request.body.cancellation_policy_hours,
@@ -240,7 +243,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
             allowCancellation: request.body.allow_cancellation,
             allowReschedule: request.body.allow_reschedule,
             allowStaffPreference: request.body.allow_staff_preference,
-            allowWaitlist: request.body.allow_waitlist,
+            allowWaitlist,
             bookingDefaultStatus: request.body.booking_default_status,
             maxAdvanceDays: request.body.max_advance_days,
             requireEmail: request.body.require_email,
@@ -254,7 +257,7 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
               allowCancellation: request.body.allow_cancellation,
               allowReschedule: request.body.allow_reschedule,
               allowStaffPreference: request.body.allow_staff_preference,
-              allowWaitlist: request.body.allow_waitlist,
+              allowWaitlist,
               bookingDefaultStatus: request.body.booking_default_status,
               maxAdvanceDays: request.body.max_advance_days,
               requireEmail: request.body.require_email,
@@ -503,6 +506,16 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const denied = assertSalon(request, reply);
       if (denied) return denied;
+      const existingLocations = await app.db
+        .select({ id: salonLocations.id })
+        .from(salonLocations)
+        .where(eq(salonLocations.salonId, request.salonId));
+      if (
+        existingLocations.length >= 1 &&
+        !(await isModuleEnabled(request.salonId, MODULE_KEYS.MULTI_LOCATION, app.db))
+      ) {
+        return reply.code(403).send({ error: "MODULE_DISABLED", module: MODULE_KEYS.MULTI_LOCATION });
+      }
       const rows = await app.db
         .insert(salonLocations)
         .values({

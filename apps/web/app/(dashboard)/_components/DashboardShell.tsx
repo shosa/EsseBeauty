@@ -417,6 +417,7 @@ function UnifiedSideNavigation({
 function ShellContent({ children }: { children: ReactNode }) {
   const { permissions, salon, user } = useAuth();
   const { modules } = useModules();
+  const waitlistEnabled = useModuleEnabled(MODULE_KEYS.WAITLIST);
   const pathname = usePathname();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -628,7 +629,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   }
 
   function loadWaitlistPendingCount() {
-    if (!salon?.id) return;
+    if (!salon?.id || !waitlistEnabled) return;
     void fetch(`${api}/api/salons/${salon.id}/waitlist-summary`, { credentials: "include" })
       .then((response) => response.ok ? response.json() : { pending_count: 0 })
       .then((data: { pending_count?: number }) => setWaitlistPendingCount(data.pending_count ?? 0));
@@ -642,7 +643,7 @@ function ShellContent({ children }: { children: ReactNode }) {
       if (document.visibilityState === "visible") void loadNotifications();
     }, 3_000);
     const staffInterval = window.setInterval(loadStaffRequestCount, 30_000);
-    const waitlistInterval = window.setInterval(loadWaitlistPendingCount, 30_000);
+    const waitlistInterval = waitlistEnabled ? window.setInterval(loadWaitlistPendingCount, 30_000) : undefined;
     function refresh() {
       void loadNotifications();
       loadStaffRequestCount();
@@ -657,12 +658,12 @@ function ShellContent({ children }: { children: ReactNode }) {
     return () => {
       window.clearInterval(notificationInterval);
       window.clearInterval(staffInterval);
-      window.clearInterval(waitlistInterval);
+      if (waitlistInterval !== undefined) window.clearInterval(waitlistInterval);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("esse:staff-requests-updated", refresh);
     };
-  }, [loadNotifications, salon?.id]);
+  }, [loadNotifications, salon?.id, waitlistEnabled]);
 
   useEffect(() => {
     if (!salon?.id) return;

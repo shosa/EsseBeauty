@@ -131,6 +131,19 @@ export async function processReminder(
     .where(eq(reminders.id, job.data.reminderId));
   const reminder = rows[0];
   if (!reminder || reminder.status === "sent") return;
+  if (!(await isModuleEnabled(reminder.salonId, MODULE_KEYS.REMINDERS, db))) {
+    await db
+      .update(reminders)
+      .set({
+        status: "failed",
+        payload: {
+          ...(reminder.payload as Record<string, unknown>),
+          error: "MODULE_DISABLED",
+        },
+      })
+      .where(eq(reminders.id, reminder.id));
+    return;
+  }
   const payload = reminder.payload as {
     customerId: string;
     customerName: string;

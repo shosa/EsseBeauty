@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, EmptyState, InlineError, PageSkeleton } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { EmailPreview, PushPreview, PushTextEditor, RichTextEditor } from "../_components/MarketingEditors";
 
 import { useAuth } from "../../../../lib/auth-context";
@@ -31,6 +33,7 @@ export default function CampaignDetailPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const router = useRouter();
   const { salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.MARKETING);
   const [campaign, setCampaign] = useState<Campaign>();
   const [stats, setStats] = useState<Stats>();
   const [error, setError] = useState("");
@@ -41,6 +44,7 @@ export default function CampaignDetailPage() {
   const [readiness, setReadiness] = useState<Record<"app" | "email" | "whatsapp", "ready" | "not_configured">>();
 
   async function load(showLoading = true) {
+    if (!moduleEnabled) return;
     if (!salon) return;
     if (showLoading) setLoading(true);
     const [campaignsResponse, statsResponse, readinessResponse] = await Promise.all([
@@ -62,13 +66,14 @@ export default function CampaignDetailPage() {
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, [salon?.id, campaignId]);
+  useEffect(() => { void load(); }, [moduleEnabled, salon?.id, campaignId]);
 
   useEffect(() => {
+    if (!moduleEnabled) return;
     if (!campaign || !["queued", "processing"].includes(campaign.status)) return;
     const timer = window.setInterval(() => void load(false), 3_000);
     return () => window.clearInterval(timer);
-  }, [campaign?.status, salon?.id, campaignId]);
+  }, [moduleEnabled, campaign?.status, salon?.id, campaignId]);
 
   async function save(data: FormData) {
     if (!salon || !campaign) return;
@@ -122,6 +127,23 @@ export default function CampaignDetailPage() {
       return;
     }
     await load(false);
+  }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <div className="mx-auto max-w-5xl">
+          <Breadcrumbs items={[{ href: "/marketing", label: "Marketing" }, { label: "Campagna" }]} />
+          <div className="mt-5">
+            <EmptyState
+              action={<Link className="inline-flex min-h-10 items-center rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#63204a]" href="/apps">Vai a App e moduli</Link>}
+              description="Attiva il modulo Marketing dalla pagina App e moduli per consultare questa campagna."
+              title="Modulo Marketing non attivo"
+            />
+          </div>
+        </div>
+      </AppPage>
+    );
   }
 
   if (loading) return <PageSkeleton />;

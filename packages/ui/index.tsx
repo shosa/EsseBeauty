@@ -312,18 +312,27 @@ export function SaveActionButton({
   saved: boolean;
   type?: "button" | "submit";
 }) {
+  const [showSaved, setShowSaved] = useState(false);
+
+  useEffect(() => {
+    if (!saved) return;
+    setShowSaved(true);
+    const timeout = window.setTimeout(() => setShowSaved(false), 2000);
+    return () => window.clearTimeout(timeout);
+  }, [saved]);
+
   return (
     <span aria-live="polite" className={`inline-flex ${className}`}>
       <Button
         aria-busy={busy}
-        className={saved ? "save-action-confirmed" : "transition-[background-color,border-color,transform] duration-200"}
+        className={showSaved ? "save-action-confirmed" : "transition-[background-color,border-color,transform] duration-200"}
         disabled={disabled || busy}
         onClick={onClick}
         type={type}
         variant="primary"
       >
-        {busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : saved ? <Check aria-hidden="true" className="size-4" /> : null}
-        {busy ? "Salvataggio…" : saved ? "Salvato" : idleLabel}
+        {busy ? <LoaderCircle aria-hidden="true" className="size-4 animate-spin" /> : showSaved ? <Check aria-hidden="true" className="size-4" /> : null}
+        {busy ? "Salvataggio…" : showSaved ? "Salvato" : idleLabel}
       </Button>
     </span>
   );

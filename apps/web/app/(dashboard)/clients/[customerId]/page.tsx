@@ -88,6 +88,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
   const { hasPermission, salon } = useAuth();
   const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const loyaltyEnabled = useModuleEnabled(MODULE_KEYS.LOYALTY);
+  const packagesEnabled = useModuleEnabled(MODULE_KEYS.PACKAGES);
   const canManageLoyalty = hasPermission(PERMISSION_KEYS.LOYALTY_MANAGE);
   const [customer, setCustomer] = useState<Customer>();
   const [vouchers, setVouchers] = useState<PurchaseVoucher[]>([]);
@@ -246,6 +247,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
     return past ? new Date(past.starts_at).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : "Mai";
   }, [customer, now]);
   const voucherBalance = useMemo(() => vouchers.filter((voucher) => voucher.status === "active").reduce((sum, voucher) => sum + voucher.balance_cents, 0), [vouchers]);
+  const visibleTabs = useMemo(() => tabs.filter((item) => item.key !== "packages" || packagesEnabled), [packagesEnabled]);
 
   if (error && !customer) return <AppPage maxWidth="max-w-[1600px]"><p className="text-red-700">{error}</p></AppPage>;
   if (!customer) return <AppPage maxWidth="max-w-[1600px]"><div className="h-72 animate-pulse rounded-2xl bg-stone-100" /></AppPage>;
@@ -290,15 +292,15 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
 
         {error && <p className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
 
-        <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] md:grid-cols-4">
+        <div className={`mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[#e8dfe4] bg-[#e8dfe4] ${packagesEnabled ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
           <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{customer.appointments.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Appuntamenti</span></div>
           <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{lastVisit}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Ultima visita</span></div>
           <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{money(voucherBalance)}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Buoni residui</span></div>
-          <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{packages.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Pacchetti attivi</span></div>
+          {packagesEnabled && <div className="bg-white px-5 py-4"><strong className="block text-2xl font-bold text-[#402334]">{packages.length}</strong><span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">Pacchetti attivi</span></div>}
         </div>
 
         <nav aria-label="Sezioni scheda cliente" className="no-scrollbar mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
-          {tabs.map((item) => {
+          {visibleTabs.map((item) => {
             const count = item.key === "appointments" ? customer.appointments.length : item.key === "packages" ? packages.length : undefined;
             const active = tab === item.key;
             return (

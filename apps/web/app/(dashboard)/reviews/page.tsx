@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useReducer, useState } from "react";
 
 import { PERMISSION_KEYS } from "@esse-beauty/shared";
 import { AppPage, Button, Dialog, EmptyState, SectionCard, StatusBadge } from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../lib/auth-context";
 import {
@@ -37,6 +39,7 @@ function stars(rating: number) {
 
 export default function ReviewsPage() {
   const { hasPermission, salon } = useAuth();
+  const moduleEnabled = useModuleEnabled(MODULE_KEYS.REVIEWS);
   const pathname = usePathname();
   const activeTab = pathname.startsWith("/reviews/requests") ? "requests" : "overview";
   const [list, dispatchList] = useReducer(reviewListReducer, initialReviewListState);
@@ -58,7 +61,7 @@ export default function ReviewsPage() {
   const [reviewQuery, setReviewQuery] = useState("");
   const [visibleReviewCount, setVisibleReviewCount] = useState(12);
   const load = async () => {
-    if (!salon) return;
+    if (!moduleEnabled || !salon) return;
     dispatchList({ type: "load" });
     try {
       const response = await fetch(`${api}/api/salons/${salon.id}/reviews`, { credentials: "include" });
@@ -68,9 +71,9 @@ export default function ReviewsPage() {
       dispatchList({ error: "Caricamento recensioni non riuscito. Riprova.", type: "failure" });
     }
   };
-  useEffect(() => { void load(); }, [salon]);
+  useEffect(() => { void load(); }, [moduleEnabled, salon]);
   const loadCollection = async () => {
-    if (!salon) return;
+    if (!moduleEnabled || !salon) return;
     setCollectionLoading(true); setCollectionError("");
     try {
       const [settingsResponse, collectionResponse] = await Promise.all([fetch(`${api}/api/salons/${salon.id}/reviews/request-settings`, { credentials: "include" }), fetch(`${api}/api/salons/${salon.id}/reviews/collection`, { credentials: "include" })]);
@@ -79,7 +82,7 @@ export default function ReviewsPage() {
     } catch { setCollectionError("Impossibile caricare la raccolta recensioni."); }
     finally { setCollectionLoading(false); }
   };
-  useEffect(() => { void loadCollection(); }, [salon]);
+  useEffect(() => { void loadCollection(); }, [moduleEnabled, salon]);
   const average = useMemo(() => items.length ? items.reduce((sum, item) => sum + item.rating, 0) / items.length : 0, [items]);
   const published = useMemo(() => items.filter((item) => item.published).length, [items]);
   const unanswered = useMemo(() => items.filter((item) => !item.reply).length, [items]);
@@ -173,6 +176,22 @@ export default function ReviewsPage() {
     setManualPending(false);
     if (!response.ok) return setCollectionError("Invio della richiesta non riuscito. Verifica contatti e configurazione dei canali.");
     setManualTarget(undefined); await loadCollection();
+  }
+
+  if (!moduleEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <header className="mb-7 border-b border-stone-200 pb-6 sm:mb-8 sm:pb-8">
+          <p className="text-sm font-bold text-[#8b3b68]">Voce dei clienti</p>
+          <h1 className="mt-2 font-serif text-4xl font-bold tracking-[-.035em] text-stone-950 sm:text-5xl">Recensioni</h1>
+        </header>
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          description="Il modulo Recensioni non è attivo per questo salone. Attivalo dalla pagina App e moduli per raccogliere e gestire le recensioni dei clienti."
+          title="Modulo Recensioni non attivo"
+        />
+      </AppPage>
+    );
   }
 
   return (

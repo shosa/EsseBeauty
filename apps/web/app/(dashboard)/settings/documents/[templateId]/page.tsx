@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { ChevronRight, FilePlus2, FileText } from "lucide-react";
 
 import { AppPage, Breadcrumbs, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageSkeleton, SaveActionButton, SectionCard, Switch, Select} from "@esse-beauty/ui";
+import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../../lib/auth-context";
 
@@ -26,6 +28,7 @@ export default function DocumentVersionPage() {
   const { templateId } = useParams<{ templateId: string }>();
   const router = useRouter();
   const { salon } = useAuth();
+  const documentsEnabled = useModuleEnabled(MODULE_KEYS.DOCUMENTS);
   const [template, setTemplate] = useState<ConsentTemplate>();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +43,7 @@ export default function DocumentVersionPage() {
 
   const load = useCallback(async () => {
     if (!salon?.id) return;
+    if (!documentsEnabled) { setLoading(false); return; }
     setLoading(true);
     try {
       const [templateResponse, serviceResponse] = await Promise.all([
@@ -58,7 +62,7 @@ export default function DocumentVersionPage() {
     } finally {
       setLoading(false);
     }
-  }, [salon?.id, templateId]);
+  }, [salon?.id, templateId, documentsEnabled]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -126,6 +130,19 @@ export default function DocumentVersionPage() {
     } finally {
       setArchiving(false);
     }
+  }
+
+  if (!documentsEnabled) {
+    return (
+      <AppPage maxWidth="max-w-[1600px]">
+        <Breadcrumbs items={[{ href: "/settings/documents", label: "Documenti e consensi" }, { label: "Versione" }]} />
+        <EmptyState
+          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai a App e moduli</Link>}
+          description="Attiva il modulo Documenti dalla pagina App e moduli per gestire le versioni di questo modello."
+          title="Modulo Documenti non attivo"
+        />
+      </AppPage>
+    );
   }
 
   if (loading) return <PageSkeleton />;
