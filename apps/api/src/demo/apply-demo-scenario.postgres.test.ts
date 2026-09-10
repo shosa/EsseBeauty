@@ -17,7 +17,7 @@ import {
 } from "@esse-beauty/db/schema";
 
 import { testDatabaseUrl } from "../test/postgres.js";
-import { verifyPassword } from "../routes/auth/local-auth.js";
+import { verifyPassword } from "@esse-beauty/server-shared";
 import { applyDemoScenario } from "./apply-demo-scenario.js";
 import { buildDemoScenario } from "./build-demo-scenario.js";
 import { DEMO_IDENTITY } from "./scenario-types.js";

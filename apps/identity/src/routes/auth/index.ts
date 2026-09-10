@@ -19,7 +19,18 @@ import {
   USER_ROLES,
   type UserRole,
 } from "@esse-beauty/shared";
-import { inspectPublicToken, issuePublicToken } from "@esse-beauty/server-shared";
+import {
+  createSessionToken,
+  hashPassword,
+  hashSessionToken,
+  inspectPublicToken,
+  issuePublicToken,
+  parseBody,
+  type SafeParseSchema,
+  sessionCookieForClient,
+  SESSION_DURATION_MS,
+  verifyPassword,
+} from "@esse-beauty/server-shared";
 import {
   createCommunicationProviderRegistry,
   type CommunicationProviderRegistry,
@@ -30,15 +41,6 @@ import {
   requirePermission,
   requireRole,
 } from "../../middleware/auth.js";
-import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
-import {
-  createSessionToken,
-  hashPassword,
-  hashSessionToken,
-  sessionCookieForClient,
-  SESSION_DURATION_MS,
-  verifyPassword,
-} from "./local-auth.js";
 
 const userRoleSet = new Set<string>(USER_ROLES);
 const PASSWORD_RESET_DURATION_MS = 30 * 60_000;

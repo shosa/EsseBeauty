@@ -72,12 +72,9 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
-      REDIS_URL: redis://redis:6379
     depends_on:
       migrate:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
     healthcheck:
       test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
       interval: 10s
@@ -217,6 +214,33 @@ services:
     networks:
       - app
 
+  identity:
+    container_name: esse-beauty-identity
+    build:
+      context: .
+      dockerfile: apps/identity/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3009
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3009/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - app
+
   gateway:
     container_name: esse-beauty-gateway
     image: nginx:1.27-alpine
@@ -235,6 +259,8 @@ services:
       booking:
         condition: service_healthy
       commerce:
+        condition: service_healthy
+      identity:
         condition: service_healthy
     networks:
       - app

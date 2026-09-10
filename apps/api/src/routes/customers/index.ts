@@ -16,7 +16,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { isValidBirthday, normalizePhoneE164, PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
-import { hashPassword } from "../auth/local-auth.js";
+import { hashPassword } from "@esse-beauty/server-shared";
 
 const viewGuard = [
   authenticate,

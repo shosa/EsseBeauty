@@ -31,12 +31,12 @@ import {
 
 import {
   createSessionToken,
+  encryptProviderSecret,
   hashPassword,
   hashSessionToken,
   SESSION_DURATION_MS,
   verifyPassword,
-} from "../auth/local-auth.js";
-import { encryptProviderSecret } from "@esse-beauty/server-shared";
+} from "@esse-beauty/server-shared";
 import { testPlatformEmailConnection } from "@esse-beauty/comms-contracts";
 
 const PLATFORM_SESSION_COOKIE = "esse-platform-session";

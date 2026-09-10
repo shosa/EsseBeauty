@@ -6,7 +6,7 @@ import { appointments, authSessions, availabilityBlocks, notifications, salonLoc
 import { hasPermission, PERMISSION_KEYS, qualifiedStaffIds, type WorkingHours } from "@esse-beauty/shared";
 import { createNotification } from "../../jobs/notifications.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
-import { hashPassword } from "../auth/local-auth.js";
+import { hashPassword } from "@esse-beauty/server-shared";
 
 interface StaffBody {
   user_id?: string | null;

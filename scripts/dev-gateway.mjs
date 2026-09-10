@@ -1,8 +1,8 @@
 // Native (non-Docker) dev-time equivalent of gateway/nginx.conf: listens on
 // the port every frontend's NEXT_PUBLIC_API_URL already points at and
 // forwards to apps/api, apps/communications, apps/loyalty-marketing,
-// apps/booking, or apps/commerce by path, so a local `pnpm run dev` doesn't
-// need Docker to see the five backends as one origin.
+// apps/booking, apps/commerce, or apps/identity by path, so a local
+// `pnpm run dev` doesn't need Docker to see the six backends as one origin.
 import { createServer, request as httpRequest } from "node:http";
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 3001);
@@ -11,6 +11,7 @@ const COMMUNICATIONS_TARGET = process.env.COMMUNICATIONS_PORT ?? 3013;
 const LOYALTY_MARKETING_TARGET = process.env.LOYALTY_MARKETING_PORT ?? 3006;
 const BOOKING_TARGET = process.env.BOOKING_PORT ?? 3007;
 const COMMERCE_TARGET = process.env.COMMERCE_PORT ?? 3008;
+const IDENTITY_TARGET = process.env.IDENTITY_PORT ?? 3009;
 
 const COMMUNICATIONS_PATTERNS = [
   /^\/api\/salons\/[^/]+\/(communications|reminders|reviews|review-invitations)(\/|$)/,
@@ -40,12 +41,20 @@ const COMMERCE_PATTERNS = [
   /^\/api\/salons\/[^/]+\/(inventory|pos-catalog|pos-checkout|pos-customers|sales|vouchers|accounting)(\/|$)/,
 ];
 
+// Customer auth (/api/public/:slug/customer-auth/...) stays on the core API
+// — it's a different identity surface tied to the public booking domain, not
+// checked here.
+const IDENTITY_PATTERNS = [
+  /^\/api\/auth\//,
+];
+
 function targetPortFor(url) {
   if (COMMERCE_OVERRIDE_PATTERNS.some((pattern) => pattern.test(url))) return COMMERCE_TARGET;
   if (COMMUNICATIONS_PATTERNS.some((pattern) => pattern.test(url))) return COMMUNICATIONS_TARGET;
   if (LOYALTY_MARKETING_PATTERNS.some((pattern) => pattern.test(url))) return LOYALTY_MARKETING_TARGET;
   if (BOOKING_PATTERNS.some((pattern) => pattern.test(url))) return BOOKING_TARGET;
   if (COMMERCE_PATTERNS.some((pattern) => pattern.test(url))) return COMMERCE_TARGET;
+  if (IDENTITY_PATTERNS.some((pattern) => pattern.test(url))) return IDENTITY_TARGET;
   return API_TARGET;
 }
 
@@ -72,5 +81,5 @@ const server = createServer((clientRequest, clientResponse) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[dev-gateway] listening on :${PORT} -> api::${API_TARGET}, communications::${COMMUNICATIONS_TARGET}, loyalty-marketing::${LOYALTY_MARKETING_TARGET}, booking::${BOOKING_TARGET}, commerce::${COMMERCE_TARGET}`);
+  console.log(`[dev-gateway] listening on :${PORT} -> api::${API_TARGET}, communications::${COMMUNICATIONS_TARGET}, loyalty-marketing::${LOYALTY_MARKETING_TARGET}, booking::${BOOKING_TARGET}, commerce::${COMMERCE_TARGET}, identity::${IDENTITY_TARGET}`);
 });

@@ -14,9 +14,10 @@ import {
 
 import type { CommunicationMessage, CommunicationProviderRegistry } from "@esse-beauty/comms-contracts";
 
+import { hashPassword, hashSessionToken, verifyPassword } from "@esse-beauty/server-shared";
+
 import { createApp } from "../../app.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
-import { hashPassword, hashSessionToken, verifyPassword } from "./local-auth.js";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;

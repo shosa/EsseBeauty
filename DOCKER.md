@@ -10,7 +10,8 @@ Lo stack comprende:
 - `esse-beauty-loyalty-marketing`: Fastify (punti fedeltà, premi, campagne email/WhatsApp), raggiungibile internamente come `loyalty-marketing:3006`
 - `esse-beauty-booking`: Fastify (appuntamenti, slot, calendario, lista d'attesa), raggiungibile internamente come `booking:3007`
 - `esse-beauty-commerce`: Fastify (magazzino, cassa/POS, vendite, buoni acquisto, contabilità), raggiungibile internamente come `commerce:3008`
-- `esse-beauty-gateway`: nginx che smista `/api/**` tra `api`, `communications`, `loyalty-marketing`, `booking` e `commerce` in base al path ed espone `http://localhost:3001` — è l'unico punto d'ingresso dell'API, i frontend continuano a puntare qui senza modifiche
+- `esse-beauty-identity`: Fastify (login/logout staff, sessioni, recupero password, utenti e permessi), raggiungibile internamente come `identity:3009`
+- `esse-beauty-gateway`: nginx che smista `/api/**` tra `api`, `communications`, `loyalty-marketing`, `booking`, `commerce` e `identity` in base al path ed espone `http://localhost:3001` — è l'unico punto d'ingresso dell'API, i frontend continuano a puntare qui senza modifiche
 - `esse-beauty-web`: dashboard Next.js su `http://localhost:3000`
 - `esse-beauty-pwa`: portale clienti su `http://localhost:3002`
 - `esse-beauty-staff-pwa`: portale staff su `http://localhost:3003`

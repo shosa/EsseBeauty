@@ -5,15 +5,6 @@ import {
 } from "node:crypto";
 import { promisify } from "node:util";
 
-export {
-  hashSessionToken,
-  SESSION_COOKIE,
-  SESSION_DURATION_MS,
-  sessionCookieForClient,
-  STAFF_SESSION_COOKIE,
-  WEB_SESSION_COOKIE,
-} from "@esse-beauty/server-shared";
-
 const scrypt = promisify(scryptCallback);
 
 export async function hashPassword(

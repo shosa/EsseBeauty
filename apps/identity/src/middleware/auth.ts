@@ -1,6 +1,7 @@
 import type { preHandlerHookHandler } from "fastify";
 import { and, eq, gt } from "drizzle-orm";
 
+import type { DrizzleDB } from "@esse-beauty/db";
 import { authSessions, users } from "@esse-beauty/db/schema";
 import {
   hasPermission,
@@ -19,8 +20,17 @@ export interface AuthenticatedUser {
   sub: string;
 }
 
+// Every other service picks up the FastifyInstance.db / FastifyRequest.salonId
+// augmentation as a side effect of importing @esse-beauty/feature-flags for
+// module gating. Identity has no module-gated routes (login isn't
+// salon-scoped the same way), so it declares the same augmentation directly
+// instead of taking on an otherwise-unused dependency.
 declare module "fastify" {
+  interface FastifyInstance {
+    db: DrizzleDB;
+  }
   interface FastifyRequest {
+    salonId: string;
     user: AuthenticatedUser;
   }
 }

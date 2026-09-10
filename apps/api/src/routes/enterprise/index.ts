@@ -41,7 +41,7 @@ import {
   type ConsentRequestRecord,
 } from "../../lib/consent-evidence.js";
 import { clearCustomerAppMessage, sendCustomerAppMessage } from "@esse-beauty/comms-contracts";
-import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
+import { parseBody, type SafeParseSchema } from "@esse-beauty/server-shared";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const deliveryChannels = new Set<ConsentDeliveryChannel>(["email", "in_person", "push", "whatsapp"]);

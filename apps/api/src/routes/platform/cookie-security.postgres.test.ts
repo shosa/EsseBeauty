@@ -8,7 +8,7 @@ import { platformAdmins } from "@esse-beauty/db/schema";
 
 import { createApp } from "../../app.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
-import { hashPassword } from "../auth/local-auth.js";
+import { hashPassword } from "@esse-beauty/server-shared";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;

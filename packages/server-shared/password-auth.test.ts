@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createSessionToken,
-  hashPassword,
-  hashSessionToken,
-  sessionCookieForClient,
-  STAFF_SESSION_COOKIE,
-  WEB_SESSION_COOKIE,
-  verifyPassword,
-} from "./local-auth.js";
+import { hashSessionToken, sessionCookieForClient, STAFF_SESSION_COOKIE, WEB_SESSION_COOKIE } from "./auth-session.js";
+import { createSessionToken, hashPassword, verifyPassword } from "./password-auth.js";
 
 describe("local auth", () => {
   it("hashes and verifies passwords", async () => {

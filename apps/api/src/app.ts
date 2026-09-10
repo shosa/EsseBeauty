@@ -14,7 +14,6 @@ import type { CommunicationProviderRegistry } from "@esse-beauty/comms-contracts
 
 import { authenticate } from "./middleware/auth.js";
 import { registerAuditLogHooks } from "./jobs/audit-log.js";
-import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
 import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerOnboardingRoutes } from "./routes/onboarding/index.js";
@@ -121,7 +120,6 @@ export function createApp({
     timestamp: new Date().toISOString(),
   }));
 
-  void registerAuthRoutes(app, { providers: authProviders });
   void registerServiceRoutes(app);
   void registerStaffRoutes(app);
   void registerCustomerRoutes(app);

@@ -1,11 +1,10 @@
 {
-  "name": "@esse-beauty/api",
+  "name": "@esse-beauty/identity",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "demo:seed": "tsx scripts/seed-demo.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "tsc --noEmit",
     "start": "node dist/index.js",
