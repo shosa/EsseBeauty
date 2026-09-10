@@ -1233,7 +1233,7 @@ export function SaveToast({
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           aria-live={variant === "error" ? "assertive" : "polite"}
-          className={`fixed inset-x-4 bottom-5 z-50 mx-auto flex min-h-16 w-auto max-w-[min(720px,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant].surface}`}
+          className={`fixed inset-x-4 bottom-5 z-50 mx-auto flex min-h-16 w-[min(720px,calc(100vw-2rem))] items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-sm font-semibold ${variants[variant].surface}`}
           exit={{ opacity: 0, y: 10, scale: 0.98 }}
           initial={{ opacity: 0, y: 10, scale: 0.98 }}
           role={variant === "error" ? "alert" : "status"}

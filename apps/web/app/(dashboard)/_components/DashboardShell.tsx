@@ -714,7 +714,7 @@ function ShellContent({ children }: { children: ReactNode }) {
       />
       <AppointmentRequestModal appointmentId={appointmentRequestId ?? null} onChanged={() => void loadNotifications()} onClose={() => setAppointmentRequestId(undefined)} />
       <WhatsAppChatDrawer />
-      <Toast.Provider swipeDirection="right"><Toast.Viewport className="pointer-events-none fixed right-4 top-20 z-[90] m-0 flex w-[min(360px,calc(100vw-1.5rem))] list-none flex-col gap-3 p-0 outline-none">
+      <Toast.Provider swipeDirection="right"><Toast.Viewport className="pointer-events-none fixed right-4 top-20 z-[90] m-0 flex w-[min(420px,calc(100vw-1.5rem))] list-none flex-col gap-3 p-0 outline-none">
         {whatsappPreviews.map((item) => <WhatsAppIncomingToast body={item.body} key={item.id} onDismiss={() => setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => { setWhatsappPreviews((current) => current.filter((candidate) => candidate.id !== item.id)); communications.selectConversation(item.conversationId); communications.openChat(); }} title={item.title} />)}
         {notificationPreviews.map((item) => (item.type === "online_booking_received" || item.type === "booking_created")
           ? <BookingArrivalToast body={item.body} key={item.id} onDismiss={() => setNotificationPreviews((current) => current.filter((candidate) => candidate.id !== item.id))} onOpen={() => openNotification(item)} startsAt={item.appointment_starts_at ?? item.created_at} title={item.title} />
