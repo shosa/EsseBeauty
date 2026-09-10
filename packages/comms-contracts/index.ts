@@ -42,6 +42,7 @@ export {
   ensureReviewInvitation,
   REVIEW_JOB_OPTIONS,
   REVIEW_MAX_DELIVERY_ATTEMPTS,
+  scheduleAutomaticReviewRequest,
   scheduleReviewInvitation,
   scheduleReviewRequest,
 } from "./review-scheduling.js";

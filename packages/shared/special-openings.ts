@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { salonSpecialOpeningStaff, salonSpecialOpenings, type TimePeriods } from "@esse-beauty/db/schema";
-import type { Weekday, WorkingHours } from "@esse-beauty/shared";
+import type { Weekday, WorkingHours } from "./types.js";
 
 const weekdayByIndex: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 

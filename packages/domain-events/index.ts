@@ -1,11 +1,9 @@
 export {
-  scheduleAppointmentCompletedLoyaltyAward,
   scheduleReviewSubmittedLoyaltyAward,
   scheduleSaleCompletedLoyaltyAward,
   scheduleSaleVoidedLoyaltyExpiry,
 } from "./loyalty-events.js";
 export type {
-  AppointmentCompletedLoyaltyAwardJob,
   LoyaltyEventQueue,
   ReviewSubmittedLoyaltyAwardJob,
   SaleCompletedLoyaltyAwardJob,

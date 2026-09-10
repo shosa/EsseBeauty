@@ -13,10 +13,8 @@ import { salonModules } from "@esse-beauty/db/schema";
 import type { CommunicationProviderRegistry } from "@esse-beauty/comms-contracts";
 
 import { authenticate } from "./middleware/auth.js";
-import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
 import { registerAuditLogHooks } from "./jobs/audit-log.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
-import { registerAppointmentRoutes } from "./routes/appointments/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
 import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
@@ -33,7 +31,6 @@ import { registerSettingsRoutes } from "./routes/settings/index.js";
 import { registerShellRoutes } from "./routes/shell/index.js";
 import { registerStaffAppRoutes } from "./routes/staff-app/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
-import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
 import { registerVoucherRoutes } from "./routes/vouchers/index.js";
 
 interface ApiEnvironment {
@@ -112,7 +109,6 @@ export function createApp({
     timeWindow: "1 minute",
   });
 
-  registerAppointmentEventHooks(app);
   registerAuditLogHooks(app);
 
   const bindSalon: preHandlerHookHandler = async (request, reply) => {
@@ -131,14 +127,12 @@ export function createApp({
   void registerAuthRoutes(app, { providers: authProviders });
   void registerServiceRoutes(app);
   void registerStaffRoutes(app);
-  void registerAppointmentRoutes(app);
   void registerCustomerRoutes(app);
   void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);
   void registerPublicCustomerAuthRoutes(app, { providers: authProviders });
   void registerPublicPushSubscriptionRoutes(app);
   void registerPublicMessageRoutes(app);
-  void registerWaitlistRoutes(app);
   void registerVoucherRoutes(app);
   void registerOnboardingRoutes(app);
   void registerInventoryRoutes(app);

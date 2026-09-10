@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Job } from "bullmq";
 
@@ -17,11 +17,7 @@ import {
 
 import { testDatabaseUrl } from "../test/postgres.js";
 
-const scheduleAppointmentCompletedLoyaltyAward = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock("@esse-beauty/domain-events", () => ({ scheduleAppointmentCompletedLoyaltyAward }));
-
 import {
-  processLoyaltyAward,
   processWaitlistRematch,
   type AppointmentFollowupJobData,
 } from "./appointment-events.js";
@@ -33,53 +29,6 @@ postgresSuite("appointment follow-up worker with PostgreSQL", () => {
   let db: DrizzleDB;
   beforeAll(() => { db = createDatabase(databaseUrl!); });
   afterAll(async () => { await db.$client.end(); });
-
-  it("schedules the loyalty-award event for a completed appointment with a loyalty-enabled salon", async () => {
-    const salonId = randomUUID();
-    const customerId = randomUUID();
-    const staffId = randomUUID();
-    const serviceId = randomUUID();
-    const appointmentId = randomUUID();
-    await db.insert(salons).values({ id: salonId, locale: "it-IT", name: "Loyalty Follow-up", slug: `loyalty-followup-${salonId}`, timezone: "Europe/Rome" });
-    try {
-      await db.insert(customers).values({ fullName: "Mario Rossi", id: customerId, salonId });
-      await db.insert(staff).values({ color: "#000000", displayName: "Anna", id: staffId, salonId, workingHours: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } });
-      await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Pulizia viso", priceCents: 5000, salonId });
-      await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "completed" });
-      await db.insert(salonModules).values({ enabled: true, moduleKey: "loyalty", salonId });
-
-      scheduleAppointmentCompletedLoyaltyAward.mockClear();
-      const job = { data: { appointmentId } } as Job<AppointmentFollowupJobData>;
-      await processLoyaltyAward(db, job);
-
-      expect(scheduleAppointmentCompletedLoyaltyAward).toHaveBeenCalledWith({ appointmentId, customerId, salonId });
-    } finally {
-      await db.delete(salons).where(eq(salons.id, salonId));
-    }
-  });
-
-  it("does not schedule a loyalty award when the module is disabled or the appointment is no longer completed", async () => {
-    const salonId = randomUUID();
-    const customerId = randomUUID();
-    const staffId = randomUUID();
-    const serviceId = randomUUID();
-    const appointmentId = randomUUID();
-    await db.insert(salons).values({ id: salonId, locale: "it-IT", name: "Loyalty Disabled", slug: `loyalty-disabled-${salonId}`, timezone: "Europe/Rome" });
-    try {
-      await db.insert(customers).values({ fullName: "Mario Rossi", id: customerId, salonId });
-      await db.insert(staff).values({ color: "#000000", displayName: "Anna", id: staffId, salonId, workingHours: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] } });
-      await db.insert(services).values({ category: "Viso", durationMinutes: 30, id: serviceId, name: "Pulizia viso", priceCents: 5000, salonId });
-      await db.insert(appointments).values({ customerId, endsAt: new Date(Date.now() + 30 * 60_000), id: appointmentId, salonId, serviceId, source: "manual", staffId, startsAt: new Date(), status: "cancelled" });
-
-      scheduleAppointmentCompletedLoyaltyAward.mockClear();
-      const job = { data: { appointmentId } } as Job<AppointmentFollowupJobData>;
-      await processLoyaltyAward(db, job);
-
-      expect(scheduleAppointmentCompletedLoyaltyAward).not.toHaveBeenCalled();
-    } finally {
-      await db.delete(salons).where(eq(salons.id, salonId));
-    }
-  });
 
   it("matches a waiting entry, notifies it by WhatsApp, and marks it notified", async () => {
     const salonId = randomUUID();

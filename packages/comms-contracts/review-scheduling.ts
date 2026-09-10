@@ -7,9 +7,13 @@ import {
   customers,
   reviewInvitationDeliveries,
   reviewInvitations,
+  reviewRequestSettings,
+  salons,
 } from "@esse-beauty/db/schema";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { getQueue, QUEUE_NAMES } from "@esse-beauty/queue-client";
+import { scheduledReviewTime } from "./review-policy.js";
 
 // The producer half of review scheduling: durably records that an
 // appointment is (or should be) getting a review invitation and wakes the
@@ -139,4 +143,27 @@ export async function scheduleReviewRequest(
     deliveries.push(delivery);
   }
   return { deliveries, invitation };
+}
+
+/**
+ * Whatever service completes an appointment (only sale checkout does —
+ * routes/appointments explicitly refuses a direct "completed" PATCH) calls
+ * this afterwards to schedule the salon's automatic review request, if the
+ * module and policy allow it. Kept here so the completion logic doesn't
+ * need to duplicate the reviews module/settings check itself.
+ */
+export async function scheduleAutomaticReviewRequest(
+  db: DrizzleDB,
+  appointment: { id: string; salonId: string },
+  queue: ReviewQueue = getQueue(QUEUE_NAMES.REVIEWS),
+): Promise<void> {
+  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.REVIEWS, db))) return;
+  const policy = (await db.select().from(reviewRequestSettings).where(eq(reviewRequestSettings.salonId, appointment.salonId)))[0];
+  if (!policy?.automaticEnabled) return;
+  const salon = (await db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, appointment.salonId)))[0];
+  if (!salon) return;
+  await scheduleReviewRequest(db, appointment.id, {
+    channels: policy.channels,
+    scheduledAt: scheduledReviewTime(new Date(), policy.delayPreset, salon.timezone),
+  }, queue);
 }

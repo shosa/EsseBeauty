@@ -3,9 +3,8 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { appointments, authSessions, availabilityBlocks, notifications, salonLocations, salons, services, serviceStaff, staff, staffAvailabilityRequests, userCredentials, users } from "@esse-beauty/db/schema";
-import { hasPermission, PERMISSION_KEYS, type WorkingHours } from "@esse-beauty/shared";
+import { hasPermission, PERMISSION_KEYS, qualifiedStaffIds, type WorkingHours } from "@esse-beauty/shared";
 import { createNotification } from "../../jobs/notifications.js";
-import { qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { authenticate, requirePermission } from "../../middleware/auth.js";
 import { hashPassword } from "../auth/local-auth.js";
 

@@ -86,9 +86,7 @@ describe("appointment conflicts", () => {
 describe("appointment status API workflow", () => {
   it("requires checkout to complete appointments instead of manual PATCH status changes", () => {
     const appointmentsSource = readFileSync(join(process.cwd(), "src", "routes", "appointments", "index.ts"), "utf8");
-    const salesSource = readFileSync(join(process.cwd(), "src", "routes", "sales", "index.ts"), "utf8");
     expect(appointmentsSource).toContain("APPOINTMENT_COMPLETION_REQUIRES_CHECKOUT");
     expect(appointmentsSource).toContain('request.body.status === "completed"');
-    expect(salesSource).toContain('status: "completed"');
   });
 });

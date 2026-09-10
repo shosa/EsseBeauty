@@ -11,4 +11,10 @@ describe("multi-channel review scheduler", () => {
     expect(scheduling).toContain("deliveryId");
     expect(scheduling).toContain("channel");
   });
+
+  it("reads the salon policy when an appointment completes", () => {
+    expect(scheduling).toContain("reviewRequestSettings");
+    expect(scheduling).toContain("scheduledReviewTime");
+    expect(scheduling).toContain("automaticEnabled");
+  });
 });

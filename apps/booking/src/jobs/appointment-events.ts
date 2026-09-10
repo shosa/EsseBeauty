@@ -7,26 +7,18 @@ import {
   appointments,
   customers,
   notifications,
-  reviewRequestSettings,
   salons,
   services,
   waitlistEntries,
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
-import {
-  enqueueCommunication,
-  scheduledReviewTime,
-  scheduleReviewInvitation,
-  scheduleReviewRequest,
-  sendEmail,
-} from "@esse-beauty/comms-contracts";
+import { enqueueCommunication, sendEmail } from "@esse-beauty/comms-contracts";
 import { getQueue, QUEUE_NAMES, redisConnection } from "@esse-beauty/queue-client";
-import { scheduleAppointmentCompletedLoyaltyAward } from "@esse-beauty/domain-events";
 
 interface Transition {
   appointmentId: string;
   previousStatus: string;
-  nextStatus: "completed" | "cancelled";
+  nextStatus: "cancelled";
 }
 
 declare module "fastify" {
@@ -35,40 +27,30 @@ declare module "fastify" {
   }
 }
 
+// Only PATCH .../appointments/:id can transition to "cancelled" here — a
+// direct "completed" PATCH is refused by routes/appointments (see
+// APPOINTMENT_COMPLETION_REQUIRES_CHECKOUT); completion only ever happens
+// through apps/api's sale checkout, which schedules its own loyalty-award
+// and review-request follow-ups after its transaction commits (see
+// routes/sales/index.ts) since it isn't on this Fastify app to share this
+// hook. This hook only needs to cover the one transition that can happen
+// here: cancellation, which re-matches the freed slot against the waitlist.
 export function detectAppointmentTransition(input: {
   body?: { status?: string };
   method: string;
   params?: { appointmentId?: string };
-  routeUrl?: string;
 }) {
-  const { body, method, params, routeUrl } = input;
-  if (
-    method === "POST" &&
-    params?.appointmentId &&
-    routeUrl === "/api/salons/:id/appointments/:appointmentId/checkout"
-  ) {
-    return { appointmentId: params.appointmentId, nextStatus: "completed" as const };
-  }
-  if (
-    method !== "PATCH" ||
-    !params?.appointmentId ||
-    (body?.status !== "completed" && body?.status !== "cancelled")
-  ) {
+  const { body, method, params } = input;
+  if (method !== "PATCH" || !params?.appointmentId || body?.status !== "cancelled") {
     return undefined;
   }
-  return {
-    appointmentId: params.appointmentId,
-    nextStatus: body.status as "completed" | "cancelled",
-  };
+  return { appointmentId: params.appointmentId, nextStatus: "cancelled" as const };
 }
 
-// Both follow-ups key their BullMQ job id off the appointment id alone: a
-// re-add while the previous job is still queued/active is a no-op dedup
-// (matches the existing double-checkout dedup the review scheduler relies
-// on), and a re-add after the previous job has completed/expired starts a
-// fresh, still-idempotent attempt (loyalty award is guarded by the
-// loyalty_points_appointment_unique index; waitlist rematch is guarded by
-// the "status = waiting" filter it queries against).
+// A re-add while the previous job is still queued/active is a no-op dedup;
+// a re-add after the previous job has completed/expired starts a fresh,
+// still-idempotent attempt (guarded by the "status = waiting" filter the
+// rematch query itself runs against).
 export const APPOINTMENT_FOLLOWUP_JOB_OPTIONS = {
   attempts: 5,
   backoff: { delay: 30_000, type: "exponential" as const },
@@ -82,7 +64,7 @@ export interface AppointmentFollowupJobData {
 
 export interface AppointmentFollowupQueue {
   add(
-    name: "award-loyalty" | "rematch-waitlist",
+    name: "rematch-waitlist",
     data: AppointmentFollowupJobData,
     options?: JobsOptions,
   ): Promise<unknown>;
@@ -90,7 +72,6 @@ export interface AppointmentFollowupQueue {
 
 interface AppointmentEventDependencies {
   followupQueue?: AppointmentFollowupQueue;
-  scheduleReviewInvitation?: typeof scheduleReviewInvitation;
 }
 
 function transitionFrom(request: FastifyRequest) {
@@ -98,21 +79,7 @@ function transitionFrom(request: FastifyRequest) {
     body: request.body as { status?: string } | undefined,
     method: request.method,
     params: request.params as { appointmentId?: string } | undefined,
-    routeUrl: request.routeOptions.url,
   });
-}
-
-export async function scheduleLoyaltyAward(
-  db: DrizzleDB,
-  appointment: Pick<typeof appointments.$inferSelect, "id" | "salonId">,
-  queue: AppointmentFollowupQueue = getQueue(QUEUE_NAMES.APPOINTMENT_FOLLOWUPS),
-): Promise<void> {
-  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.LOYALTY, db))) return;
-  await queue.add(
-    "award-loyalty",
-    { appointmentId: appointment.id },
-    { ...APPOINTMENT_FOLLOWUP_JOB_OPTIONS, jobId: `loyalty-award-${appointment.id}` },
-  );
 }
 
 export async function scheduleWaitlistRematch(
@@ -126,22 +93,6 @@ export async function scheduleWaitlistRematch(
     { appointmentId: appointment.id },
     { ...APPOINTMENT_FOLLOWUP_JOB_OPTIONS, jobId: `waitlist-rematch-${appointment.id}` },
   );
-}
-
-export async function processLoyaltyAward(
-  db: DrizzleDB,
-  job: Job<AppointmentFollowupJobData>,
-): Promise<void> {
-  const appointment = (
-    await db.select().from(appointments).where(eq(appointments.id, job.data.appointmentId))
-  )[0];
-  if (!appointment || appointment.status !== "completed") return;
-  if (!(await isModuleEnabled(appointment.salonId, MODULE_KEYS.LOYALTY, db))) return;
-  await scheduleAppointmentCompletedLoyaltyAward({
-    appointmentId: appointment.id,
-    customerId: appointment.customerId,
-    salonId: appointment.salonId,
-  });
 }
 
 interface WaitlistRematchDependencies {
@@ -248,32 +199,10 @@ export function startAppointmentFollowupWorker(db: DrizzleDB): Worker<Appointmen
   return new Worker<AppointmentFollowupJobData>(
     QUEUE_NAMES.APPOINTMENT_FOLLOWUPS,
     async (job) => {
-      if (job.name === "award-loyalty") await processLoyaltyAward(db, job);
-      else if (job.name === "rematch-waitlist") await processWaitlistRematch(db, job);
+      if (job.name === "rematch-waitlist") await processWaitlistRematch(db, job);
     },
     { connection: redisConnection() },
   );
-}
-
-async function enqueueReview(
-  app: FastifyInstance,
-  appointment: typeof appointments.$inferSelect,
-  dependencies: AppointmentEventDependencies,
-) {
-  if (
-    await isModuleEnabled(
-      appointment.salonId,
-      MODULE_KEYS.REVIEWS,
-      app.db,
-    )
-  ) {
-    const policy = (await app.db.select().from(reviewRequestSettings).where(eq(reviewRequestSettings.salonId, appointment.salonId)))[0];
-    if (!policy?.automaticEnabled) return;
-    const salon = (await app.db.select({ timezone: salons.timezone }).from(salons).where(eq(salons.id, appointment.salonId)))[0];
-    if (!salon) return;
-    if (dependencies.scheduleReviewInvitation) await dependencies.scheduleReviewInvitation(app.db, appointment.id);
-    else await scheduleReviewRequest(app.db, appointment.id, { channels: policy.channels, scheduledAt: scheduledReviewTime(new Date(), policy.delayPreset, salon.timezone) });
-  }
 }
 
 export function registerAppointmentEventHooks(
@@ -288,10 +217,7 @@ export function registerAppointmentEventHooks(
       .select({ status: appointments.status })
       .from(appointments)
       .where(eq(appointments.id, candidate.appointmentId));
-    if (
-      rows[0] &&
-      (rows[0].status !== candidate.nextStatus || candidate.nextStatus === "completed")
-    ) {
+    if (rows[0] && rows[0].status !== candidate.nextStatus) {
       request.appointmentTransition = {
         ...candidate,
         previousStatus: rows[0].status,
@@ -317,16 +243,7 @@ export function registerAppointmentEventHooks(
         eq(notifications.entityId, appointment.id),
         eq(notifications.type, "online_booking_received"),
       ));
-      if (transition.nextStatus === "completed") {
-        await Promise.all([
-          scheduleLoyaltyAward(app.db, appointment, dependencies.followupQueue),
-          enqueueReview(app, appointment, dependencies),
-        ]);
-      } else {
-        await Promise.all([
-          scheduleWaitlistRematch(app.db, appointment, dependencies.followupQueue),
-        ]);
-      }
+      await scheduleWaitlistRematch(app.db, appointment, dependencies.followupQueue);
     } catch (error) {
       request.log.error(error, "Optional module appointment trigger failed");
     }

@@ -28,6 +28,7 @@ import {
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
 import { scheduleSaleCompletedLoyaltyAward, scheduleSaleVoidedLoyaltyExpiry } from "@esse-beauty/domain-events";
+import { scheduleAutomaticReviewRequest } from "@esse-beauty/comms-contracts";
 
 import { authenticate } from "../../middleware/auth.js";
 import { issuePurchaseVoucher, redeemPurchaseVoucher } from "../../lib/purchase-vouchers.js";
@@ -971,6 +972,11 @@ export async function registerSalesRoutes(app: FastifyInstance) {
       if (loyaltyEnabled) {
         await scheduleSaleCompletedLoyaltyAward({ saleId: result.sale.id, salonId: request.salonId });
       }
+      // The booking service's own appointment PATCH endpoint refuses a direct
+      // "completed" transition (see APPOINTMENT_COMPLETION_REQUIRES_CHECKOUT) —
+      // checkout is the only path that ever completes an appointment, so this
+      // is the only place that needs to trigger its automatic review request.
+      await scheduleAutomaticReviewRequest(app.db, { id: appointment.id, salonId: request.salonId });
       return reply.code(201).send(result.sale);
     },
   );

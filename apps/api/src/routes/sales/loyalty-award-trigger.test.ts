@@ -13,4 +13,8 @@ describe("sale checkout loyalty trigger", () => {
   it("expires a voided sale's loyalty points via the cross-service event", () => {
     expect(sales).toContain("scheduleSaleVoidedLoyaltyExpiry");
   });
+
+  it("schedules the automatic review request after checkout, since booking's own PATCH refuses direct completion", () => {
+    expect(sales).toContain("scheduleAutomaticReviewRequest");
+  });
 });

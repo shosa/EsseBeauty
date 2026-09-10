@@ -2,12 +2,17 @@ import type { FastifyInstance } from "fastify";
 import { and, asc, desc, eq, gt, ilike, inArray, lt, ne, or } from "drizzle-orm";
 
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, pwaBrandingSettings, reviews, salonClosures, salonSpecialOpenings, salons, salonSettings, serviceCategories, services, serviceStaff, staff } from "@esse-beauty/db/schema";
-import { computeAvailableSlots, normalizePhoneE164 } from "@esse-beauty/shared";
+import {
+  applySpecialOpeningHours,
+  availableResourceFor,
+  computeAvailableSlots,
+  findSpecialOpening,
+  normalizePhoneE164,
+  qualifiedStaffIds,
+} from "@esse-beauty/shared";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureCustomerCancellationNotification, ensureOnlineBookingNotifications, ensureRescheduleRequestNotifications } from "../../jobs/staff-request-notifications.js";
 import { pushPublicKey } from "@esse-beauty/comms-contracts";
-import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
-import { applySpecialOpeningHours, findSpecialOpening } from "../../lib/special-openings.js";
 import { resolveCustomerId } from "./customer-auth.js";
 
 async function getSalon(app: FastifyInstance, slug: string) {

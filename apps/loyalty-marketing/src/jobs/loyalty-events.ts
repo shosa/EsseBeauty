@@ -6,14 +6,12 @@ import { eq } from "drizzle-orm";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { QUEUE_NAMES, redisConnection } from "@esse-beauty/queue-client";
 import type {
-  AppointmentCompletedLoyaltyAwardJob,
   ReviewSubmittedLoyaltyAwardJob,
   SaleCompletedLoyaltyAwardJob,
   SaleVoidedLoyaltyExpiryJob,
 } from "@esse-beauty/domain-events";
 
 import {
-  awardAppointmentCompletion,
   awardReviewSubmission,
   awardSaleLoyalty,
   expireSaleLoyaltyPoints,
@@ -21,7 +19,6 @@ import {
 
 type LoyaltyAwardJobData =
   | ReviewSubmittedLoyaltyAwardJob
-  | AppointmentCompletedLoyaltyAwardJob
   | SaleCompletedLoyaltyAwardJob
   | SaleVoidedLoyaltyExpiryJob;
 
@@ -31,15 +28,6 @@ type LoyaltyAwardJobData =
 async function processReviewAward(db: DrizzleDB, job: Job<ReviewSubmittedLoyaltyAwardJob>): Promise<void> {
   if (!(await isModuleEnabled(job.data.salonId, MODULE_KEYS.LOYALTY, db))) return;
   await awardReviewSubmission(db, {
-    customerId: job.data.customerId,
-    salonId: job.data.salonId,
-  });
-}
-
-async function processAppointmentAward(db: DrizzleDB, job: Job<AppointmentCompletedLoyaltyAwardJob>): Promise<void> {
-  if (!(await isModuleEnabled(job.data.salonId, MODULE_KEYS.LOYALTY, db))) return;
-  await awardAppointmentCompletion(db, {
-    appointmentId: job.data.appointmentId,
     customerId: job.data.customerId,
     salonId: job.data.salonId,
   });
@@ -73,7 +61,6 @@ export function startLoyaltyAwardWorker(db: DrizzleDB): Worker<LoyaltyAwardJobDa
     QUEUE_NAMES.LOYALTY_AWARDS,
     async (job) => {
       if (job.name === "award-review") await processReviewAward(db, job as Job<ReviewSubmittedLoyaltyAwardJob>);
-      else if (job.name === "award-appointment") await processAppointmentAward(db, job as Job<AppointmentCompletedLoyaltyAwardJob>);
       else if (job.name === "award-sale") await processSaleAward(db, job as Job<SaleCompletedLoyaltyAwardJob>);
       else if (job.name === "expire-sale") await processSaleVoidExpiry(db, job as Job<SaleVoidedLoyaltyExpiryJob>);
     },

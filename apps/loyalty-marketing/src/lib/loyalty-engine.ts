@@ -28,24 +28,6 @@ export async function ensureLoyaltyRules(db: any, salonId: string, appointmentPo
   return db.select().from(loyaltyEarningRules).where(eq(loyaltyEarningRules.salonId, salonId));
 }
 
-export async function awardAppointmentCompletion(
-  db: any,
-  input: { appointmentId: string; customerId: string; salonId: string },
-) {
-  const rules = await ensureLoyaltyRules(db, input.salonId);
-  const rule = rules.find((item: any) => item.action === "appointment_completed");
-  if (!rule?.active || rule.points <= 0) return 0;
-  await db.insert(loyaltyPoints).values({
-    appointmentId: input.appointmentId,
-    customerId: input.customerId,
-    delta: rule.points,
-    reason: "Appuntamento completato",
-    ruleKey: "appointment_completed",
-    salonId: input.salonId,
-  }).onConflictDoNothing();
-  return rule.points;
-}
-
 export async function awardSaleLoyalty(
   db: any,
   input: {
