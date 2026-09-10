@@ -73,17 +73,6 @@ services:
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
-      REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
-      META_APP_SECRET: ${META_APP_SECRET:-}
-      PROVIDER_CREDENTIAL_ENCRYPTION_KEY: ${PROVIDER_CREDENTIAL_ENCRYPTION_KEY:-}
-      PROVIDER_CREDENTIAL_KEY_VERSION: ${PROVIDER_CREDENTIAL_KEY_VERSION:-v1}
-      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
-      PWA_URL: ${PWA_URL:-http://localhost:3002}
-      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
-      PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
-      PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT:-mailto:support@essebeauty.app}
-    ports:
-      - "${API_PORT:-3001}:3001"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -95,6 +84,61 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
+    networks:
+      - app
+
+  communications:
+    container_name: esse-beauty-communications
+    build:
+      context: .
+      dockerfile: apps/communications/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+      REDIS_URL: redis://redis:6379
+      REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      PROVIDER_CREDENTIAL_ENCRYPTION_KEY: ${PROVIDER_CREDENTIAL_ENCRYPTION_KEY:-}
+      PROVIDER_CREDENTIAL_KEY_VERSION: ${PROVIDER_CREDENTIAL_KEY_VERSION:-v1}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
+      PWA_URL: ${PWA_URL:-http://localhost:3002}
+      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
+      PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
+      PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT:-mailto:support@essebeauty.app}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3003/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - app
+
+  gateway:
+    container_name: esse-beauty-gateway
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+      communications:
+        condition: service_healthy
     networks:
       - app
 
@@ -111,7 +155,7 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
-      api:
+      gateway:
         condition: service_healthy
     networks:
       - app
@@ -126,12 +170,12 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      API_INTERNAL_URL: http://api:3001
+      API_INTERNAL_URL: http://gateway:3001
       REVIEW_SESSION_SECRET: ${REVIEW_SESSION_SECRET:?REVIEW_SESSION_SECRET is required}
     ports:
       - "${PWA_PORT:-3002}:3002"
     depends_on:
-      api:
+      gateway:
         condition: service_healthy
     networks:
       - app
@@ -148,7 +192,7 @@ services:
     ports:
       - "${STAFF_PWA_PORT:-3003}:3003"
     depends_on:
-      api:
+      gateway:
         condition: service_healthy
     networks:
       - app
@@ -165,7 +209,7 @@ services:
     ports:
       - "${PLATFORM_PORT:-3004}:3004"
     depends_on:
-      api:
+      gateway:
         condition: service_healthy
     networks:
       - app

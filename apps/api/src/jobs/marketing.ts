@@ -9,17 +9,18 @@ import { refreshCampaignStatus } from "./campaign-status.js";
 
 export { aggregateCampaignStatus, type AggregatedCampaignStatus } from "./campaign-status.js";
 
-import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues } from "../lib/email-branding.js";
-import { sendCustomerAppMessage } from "../lib/customer-messages.js";
+import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues } from "@esse-beauty/shared";
 import {
   createCommunicationProviderRegistry,
+  enqueueCommunication,
+  QUEUE_NAMES,
+  redisConnection,
+  sendCustomerAppMessage,
+  sendEmailFromDb,
   type CommunicationProviderRegistry,
   type DeliveryReceipt,
   ProviderNotConfiguredError,
-} from "../providers/communications.js";
-import { enqueueCommunication } from "./communications.js";
-import { sendEmailFromDb } from "./notifications.js";
-import { QUEUE_NAMES, redisConnection } from "./queues.js";
+} from "@esse-beauty/comms-contracts";
 
 type EmailSender = (to: string, subject: string, html: string, options?: { idempotencyKey?: string }) => Promise<DeliveryReceipt>;
 

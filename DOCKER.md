@@ -5,7 +5,9 @@ Lo stack comprende:
 - `esse-beauty-db`: PostgreSQL 16, raggiungibile dagli altri container come `db:5432`
 - `esse-beauty-redis`: Redis 7 per BullMQ
 - `esse-beauty-migrate`: applica le migrazioni Drizzle e termina
-- `esse-beauty-api`: Fastify su `http://localhost:3001`
+- `esse-beauty-api`: Fastify (dominio core: saloni, appuntamenti, staff, inventario, ecc.), raggiungibile internamente come `api:3001`
+- `esse-beauty-communications`: Fastify (WhatsApp/email, promemoria, recensioni), raggiungibile internamente come `communications:3003`
+- `esse-beauty-gateway`: nginx che smista `/api/**` tra `api` e `communications` in base al path ed espone `http://localhost:3001` — è l'unico punto d'ingresso dell'API, i frontend continuano a puntare qui senza modifiche
 - `esse-beauty-web`: dashboard Next.js su `http://localhost:3000`
 - `esse-beauty-pwa`: portale clienti su `http://localhost:3002`
 - `esse-beauty-staff-pwa`: portale staff su `http://localhost:3003`
@@ -138,7 +140,7 @@ Da un container dello stack:
 ```text
 PostgreSQL: db:5432
 Redis:      redis:6379
-API:        api:3001 (`API_INTERNAL_URL`, solo per chiamate server-side)
+Gateway:    gateway:3001 (`API_INTERNAL_URL`, solo per chiamate server-side — smista tra api e communications)
 ```
 
 La stringa di connessione interna usata da API e migrazioni è:

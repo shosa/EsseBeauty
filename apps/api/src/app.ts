@@ -10,30 +10,26 @@ import { eq } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import { salonModules } from "@esse-beauty/db/schema";
+import type { CommunicationProviderRegistry } from "@esse-beauty/comms-contracts";
+
 import { authenticate } from "./middleware/auth.js";
 import { registerAppointmentEventHooks } from "./jobs/appointment-events.js";
 import { registerAuditLogHooks } from "./jobs/audit-log.js";
 import { registerAuthRoutes } from "./routes/auth/index.js";
 import { registerAppointmentRoutes } from "./routes/appointments/index.js";
 import { registerCustomerRoutes } from "./routes/customers/index.js";
-import { registerCommunicationSettingsRoutes } from "./routes/communications/settings.js";
-import { registerCommunicationRoutes } from "./routes/communications/index.js";
 import { registerEnterpriseModuleRoutes } from "./routes/enterprise/index.js";
 import { registerInventoryRoutes } from "./routes/inventory/index.js";
 import { registerLoyaltyRoutes } from "./routes/loyalty/index.js";
 import { registerMarketingRoutes } from "./routes/marketing/index.js";
 import type { CampaignQueue } from "./jobs/marketing.js";
-import type { CommunicationProviderRegistry } from "./providers/communications.js";
 import { registerOnboardingRoutes } from "./routes/onboarding/index.js";
 import { registerPlatformRoutes } from "./routes/platform/index.js";
 import { registerPublicRoutes } from "./routes/public/index.js";
 import { registerPublicCustomerAuthRoutes } from "./routes/public/customer-auth.js";
 import { registerPublicMessageRoutes } from "./routes/public/messages.js";
 import { registerPublicPushSubscriptionRoutes } from "./routes/public/push-subscriptions.js";
-import { registerReminderRoutes } from "./routes/reminders/index.js";
 import { registerReportRoutes } from "./routes/reports/index.js";
-import { registerReviewRoutes } from "./routes/reviews/index.js";
-import type { ReviewQueue } from "./jobs/reviews.js";
 import { registerSalesRoutes } from "./routes/sales/index.js";
 import { registerServiceRoutes } from "./routes/services/index.js";
 import { registerSettingsRoutes } from "./routes/settings/index.js";
@@ -41,7 +37,6 @@ import { registerShellRoutes } from "./routes/shell/index.js";
 import { registerStaffAppRoutes } from "./routes/staff-app/index.js";
 import { registerStaffRoutes } from "./routes/staff/index.js";
 import { registerWaitlistRoutes } from "./routes/waitlist/index.js";
-import { registerWhatsAppWebhookRoutes } from "./routes/webhooks/whatsapp.js";
 import { registerVoucherRoutes } from "./routes/vouchers/index.js";
 
 interface ApiEnvironment {
@@ -56,7 +51,6 @@ interface CreateAppOptions {
   env: ApiEnvironment;
   logger?: boolean;
   loggerStream?: { write(message: string): void };
-  reviewQueue?: ReviewQueue;
 }
 
 interface SalonParams {
@@ -97,7 +91,6 @@ export function createApp({
   env,
   logger = false,
   loggerStream,
-  reviewQueue,
 }: CreateAppOptions) {
   const app = Fastify({
     logger: logger
@@ -147,16 +140,11 @@ export function createApp({
   void registerStaffRoutes(app);
   void registerAppointmentRoutes(app);
   void registerCustomerRoutes(app);
-  void registerCommunicationSettingsRoutes(app);
-  registerCommunicationRoutes(app);
-  registerWhatsAppWebhookRoutes(app);
   void registerEnterpriseModuleRoutes(app);
   void registerPublicRoutes(app);
   void registerPublicCustomerAuthRoutes(app, { providers: authProviders });
   void registerPublicPushSubscriptionRoutes(app);
   void registerPublicMessageRoutes(app);
-  void registerReminderRoutes(app);
-  void registerReviewRoutes(app, { reviewQueue });
   void registerWaitlistRoutes(app);
   void registerVoucherRoutes(app);
   void registerLoyaltyRoutes(app);

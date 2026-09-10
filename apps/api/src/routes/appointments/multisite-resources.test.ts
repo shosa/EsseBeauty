@@ -32,7 +32,7 @@ describe("multi-site scheduling contracts", () => {
   it("routes customer appointment push taps through the message reader", () => {
     const appointments = readFileSync(join(root, "routes", "appointments", "index.ts"), "utf8");
 
-    expect(appointments).toContain('from "../../lib/customer-messages.js"');
+    expect(appointments).toContain('from "@esse-beauty/comms-contracts"');
     expect(appointments).toContain("sendCustomerAppMessage");
     expect(appointments).not.toContain("sendCustomerPush");
   });

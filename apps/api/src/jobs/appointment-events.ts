@@ -13,13 +13,18 @@ import {
   waitlistEntries,
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
+import {
+  enqueueCommunication,
+  getQueue,
+  QUEUE_NAMES,
+  redisConnection,
+  scheduledReviewTime,
+  scheduleReviewInvitation,
+  scheduleReviewRequest,
+  sendEmail,
+} from "@esse-beauty/comms-contracts";
 
 import { awardAppointmentCompletion } from "../lib/loyalty-engine.js";
-import { sendEmail } from "./notifications.js";
-import { enqueueCommunication } from "./communications.js";
-import { scheduleReviewInvitation, scheduleReviewRequest } from "./reviews.js";
-import { scheduledReviewTime } from "./review-policy.js";
-import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
 
 interface Transition {
   appointmentId: string;

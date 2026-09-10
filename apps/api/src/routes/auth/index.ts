@@ -19,6 +19,11 @@ import {
   USER_ROLES,
   type UserRole,
 } from "@esse-beauty/shared";
+import { inspectPublicToken, issuePublicToken } from "@esse-beauty/server-shared";
+import {
+  createCommunicationProviderRegistry,
+  type CommunicationProviderRegistry,
+} from "@esse-beauty/comms-contracts";
 
 import {
   authenticate,
@@ -26,11 +31,6 @@ import {
   requireRole,
 } from "../../middleware/auth.js";
 import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
-import { inspectPublicToken, issuePublicToken } from "../../lib/public-tokens.js";
-import {
-  createCommunicationProviderRegistry,
-  type CommunicationProviderRegistry,
-} from "../../providers/communications.js";
 import {
   createSessionToken,
   hashPassword,

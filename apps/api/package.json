@@ -13,8 +13,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@esse-beauty/comms-contracts": "workspace:*",
     "@esse-beauty/db": "workspace:*",
     "@esse-beauty/feature-flags": "workspace:*",
+    "@esse-beauty/server-shared": "workspace:*",
     "@esse-beauty/shared": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.1",
@@ -25,15 +27,10 @@
     "drizzle-orm": "^0.44.2",
     "exceljs": "^4.4.0",
     "fastify": "^5.4.0",
-    "ioredis": "^5.6.1",
-    "nodemailer": "^10.0.1",
-    "pdf-lib": "^1.17.1",
-    "web-push": "^3.6.7"
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.32",
-    "@types/nodemailer": "^8.0.1",
-    "@types/web-push": "^3.6.4",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

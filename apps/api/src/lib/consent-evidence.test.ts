@@ -4,7 +4,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 
 import { customerConsents } from "@esse-beauty/db/schema";
 
-import { issuePublicToken } from "./public-tokens.js";
+import { issuePublicToken } from "@esse-beauty/server-shared";
 
 import type {
   ConsentLifecycleRepository,

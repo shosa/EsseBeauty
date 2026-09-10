@@ -20,17 +20,18 @@ import {
 } from "@esse-beauty/db/schema";
 import { and, eq } from "drizzle-orm";
 
+import {
+  ProviderNotConfiguredError,
+  pushPublicKey,
+  type CommunicationMessage,
+  type CommunicationProviderRegistry,
+} from "@esse-beauty/comms-contracts";
+
 import { createApp } from "../../app.js";
 import {
   aggregateCampaignStatus,
   processCampaignBatch,
 } from "../../jobs/marketing.js";
-import { pushPublicKey } from "../../lib/customer-push.js";
-import type {
-  CommunicationMessage,
-  CommunicationProviderRegistry,
-} from "../../providers/communications.js";
-import { ProviderNotConfiguredError } from "../../providers/communications.js";
 import { hashSessionToken } from "../auth/local-auth.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
 

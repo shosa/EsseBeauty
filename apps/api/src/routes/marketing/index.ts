@@ -26,20 +26,22 @@ import {
 import { isModuleEnabled, MODULE_KEYS, requireModule } from "@esse-beauty/feature-flags";
 import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues, PERMISSION_KEYS } from "@esse-beauty/shared";
 
-import { aggregateCampaignStatus } from "../../jobs/marketing.js";
-import type { CampaignBatchJob, CampaignQueue } from "../../jobs/marketing.js";
-import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
-import { pushPublicKey } from "../../lib/customer-push.js";
-import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
-import { getQueue, QUEUE_NAMES } from "../../jobs/queues.js";
-import { sendEmailFromDb } from "../../jobs/notifications.js";
-import { authenticate, requirePermission } from "../../middleware/auth.js";
 import {
   createCommunicationProviderRegistry,
+  enqueueCommunication,
+  getQueue,
+  pushPublicKey,
+  QUEUE_NAMES,
+  sendCustomerAppMessage,
+  sendEmailFromDb,
   type CommunicationProviderRegistry,
   ProviderNotConfiguredError,
-} from "../../providers/communications.js";
-import { enqueueCommunication } from "../../jobs/communications.js";
+} from "@esse-beauty/comms-contracts";
+
+import { aggregateCampaignStatus } from "../../jobs/marketing.js";
+import type { CampaignBatchJob, CampaignQueue } from "../../jobs/marketing.js";
+import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
+import { authenticate, requirePermission } from "../../middleware/auth.js";
 
 type CampaignChannel = "app" | "email" | "whatsapp";
 

@@ -7,7 +7,7 @@ import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 
 import { todayMonthDayInTimezone } from "../lib/birthday.js";
 import { awardBirthdayPoints, ensureLoyaltyRules } from "../lib/loyalty-engine.js";
-import { getQueue, QUEUE_NAMES, redisConnection } from "./queues.js";
+import { getQueue, QUEUE_NAMES, redisConnection } from "@esse-beauty/comms-contracts";
 
 export async function scanBirthdayLoyalty(db: DrizzleDB): Promise<number> {
   const salonRows = await db.select({ id: salons.id, timezone: salons.timezone }).from(salons);

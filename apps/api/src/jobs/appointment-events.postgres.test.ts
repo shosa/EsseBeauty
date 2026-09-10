@@ -14,13 +14,13 @@ const fallbackQueue = vi.hoisted(() => ({
   upsertJobScheduler: vi.fn(async () => undefined),
 }));
 
-vi.mock("./queues.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./queues.js")>(),
+vi.mock("@esse-beauty/comms-contracts", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@esse-beauty/comms-contracts")>(),
   getQueue: () => fallbackQueue,
 }));
 
 import { registerAppointmentEventHooks } from "./appointment-events.js";
-import { scheduleReviewInvitation, type ReviewQueue } from "./reviews.js";
+import { scheduleReviewInvitation, type ReviewQueue } from "@esse-beauty/comms-contracts";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;

@@ -63,7 +63,7 @@ foreach ($address in $detectedDevOrigins) {
   "Process"
 )
 
-$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003, 3004 -State Listen -ErrorAction SilentlyContinue
+$busyPorts = Get-NetTCPConnection -LocalPort 3000, 3001, 3002, 3003, 3004, 3011, 3013 -State Listen -ErrorAction SilentlyContinue
 if ($busyPorts) {
   $ports = ($busyPorts | Select-Object -ExpandProperty LocalPort -Unique) -join ", "
   throw "Development ports already in use: $ports. Stop the existing dev server or free these ports before running pnpm run dev."
@@ -73,6 +73,7 @@ corepack pnpm `
   --filter @esse-beauty/db `
   --filter @esse-beauty/shared `
   --filter @esse-beauty/feature-flags `
+  --filter @esse-beauty/comms-contracts `
   --filter @esse-beauty/ui `
   run build
 Assert-LastExitCode "Building shared workspaces"
@@ -96,10 +97,51 @@ finally {
   $migrationMutex.Dispose()
 }
 
-corepack pnpm --parallel `
-  --filter @esse-beauty/api `
-  --filter @esse-beauty/web `
-  --filter @esse-beauty/pwa `
-  --filter @esse-beauty/staff-pwa `
-  --filter @esse-beauty/platform `
-  run dev
+# apps/api and apps/communications each read PORT from the environment, so
+# they run as separate background jobs with distinct ports behind a small
+# local proxy (scripts/dev-gateway.mjs) that stands in for gateway/nginx.conf
+# — this keeps every frontend's NEXT_PUBLIC_API_URL (port 3001) working
+# unchanged whether it's calling api or communications routes.
+$apiInternalPort = 3011
+$communicationsPort = 3013
+$backendEnv = @{}
+foreach ($entry in [Environment]::GetEnvironmentVariables("Process").GetEnumerator()) {
+  $backendEnv[$entry.Key] = $entry.Value
+}
+
+$apiJob = Start-Job -Name "esse-beauty-api" -ScriptBlock {
+  param($repoRoot, $env, $port)
+  foreach ($key in $env.Keys) { [Environment]::SetEnvironmentVariable($key, $env[$key], "Process") }
+  [Environment]::SetEnvironmentVariable("PORT", $port, "Process")
+  Set-Location $repoRoot
+  corepack pnpm --filter @esse-beauty/api run dev
+} -ArgumentList (Join-Path $PSScriptRoot ".."), $backendEnv, $apiInternalPort
+
+$communicationsJob = Start-Job -Name "esse-beauty-communications" -ScriptBlock {
+  param($repoRoot, $env, $port)
+  foreach ($key in $env.Keys) { [Environment]::SetEnvironmentVariable($key, $env[$key], "Process") }
+  [Environment]::SetEnvironmentVariable("PORT", $port, "Process")
+  Set-Location $repoRoot
+  corepack pnpm --filter @esse-beauty/communications run dev
+} -ArgumentList (Join-Path $PSScriptRoot ".."), $backendEnv, $communicationsPort
+
+$gatewayJob = Start-Job -Name "esse-beauty-dev-gateway" -ScriptBlock {
+  param($repoRoot, $apiPort, $communicationsPort)
+  $env:API_INTERNAL_PORT = $apiPort
+  $env:COMMUNICATIONS_PORT = $communicationsPort
+  Set-Location $repoRoot
+  node scripts/dev-gateway.mjs
+} -ArgumentList (Join-Path $PSScriptRoot ".."), $apiInternalPort, $communicationsPort
+
+try {
+  corepack pnpm --parallel `
+    --filter @esse-beauty/web `
+    --filter @esse-beauty/pwa `
+    --filter @esse-beauty/staff-pwa `
+    --filter @esse-beauty/platform `
+    run dev
+}
+finally {
+  $apiJob, $communicationsJob, $gatewayJob | Stop-Job -PassThru | Receive-Job
+  $apiJob, $communicationsJob, $gatewayJob | Remove-Job -Force
+}

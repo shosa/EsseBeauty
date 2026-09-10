@@ -12,7 +12,7 @@ import {
   users,
 } from "@esse-beauty/db/schema";
 
-import { inspectPublicToken, issuePublicToken } from "./public-tokens.js";
+import { inspectPublicToken, issuePublicToken } from "@esse-beauty/server-shared";
 
 /** SMS is retained only to read historical consent evidence; new requests use WhatsApp or app push. */
 export type ConsentDeliveryChannel = "email" | "in_person" | "push" | "whatsapp" | "sms";

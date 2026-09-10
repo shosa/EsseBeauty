@@ -12,8 +12,9 @@ import {
   userCredentials,
 } from "@esse-beauty/db/schema";
 
+import type { CommunicationMessage, CommunicationProviderRegistry } from "@esse-beauty/comms-contracts";
+
 import { createApp } from "../../app.js";
-import type { CommunicationMessage, CommunicationProviderRegistry } from "../../providers/communications.js";
 import { testDatabaseUrl } from "../../test/postgres.js";
 import { hashPassword, hashSessionToken, verifyPassword } from "./local-auth.js";
 

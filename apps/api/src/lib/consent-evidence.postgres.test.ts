@@ -25,7 +25,7 @@ import {
   resolveConsent,
   signConsent,
 } from "./consent-evidence.js";
-import { issuePublicToken } from "./public-tokens.js";
+import { issuePublicToken } from "@esse-beauty/server-shared";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;

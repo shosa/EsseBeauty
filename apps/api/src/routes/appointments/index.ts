@@ -4,7 +4,7 @@ import { and, asc, eq, gt, gte, inArray, lt, lte, ne } from "drizzle-orm";
 import type { DrizzleDB } from "@esse-beauty/db";
 import { appointmentRescheduleRequests, appointments, availabilityBlocks, calendarSettings, customers, notifications, salonClosures, salonResources, salonSpecialOpeningStaff, salonSpecialOpenings, sales, salons, serviceResources, services, staff } from "@esse-beauty/db/schema";
 import { canTransitionAppointmentStatus, computeAvailableSlots, hasPermission, PERMISSION_KEYS } from "@esse-beauty/shared";
-import { sendCustomerAppMessage } from "../../lib/customer-messages.js";
+import { sendCustomerAppMessage } from "@esse-beauty/comms-contracts";
 import { availableResourceFor, isStaffQualified } from "../../lib/scheduling-resources.js";
 import { applySpecialOpeningHours, findSpecialOpening } from "../../lib/special-openings.js";
 import { authenticate } from "../../middleware/auth.js";

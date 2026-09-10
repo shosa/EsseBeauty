@@ -1,7 +1,13 @@
+import { Worker } from "bullmq";
 import { eq } from "drizzle-orm";
 
 import type { DrizzleDB } from "@esse-beauty/db";
 import { campaignRecipients, marketingCampaigns } from "@esse-beauty/db/schema";
+import {
+  QUEUE_NAMES,
+  redisConnection,
+  type CampaignStatusRefreshJob,
+} from "@esse-beauty/comms-contracts";
 
 export type AggregatedCampaignStatus =
   | "queued"
@@ -44,4 +50,18 @@ export async function refreshCampaignStatus(db: DrizzleDB, campaignId: string) {
     })
     .where(eq(marketingCampaigns.id, campaignId));
   return status;
+}
+
+// Consumes the campaign-status-refresh events apps/communications emits
+// after updating a campaign recipient's delivery status, since it can no
+// longer call refreshCampaignStatus in-process once that worker lives in a
+// different service.
+export function startCampaignStatusRefreshWorker(db: DrizzleDB): Worker<CampaignStatusRefreshJob> {
+  return new Worker<CampaignStatusRefreshJob>(
+    QUEUE_NAMES.CAMPAIGN_STATUS_REFRESH,
+    async (job) => {
+      await refreshCampaignStatus(db, job.data.campaignId);
+    },
+    { connection: redisConnection() },
+  );
 }

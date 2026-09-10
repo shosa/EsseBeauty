@@ -1,21 +1,20 @@
 import {
-  createHash,
   randomBytes,
   scrypt as scryptCallback,
   timingSafeEqual,
 } from "node:crypto";
 import { promisify } from "node:util";
 
+export {
+  hashSessionToken,
+  SESSION_COOKIE,
+  SESSION_DURATION_MS,
+  sessionCookieForClient,
+  STAFF_SESSION_COOKIE,
+  WEB_SESSION_COOKIE,
+} from "@esse-beauty/server-shared";
+
 const scrypt = promisify(scryptCallback);
-
-export const WEB_SESSION_COOKIE = "esse-session";
-export const STAFF_SESSION_COOKIE = "esse-staff-session";
-export const SESSION_COOKIE = WEB_SESSION_COOKIE;
-export const SESSION_DURATION_MS = 30 * 24 * 60 * 60_000;
-
-export function sessionCookieForClient(client?: string): string {
-  return client === "staff" ? STAFF_SESSION_COOKIE : WEB_SESSION_COOKIE;
-}
 
 export async function hashPassword(
   password: string,
@@ -39,8 +38,4 @@ export async function verifyPassword(
 
 export function createSessionToken(): string {
   return randomBytes(32).toString("base64url");
-}
-
-export function hashSessionToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }

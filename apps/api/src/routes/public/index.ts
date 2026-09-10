@@ -5,7 +5,7 @@ import { appointmentRescheduleRequests, appointments, availabilityBlocks, calend
 import { computeAvailableSlots } from "@esse-beauty/shared";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
 import { ensureCustomerCancellationNotification, ensureOnlineBookingNotifications, ensureRescheduleRequestNotifications } from "../../jobs/staff-request-notifications.js";
-import { pushPublicKey } from "../../lib/customer-push.js";
+import { pushPublicKey } from "@esse-beauty/comms-contracts";
 import { availableResourceFor, qualifiedStaffIds } from "../../lib/scheduling-resources.js";
 import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
 import { applySpecialOpeningHours, findSpecialOpening } from "../../lib/special-openings.js";

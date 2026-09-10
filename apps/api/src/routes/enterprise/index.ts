@@ -40,7 +40,7 @@ import {
   type ConsentLifecycleRepository,
   type ConsentRequestRecord,
 } from "../../lib/consent-evidence.js";
-import { clearCustomerAppMessage, sendCustomerAppMessage } from "../../lib/customer-messages.js";
+import { clearCustomerAppMessage, sendCustomerAppMessage } from "@esse-beauty/comms-contracts";
 import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
