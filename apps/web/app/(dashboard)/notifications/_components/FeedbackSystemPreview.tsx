@@ -50,7 +50,10 @@ export function FeedbackSystemPreview() {
     if (!soundPlayer.current) soundPlayer.current = createUISFX({ pack: soundFeel, volume: soundVolume });
     soundPlayer.current.setPack(soundFeel);
     soundPlayer.current.setVolume(soundVolume);
-    void soundPlayer.current.unlock().then(() => soundPlayer.current?.play(cue));
+    // I cue UI SFX sono volutamente calibrati a circa il 20% del master.
+    // In questa prova vogliamo giudicare il timbro, quindi li riproduciamo a
+    // pieno livello e lasciamo allo slider il solo controllo del master.
+    void soundPlayer.current.unlock().then(() => soundPlayer.current?.play(cue, { volume: 1 }));
   }
 
   return <Toast.Provider swipeDirection="right"><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
