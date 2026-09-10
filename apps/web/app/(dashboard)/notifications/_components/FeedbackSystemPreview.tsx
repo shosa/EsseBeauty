@@ -1,127 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import {
-  BellRing,
-  Check,
-  CircleAlert,
-  Clock3,
-  Info,
-  MessageCircleMore,
-  PackageSearch,
-  Send,
-  ShieldAlert,
-  Volume2,
-  X,
-} from "lucide-react";
+import { useState, type ReactNode } from "react";
+import * as Toast from "@radix-ui/react-toast";
+import { BellRing, CalendarDays, Check, ChevronRight, MessageSquareText, PackageSearch, Volume2, X } from "lucide-react";
 
-type FeedbackTone = "attention" | "danger" | "info" | "success";
+import { playIncomingMessageSound } from "../../_components/notification-state";
 
-const toneStyle: Record<FeedbackTone, { icon: typeof Check; iconClass: string; panelClass: string; progressClass: string }> = {
-  attention: { icon: CircleAlert, iconClass: "bg-[#fff0dc] text-[#9a561b]", panelClass: "border-[#efc48f] bg-[#fffaf3]", progressClass: "bg-[#d47d25]" },
-  danger: { icon: ShieldAlert, iconClass: "bg-red-100 text-red-700", panelClass: "border-red-200 bg-[#fff8f8]", progressClass: "bg-red-600" },
-  info: { icon: Info, iconClass: "bg-[#f3e2eb] text-[#792f59]", panelClass: "border-[#dfb9ce] bg-[#fffafd]", progressClass: "bg-[#792f59]" },
-  success: { icon: Check, iconClass: "bg-emerald-100 text-emerald-700", panelClass: "border-emerald-200 bg-[#f6fcf8]", progressClass: "bg-emerald-600" },
-};
+type PreviewKind = "booking" | "whatsapp" | null;
 
-export function playFeedbackSound(tone: FeedbackTone) {
+function playBookingSound() {
   const Audio = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Audio) return;
   const context = new Audio();
-  const gain = context.createGain();
-  gain.connect(context.destination);
-  gain.gain.setValueAtTime(0.0001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.075, context.currentTime + 0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
   const oscillator = context.createOscillator();
-  oscillator.type = tone === "danger" ? "sawtooth" : "sine";
-  oscillator.frequency.setValueAtTime(tone === "danger" ? 190 : tone === "attention" ? 520 : 680, context.currentTime);
-  if (tone === "success") oscillator.frequency.exponentialRampToValueAtTime(910, context.currentTime + 0.14);
-  oscillator.connect(gain);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.23);
+  const gain = context.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(580, context.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(720, context.currentTime + 0.16);
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.07, context.currentTime + 0.016);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.26);
+  oscillator.connect(gain); gain.connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime + 0.27);
   oscillator.addEventListener("ended", () => void context.close());
 }
 
-export function FeedbackToast({
-  body,
-  onClose,
-  title,
-  tone,
-}: {
-  body: string;
-  onClose?: () => void;
-  title: string;
-  tone: FeedbackTone;
-}) {
-  const style = toneStyle[tone];
-  const Icon = style.icon;
-  return (
-    <article aria-live={tone === "danger" ? "assertive" : "polite"} className={`overflow-hidden rounded-2xl border shadow-[0_16px_36px_rgb(64_35_52_/_0.14)] ${style.panelClass}`} role={tone === "danger" ? "alert" : "status"}>
-      <div className="flex gap-3 px-4 py-3.5">
-        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${style.iconClass}`}><Icon className="size-[18px]" strokeWidth={2.2} /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-extrabold text-stone-950">{title}</p>
-          <p className="mt-0.5 text-sm leading-5 text-stone-600">{body}</p>
-        </div>
-        {onClose && <button aria-label="Chiudi avviso" className="grid size-8 shrink-0 place-items-center rounded-lg text-stone-400 transition hover:bg-white/70 hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#792f59]" onClick={onClose} type="button"><X className="size-4" /></button>}
+function PreviewButton({ children, kind, onClick }: { children: ReactNode; kind: Exclude<PreviewKind, null>; onClick: () => void }) {
+  return <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold text-stone-700 transition hover:border-[#b87898] hover:text-[#792f59] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#792f59]" onClick={() => { kind === "whatsapp" ? playIncomingMessageSound() : playBookingSound(); onClick(); }} type="button"><Volume2 className="size-4" />{children}</button>;
+}
+
+export function WhatsAppIncomingToast({ onOpen }: { onOpen?: () => void }) {
+  return <Toast.Root className="group relative overflow-visible" duration={8_000} type="foreground">
+    <div className="relative overflow-hidden rounded-xl border border-[#b8dfc9] bg-white shadow-[0_16px_36px_rgb(35_116_73_/_0.16)]">
+      <div className="flex min-w-0 items-start gap-3 p-4">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e8f7ee] text-[#237449]"><MessageSquareText className="size-5" strokeWidth={2.1} /></span>
+        <Toast.Title className="min-w-0 flex-1 text-left text-sm font-extrabold text-stone-950">Nuovo messaggio da Elena Ferri</Toast.Title>
+        <Toast.Close aria-label="Chiudi messaggio" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"><X className="size-4" /></Toast.Close>
       </div>
-      <div className={`h-1 ${style.progressClass}`} />
-    </article>
-  );
-}
-
-export function FeedbackAlert({ action, children, title, tone }: { action?: React.ReactNode; children: React.ReactNode; title: string; tone: Exclude<FeedbackTone, "success"> }) {
-  const style = toneStyle[tone];
-  const Icon = style.icon;
-  return <section className={`rounded-2xl border p-4 ${style.panelClass}`} role={tone === "danger" ? "alert" : "status"}>
-    <div className="flex items-start gap-3">
-      <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${style.iconClass}`}><Icon className="size-[18px]" strokeWidth={2.2} /></span>
-      <div className="min-w-0 flex-1"><h3 className="text-sm font-extrabold text-stone-950">{title}</h3><div className="mt-1 text-sm leading-5 text-stone-600">{children}</div>{action && <div className="mt-3">{action}</div>}</div>
+      <Toast.Description className="px-4 pb-3 text-sm leading-5 text-stone-600">Posso spostare l’appuntamento di domani alle 17:00?</Toast.Description>
+      <div className="flex items-center justify-between border-t border-[#e4f3e9] px-4 py-2.5"><span className="text-xs font-semibold text-[#237449]">WhatsApp</span><Toast.Action altText="Apri la conversazione con Elena" asChild><button className="inline-flex items-center gap-1 text-xs font-extrabold text-[#237449] hover:underline" onClick={onOpen} type="button">Apri chat <ChevronRight className="size-3.5" /></button></Toast.Action></div>
+      <div className="h-1 origin-left bg-[#25D366] motion-safe:animate-[notification-life_8s_linear_forwards]" />
     </div>
-  </section>;
+    <span aria-hidden="true" className="absolute -bottom-[10px] right-5 z-0 h-3 w-[18px] border-r border-b border-[#b8dfc9] bg-white" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%)" }} />
+  </Toast.Root>;
 }
 
-function SoundButton({ label, tone, onClick }: { label: string; tone: FeedbackTone; onClick: () => void }) {
-  return <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 text-sm font-bold text-stone-700 transition hover:border-[#b87898] hover:text-[#792f59] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#792f59]" onClick={() => { playFeedbackSound(tone); onClick(); }} type="button"><Volume2 className="size-4" />{label}</button>;
+export function BookingArrivalToast({ onOpen }: { onOpen?: () => void }) {
+  return <Toast.Root className="overflow-hidden rounded-xl border border-[#d7a6c1] bg-white shadow-[0_16px_36px_rgb(121_47_89_/_0.16)]" duration={9_000} type="foreground">
+    <div className="flex items-stretch">
+      <div className="flex w-16 shrink-0 flex-col items-center justify-center bg-[#792f59] px-2 text-center text-white"><span className="text-[10px] font-bold uppercase tracking-[.08em]">Ven</span><span className="mt-0.5 text-2xl font-black leading-none">12</span><span className="mt-1 text-[10px] font-bold">SET</span></div>
+      <div className="min-w-0 flex-1 p-4"><div className="flex items-start gap-2"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#f3e2eb] text-[#792f59]"><CalendarDays className="size-4" /></span><div className="min-w-0 flex-1"><Toast.Title className="text-sm font-extrabold text-stone-950">Nuova prenotazione online</Toast.Title><Toast.Description className="mt-0.5 text-sm text-stone-600">Giulia Bianchi · Colore e piega · 15:30</Toast.Description></div><Toast.Close aria-label="Chiudi prenotazione" className="grid size-7 shrink-0 place-items-center rounded-lg text-stone-400 hover:bg-stone-100"><X className="size-4" /></Toast.Close></div><Toast.Action altText="Apri la richiesta di Giulia Bianchi" asChild><button className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#402334] px-3 py-2 text-xs font-bold text-white transition hover:bg-[#2d1824] active:translate-y-px" onClick={onOpen} type="button">Gestisci richiesta <ChevronRight className="size-3.5" /></button></Toast.Action></div>
+    </div>
+    <div className="h-1 bg-[#792f59] motion-safe:animate-[notification-life_9s_linear_forwards]" />
+  </Toast.Root>;
 }
 
 export function FeedbackSystemPreview() {
-  const [toast, setToast] = useState<FeedbackTone | null>("success");
-  const [messageSent, setMessageSent] = useState(false);
-  const toastContent: Record<FeedbackTone, { body: string; title: string }> = {
-    attention: { title: "Conferma richiesta", body: "Giulia Bianchi attende una risposta per venerdì alle 15:30." },
-    danger: { title: "Invio non riuscito", body: "Il promemoria WhatsApp non è partito. Riprova o scegli un altro canale." },
-    info: { title: "Nuova prenotazione online", body: "Marco Rinaldi ha richiesto Colore e piega." },
-    success: { title: "Pagamento registrato", body: "La vendita di € 64,00 è stata chiusa correttamente." },
-  };
+  const [preview, setPreview] = useState<PreviewKind>("whatsapp");
+  const [notice, setNotice] = useState("");
+  function openPreview(kind: Exclude<PreviewKind, null>) { setPreview(null); setNotice(kind === "whatsapp" ? "In produzione questo aprirà la conversazione WhatsApp." : "In produzione questo aprirà la richiesta nel calendario."); }
 
-  return <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+  return <Toast.Provider swipeDirection="right"><div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px]">
     <div className="space-y-5">
-      <section className="rounded-2xl border border-stone-200 bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-extrabold text-stone-950">Avviso che richiede attenzione</p><p className="mt-1 text-sm leading-5 text-stone-500">Resta nel contesto finché la persona non completa l’azione.</p></div><PackageSearch className="size-5 text-[#792f59]" /></div>
-        <div className="mt-4"><FeedbackAlert action={<button className="rounded-lg bg-[#402334] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#2d1824] active:translate-y-px">Rivedi scorte</button>} title="Scorta bassa: Olaplex N°3" tone="attention">Restano 2 pezzi. La soglia minima impostata per il magazzino è 4.</FeedbackAlert></div>
-      </section>
-
-      <section className="rounded-2xl border border-stone-200 bg-white p-5">
-        <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-extrabold text-stone-950">Messaggio operativo</p><p className="mt-1 text-sm leading-5 text-stone-500">Conferma puntuale, vicina alla conversazione o al record coinvolto.</p></div><MessageCircleMore className="size-5 text-[#792f59]" /></div>
-        <div className="mt-4 max-w-xl rounded-2xl bg-[#f6f2f4] p-4">
-          <div className="rounded-2xl rounded-tl-md bg-white p-3 shadow-sm"><p className="text-sm font-bold text-stone-900">Elena Ferri</p><p className="mt-1 text-sm leading-5 text-stone-600">Posso spostare l’appuntamento di domani alle 17:00?</p><p className="mt-2 text-xs font-medium text-stone-400">Adesso</p></div>
-          {messageSent ? <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800" role="status">Risposta inviata a Elena.</p> : <button className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#792f59] px-3 text-sm font-bold text-white transition hover:bg-[#66264b] active:translate-y-px" onClick={() => { playFeedbackSound("success"); setMessageSent(true); }} type="button"><Send className="size-4" />Invia conferma</button>}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-stone-200 bg-white p-5">
-        <div className="flex items-start justify-between gap-4"><div><p className="text-sm font-extrabold text-stone-950">Notifiche temporanee</p><p className="mt-1 text-sm leading-5 text-stone-500">Brevi, non bloccanti e con suono solo dopo un gesto dell’utente o un evento nuovo.</p></div><BellRing className="size-5 text-[#792f59]" /></div>
-        <div className="mt-4 flex flex-wrap gap-2"><SoundButton label="Successo" onClick={() => setToast("success")} tone="success" /><SoundButton label="Nuova attività" onClick={() => setToast("info")} tone="info" /><SoundButton label="Attenzione" onClick={() => setToast("attention")} tone="attention" /><SoundButton label="Errore" onClick={() => setToast("danger")} tone="danger" /></div>
-      </section>
+      <section className="rounded-2xl border border-stone-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-extrabold text-stone-950">Un evento, una forma riconoscibile</p><p className="mt-1 max-w-xl text-sm leading-5 text-stone-500">Il messaggio conserva la bolla WhatsApp già presente. La prenotazione usa il giorno e l’orario come informazione dominante.</p></div><BellRing className="size-5 text-[#792f59]" /></div><div className="mt-4 flex flex-wrap gap-2"><PreviewButton kind="whatsapp" onClick={() => { setNotice(""); setPreview("whatsapp"); }}>Simula WhatsApp</PreviewButton><PreviewButton kind="booking" onClick={() => { setNotice(""); setPreview("booking"); }}>Simula prenotazione</PreviewButton></div></section>
+      <section className="rounded-2xl border border-[#efc48f] bg-[#fffaf3] p-4" role="status"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#fff0dc] text-[#9a561b]"><PackageSearch className="size-[18px]" /></span><div><h3 className="text-sm font-extrabold text-stone-950">Scorta bassa: Olaplex N°3</h3><p className="mt-1 text-sm leading-5 text-stone-600">Questo resta nel Magazzino. Non è un toast e non fa suoni: è un problema da risolvere, non un semplice aggiornamento.</p></div></div></section>
+      <section className="rounded-2xl border border-emerald-200 bg-[#f6fcf8] p-4" role="status"><div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-100 text-emerald-700"><Check className="size-[18px]" /></span><div><h3 className="text-sm font-extrabold text-stone-950">Pagamento registrato</h3><p className="mt-1 text-sm leading-5 text-stone-600">Micro-conferma silenziosa. Un suono per ogni salvataggio diventa rumore dopo pochi minuti.</p></div></div></section>
     </div>
-
-    <aside className="relative min-h-[360px] rounded-2xl border border-stone-200 bg-[#f6f2f4] p-5">
-      <div className="flex items-center gap-2 text-sm font-extrabold text-stone-800"><Clock3 className="size-4 text-[#792f59]" />Anteprima in-app</div>
-      <p className="mt-1 text-sm leading-5 text-stone-500">Il toast compare in alto a destra, senza interrompere il lavoro.</p>
-      <div className="absolute inset-x-5 top-24 space-y-3">{toast && <FeedbackToast {...toastContent[toast]} onClose={() => setToast(null)} tone={toast} />}</div>
-      {!toast && <div className="absolute inset-x-5 top-28 rounded-2xl border border-dashed border-stone-300 bg-white/70 p-5 text-center text-sm text-stone-500">Scegli un esempio per vedere l’avviso.</div>}
-    </aside>
-  </div>;
+    <aside className="relative min-h-[370px] overflow-hidden rounded-2xl border border-stone-200 bg-[#f6f2f4] p-5"><p className="text-sm font-extrabold text-stone-800">Come appare nell’app</p><p className="mt-1 text-sm leading-5 text-stone-500">Radix gestisce focus, coda, pausa su hover e swipe. Il visual resta EsseBeauty.</p><Toast.Viewport className="absolute inset-x-5 top-24 m-0 flex list-none flex-col gap-3 p-0 outline-none">{preview === "whatsapp" && <WhatsAppIncomingToast onOpen={() => openPreview("whatsapp")} />}{preview === "booking" && <BookingArrivalToast onOpen={() => openPreview("booking")} />}</Toast.Viewport>{!preview && <div className="absolute inset-x-5 top-28 rounded-xl border border-dashed border-stone-300 bg-white/70 p-5 text-center text-sm text-stone-500">Scegli un evento per riprodurre la sua notifica.</div>}{notice && <p className="absolute inset-x-5 bottom-5 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-[#792f59]" role="status">{notice}</p>}</aside>
+  </div></Toast.Provider>;
 }
