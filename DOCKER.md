@@ -11,11 +11,11 @@ Lo stack comprende:
 - `esse-beauty-booking`: Fastify (appuntamenti, slot, calendario, lista d'attesa), raggiungibile internamente come `booking:3007`
 - `esse-beauty-commerce`: Fastify (magazzino, cassa/POS, vendite, buoni acquisto, contabilità), raggiungibile internamente come `commerce:3008`
 - `esse-beauty-identity`: Fastify (login/logout staff, sessioni, recupero password, utenti e permessi), raggiungibile internamente come `identity:3009`
-- `esse-beauty-gateway`: nginx che smista `/api/**` tra `api`, `communications`, `loyalty-marketing`, `booking`, `commerce` e `identity` in base al path ed espone `http://localhost:3001` — è l'unico punto d'ingresso dell'API, i frontend continuano a puntare qui senza modifiche
+- `esse-beauty-gateway`: nginx opzionale per sviluppo/host senza nginx di sistema; smista `/api/**` tra `api`, `communications`, `loyalty-marketing`, `booking`, `commerce` e `identity` in base al path ed espone `http://localhost:3001`
 - `esse-beauty-web`: dashboard Next.js su `http://localhost:3000`
 - `esse-beauty-pwa`: portale clienti su `http://localhost:3002`
 - `esse-beauty-staff-pwa`: portale staff su `http://localhost:3003`
-- `esse-beauty-platform`: console multi-tenant su `http://localhost:3004`
+- `esse-beauty-admin`: console multi-tenant su `http://localhost:3004`
 
 L'autenticazione è locale: password hashate e sessioni revocabili sono salvate
 in PostgreSQL. Al primo avvio aprire `http://localhost:3000/login` per creare
@@ -53,8 +53,33 @@ In alternativa, usando Docker Compose direttamente:
 docker compose up -d --build
 ```
 
+Di default `.env.example` abilita `COMPOSE_PROFILES=gateway`, quindi Docker
+avvia anche `esse-beauty-gateway`. Su una VPS dove nginx gira gia sul sistema
+host, impostare invece:
+
+```text
+COMPOSE_PROFILES=
+PWA_API_INTERNAL_URL=https://api.essebeauty.shosa.me
+```
+
+In questa modalità il container gateway non viene creato. I backend sono
+pubblicati solo su loopback per nginx systemwide:
+
+```text
+api:               127.0.0.1:3011 -> container 3001
+communications:    127.0.0.1:3013 -> container 3003
+loyalty-marketing: 127.0.0.1:3016 -> container 3006
+booking:           127.0.0.1:3017 -> container 3007
+commerce:          127.0.0.1:3018 -> container 3008
+identity:          127.0.0.1:3019 -> container 3009
+```
+
+Il template nginx per questa modalità è in
+`deploy/nginx/essebeauty-systemwide.conf`, con lo snippet condiviso in
+`deploy/nginx/snippets/essebeauty-proxy.conf`.
+
 Le variabili `NEXT_PUBLIC_*` vengono incorporate durante la build. Dopo averle
-modificate è quindi necessario ricostruire `web`, `pwa`, `staff-pwa` e `platform`.
+modificate è quindi necessario ricostruire `web`, `pwa`, `staff-pwa` e `admin`.
 
 Se `API_CORS_ORIGIN` è impostata esplicitamente sulla VPS, deve includere anche
 l'origine pubblica della PWA staff e di Platform, per esempio
@@ -90,8 +115,9 @@ Generare la chiave di cifratura provider con:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-`NEXT_PUBLIC_API_URL` e `NEXT_PUBLIC_PWA_URL` sono variabili di build per le app
-Next.js: dopo ogni modifica bisogna ricostruire le immagini frontend.
+`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_PWA_URL` e `PWA_API_INTERNAL_URL` sono
+variabili usate dalle app Next.js: dopo ogni modifica alle `NEXT_PUBLIC_*`
+bisogna ricostruire le immagini frontend.
 
 ## Migrazioni e database
 
@@ -144,7 +170,8 @@ Da un container dello stack:
 ```text
 PostgreSQL: db:5432
 Redis:      redis:6379
-Gateway:    gateway:3001 (`API_INTERNAL_URL`, solo per chiamate server-side — smista tra api e communications)
+Gateway:    gateway:3001 quando `COMPOSE_PROFILES=gateway` e il container gateway e attivo
+Nginx host: https://api.essebeauty.shosa.me quando il gateway Docker e disabilitato su VPS
 ```
 
 La stringa di connessione interna usata da API e migrazioni è:
@@ -160,7 +187,7 @@ docker compose ps
 docker compose logs migrate
 docker compose logs api
 docker compose logs staff-pwa
-docker compose logs platform
+docker compose logs admin
 ```
 
 L'API viene avviata solo dopo il completamento delle migrazioni e dopo che
