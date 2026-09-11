@@ -294,7 +294,7 @@ export function DayAgendaPreview({ date }: { date: string }) {
           <span
             className={`relative block h-[calc(100%-16px)] min-h-14 overflow-hidden rounded-lg border px-2.5 py-1.5 shadow-sm ${confirmedAppointment ? "text-white" : ""}`}
             style={confirmedAppointment
-              ? { background: `linear-gradient(135deg, ${item.color || "#792f59"}, color-mix(in srgb, ${item.color || "#792f59"} 72%, white))`, borderColor: item.color || "#792f59" }
+              ? { background: `linear-gradient(135deg, ${item.color || "var(--esse-mulberry,#543147)"}, color-mix(in srgb, ${item.color || "var(--esse-mulberry,#543147)"} 72%, white))`, borderColor: item.color || "var(--esse-mulberry,#543147)" }
               : { background: palette?.background, borderColor: palette?.border, color: palette?.text }}
           >
             <span className="flex min-w-0 items-start justify-between gap-2">
@@ -345,7 +345,7 @@ export function DayAgendaPreview({ date }: { date: string }) {
                 const member = staffMembers.find((item) => item.id === staffId);
                 return (
                   <div className="flex flex-col items-center gap-1.5 border-r border-stone-100 px-2 pb-2 pt-3 last:border-r-0" key={staffId}>
-                    <span className="grid h-9 w-9 place-items-center rounded-full text-xs font-black text-white shadow-sm ring-2 ring-white" style={{ background: member?.color || "#792f59" }}>{staffName.slice(0, 1).toUpperCase()}</span>
+                    <span className="grid h-9 w-9 place-items-center rounded-full text-xs font-black text-white shadow-sm ring-2 ring-white" style={{ background: member?.color || "var(--esse-mulberry,#543147)" }}>{staffName.slice(0, 1).toUpperCase()}</span>
                     <p className="truncate text-xs font-black text-stone-950">{staffName}</p>
                   </div>
                 );

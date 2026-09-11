@@ -285,7 +285,7 @@ function DroppableTimeline({ children, id, onContextMenu, style }: { children: R
   const droppable = useDroppable({ id });
   return (
     <div
-      className={`relative border-r border-stone-100 bg-white last:border-r-0 ${droppable.isOver ? "bg-rose-50/60" : ""}`}
+      className={`relative border-r border-stone-100 bg-white last:border-r-0 ${droppable.isOver ? "bg-[var(--esse-petal,#f2e1eb)]" : ""}`}
       onContextMenu={onContextMenu}
       ref={droppable.setNodeRef}
       style={style}
@@ -750,7 +750,7 @@ export default function CalendarPage() {
   }
 
   function legendDotColor(initial: string) {
-    if (initial === "C") return "#792f59";
+    if (initial === "C") return "var(--esse-mulberry,#543147)";
     if (initial === "A") return APPOINTMENT_STATUS_PALETTE.pending.border;
     if (initial === "N") return APPOINTMENT_STATUS_PALETTE.no_show.border;
     return APPOINTMENT_STATUS_PALETTE.cancelled.border;
@@ -1005,7 +1005,7 @@ export default function CalendarPage() {
       scroll={false}
       className={`group block rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${item.status === "confirmed" ? "text-white" : ""}`}
       style={item.status === "confirmed"
-        ? { background: `linear-gradient(135deg, ${item.color || "#792f59"}, color-mix(in srgb, ${item.color || "#792f59"} 72%, white))`, borderColor: item.color || "#792f59" }
+        ? { background: `linear-gradient(135deg, ${item.color || "var(--esse-mulberry,#543147)"}, color-mix(in srgb, ${item.color || "var(--esse-mulberry,#543147)"} 72%, white))`, borderColor: item.color || "var(--esse-mulberry,#543147)" }
         : { background: APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE]?.background, borderColor: APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE]?.border, color: APPOINTMENT_STATUS_PALETTE[item.status as keyof typeof APPOINTMENT_STATUS_PALETTE]?.text }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -1077,8 +1077,8 @@ export default function CalendarPage() {
           className={`relative block h-[calc(100%-16px)] min-h-14 overflow-hidden rounded-lg border px-2.5 py-1.5 shadow-sm ${confirmedAppointment ? "text-white" : ""}`}
           style={confirmedAppointment
             ? {
-              background: `linear-gradient(135deg, ${item.color || "#792f59"}, color-mix(in srgb, ${item.color || "#792f59"} 72%, white))`,
-              borderColor: item.color || "#792f59",
+              background: `linear-gradient(135deg, ${item.color || "var(--esse-mulberry,#543147)"}, color-mix(in srgb, ${item.color || "var(--esse-mulberry,#543147)"} 72%, white))`,
+              borderColor: item.color || "var(--esse-mulberry,#543147)",
             }
             : {
               background: palette?.background,
@@ -1128,7 +1128,7 @@ export default function CalendarPage() {
             {locations.length > 1 && (
               <Select
                 aria-label="Sede"
-                className="h-10 min-w-0 max-w-[calc(50vw-1.5rem)] rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20 lg:h-9 lg:max-w-none"
+                className="h-10 min-w-0 max-w-[calc(50vw-1.5rem)] rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[var(--esse-mulberry,#543147)]/20 lg:h-9 lg:max-w-none"
                 onChange={(event) => { setLocationFilter(event.target.value); setStaffFilter(""); }}
                 value={locationFilter}
               >
@@ -1140,7 +1140,7 @@ export default function CalendarPage() {
             {/* Staff */}
             <Select
               aria-label="Staff"
-              className="h-10 min-w-0 max-w-[calc(50vw-1.5rem)] rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[#792f59]/20 lg:h-9 lg:max-w-none"
+              className="h-10 min-w-0 max-w-[calc(50vw-1.5rem)] rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 focus:outline-none focus:ring-2 focus:ring-[var(--esse-mulberry,#543147)]/20 lg:h-9 lg:max-w-none"
               onChange={(event) => setStaffFilter(event.target.value)}
               value={staffFilter}
             >
@@ -1166,14 +1166,14 @@ export default function CalendarPage() {
                 const count = itemsForDay(day).length;
                 return (
                   <button
-                    className={`flex min-h-11 flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 text-center transition lg:min-h-0 lg:px-3 ${active ? "bg-[#5f2447] text-white" : "text-stone-600 hover:bg-stone-50"}`}
+                    className={`flex min-h-11 flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 text-center transition lg:min-h-0 lg:px-3 ${active ? "bg-[var(--esse-mulberry,#543147)] text-white" : "text-stone-600 hover:bg-stone-50"}`}
                     key={day.toISOString()}
                     onClick={() => selectNavigatorDay(day)}
                     type="button"
                   >
                     <span className={`text-[9px] font-black uppercase tracking-[.08em] ${active ? "text-white/65" : "text-stone-400"}`}>{day.toLocaleDateString("it-IT", { weekday: "short" })}</span>
                     <strong className="text-sm tabular-nums">{day.getDate()}</strong>
-                    <span className={`block h-1 w-1 rounded-full ${count ? active ? "bg-white" : "bg-[#b85888]" : "bg-transparent"}`} />
+                    <span className={`block h-1 w-1 rounded-full ${count ? active ? "bg-white" : "bg-[var(--esse-berry,#b85888)]" : "bg-transparent"}`} />
                   </button>
                 );
               })}
@@ -1193,7 +1193,7 @@ export default function CalendarPage() {
             {/* Oggi */}
             {periodOffset !== 0 && (
               <button
-                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-dashed border-[#b85888] bg-[#faf3f7] px-3 text-[10px] font-black text-[#792f59]"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg border border-dashed border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)] px-3 text-[10px] font-black text-[var(--esse-mulberry,#543147)]"
                 onClick={goToToday}
                 type="button"
               >
@@ -1205,7 +1205,7 @@ export default function CalendarPage() {
             {/* Date picker */}
             <button
               aria-expanded={datePickerOpen}
-              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition ${datePickerOpen ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-stone-600 hover:bg-stone-50"}`}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition ${datePickerOpen ? "border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]" : "border-stone-200 text-stone-600 hover:bg-stone-50"}`}
               onClick={openDatePicker}
               ref={dateTriggerRef}
               type="button"
@@ -1221,7 +1221,7 @@ export default function CalendarPage() {
               <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" />
               <input
                 aria-label="Cerca appuntamenti"
-                className="h-9 w-44 rounded-lg border border-stone-200 bg-stone-50 pl-8 pr-7 text-xs font-semibold placeholder:text-stone-400 focus:border-[#792f59] focus:outline-none focus:ring-2 focus:ring-[#792f59]/15"
+                className="h-9 w-44 rounded-lg border border-stone-200 bg-stone-50 pl-8 pr-7 text-xs font-semibold placeholder:text-stone-400 focus:border-[var(--esse-mulberry,#543147)] focus:outline-none focus:ring-2 focus:ring-[var(--esse-mulberry,#543147)]/15"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Cerca..."
                 value={query}
@@ -1242,7 +1242,7 @@ export default function CalendarPage() {
             <div className="relative">
               <button
                 aria-expanded={filtersOpen}
-                className={`grid size-9 place-items-center rounded-lg border transition ${filtersOpen || activeFilterCount ? "border-[#b85888] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-stone-500 hover:bg-stone-50"}`}
+                className={`grid size-9 place-items-center rounded-lg border transition ${filtersOpen || activeFilterCount ? "border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]" : "border-stone-200 text-stone-500 hover:bg-stone-50"}`}
                 onClick={toggleFilters}
                 ref={filtersButtonRef}
                 type="button"
@@ -1250,7 +1250,7 @@ export default function CalendarPage() {
                 <SlidersHorizontal aria-hidden="true" className="size-4" />
               </button>
               {activeFilterCount > 0 && (
-                <span className="pointer-events-none absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[#792f59] text-[9px] font-black text-white">
+                <span className="pointer-events-none absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-[var(--esse-mulberry,#543147)] text-[9px] font-black text-white">
                   {activeFilterCount}
                 </span>
               )}
@@ -1262,7 +1262,7 @@ export default function CalendarPage() {
                 const ViewIcon = viewIcons[item.key];
                 return (
                   <button
-                    className={`inline-flex h-9 items-center gap-1.5 px-3 text-xs font-bold transition ${view === item.key ? "bg-white text-[#792f59] shadow-sm" : "text-stone-500 hover:text-stone-900"}`}
+                    className={`inline-flex h-9 items-center gap-1.5 px-3 text-xs font-bold transition ${view === item.key ? "bg-white text-[var(--esse-mulberry,#543147)] shadow-sm" : "text-stone-500 hover:text-stone-900"}`}
                     key={item.key}
                     onClick={() => { setView(item.key); setPeriodOffset(0); }}
                     type="button"
@@ -1293,8 +1293,8 @@ export default function CalendarPage() {
               <div className="mb-3">
                 <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[.08em] text-stone-500"><MapPin aria-hidden="true" className="size-3" />Sede</p>
                 <div className="flex flex-wrap gap-1.5">
-                  <button className={`rounded-full border px-3 py-1 text-xs font-bold ${!locationFilter ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 text-stone-600"}`} onClick={() => { setLocationFilter(""); setStaffFilter(""); }} type="button">Tutte</button>
-                  {locations.map((location) => <button className={`rounded-full border px-3 py-1 text-xs font-bold ${locationFilter === location.id ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 text-stone-600"}`} key={location.id} onClick={() => { setLocationFilter(location.id); setStaffFilter(""); }} type="button">{location.name}</button>)}
+                  <button className={`rounded-full border px-3 py-1 text-xs font-bold ${!locationFilter ? "border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] text-white" : "border-stone-200 text-stone-600"}`} onClick={() => { setLocationFilter(""); setStaffFilter(""); }} type="button">Tutte</button>
+                  {locations.map((location) => <button className={`rounded-full border px-3 py-1 text-xs font-bold ${locationFilter === location.id ? "border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] text-white" : "border-stone-200 text-stone-600"}`} key={location.id} onClick={() => { setLocationFilter(location.id); setStaffFilter(""); }} type="button">{location.name}</button>)}
                 </div>
               </div>
             )}
@@ -1320,7 +1320,7 @@ export default function CalendarPage() {
                 </span>
               ))}
             </div>
-            {activeFilterCount > 0 && <button className="mt-3 w-full border-t border-stone-100 pt-3 text-center text-xs font-black text-[#792f59]" onClick={clearFilters} type="button">Azzera filtri</button>}
+            {activeFilterCount > 0 && <button className="mt-3 w-full border-t border-stone-100 pt-3 text-center text-xs font-black text-[var(--esse-mulberry,#543147)]" onClick={clearFilters} type="button">Azzera filtri</button>}
           </div>,
           portalNode,
         )}
@@ -1341,7 +1341,7 @@ export default function CalendarPage() {
                 const isSelected = sameDay(day, range.from);
                 return (
                   <button
-                    className={`rounded-lg py-1.5 text-xs font-bold tabular-nums transition ${isSelected ? "bg-[#5f2447] text-white" : isToday ? "bg-[#faf3f7] text-[#792f59]" : inMonth ? "text-stone-700 hover:bg-stone-100" : "text-stone-300 hover:bg-stone-50"}`}
+                    className={`rounded-lg py-1.5 text-xs font-bold tabular-nums transition ${isSelected ? "bg-[var(--esse-mulberry,#543147)] text-white" : isToday ? "bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]" : inMonth ? "text-stone-700 hover:bg-stone-100" : "text-stone-300 hover:bg-stone-50"}`}
                     key={day.toISOString()}
                     onClick={() => pickDate(day)}
                     type="button"
@@ -1431,7 +1431,7 @@ export default function CalendarPage() {
                     return (
                       <div className="relative flex flex-col items-center gap-2 border-r border-stone-100 px-14 pb-3 pt-4 last:border-r-0 lg:px-4" key={staffId}>
                         <button aria-label="Staff precedente" className="absolute left-2 top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full border border-stone-200 bg-white text-stone-600 shadow-sm disabled:opacity-30 lg:hidden" disabled={staffOptions.length < 2} onClick={() => moveMobileStaff(-1)} type="button"><ChevronLeft aria-hidden="true" className="size-5" /></button>
-                        <span className="grid h-12 w-12 place-items-center rounded-full text-base font-black text-white shadow-md ring-2 ring-white" style={{ background: member?.color || "#792f59" }}>{displayName.slice(0, 1).toUpperCase()}</span>
+                        <span className="grid h-12 w-12 place-items-center rounded-full text-base font-black text-white shadow-md ring-2 ring-white" style={{ background: member?.color || "var(--esse-mulberry,#543147)" }}>{displayName.slice(0, 1).toUpperCase()}</span>
                         <div className="min-w-0 text-center">
                           <p className="text-sm font-black text-stone-950">{displayName}</p>
                           <p className="text-[11px] font-semibold text-stone-400">{filteredItems.filter((item) => item.staff_id === staffId).length} appuntamenti</p>
@@ -1525,7 +1525,7 @@ export default function CalendarPage() {
                       <header className="mb-3 flex items-center justify-between gap-2 border-b border-stone-100 pb-3">
                         <div>
                           <p className="text-[11px] font-black uppercase tracking-[.18em] text-stone-400">{weekdayShortLabel(day)}</p>
-                          <strong className="text-2xl text-[#2d1d27]">{day.getDate()}</strong>
+                          <strong className="text-2xl text-[var(--esse-ink,#25161f)]">{day.getDate()}</strong>
                         </div>
                         <Badge>{dayItems.length + dayBlocks.length + dayClosures.length}</Badge>
                       </header>
@@ -1675,12 +1675,12 @@ export default function CalendarPage() {
                 <div className="my-1 border-t border-stone-100" />
                 <p className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-stone-400">Cambia stato</p>
                 <div className="grid grid-cols-5 gap-1 px-2 pb-2">
-                  {manualContextStatusActions(contextMenu.appointment.status).map((status) => <button className="rounded-lg bg-stone-50 py-2 font-black hover:bg-rose-50" key={status} onClick={() => closeContextMenuAnd(() => updateAppointment(contextMenu.appointment!.id, { status }))} title={appointmentStatusLabel(status)} type="button">{appointmentStatusInitial[status]}</button>)}
+                  {manualContextStatusActions(contextMenu.appointment.status).map((status) => <button className="rounded-lg bg-stone-50 py-2 font-black hover:bg-[var(--esse-petal,#f2e1eb)]" key={status} onClick={() => closeContextMenuAnd(() => updateAppointment(contextMenu.appointment!.id, { status }))} title={appointmentStatusLabel(status)} type="button">{appointmentStatusInitial[status]}</button>)}
                 </div>
                 <button className="block w-full rounded-lg px-3 py-2 text-left font-bold text-red-700 hover:bg-red-50" onClick={() => { setDeleteTarget(contextMenu.appointment); setContextMenu(undefined); }} type="button">Elimina</button>
               </>
             ) : (
-              <button className="block w-full rounded-lg px-3 py-2 text-left font-bold hover:bg-rose-50" onClick={() => closeContextMenuAnd(() => {
+              <button className="block w-full rounded-lg px-3 py-2 text-left font-bold hover:bg-[var(--esse-petal,#f2e1eb)]" onClick={() => closeContextMenuAnd(() => {
                 const params = new URLSearchParams();
                 if (contextMenu.startsAt) params.set("startsAt", contextMenu.startsAt);
                 if (contextMenu.staffId) params.set("staffId", contextMenu.staffId);

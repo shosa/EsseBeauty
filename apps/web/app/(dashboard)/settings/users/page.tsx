@@ -73,7 +73,7 @@ export default function UsersPage() {
     <AppPage maxWidth="max-w-[1600px]">
       <PageTransition>
         <SaveToast visible={Boolean(message)}>{message}</SaveToast>
-        <PageHeader actions={canManageUsers ? <Link className="inline-flex min-h-11 items-center rounded-xl bg-[#792f59] px-4 py-2.5 font-semibold text-white hover:bg-[#66264b]" href="/settings/users/invite">Invita utente</Link> : undefined} eyebrow="Accessi" title="Utenti e accessi" subtitle="Gestisci ruoli, stato account e permessi individuali." />
+        <PageHeader actions={canManageUsers ? <Link className="inline-flex min-h-11 items-center rounded-xl bg-[var(--esse-mulberry,#543147)] px-4 py-2.5 font-semibold text-white hover:bg-[#66264b]" href="/settings/users/invite">Invita utente</Link> : undefined} eyebrow="Accessi" title="Utenti e accessi" subtitle="Gestisci ruoli, stato account e permessi individuali." />
         {error && <InlineError className="mb-5">{error}</InlineError>}
         <p aria-live="polite" className="sr-only">{updatingId ? "Aggiornamento stato account in corso" : message}</p>
         {loading ? (
@@ -87,7 +87,7 @@ export default function UsersPage() {
                 <article className="rounded-xl border border-stone-200 p-4" key={user.id}>
                   <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate font-semibold text-stone-950">{user.full_name}</h2><p className="truncate text-sm text-stone-500">{user.email}</p></div><Badge variant="muted">{user.role}</Badge></div>
                   <dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-stone-500">Ultimo accesso</dt><dd className="mt-1 font-medium">{user.last_login ? new Date(user.last_login).toLocaleString("it-IT") : "Mai"}</dd></div><div><dt className="text-stone-500">Stato account</dt><dd className="mt-1">{user.active ? "Attivo" : "Disattivato"}</dd></div></dl>
-                  <div className="mt-4 flex min-h-11 items-center justify-between border-t border-stone-100 pt-3"><Switch aria-label={`Stato account ${user.full_name}`} checked={user.active} disabled={!canManageUsers || updatingId === user.id} onCheckedChange={(active) => void setActive(user.id, active)} />{canManageUsers ? <Link className="rounded-lg px-3 py-2 text-sm font-semibold text-[#6f3556] hover:bg-[#faf3f7]" href={`/settings/users/${user.id}`}>Apri scheda</Link> : <span className="text-sm text-stone-500">Sola lettura</span>}</div>
+                  <div className="mt-4 flex min-h-11 items-center justify-between border-t border-stone-100 pt-3"><Switch aria-label={`Stato account ${user.full_name}`} checked={user.active} disabled={!canManageUsers || updatingId === user.id} onCheckedChange={(active) => void setActive(user.id, active)} />{canManageUsers ? <Link className="rounded-lg px-3 py-2 text-sm font-semibold text-[var(--esse-mulberry,#543147)] hover:bg-[var(--esse-petal,#f2e1eb)]" href={`/settings/users/${user.id}`}>Apri scheda</Link> : <span className="text-sm text-stone-500">Sola lettura</span>}</div>
                 </article>
               ))}
             </div>
@@ -114,7 +114,7 @@ export default function UsersPage() {
                       <Switch aria-label={`Stato account ${user.full_name}`} checked={user.active} disabled={!canManageUsers || updatingId === user.id} onCheckedChange={(active) => void setActive(user.id, active)} />
                     </td>
                     <td className="p-4 text-right">
-                      {canManageUsers ? <Link className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold hover:border-[#792f59] hover:text-[#792f59]" href={`/settings/users/${user.id}`}>Apri scheda</Link> : <span className="text-sm text-neutral-400">Sola lettura</span>}
+                      {canManageUsers ? <Link className="rounded-xl border border-stone-200 px-3 py-2 text-xs font-bold hover:border-[var(--esse-mulberry,#543147)] hover:text-[var(--esse-mulberry,#543147)]" href={`/settings/users/${user.id}`}>Apri scheda</Link> : <span className="text-sm text-neutral-400">Sola lettura</span>}
                     </td>
                   </tr>
                 ))}

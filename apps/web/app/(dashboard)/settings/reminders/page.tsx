@@ -73,7 +73,7 @@ export default function ReminderSettingsPage() {
       <AppPage maxWidth="max-w-[1600px]">
         <PageHeader eyebrow="Notifiche" title="Promemoria appuntamenti" subtitle="Canali, tempi di invio e storico dei promemoria recenti." />
         <EmptyState
-          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          action={<Link className="font-bold text-[var(--esse-mulberry,#543147)]" href="/apps">Vai ad App e moduli</Link>}
           description="Il modulo Promemoria non è attivo per questo salone. Attivalo dalla pagina App e moduli per configurare canali e invii."
           title="Modulo Promemoria non attivo"
         />
@@ -93,17 +93,17 @@ export default function ReminderSettingsPage() {
             <legend className="font-semibold">Canali attivi</legend>
             {[["WhatsApp", whatsapp, setWhatsapp], ["Email", email, setEmail]].map(([label, value, setter]) => {
               const Icon = channelIcons[label as keyof typeof channelIcons];
-              return <label key={label as string} className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-stone-200 p-4"><span className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4 text-[#792f59]" />{label as string}</span><Switch aria-label={`Promemoria ${label as string}`} checked={value as boolean} disabled={saving} onCheckedChange={(checked) => (setter as (value: boolean) => void)(checked)} /></label>;
+              return <label key={label as string} className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-stone-200 p-4"><span className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4 text-[var(--esse-mulberry,#543147)]" />{label as string}</span><Switch aria-label={`Promemoria ${label as string}`} checked={value as boolean} disabled={saving} onCheckedChange={(checked) => (setter as (value: boolean) => void)(checked)} /></label>;
             })}
             <label className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-stone-200 p-4">
               <span>
-                <span className="flex items-center gap-2"><Bell aria-hidden="true" className="size-4 text-[#792f59]" />App</span>
+                <span className="flex items-center gap-2"><Bell aria-hidden="true" className="size-4 text-[var(--esse-mulberry,#543147)]" />App</span>
                 <span className="mt-0.5 block text-xs font-normal text-stone-500">Solo per i clienti che hanno l’app installata con le notifiche attive.</span>
               </span>
               <Switch aria-label="Promemoria App" checked={app} disabled={saving} onCheckedChange={(checked) => setApp(checked)} />
             </label>
           </fieldset>
-          <fieldset><legend className="font-semibold">Quando inviarli</legend><div className="mt-4 grid grid-cols-2 gap-3">{options.map((value) => <label key={value} className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border p-4 ${hours.includes(value) ? "border-[#792f59] bg-[#faf3f7]" : "border-stone-200"}`}><span>{value} ore prima</span><Switch checked={hours.includes(value)} disabled={saving} onCheckedChange={() => setHours(hours.includes(value) ? hours.filter((item) => item !== value) : [...hours, value])} /></label>)}</div></fieldset>
+          <fieldset><legend className="font-semibold">Quando inviarli</legend><div className="mt-4 grid grid-cols-2 gap-3">{options.map((value) => <label key={value} className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border p-4 ${hours.includes(value) ? "border-[var(--esse-mulberry,#543147)] bg-[var(--esse-petal,#f2e1eb)]" : "border-stone-200"}`}><span>{value} ore prima</span><Switch checked={hours.includes(value)} disabled={saving} onCheckedChange={() => setHours(hours.includes(value) ? hours.filter((item) => item !== value) : [...hours, value])} /></label>)}</div></fieldset>
         </div>
         <div className="mt-6 flex justify-end border-t border-stone-200 pt-5">
           <SaveActionButton busy={saving} idleLabel="Salva regole promemoria" onClick={() => void save(whatsapp, email, app, hours)} saved={saved} />
@@ -128,7 +128,7 @@ export default function ReminderSettingsPage() {
               <Button disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} size="sm" variant="outline">Precedente</Button>
               {paginationPages(page, totalPages).map((item, index, all) => {
                 const previous = all[index - 1];
-                return <span className="contents" key={item}>{previous && item - previous > 1 && <span className="px-1 text-stone-400">…</span>}<button aria-current={item === page ? "page" : undefined} className={`grid size-9 place-items-center rounded-lg text-sm font-black ${item === page ? "bg-[#792f59] text-white" : "text-stone-600 hover:bg-[#f3e2eb]"}`} onClick={() => setPage(item)} type="button">{item}</button></span>;
+                return <span className="contents" key={item}>{previous && item - previous > 1 && <span className="px-1 text-stone-400">…</span>}<button aria-current={item === page ? "page" : undefined} className={`grid size-9 place-items-center rounded-lg text-sm font-black ${item === page ? "bg-[var(--esse-mulberry,#543147)] text-white" : "text-stone-600 hover:bg-[var(--esse-petal,#f2e1eb)]"}`} onClick={() => setPage(item)} type="button">{item}</button></span>;
               })}
               <Button disabled={page >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))} size="sm" variant="outline">Successiva</Button>
             </div>

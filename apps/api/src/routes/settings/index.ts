@@ -387,6 +387,33 @@ export async function registerSettingsRoutes(app: FastifyInstance) {
     },
   );
 
+  app.get<{
+    Params: { category: string; id: string };
+  }>(
+    "/api/salons/:id/settings/categories/:category",
+    {
+      preHandler: [
+        authenticate,
+        requirePermission(PERMISSION_KEYS.SETTINGS_SALON),
+      ],
+    },
+    async (request, reply) => {
+      const denied = assertSalon(request, reply);
+      if (denied) return denied;
+      const categoryRows = await app.db
+        .select()
+        .from(salonSettings)
+        .where(and(
+          eq(salonSettings.salonId, request.salonId),
+          eq(salonSettings.category, request.params.category),
+        ));
+      return {
+        category: request.params.category,
+        settings: categoryRows[0]?.settings ?? {},
+      };
+    },
+  );
+
   app.patch<{
     Body: Partial<{
       allow_overbooking: boolean;

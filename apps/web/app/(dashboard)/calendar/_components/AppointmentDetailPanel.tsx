@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Avatar, Style } from "@dicebear/core";
-import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, CheckCheck, ChevronDown, Clock3, EyeOff, Mail, Pencil, Phone, ShoppingBag, Trash2, UserRound, X } from "lucide-react";
 import {
@@ -20,6 +18,7 @@ import { APPOINTMENT_STATUS_PALETTE, appointmentStatusLabel, nextAppointmentStat
 import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 
 import { useAuth } from "../../../../lib/auth-context";
+import { CustomerAvatar } from "../../../../lib/customer-avatar";
 import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
 import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
 
@@ -122,36 +121,6 @@ function DayPositionPreview({ color, endsAt, label, startsAt }: { color: string;
       </div>
       <div className="mt-0.5 flex justify-between text-[9px] font-bold text-stone-300"><span>{AGENDA_PREVIEW_START_HOUR}:00</span><span>{AGENDA_PREVIEW_END_HOUR}:00</span></div>
     </div>
-  );
-}
-
-const avatarStyle = new Style(avatars);
-
-function CustomerAvatar({
-  id,
-  name,
-}: {
-  id: string;
-  name: string;
-}) {
-  const src = useMemo(
-    () =>
-      new Avatar(avatarStyle, {
-        seed: name,
-        size: 96,
-        borderRadius: 50,
-      }).toDataUri(),
-    [id],
-  );
-
-  return (
-    <img
-      alt={`Avatar di ${name}`}
-      className="size-12 shrink-0 rounded-full border-2 border-[#792f59] object-cover"
-      height={48}
-      src={src}
-      width={48}
-    />
   );
 }
 
@@ -388,7 +357,7 @@ export default function AppointmentDetailPanel({
     setResolvingReschedule(false);
   }
 
-  if (loading) return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white"><div className="flex shrink-0 items-center justify-between border-b border-stone-200 px-5 py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p><p className="mt-1 text-sm font-bold text-stone-600">Caricamento dettagli…</p></div><button aria-label="Chiudi gestione appuntamento" className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-100" data-appointment-close onClick={onClose} type="button"><X aria-hidden="true" className="size-5" /></button></div><div className="min-h-0 flex-1 overflow-hidden p-6"><PageSkeleton /></div></div>;
+  if (loading) return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white"><div className="flex shrink-0 items-center justify-between border-b border-stone-200 px-5 py-4"><div><p className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--esse-mulberry,#543147)]">Gestione appuntamento</p><p className="mt-1 text-sm font-bold text-stone-600">Caricamento dettagli…</p></div><button aria-label="Chiudi gestione appuntamento" className="grid size-11 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-100" data-appointment-close onClick={onClose} type="button"><X aria-hidden="true" className="size-5" /></button></div><div className="min-h-0 flex-1 overflow-hidden p-6"><PageSkeleton /></div></div>;
   const appointment = data?.appointment;
 
   return (
@@ -409,11 +378,11 @@ export default function AppointmentDetailPanel({
         <p className="text-sm leading-6 text-stone-600">
           Confermando, gli appuntamenti verranno mostrati affiancati in agenda.
         </p>
-        <div className="mt-5 rounded-xl border border-[#ead1df] bg-[#fffafd] p-4">
-          <p className="text-xs font-black uppercase tracking-[.16em] text-[#8f3a68]">Anteprima agenda</p>
+        <div className="mt-5 rounded-xl border border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)] p-4">
+          <p className="text-xs font-black uppercase tracking-[.16em] text-[var(--esse-berry,#b85888)]">Anteprima agenda</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-white p-3 shadow-sm">
-              <p className="text-xs font-bold text-[#792f59]">{appointmentTime}</p>
+            <div className="min-w-0 rounded-xl border-l-4 border-[var(--esse-mulberry,#543147)] bg-white p-3 shadow-sm">
+              <p className="text-xs font-bold text-[var(--esse-mulberry,#543147)]">{appointmentTime}</p>
               <p className="mt-1 truncate text-sm font-bold">{appointment?.customer_name}</p>
               <p className="truncate text-xs text-stone-500">{appointment?.service_name}</p>
             </div>
@@ -461,8 +430,8 @@ export default function AppointmentDetailPanel({
                 <p className="mt-1 text-sm font-bold text-stone-900">{formatDate(appointment.starts_at)}</p>
                 <p className="text-sm text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)}</p>
               </div>
-              <div className="min-w-0 rounded-xl border-l-4 border-[#792f59] bg-[#fffafd] p-3">
-                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Dopo</p>
+              <div className="min-w-0 rounded-xl border-l-4 border-[var(--esse-mulberry,#543147)] bg-[var(--esse-petal,#f2e1eb)] p-3">
+                <p className="text-[10px] font-black uppercase tracking-[.16em] text-[var(--esse-mulberry,#543147)]">Dopo</p>
                 <p className="mt-1 text-sm font-bold text-stone-900">{formatDate(data.pending_reschedule_request.requested_starts_at)}</p>
                 <p className="text-sm text-stone-600">{formatTime(data.pending_reschedule_request.requested_starts_at)}–{formatTime(new Date(new Date(data.pending_reschedule_request.requested_starts_at).getTime() + minutesBetween(appointment.starts_at, appointment.ends_at) * 60000).toISOString())}</p>
               </div>
@@ -473,7 +442,7 @@ export default function AppointmentDetailPanel({
               <div className="space-y-3">
                 <DayPositionPreview color="#a8a29e" endsAt={appointment.ends_at} label="Prima" startsAt={appointment.starts_at} />
                 <DayPositionPreview
-                  color="#792f59"
+                  color="var(--esse-mulberry,#543147)"
                   endsAt={new Date(new Date(data.pending_reschedule_request.requested_starts_at).getTime() + minutesBetween(appointment.starts_at, appointment.ends_at) * 60000).toISOString()}
                   label="Dopo"
                   startsAt={data.pending_reschedule_request.requested_starts_at}
@@ -487,21 +456,21 @@ export default function AppointmentDetailPanel({
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
           <Link
             aria-label={appointment ? `Apri anagrafica di ${appointment.customer_name}` : "Appuntamento"}
-            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20"
             href={appointment ? `/clients/${appointment.customer_id}` : "/clients"}
           >
             {appointment ? (
-              <CustomerAvatar id={appointment.customer_id} name={appointment.customer_name} />
+              <CustomerAvatar className="size-12" id={appointment.customer_id} name={appointment.customer_name} size={48} />
             ) : (
-              <span className="grid size-12 shrink-0 place-items-center rounded-full border-2 border-[#792f59] bg-[#f3e2eb] text-sm font-black text-[#792f59]">—</span>
+              <span className="grid size-12 shrink-0 place-items-center rounded-full border-2 border-[var(--esse-mulberry,#543147)] bg-[var(--esse-petal,#f2e1eb)] text-sm font-black text-[var(--esse-mulberry,#543147)]">—</span>
             )}
           </Link>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p>{appointment && <StatusBadge status={appointment.status} />}{isClosed && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">Conto chiuso</span>}</div>
+            <div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[var(--esse-mulberry,#543147)]">Gestione appuntamento</p>{appointment && <StatusBadge status={appointment.status} />}{isClosed && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">Conto chiuso</span>}</div>
             <h1 className="mt-1 text-xl font-black tracking-tight text-stone-950 sm:truncate sm:text-2xl">{appointment?.customer_name ?? "Appuntamento"}</h1>
             {appointment && <p className="mt-1 text-xs font-semibold text-stone-500 sm:truncate sm:text-sm">{appointment.service_name} · {formatDate(appointment.starts_at)} · {formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)}</p>}
           </div>
-          <button aria-label="Chiudi gestione appuntamento" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" data-appointment-close onClick={onClose} title="Chiudi" type="button"><X aria-hidden="true" className="size-5" /></button>
+          <button aria-label="Chiudi gestione appuntamento" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20" data-appointment-close onClick={onClose} title="Chiudi" type="button"><X aria-hidden="true" className="size-5" /></button>
         </div>
         {appointment && <div className="mt-4 flex flex-col gap-2 sm:min-w-0 sm:flex-row sm:items-center">
           <span className="shrink-0 text-[10px] font-black uppercase tracking-[.14em] text-stone-400 sm:mr-1">Stato</span>
@@ -509,7 +478,7 @@ export default function AppointmentDetailPanel({
             <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pb-1">{statusActions.map((status) => {
               const active = appointment.status === status;
               const palette = statusActionPalette(status, active);
-              return <button aria-pressed={active} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed ${active ? "shadow-sm disabled:opacity-100" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50 disabled:opacity-35"}`} disabled={isClosed || statusUpdating || active || !nextAppointmentStatuses(appointment.status).includes(status)} key={status} onClick={() => void updateStatus(status)} style={active ? { background: palette?.background, borderColor: palette?.border, color: palette?.text } : undefined} title={isClosed ? "Stato bloccato: vendita registrata" : appointmentStatusLabel(status)} type="button"><span className="[&_svg]:size-4"><StatusActionIcon status={status} /></span>{appointmentStatusLabel(status)}</button>;
+              return <button aria-pressed={active} className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-not-allowed ${active ? "shadow-sm disabled:opacity-100" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50 disabled:opacity-35"}`} disabled={isClosed || statusUpdating || active || !nextAppointmentStatuses(appointment.status).includes(status)} key={status} onClick={() => void updateStatus(status)} style={active ? { background: palette?.background, borderColor: palette?.border, color: palette?.text } : undefined} title={isClosed ? "Stato bloccato: vendita registrata" : appointmentStatusLabel(status)} type="button"><span className="[&_svg]:size-4"><StatusActionIcon status={status} /></span>{appointmentStatusLabel(status)}</button>;
             })}</div>
             <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
               {!isClosed && <Button onClick={() => setEditingAppointment(true)} size="sm" variant="secondary"><Pencil aria-hidden="true" className="size-4" /><span className="hidden sm:inline">Modifica</span></Button>}
@@ -535,9 +504,9 @@ export default function AppointmentDetailPanel({
               )}
               <section className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                 <div className="grid divide-y divide-stone-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-                  <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[#792f59]"><CalendarDays aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Quando</p></div><p className="mt-2 font-black text-stone-950">{formatDate(appointment.starts_at)}</p><p className="mt-1 text-sm font-semibold text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)} · {minutesBetween(appointment.starts_at, appointment.ends_at)} min</p></div>
+                  <div className="p-4 sm:p-5"><div className="flex items-center gap-2 text-[var(--esse-mulberry,#543147)]"><CalendarDays aria-hidden="true" className="size-4" /><p className="text-[10px] font-black uppercase tracking-[.16em]">Quando</p></div><p className="mt-2 font-black text-stone-950">{formatDate(appointment.starts_at)}</p><p className="mt-1 text-sm font-semibold text-stone-600">{formatTime(appointment.starts_at)}–{formatTime(appointment.ends_at)} · {minutesBetween(appointment.starts_at, appointment.ends_at)} min</p></div>
                   <div className="p-4 sm:p-5">
-                    <div className="flex items-center gap-2 text-[#792f59]">
+                    <div className="flex items-center gap-2 text-[var(--esse-mulberry,#543147)]">
                       <UserRound aria-hidden="true" className="size-4" />
                       <p className="text-[10px] font-black uppercase tracking-[.16em]">Con</p>
                     </div>
@@ -561,7 +530,7 @@ export default function AppointmentDetailPanel({
                   </div>
                 </div>
                 <div className="border-t border-stone-100 p-4 sm:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Cliente</p><Link className="mt-1 inline-block text-lg font-black text-stone-950 hover:text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>{appointment.customer_name}</Link></div><Link className="text-sm font-bold text-[#792f59] hover:underline" href={`/clients/${appointment.customer_id}`}>Apri anagrafica</Link></div>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.16em] text-[var(--esse-mulberry,#543147)]">Cliente</p><Link className="mt-1 inline-block text-lg font-black text-stone-950 hover:text-[var(--esse-mulberry,#543147)] hover:underline" href={`/clients/${appointment.customer_id}`}>{appointment.customer_name}</Link></div><Link className="text-sm font-bold text-[var(--esse-mulberry,#543147)] hover:underline" href={`/clients/${appointment.customer_id}`}>Apri anagrafica</Link></div>
                   <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2"><span className="flex min-w-0 items-center gap-2 text-stone-600"><Phone aria-hidden="true" className="size-4 shrink-0 text-stone-400" /><span className="truncate">{appointment.customer_phone || "Telefono non disponibile"}</span></span><span className="flex min-w-0 items-center gap-2 text-stone-600"><Mail aria-hidden="true" className="size-4 shrink-0 text-stone-400" /><span className="truncate">{appointment.customer_email || "Email non disponibile"}</span></span></div>
                   {appointment.notes && <p className="mt-3 rounded-lg bg-stone-50 px-3 py-2 text-sm leading-6 text-stone-600"><strong className="text-stone-800">Nota:</strong> {appointment.notes}</p>}
                   {appointment.status === "cancelled" && appointment.cancellation_reason && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm leading-6 text-red-800"><strong>Annullato:</strong> {appointment.cancellation_reason}</p>}
@@ -570,8 +539,8 @@ export default function AppointmentDetailPanel({
 
               <DocumentsModuleGate enabled={documentsEnabled}>
                 <details className="group overflow-hidden rounded-xl border border-stone-200 bg-white">
-                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 marker:hidden hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[#b85888]/20 sm:px-5 [&::-webkit-details-marker]:hidden">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#f3e2eb] text-[#792f59]"><CheckCheck aria-hidden="true" className="size-4" /></span>
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 px-4 py-3 marker:hidden hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-[var(--esse-berry,#b85888)]/20 sm:px-5 [&::-webkit-details-marker]:hidden">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]"><CheckCheck aria-hidden="true" className="size-4" /></span>
                     <span className="min-w-0 flex-1"><strong className="block text-sm text-stone-950">Consensi e documenti</strong><span className="mt-0.5 block text-xs text-stone-500">Richieste, firme e stato dei consensi del cliente</span></span>
                     <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-stone-400 transition-transform group-open:rotate-180" />
                   </summary>
@@ -581,13 +550,13 @@ export default function AppointmentDetailPanel({
                 </details>
               </DocumentsModuleGate>
 
-              <section className="rounded-xl border border-[#d9a7c2] bg-[#fffafd] p-4 sm:p-5">
+              <section className="rounded-xl border border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)] p-4 sm:p-5">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f3e2eb] text-[#792f59]">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/70 text-[var(--esse-mulberry,#543147)]">
                     <ShoppingBag aria-hidden="true" className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#792f59]">Azione principale</p>
+                    <p className="text-[10px] font-black uppercase tracking-[.16em] text-[var(--esse-mulberry,#543147)]">Azione principale</p>
                     <h2 className="mt-1 text-lg font-black text-stone-950">Porta in cassa</h2>
                     <p className="mt-1 text-sm leading-6 text-stone-600">
                       Porta l’appuntamento in Cassa già caricato, quindi completa il conto con eventuali prodotti,
@@ -602,7 +571,7 @@ export default function AppointmentDetailPanel({
                   </div>
                 ) : checkoutEnabled ? (
                   <Link
-                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#792f59] px-4 text-sm font-black text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+                    className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--esse-mulberry,#543147)] px-4 text-sm font-black text-white transition-colors hover:bg-[var(--esse-berry,#b85888)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20"
                     href={`/sales?appointment=${encodeURIComponent(appointment.id)}`}
                   >
                     Porta in cassa

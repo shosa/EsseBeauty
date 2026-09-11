@@ -47,6 +47,59 @@ import { applyNotificationSnapshot, markNotificationRead, playIncomingMessageSou
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type IconComponent = ComponentType<{ className?: string }>;
 
+interface UiPreferences {
+  accentColor?: string;
+  diceBearEnabled?: boolean;
+  diceBearStyle?: string;
+  primaryColor?: string;
+}
+
+const defaultUiPreferences: Required<UiPreferences> = {
+  accentColor: "#b85888",
+  diceBearEnabled: true,
+  diceBearStyle: "initial-face",
+  primaryColor: "#543147",
+};
+
+function validHex(value?: string): value is string {
+  return Boolean(value && /^#[0-9a-f]{6}$/i.test(value));
+}
+
+function hexToRgb(value: string) {
+  const normalized = value.replace("#", "");
+  return {
+    b: Number.parseInt(normalized.slice(4, 6), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+  };
+}
+
+function mixHex(from: string, to: string, amount: number) {
+  const a = hexToRgb(from);
+  const b = hexToRgb(to);
+  const channel = (start: number, end: number) => Math.round(start + (end - start) * amount).toString(16).padStart(2, "0");
+  return `#${channel(a.r, b.r)}${channel(a.g, b.g)}${channel(a.b, b.b)}`;
+}
+
+function applyUiPreferences(preferences: UiPreferences) {
+  const root = document.documentElement;
+  const primaryColor = validHex(preferences.primaryColor) ? preferences.primaryColor : defaultUiPreferences.primaryColor;
+  const accentColor = validHex(preferences.accentColor) ? preferences.accentColor : defaultUiPreferences.accentColor;
+  root.style.setProperty("--esse-mulberry", primaryColor);
+  root.style.setProperty("--esse-berry", accentColor);
+  root.style.setProperty("--esse-petal", mixHex(accentColor, "#ffffff", 0.82));
+  root.style.setProperty("--esse-line", `${primaryColor}24`);
+  root.style.setProperty("--esse-ink", mixHex(primaryColor, "#000000", 0.56));
+  root.style.setProperty("--esse-rail", mixHex(primaryColor, "#000000", 0.48));
+  root.style.setProperty("--esse-rail-active", mixHex(primaryColor, "#ffffff", 0.9));
+  root.style.setProperty("--esse-drawer-start", mixHex(primaryColor, "#000000", 0.42));
+  root.style.setProperty("--esse-drawer-mid", mixHex(primaryColor, accentColor, 0.34));
+  root.style.setProperty("--esse-drawer-end", mixHex(accentColor, "#000000", 0.22));
+  root.style.setProperty("--esse-drawer-glow", mixHex(accentColor, "#ffffff", 0.16));
+  root.dataset.dicebearEnabled = String(preferences.diceBearEnabled !== false);
+  root.dataset.dicebearStyle = preferences.diceBearStyle || defaultUiPreferences.diceBearStyle;
+}
+
 const primary: Array<{ href: string; icon: IconComponent; label: string; section: string }> = [
   { href: "/", icon: DashboardIcon, label: "Home", section: "Operativita" },
   { href: "/calendar", icon: CalendarIcon, label: "Agenda", section: "Operativita" },
@@ -174,7 +227,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Crea nuovo"
-        className="grid size-10 place-items-center rounded-xl border border-[#792f59] bg-[#792f59] text-white transition-colors hover:bg-[#66264b] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+        className="grid size-10 place-items-center rounded-xl border border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] text-white transition-colors hover:bg-[var(--esse-berry,#b85888)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20"
         onClick={() => setOpen((value) => !value)}
         title="Crea nuovo"
         type="button"
@@ -184,7 +237,7 @@ function QuickCreateMenu({ actions }: { actions: readonly AppQuickAction[] }) {
       {open && (
         <div className="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-stone-200 bg-white p-2 shadow-[0_18px_48px_rgb(45_29_39_/_0.14)]" role="menu">
           {actions.map((action) => (
-            <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[#faf3f7] hover:text-[#792f59]" href={action.href} key={action.href} onClick={() => setOpen(false)} role="menuitem">
+            <Link className="block rounded-xl px-4 py-3 text-sm font-bold text-stone-700 hover:bg-[var(--esse-petal,#f2e1eb)] hover:text-[var(--esse-mulberry,#543147)]" href={action.href} key={action.href} onClick={() => setOpen(false)} role="menuitem">
               {action.label}
             </Link>
           ))}
@@ -229,7 +282,7 @@ function CommandPalette({ actions, onClose, open, salonId }: { actions: Readonly
       <div className="mt-4 border-b border-stone-100 pb-4">
         <p className="mb-2 text-xs font-black uppercase tracking-[.16em] text-stone-400">Azioni rapide</p>
         <div className="grid gap-2">
-          {actions.map((action) => <Link className="flex items-center gap-2.5 rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold hover:bg-[#f3e2eb]" href={action.href} key={action.href} onClick={onClose}><action.icon aria-hidden="true" className="size-4 shrink-0 text-[#792f59]" />{action.label}</Link>)}
+          {actions.map((action) => <Link className="flex items-center gap-2.5 rounded-xl bg-stone-50 px-4 py-3 text-sm font-bold hover:bg-[var(--esse-petal,#f2e1eb)]" href={action.href} key={action.href} onClick={onClose}><action.icon aria-hidden="true" className="size-4 shrink-0 text-[var(--esse-mulberry,#543147)]" />{action.label}</Link>)}
         </div>
       </div>
       {error && <InlineError className="mt-4">{error}</InlineError>}
@@ -238,7 +291,7 @@ function CommandPalette({ actions, onClose, open, salonId }: { actions: Readonly
         <div className="mt-4 space-y-4">{searchGroups.map((group) => {
           const groupResults = results.filter((item) => item.group === group.key);
           if (groupResults.length === 0) return null;
-          return <section key={group.key}><h3 className="mb-2 text-xs font-black uppercase tracking-[.16em] text-stone-400">{group.label}</h3><div className="space-y-2">{groupResults.map((item) => <Link className="block rounded-xl border border-stone-100 p-3 hover:border-[#792f59]" href={item.href} key={`${item.group}-${item.href}`} onClick={onClose}><b className="block text-sm">{item.title}</b>{item.subtitle && <span className="text-xs text-stone-500">{item.subtitle}</span>}</Link>)}</div></section>;
+          return <section key={group.key}><h3 className="mb-2 text-xs font-black uppercase tracking-[.16em] text-stone-400">{group.label}</h3><div className="space-y-2">{groupResults.map((item) => <Link className="block rounded-xl border border-stone-100 p-3 hover:border-[var(--esse-mulberry,#543147)]" href={item.href} key={`${item.group}-${item.href}`} onClick={onClose}><b className="block text-sm">{item.title}</b>{item.subtitle && <span className="text-xs text-stone-500">{item.subtitle}</span>}</Link>)}</div></section>;
         })}</div>}
     </Dialog>
   );
@@ -247,7 +300,7 @@ function CommandPalette({ actions, onClose, open, salonId }: { actions: Readonly
 function NotificationCenter({ error, items, notice, onArchive, onArchiveRead, onClose, onMarkAllRead, onMarkRead, onOpenItem, open }: { error: string; items: NotificationItem[]; notice: string; onArchive(item: NotificationItem): void; onArchiveRead(): void; onClose(): void; onMarkAllRead(): void; onMarkRead(item: NotificationItem): void; onOpenItem(item: NotificationItem): void; open: boolean }) {
   return (
     <Drawer
-      footer={<Link className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#792f59] px-4 text-sm font-bold text-white hover:bg-[#66264b]" href="/notifications" onClick={onClose}>Apri centro notifiche</Link>}
+      footer={<Link className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--esse-mulberry,#543147)] px-4 text-sm font-bold text-white hover:bg-[var(--esse-berry,#b85888)]" href="/notifications" onClick={onClose}>Apri centro notifiche</Link>}
       onClose={onClose}
       open={open}
       title="Notifiche"
@@ -264,17 +317,17 @@ function NotificationCenter({ error, items, notice, onArchive, onArchiveRead, on
       {!error && items.length === 0 && <EmptyState description="Appuntamenti, recensioni, scorte e richieste appariranno qui." title="Nessuna notifica" />}
       <div className="mt-3 space-y-3">
         {items.map((item) => (
-          <article className={`rounded-xl border p-4 ${item.read_at ? "border-stone-100 bg-white" : "border-[#d7a6c1] bg-[#fffafd]"}`} key={item.id}>
+          <article className={`rounded-xl border p-4 ${item.read_at ? "border-stone-100 bg-white" : "border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)]"}`} key={item.id}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[.14em] text-[#792f59]">{item.category ?? notificationTypeLabels[item.type] ?? item.type}</p>
+                <p className="text-xs font-black uppercase tracking-[.14em] text-[var(--esse-mulberry,#543147)]">{item.category ?? notificationTypeLabels[item.type] ?? item.type}</p>
                 <h3 className="mt-1 font-bold text-stone-950">{item.title}</h3>
               </div>
               <StatusBadge status={item.priority === "high" || item.priority === "critical" ? "waiting" : "active"}>{item.priority ?? "normal"}</StatusBadge>
             </div>
             {item.body && <p className="mt-2 text-sm leading-6 text-stone-500">{item.body}</p>}
             <div className="mt-4 flex flex-wrap gap-2">
-              {item.href && <button className="rounded-xl bg-[#402334] px-3 py-2 text-xs font-bold text-white" onClick={() => onOpenItem(item)} type="button">Apri</button>}
+              {item.href && <button className="rounded-xl bg-[var(--esse-ink,#25161f)] px-3 py-2 text-xs font-bold text-white" onClick={() => onOpenItem(item)} type="button">Apri</button>}
               {item.action_pending && <StatusBadge status="pending">Da completare</StatusBadge>}
               {!item.read_at && <Button onClick={() => onMarkRead(item)} size="sm" variant="outline">Letta</Button>}
               {!item.action_pending && <Button onClick={() => onArchive(item)} size="sm" variant="tableAction">Archivia</Button>}
@@ -347,14 +400,14 @@ function UnifiedSideNavigation({
   return (
     <aside className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden border-r border-white/10 bg-[#35212e] text-white shadow-[12px_0_36px_rgb(30_15_24_/_0.16)] transition-[width] duration-200 md:flex md:flex-col ${collapsed ? "w-20 p-3" : "w-72 p-5"}`}>
       <div className={`flex shrink-0 items-center ${collapsed ? "justify-center" : "justify-start"} gap-3 border-b border-white/10 pb-5`}>
-        <Link className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-[#2d1d27] shadow-lg transition hover:bg-white/90" href="/"><BrandLogo className="size-8" tone="rail" /></Link>
+        <Link className="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-[var(--esse-rail,#25161f)] shadow-lg transition hover:bg-white/90" href="/"><BrandLogo className="size-8" tone="rail" /></Link>
         {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-lg text-white">EsseBeauty</b><small className="text-white/50">Gestione salone</small></div>}
       </div>
 
       <div className="relative min-h-0 flex-1">
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-1 top-0 z-10 h-px bg-[#d7a6c1] shadow-[0_10px_18px_8px_rgb(121_47_89_/_0.18)] transition-opacity duration-200 ${scrollShadows.top ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute inset-x-1 top-0 z-10 h-px bg-[var(--esse-berry,#b85888)] shadow-[0_10px_18px_8px_rgb(121_47_89_/_0.18)] transition-opacity duration-200 ${scrollShadows.top ? "opacity-100" : "opacity-0"}`}
         />
         <div
           className="sidebar-scroll h-full overflow-y-auto overflow-x-hidden py-5"
@@ -381,7 +434,7 @@ function UnifiedSideNavigation({
         </div>
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-1 bottom-0 z-10 h-px bg-[#d7a6c1] shadow-[0_-10px_18px_8px_rgb(121_47_89_/_0.18)] transition-opacity duration-200 ${scrollShadows.bottom ? "opacity-100" : "opacity-0"}`}
+          className={`pointer-events-none absolute inset-x-1 bottom-0 z-10 h-px bg-[var(--esse-berry,#b85888)] shadow-[0_-10px_18px_8px_rgb(121_47_89_/_0.18)] transition-opacity duration-200 ${scrollShadows.bottom ? "opacity-100" : "opacity-0"}`}
         />
       </div>
 
@@ -394,7 +447,7 @@ function UnifiedSideNavigation({
         </button>
         <div className={`rounded-xl border border-white/10 bg-white/7 p-3 ${collapsed ? "text-center" : ""}`}>
           <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#d9a5c2] font-bold text-[#402334]">{user?.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--esse-petal,#d9a5c2)] font-bold text-[var(--esse-ink,#25161f)]">{user?.full_name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</span>
             {!collapsed && <div className="min-w-0 flex-1"><b className="block truncate text-sm text-white">{user?.full_name}</b><small className="text-white/45">{user?.role}</small></div>}
             {!collapsed && <button className="rounded-lg p-2 text-white/45 hover:bg-white/10 hover:text-white" onClick={logout} title="Esci"><LogoutIcon /></button>}
           </div>
@@ -669,6 +722,33 @@ function ShellContent({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [salon?.id]);
 
+  useEffect(() => {
+    if (!salon?.id) {
+      applyUiPreferences(defaultUiPreferences);
+      return;
+    }
+    const controller = new AbortController();
+    applyUiPreferences(defaultUiPreferences);
+    void fetch(`${api}/api/salons/${salon.id}/settings/categories/ui`, { credentials: "include", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          applyUiPreferences(defaultUiPreferences);
+          return;
+        }
+        const body = await response.json() as { settings?: UiPreferences };
+        applyUiPreferences({ ...defaultUiPreferences, ...body.settings });
+      })
+      .catch(() => applyUiPreferences(defaultUiPreferences));
+    function update(event: Event) {
+      applyUiPreferences({ ...defaultUiPreferences, ...((event as CustomEvent<UiPreferences>).detail ?? {}) });
+    }
+    window.addEventListener("esse:ui-preferences-updated", update);
+    return () => {
+      controller.abort();
+      window.removeEventListener("esse:ui-preferences-updated", update);
+    };
+  }, [salon?.id]);
+
   function setCollapsedPreference(next: boolean) {
     setNavigationCollapsed(next);
     if (!salon?.id) return;
@@ -743,7 +823,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     !user ||
     (user.role === "owner" && !salon.onboarding_completed)
   ) {
-    return <main className="grid min-h-screen place-items-center bg-[#f6f2f4]"><div className="size-12 animate-pulse rounded-xl bg-[#792f59]" /></main>;
+    return <main className="grid min-h-screen place-items-center bg-[#f6f2f4]"><div className="size-12 animate-pulse rounded-xl bg-[var(--esse-mulberry,#543147)]" /></main>;
   }
   return <ModuleProvider apiBaseUrl={api} salonId={salon.id}><CommunicationWorkspaceProvider apiBaseUrl={api} salonId={salon.id}><ShellContent>{children}</ShellContent></CommunicationWorkspaceProvider></ModuleProvider>;
 }

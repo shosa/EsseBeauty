@@ -51,7 +51,7 @@ const defaults: AppClientiSettings = {
   maxAdvanceDays: 90,
   minBookingNoticeHours: 2,
   onlineBookingEnabled: true,
-  primaryColor: "#792f59",
+  primaryColor: "#543147",
   requireEmail: true,
   requirePhone: false,
   welcomeText: "Benvenuta nel nostro salone.",
@@ -123,7 +123,7 @@ function ColorField({
   const pickerValue = validColor(value, fallback);
   return (
     <FormField label={label}>
-      <div className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-[#fffafd] px-3">
+      <div className="flex min-h-12 items-center gap-3 rounded-xl border border-stone-200 bg-[var(--esse-petal,#f2e1eb)] px-3">
         <label
           className="relative block size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 border-white shadow-[0_0_0_1px_rgb(214_211_209)]"
           style={{ backgroundColor: pickerValue }}
@@ -277,7 +277,7 @@ export default function AppClientiSettingsPage() {
                 Lista d’attesa per giornate piene
                 <Switch aria-label="Lista d’attesa per giornate piene" checked={settings.allowWaitlist && waitlistModuleEnabled} disabled={!waitlistModuleEnabled} onCheckedChange={(allowWaitlist) => setSettings({ ...settings, allowWaitlist })} />
               </label>
-              {!waitlistModuleEnabled && <p className="mt-2 text-xs leading-5 text-stone-500">Il modulo <strong>Lista d’attesa</strong> non è attivo per questo salone. <Link className="font-semibold text-[#792f59] underline-offset-2 hover:underline" href="/apps">Attivalo dalla pagina App e moduli</Link> per poterlo abilitare qui.</p>}
+              {!waitlistModuleEnabled && <p className="mt-2 text-xs leading-5 text-stone-500">Il modulo <strong>Lista d’attesa</strong> non è attivo per questo salone. <Link className="font-semibold text-[var(--esse-mulberry,#543147)] underline-offset-2 hover:underline" href="/apps">Attivalo dalla pagina App e moduli</Link> per poterlo abilitare qui.</p>}
             </div>
             <div className="flex justify-end border-t border-stone-100 pt-4 md:col-span-2"><SaveActionButton busy={saving === "booking"} disabled={Boolean(saving && saving !== "booking")} idleLabel="Salva prenotazioni" onClick={() => void save("booking")} saved={saved === "booking"} /></div>
           </div>
@@ -319,9 +319,9 @@ export default function AppClientiSettingsPage() {
             <div className="mx-auto w-full max-w-[360px] xl:justify-self-end">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div><h3 className="text-sm font-semibold text-stone-900">Anteprima App Clienti</h3><p className="mt-0.5 truncate text-xs text-stone-500">/{salon?.slug ?? ""}</p></div>
-                {previewUrl && <a aria-label="Apri anteprima App Clienti in una nuova scheda" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]" href={previewUrl} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" className="size-4" /></a>}
+                {previewUrl && <a aria-label="Apri anteprima App Clienti in una nuova scheda" className="grid size-11 shrink-0 place-items-center rounded-xl border border-stone-200 text-stone-600 hover:border-[var(--esse-mulberry,#543147)] hover:bg-[var(--esse-petal,#f2e1eb)] hover:text-[var(--esse-mulberry,#543147)]" href={previewUrl} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" className="size-4" /></a>}
               </div>
-              {previewUrl ? <div className="relative overflow-hidden rounded-[28px] border-[6px] border-[#2d1d27] bg-stone-100 shadow-[0_18px_44px_rgb(45_29_39_/_0.16)]">
+              {previewUrl ? <div className="relative overflow-hidden rounded-[28px] border-[6px] border-[var(--esse-ink,#25161f)] bg-stone-100 shadow-[0_18px_44px_rgb(45_29_39_/_0.16)]">
                 {previewLoading && <div aria-live="polite" className="absolute inset-0 z-10 grid place-items-center bg-white/90 text-sm font-semibold text-stone-600"><span className="flex items-center gap-2"><LoaderCircle aria-hidden="true" className="size-4 animate-spin" />Aggiornamento anteprima…</span></div>}
                 <iframe
                   className="block aspect-[390/780] w-full bg-white"

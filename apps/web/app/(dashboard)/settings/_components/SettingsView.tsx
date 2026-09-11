@@ -119,14 +119,15 @@ function PeriodsEditor({ ariaLabelPrefix, periods, onChange }: { ariaLabelPrefix
           {periods.length > 1 && <button aria-label={`Rimuovi fascia ${index + 1} di ${ariaLabelPrefix}`} className="shrink-0 rounded-lg p-1.5 text-red-600 hover:bg-red-50" onClick={() => removePeriod(index)} type="button"><X aria-hidden="true" size={14} /></button>}
         </div>
       ))}
-      <button className="text-xs font-bold text-[#792f59]" onClick={addPeriod} type="button">+ Aggiungi fascia</button>
+      <button className="text-xs font-bold text-[var(--esse-mulberry,#543147)]" onClick={addPeriod} type="button">+ Aggiungi fascia</button>
     </div>
   );
 }
 
 type SavingSection = "calendar" | "closure" | "location" | "salon" | "specialOpening";
+type SettingsSection = "calendar" | "closure" | "location" | "salon" | "specialOpening";
 
-export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
+export default function SettingsView({ section }: { section: SettingsSection }) {
   const { salon } = useAuth();
   const [settings, setSettings] = useState<Settings>();
   const [calendar, setCalendar] = useState<CalendarControl>({});
@@ -151,6 +152,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
     if (!salon) return;
     const controller = new AbortController();
     setLoadError("");
+    const needsAgendaData = section === "calendar" || section === "closure" || section === "specialOpening";
     const readJson = async (url: string, fallback?: unknown) => {
       const response = await fetch(url, { credentials: "include", signal: controller.signal });
       if (!response.ok) {
@@ -161,10 +163,10 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
     };
     void Promise.all([
       readJson(`${api}/api/salons/${salon.id}/settings`),
-      view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/control-center`) : Promise.resolve({ calendar: {} }),
-      view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/closures`, []) : Promise.resolve([]),
-      view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/staff-roster`, []) : Promise.resolve([]),
-      view === "agenda" ? readJson(`${api}/api/salons/${salon.id}/settings/special-openings`, []) : Promise.resolve([]),
+      needsAgendaData ? readJson(`${api}/api/salons/${salon.id}/settings/control-center`) : Promise.resolve({ calendar: {} }),
+      needsAgendaData ? readJson(`${api}/api/salons/${salon.id}/settings/closures`, []) : Promise.resolve([]),
+      needsAgendaData ? readJson(`${api}/api/salons/${salon.id}/settings/staff-roster`, []) : Promise.resolve([]),
+      needsAgendaData ? readJson(`${api}/api/salons/${salon.id}/settings/special-openings`, []) : Promise.resolve([]),
     ]).then(([salonSettings, control, closureRows, staffRosterRows, specialOpeningRows]) => {
       setSettings(salonSettings as Settings);
       setCalendar({
@@ -184,7 +186,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
       if (!(error instanceof DOMException && error.name === "AbortError")) setLoadError("Impossibile caricare le impostazioni. Verifica la connessione e riprova.");
     });
     return () => controller.abort();
-  }, [salon, view]);
+  }, [salon, section]);
 
   async function requestWithFeedback(
     section: SavingSection,
@@ -414,17 +416,25 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
   }
 
   const currentTimezoneIsListed = timezoneOptions.some((option) => option.value === settings.timezone);
+  const pageTitles: Record<SettingsSection, { eyebrow: string; subtitle: string; title: string }> = {
+    calendar: { eyebrow: "Agenda", subtitle: "Slot, buffer, overbooking e viste operative.", title: "Regole agenda" },
+    closure: { eyebrow: "Agenda", subtitle: "Festivita, ferie e giornate in cui bloccare le prenotazioni.", title: "Chiusure" },
+    location: { eyebrow: "Salone", subtitle: "Indirizzo e geolocalizzazione usati dall'App Clienti.", title: "Indirizzo" },
+    salon: { eyebrow: "Salone", subtitle: "Identita, lingua, fuso orario e orari ordinari.", title: "Dati salone" },
+    specialOpening: { eyebrow: "Agenda", subtitle: "Giornate eccezionali fuori dal normale orario.", title: "Aperture speciali" },
+  };
+  const title = pageTitles[section];
 
   return (
     <AppPage maxWidth="max-w-[1600px]">
       <PageHeader
-        eyebrow={view === "salon" ? "Impostazioni" : "Organizzazione"}
-        title={view === "salon" ? "Salone" : "Agenda e chiusure"}
-        subtitle={view === "salon" ? "Identità, orari e posizione del salone." : "Regole operative dell’agenda e giorni in cui le prenotazioni sono sospese."}
+        eyebrow={title.eyebrow}
+        title={title.title}
+        subtitle={title.subtitle}
       />
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        {view === "salon" && <>
+      <div className="grid gap-5">
+        {section === "salon" && (
         <SectionCard icon={Building2} title="Dati del salone" subtitle="Informazioni generali e orari di apertura usati in tutto il gestionale.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField className="md:col-span-2" label="Nome salone"><input className="w-full" value={settings.name} onChange={(event) => setSettings({ ...settings, name: event.target.value })} /></FormField>
@@ -446,7 +456,9 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
             <div className="flex justify-end"><SaveActionButton busy={saving === "salon"} disabled={Boolean(saving && saving !== "salon")} idleLabel="Salva dati salone" onClick={() => void saveSalon()} saved={saved === "salon"} /></div>
           </div>
         </SectionCard>
+        )}
 
+        {section === "location" && (
         <SectionCard icon={MapPin} title="Indirizzo e geolocalizzazione" subtitle="Questi dati permettono ai clienti di trovare il salone dall’App Clienti.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField className="md:col-span-2" label="Indirizzo">
@@ -489,9 +501,9 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
             <SaveActionButton busy={saving === "location"} disabled={Boolean(saving && saving !== "location")} idleLabel="Salva posizione" onClick={() => void saveLocation()} saved={saved === "location"} />
           </div>
         </SectionCard>
-        </>}
+        )}
 
-        {view === "agenda" && <>
+        {section === "calendar" && (
         <SectionCard icon={CalendarClock} title="Calendario e agenda" subtitle="Regole condivise da gestionale, App Clienti e App Staff.">
           <div className="grid gap-4 md:grid-cols-2">
             <FormField description="Griglia usata per posizionare gli appuntamenti." label="Intervallo agenda">
@@ -516,6 +528,9 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
             <div className="flex justify-end"><SaveActionButton busy={saving === "calendar"} disabled={Boolean(saving && saving !== "calendar")} idleLabel="Salva regole agenda" onClick={() => void saveCalendar()} saved={saved === "calendar"} /></div>
           </div>
         </SectionCard>
+        )}
+
+        {section === "closure" && (
         <SectionCard icon={CalendarOff} title="Giorni di chiusura" subtitle="Festività, ferie e chiusure straordinarie bloccano le prenotazioni e sono visibili in agenda.">
           <form action={addClosure} className="grid gap-4 md:grid-cols-2">
             <FormField label="Data chiusura" required><DateField aria-label="Data chiusura" name="date" onChange={setClosureDate} required value={closureDate} /></FormField>
@@ -538,8 +553,10 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
             ))}
           </div>
         </SectionCard>
+        )}
 
-        <SectionCard className="xl:col-span-2" icon={DoorOpen} title="Aperture speciali" subtitle="Giornate eccezionali fuori dal normale orario: vincono su chiusure e turni configurati per i collaboratori selezionati.">
+        {section === "specialOpening" && (
+        <SectionCard icon={DoorOpen} title="Aperture speciali" subtitle="Giornate eccezionali fuori dal normale orario: vincono su chiusure e turni configurati per i collaboratori selezionati.">
           <form action={addSpecialOpening} className="grid gap-4 md:grid-cols-2">
             <FormField label="Data apertura" required><DateField aria-label="Data apertura speciale" onChange={setSpecialDate} required value={specialDate} /></FormField>
             <FormField label="Motivo"><input className="w-full" name="reason" placeholder="Evento speciale, promozione…" /></FormField>
@@ -553,7 +570,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
                 {staffRoster.map((member) => {
                   const selection = specialStaffSelection[member.id];
                   return (
-                    <div className={`rounded-xl border p-3 ${selection?.selected ? "border-[#792f59] bg-[#fff8fc]" : "border-stone-200 bg-white"}`} key={member.id}>
+                    <div className={`rounded-xl border p-3 ${selection?.selected ? "border-[var(--esse-mulberry,#543147)] bg-[var(--esse-petal,#f2e1eb)]" : "border-stone-200 bg-white"}`} key={member.id}>
                       <label className="flex items-center gap-2 text-sm font-bold text-stone-900">
                         <input checked={Boolean(selection?.selected)} onChange={(event) => toggleSpecialOpeningStaff(member.id, event.target.checked)} type="checkbox" />
                         {member.display_name}
@@ -594,7 +611,7 @@ export default function SettingsView({ view }: { view: "agenda" | "salon" }) {
             ))}
           </div>
         </SectionCard>
-        </>}
+        )}
 
       </div>
     </AppPage>

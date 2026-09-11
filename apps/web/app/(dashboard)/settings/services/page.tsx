@@ -143,8 +143,8 @@ export default function SettingsServicesPage() {
         <PageHeader
           actions={
             <div className="flex flex-wrap items-center gap-2.5">
-              <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#e8dfe4] bg-white px-3.5 text-[12.5px] font-bold text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={14} />Nuova categoria</button>
-              <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-[#792f59] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[#5f2447]" onClick={() => router.push(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} type="button"><Plus size={14} />Nuovo servizio</button>
+              <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#e8dfe4] bg-white px-3.5 text-[12.5px] font-bold text-stone-600 transition hover:border-[var(--esse-mulberry,#543147)] hover:text-[var(--esse-mulberry,#543147)]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={14} />Nuova categoria</button>
+              <button className="flex h-9 items-center gap-1.5 rounded-xl border border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[var(--esse-berry,#b85888)]" onClick={() => router.push(selectedCategoryId ? `/services/new?category=${selectedCategoryId}` : "/services/new")} type="button"><Plus size={14} />Nuovo servizio</button>
             </div>
           }
           eyebrow="Core"
@@ -157,7 +157,7 @@ export default function SettingsServicesPage() {
 
         {categories.length === 0 ? (
           <EmptyState
-            action={<button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-[#792f59] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[#5f2447]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={14} />Nuova categoria</button>}
+            action={<button className="flex h-9 items-center gap-1.5 rounded-xl border border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[var(--esse-berry,#b85888)]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={14} />Nuova categoria</button>}
             description="Prima crea una categoria, poi inserisci i servizi che le appartengono."
             title="Il catalogo parte dalle categorie"
           />
@@ -169,17 +169,17 @@ export default function SettingsServicesPage() {
                   <h2 className="font-bold text-stone-950">Categorie</h2>
                   <p className="text-xs text-stone-500">Seleziona per vedere i servizi.</p>
                 </div>
-                <button aria-label="Nuova categoria" className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={15} /></button>
+                <button aria-label="Nuova categoria" className="grid size-9 shrink-0 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[var(--esse-mulberry,#543147)] hover:text-[var(--esse-mulberry,#543147)]" onClick={() => setCategoryDraft({ icon: "sparkles", name: "" })} type="button"><FolderPlus size={15} /></button>
               </div>
               <div className="space-y-1">
                 {categories.map((category) => (
                   <button
-                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left transition ${selectedCategoryId === category.id ? "border-[#c987a9] bg-[#faf3f7]" : "border-transparent hover:bg-stone-50"} ${category.active ? "" : "opacity-55"}`}
+                    className={`flex w-full items-center gap-3 rounded-lg border px-3 py-3 text-left transition ${selectedCategoryId === category.id ? "border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)]" : "border-transparent hover:bg-stone-50"} ${category.active ? "" : "opacity-55"}`}
                     key={category.id}
                     onClick={() => setSelectedCategoryId(category.id)}
                     type="button"
                   >
-                    <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white text-[#792f59] shadow-sm ring-1 ring-stone-200">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white text-[var(--esse-mulberry,#543147)] shadow-sm ring-1 ring-stone-200">
                       <ServiceCategoryIcon className="size-5" name={category.icon} />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -196,7 +196,7 @@ export default function SettingsServicesPage() {
                 <>
                   <header className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
                     <div className="flex items-center gap-4">
-                      <span className="grid size-12 place-items-center rounded-xl bg-[#faf3f7] text-[#792f59]">
+                      <span className="grid size-12 place-items-center rounded-xl bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]">
                         <ServiceCategoryIcon className="size-6" name={selectedCategory.icon} />
                       </span>
                       <div>
@@ -205,14 +205,14 @@ export default function SettingsServicesPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <button aria-label="Modifica categoria" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[#792f59] hover:text-[#792f59]" onClick={() => setCategoryDraft({ icon: selectedCategory.icon, id: selectedCategory.id, name: selectedCategory.name })} type="button"><Pencil size={15} /></button>
+                      <button aria-label="Modifica categoria" className="grid size-9 place-items-center rounded-xl border border-[#e8dfe4] bg-white text-stone-600 transition hover:border-[var(--esse-mulberry,#543147)] hover:text-[var(--esse-mulberry,#543147)]" onClick={() => setCategoryDraft({ icon: selectedCategory.icon, id: selectedCategory.id, name: selectedCategory.name })} type="button"><Pencil size={15} /></button>
                       <Switch checked={selectedCategory.active} onCheckedChange={() => void toggleCategory(selectedCategory)} />
                     </div>
                   </header>
 
                   {visibleServices.length === 0 ? (
                     <EmptyState
-                      action={<button className="flex h-9 items-center gap-1.5 rounded-xl border border-[#792f59] bg-[#792f59] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[#5f2447]" onClick={() => router.push(`/services/new?category=${selectedCategory.id}`)} type="button"><Plus size={14} />Nuovo servizio</button>}
+                      action={<button className="flex h-9 items-center gap-1.5 rounded-xl border border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] px-3.5 text-[12.5px] font-bold text-white transition hover:bg-[var(--esse-berry,#b85888)]" onClick={() => router.push(`/services/new?category=${selectedCategory.id}`)} type="button"><Plus size={14} />Nuovo servizio</button>}
                       description={`Non ci sono ancora servizi nella categoria ${selectedCategory.name}.`}
                       title="Categoria vuota"
                     />
@@ -220,14 +220,14 @@ export default function SettingsServicesPage() {
                     <div className="rounded-xl border border-stone-200 bg-white shadow-sm">
                       {visibleServices.map((item) => (
                         <article
-                          className={`group grid cursor-pointer gap-4 border-b border-stone-100 p-4 outline-none transition last:border-0 hover:bg-[#fffafd] focus-visible:bg-[#fffafd] md:grid-cols-[minmax(0,1fr)_120px_120px_auto] md:items-center ${item.active ? "" : "opacity-55"}`}
+                          className={`group grid cursor-pointer gap-4 border-b border-stone-100 p-4 outline-none transition last:border-0 hover:bg-[var(--esse-petal,#f2e1eb)] focus-visible:bg-[var(--esse-petal,#f2e1eb)] md:grid-cols-[minmax(0,1fr)_120px_120px_auto] md:items-center ${item.active ? "" : "opacity-55"}`}
                           key={item.id}
                           onClick={() => router.push(`/services/${item.id}`)}
                           onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); router.push(`/services/${item.id}`); } }}
                           tabIndex={0}
                         >
                           <div className="min-w-0">
-                            <p className="font-bold text-stone-950 group-hover:text-[#792f59]">{item.name}</p>
+                            <p className="font-bold text-stone-950 group-hover:text-[var(--esse-mulberry,#543147)]">{item.name}</p>
                             {item.description && <p className="mt-1 truncate text-sm text-stone-500">{item.description}</p>}
                           </div>
                           <span className="text-sm font-semibold text-stone-600">{item.durationMinutes} min</span>
@@ -235,7 +235,7 @@ export default function SettingsServicesPage() {
                           <div className="flex items-center justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                             <Switch checked={item.active} onCheckedChange={() => void toggle(item)} />
                             <button aria-label={`Archivia servizio ${item.name}`} className="grid size-8 place-items-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-700" onClick={() => setConfirmDelete(item)} type="button"><Archive className="size-4" /></button>
-                            <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-[#792f59]" />
+                            <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-[var(--esse-mulberry,#543147)]" />
                           </div>
                         </article>
                       ))}
@@ -253,7 +253,7 @@ export default function SettingsServicesPage() {
           <section className="w-full max-w-xl rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[.18em] text-[#9d4f78]">Catalogo</p>
+                <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--esse-berry,#b85888)]">Catalogo</p>
                 <h2 className="mt-1 text-2xl font-bold">{categoryDraft.id ? "Modifica categoria" : "Nuova categoria"}</h2>
               </div>
               <button className="grid size-9 place-items-center rounded-full border border-stone-200 text-xl" onClick={() => setCategoryDraft(undefined)} type="button">×</button>
@@ -265,7 +265,7 @@ export default function SettingsServicesPage() {
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {SERVICE_CATEGORY_ICONS.map((option) => (
                   <button
-                    className={`grid min-h-20 place-items-center rounded-xl border p-2 text-center transition ${categoryDraft.icon === option.key ? "border-[#9d4f78] bg-[#faf3f7] text-[#792f59]" : "border-stone-200 text-stone-600 hover:bg-stone-50"}`}
+                    className={`grid min-h-20 place-items-center rounded-xl border p-2 text-center transition ${categoryDraft.icon === option.key ? "border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]" : "border-stone-200 text-stone-600 hover:bg-stone-50"}`}
                     key={option.key}
                     onClick={() => setCategoryDraft({ ...categoryDraft, icon: option.key })}
                     type="button"

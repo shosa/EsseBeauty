@@ -22,16 +22,16 @@ export const designTokens = {
   },
   color: {
     brand: {
-      25: "#fffafd",
-      50: "#faf3f7",
-      100: "#f3e2eb",
+      25: "#f2e1eb",
+      50: "#f2e1eb",
+      100: "#f2e1eb",
       200: "#e8bfd4",
-      300: "#d99aba",
+      300: "#b85888",
       500: "#b85888",
       600: "#8f3a68",
-      700: "#792f59",
-      900: "#402334",
-      950: "#2d1d27",
+      700: "#543147",
+      900: "#25161f",
+      950: "#25161f",
     },
     accent: {
       champagne: "#f4d8a8",
@@ -128,14 +128,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const buttonVariants: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  default: "border border-[#2d1d27] bg-[#2d1d27] text-white hover:bg-[#402334]",
+  default: "border border-[var(--esse-ink,#25161f)] bg-[var(--esse-ink,#25161f)] text-white hover:bg-[var(--esse-mulberry,#25161f)]",
   destructive: "border border-red-700 bg-red-700 text-white hover:bg-red-800",
-  ghost: "bg-transparent text-stone-700 shadow-none hover:bg-white/75 hover:text-[#792f59]",
-  icon: "bg-white/70 text-stone-600 shadow-none ring-1 ring-stone-950/5 hover:bg-[#faf3f7] hover:text-[#792f59]",
-  outline: "border border-[#d7a6c1]/70 bg-white text-[#402334] shadow-none hover:border-[#792f59] hover:bg-[#fffafd] hover:text-[#792f59]",
-  primary: "border border-[#792f59] bg-[#792f59] text-white shadow-none hover:border-[#66264b] hover:bg-[#66264b]",
-  secondary: "border border-[#ead1df] bg-[#faf3f7] text-[#792f59] shadow-none hover:border-[#d99aba] hover:bg-[#f3e2eb]",
-  tableAction: "border border-stone-200 bg-white/90 text-xs font-bold text-stone-700 shadow-none hover:border-[#792f59] hover:bg-[#faf3f7] hover:text-[#792f59]",
+  ghost: "bg-transparent text-stone-700 shadow-none hover:bg-white/75 hover:text-[var(--esse-mulberry)]",
+  icon: "bg-white/70 text-stone-600 shadow-none ring-1 ring-stone-950/5 hover:bg-[var(--esse-petal)] hover:text-[var(--esse-mulberry)]",
+  outline: "border border-[var(--esse-berry,#b85888)] bg-white text-[var(--esse-ink,#25161f)] shadow-none hover:border-[var(--esse-mulberry)] hover:bg-[var(--esse-petal)] hover:text-[var(--esse-mulberry)]",
+  primary: "border border-[var(--esse-mulberry)] bg-[var(--esse-mulberry)] text-white shadow-none hover:border-[var(--esse-berry)] hover:bg-[var(--esse-berry)]",
+  secondary: "border border-[var(--esse-berry)]/30 bg-[var(--esse-petal)] text-[var(--esse-mulberry)] shadow-none hover:border-[var(--esse-berry)] hover:bg-[var(--esse-petal)]",
+  tableAction: "border border-stone-200 bg-white/90 text-xs font-bold text-stone-700 shadow-none hover:border-[var(--esse-mulberry)] hover:bg-[var(--esse-petal)] hover:text-[var(--esse-mulberry)]",
 };
 
 export function Select({
@@ -211,7 +211,7 @@ export function Select({
         aria-haspopup="listbox"
         aria-label={props["aria-label"]}
         aria-required={props.required || undefined}
-        className={`relative min-h-11 cursor-pointer rounded-xl border border-stone-300 bg-white py-2.5 pl-3 pr-10 text-left text-sm font-semibold text-stone-900 shadow-sm transition-[border-color,box-shadow,background-color] hover:border-stone-400 focus:border-[#792f59] focus:outline-none focus:ring-4 focus:ring-[#b85888]/15 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-500 ${className}`}
+        className={`relative min-h-11 cursor-pointer rounded-xl border border-stone-300 bg-white py-2.5 pl-3 pr-10 text-left text-sm font-semibold text-stone-900 shadow-sm transition-[border-color,box-shadow,background-color] hover:border-stone-400 focus:border-[var(--esse-mulberry)] focus:outline-none focus:ring-4 focus:ring-[var(--esse-berry)]/15 disabled:cursor-not-allowed disabled:border-stone-200 disabled:bg-stone-100 disabled:text-stone-500 ${className}`}
         disabled={disabled}
         id={props.id}
         onClick={() => { updatePosition(); setActiveIndex(selectedIndex); setOpen((current) => !current); }}
@@ -232,7 +232,7 @@ export function Select({
         type="button"
       >
         <span className="flex min-w-0 items-center gap-2 truncate">{selectedOption?.node || "Seleziona"}</span>
-        <ChevronDown aria-hidden="true" className={`pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#792f59] transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown aria-hidden="true" className={`pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[var(--esse-mulberry)] transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       <input
         disabled={disabled}
@@ -242,7 +242,7 @@ export function Select({
       />
       {open && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed z-[100] max-h-72 overflow-y-auto rounded-xl border border-[#e8bfd4] bg-white p-1.5 shadow-[0_18px_50px_rgb(45_29_39_/_0.18)]"
+          className="fixed z-[100] max-h-72 overflow-y-auto rounded-xl border border-[var(--esse-berry,#e8bfd4)] bg-white p-1.5 shadow-[0_18px_50px_rgb(45_29_39_/_0.18)]"
           id={listboxId}
           onMouseDown={(event) => event.stopPropagation()}
           role="listbox"
@@ -251,7 +251,7 @@ export function Select({
           {options.map((option, index) => (
             <button
               aria-selected={option.value === selectedValue}
-              className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${option.disabled ? "cursor-not-allowed text-stone-400" : index === activeIndex ? "bg-[#faf3f7] text-[#792f59]" : "text-stone-700 hover:bg-stone-50"}`}
+              className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${option.disabled ? "cursor-not-allowed text-stone-400" : index === activeIndex ? "bg-[var(--esse-petal)] text-[var(--esse-mulberry)]" : "text-stone-700 hover:bg-stone-50"}`}
               disabled={option.disabled}
               key={`${option.value}-${index}`}
               onMouseDown={(event) => event.preventDefault()}
@@ -261,7 +261,7 @@ export function Select({
               type="button"
             >
               <span className="flex min-w-0 items-center gap-2 truncate">{option.node}</span>
-              {option.value === selectedValue && <Check aria-hidden="true" className="size-4 shrink-0 text-[#792f59]" />}
+              {option.value === selectedValue && <Check aria-hidden="true" className="size-4 shrink-0 text-[var(--esse-mulberry)]" />}
             </button>
           ))}
         </div>,
@@ -288,7 +288,7 @@ export function Button({
   return (
     <button
       aria-pressed={active || undefined}
-      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold tracking-[-.01em] shadow-none transition-colors duration-150 active:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-60 ${active ? "ring-2 ring-[#792f59]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 font-semibold tracking-[-.01em] shadow-none transition-colors duration-150 active:opacity-85 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry)]/20 disabled:cursor-not-allowed disabled:opacity-60 ${active ? "ring-2 ring-[var(--esse-mulberry)]/25" : ""} ${buttonSizes[size]} ${buttonVariants[variant]} ${className}`}
       type={type}
       {...props}
     />
@@ -474,9 +474,9 @@ export function DateField({
         style={{ left: popupPosition.left, top: popupPosition.top }}
       >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <button aria-label="Mese precedente" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
+        <button aria-label="Mese precedente" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))} type="button"><ChevronLeft aria-hidden="true" className="size-4" /></button>
         <strong className="capitalize text-sm" id={dialogTitleId}>{monthLabel}</strong>
-        <button aria-label="Mese successivo" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
+        <button aria-label="Mese successivo" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))} type="button"><ChevronRight aria-hidden="true" className="size-4" /></button>
       </div>
       <div aria-hidden="true" className="grid grid-cols-7 text-center text-[11px] font-bold text-stone-500">{["L", "M", "M", "G", "V", "S", "D"].map((day, index) => <span className="py-1" key={`${day}-${index}`}>{day}</span>)}</div>
       <div className="grid grid-cols-7 gap-0.5">{days.map((day) => {
@@ -489,7 +489,7 @@ export function DateField({
           aria-current={iso === today ? "date" : undefined}
           aria-label={dateLabel}
           aria-pressed={active || undefined}
-          className={`grid min-h-11 w-full place-items-center rounded-lg text-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/25 disabled:cursor-not-allowed disabled:opacity-35 ${active ? "bg-[#792f59] font-bold text-white" : outside ? "text-stone-400 hover:bg-stone-100" : iso === today ? "bg-stone-100 font-bold text-[#792f59] hover:bg-[#faf3f7]" : "text-stone-800 hover:bg-[#faf3f7]"}`}
+          className={`grid min-h-11 w-full place-items-center rounded-lg text-sm focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/25 disabled:cursor-not-allowed disabled:opacity-35 ${active ? "bg-[var(--esse-mulberry,#543147)] font-bold text-white" : outside ? "text-stone-400 hover:bg-stone-100" : iso === today ? "bg-stone-100 font-bold text-[var(--esse-mulberry,#543147)] hover:bg-[var(--esse-petal,#f2e1eb)]" : "text-stone-800 hover:bg-[var(--esse-petal,#f2e1eb)]"}`}
           data-date={iso}
           disabled={unavailable}
           key={iso}
@@ -499,8 +499,8 @@ export function DateField({
         >{day.getDate()}</button>;
       })}</div>
       <div className={`mt-2 grid gap-2 ${value ? "grid-cols-2" : "grid-cols-1"}`}>
-        <button className="min-h-11 rounded-lg text-sm font-semibold text-[#792f59] hover:bg-[#faf3f7] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" disabled={Boolean((min && today < min) || (max && today > max))} onClick={() => { onChange(today); closeCalendar(true); }} type="button">Oggi</button>
-        {value && <button className="min-h-11 rounded-lg text-sm font-semibold text-stone-600 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" onClick={() => { onChange(""); closeCalendar(true); }} type="button">Cancella</button>}
+        <button className="min-h-11 rounded-lg text-sm font-semibold text-[var(--esse-mulberry,#543147)] hover:bg-[var(--esse-petal,#f2e1eb)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20" disabled={Boolean((min && today < min) || (max && today > max))} onClick={() => { onChange(today); closeCalendar(true); }} type="button">Oggi</button>
+        {value && <button className="min-h-11 rounded-lg text-sm font-semibold text-stone-600 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20" onClick={() => { onChange(""); closeCalendar(true); }} type="button">Cancella</button>}
       </div>
       </div>
     </div>,
@@ -510,11 +510,11 @@ export function DateField({
   return <div className={`relative ${className}`} ref={rootRef}>
     {name && <input name={name} type="hidden" value={value} />}
     {variant === "icon" ? (
-      <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="grid min-h-11 w-full place-items-center rounded-xl text-[#792f59] transition-colors hover:bg-[#f3e2eb] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
+      <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="grid min-h-11 w-full place-items-center rounded-xl text-[var(--esse-mulberry,#543147)] transition-colors hover:bg-[var(--esse-petal,#f2e1eb)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
         <CalendarDays aria-hidden="true" className="size-4" />
       </button>
     ) : (
-      <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
+      <button aria-expanded={open} aria-haspopup="dialog" aria-label={`${ariaLabel}: ${formattedValue}`} aria-required={required || undefined} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[var(--esse-mulberry,#543147)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500" disabled={disabled} onClick={() => { if (!open) placePopup(); setOpen((current) => !current); }} ref={triggerRef} type="button">
         <span>{formattedValue}</span><CalendarDays aria-hidden="true" className="size-4 shrink-0 text-stone-500" />
       </button>
     )}
@@ -612,13 +612,13 @@ export function DateTimeField({
           <div>
             <p className="mb-2 text-xs font-bold text-stone-600">Ora</p>
             <div className="grid max-h-52 grid-cols-4 gap-1 overflow-y-auto pr-1">
-              {hours.map((hour) => { const disabledHour = isMinDate && hour < minHour; return <button aria-pressed={hour === selectedHour} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${hour === selectedHour ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} disabled={disabledHour} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>; })}
+              {hours.map((hour) => { const disabledHour = isMinDate && hour < minHour; return <button aria-pressed={hour === selectedHour} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${hour === selectedHour ? "bg-[var(--esse-mulberry,#543147)] text-white" : "text-stone-700 hover:bg-[var(--esse-petal,#f2e1eb)]"}`} disabled={disabledHour} key={hour} onClick={() => updateTime(hour, selectedMinute)} type="button">{hour}</button>; })}
             </div>
           </div>
           <div>
             <p className="mb-2 text-xs font-bold text-stone-600">Minuti</p>
             <div className="grid max-h-52 grid-cols-1 gap-1 overflow-y-auto pr-1">
-              {minutes.map((minute) => { const disabledMinute = isMinDate && selectedHour === minHour && minute < minMinute; return <button aria-pressed={minute === selectedMinute} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${minute === selectedMinute ? "bg-[#792f59] text-white" : "text-stone-700 hover:bg-[#faf3f7]"}`} disabled={disabledMinute} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>; })}
+              {minutes.map((minute) => { const disabledMinute = isMinDate && selectedHour === minHour && minute < minMinute; return <button aria-pressed={minute === selectedMinute} className={`min-h-11 rounded-lg text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent ${minute === selectedMinute ? "bg-[var(--esse-mulberry,#543147)] text-white" : "text-stone-700 hover:bg-[var(--esse-petal,#f2e1eb)]"}`} disabled={disabledMinute} key={minute} onClick={() => { updateTime(selectedHour, minute); setTimeOpen(false); }} type="button">:{minute}</button>; })}
             </div>
           </div>
         </div>
@@ -643,7 +643,7 @@ export function DateTimeField({
           aria-expanded={timeOpen}
           aria-haspopup="dialog"
           aria-label={`${ariaLabel}, ora: ${timeValue || "non selezionata"}`}
-          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[#792f59]/35 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
+          className="flex min-h-11 w-full items-center justify-between gap-3 rounded-[10px] border border-[var(--esse-line)] bg-white px-3 text-left text-sm text-stone-900 transition-colors hover:border-[var(--esse-mulberry,#543147)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
           disabled={disabled}
           onClick={() => { if (!timeOpen) placeTimePopup(); setTimeOpen((current) => !current); }}
           ref={timeTriggerRef}
@@ -768,8 +768,8 @@ export function PageHeader({
     <header className="esse-page-header mb-6 border-b border-[#e6dce2] pb-5 md:pb-6">
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0">
-          {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p>}
-          <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
+          {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[var(--esse-berry,#8f3a68)]">{eyebrow}</p>}
+          <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[var(--esse-ink,#25161f)] md:text-[2.15rem]`}>{title}</h1>
           {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
           {meta && <div className="mt-3 flex flex-wrap gap-2">{meta}</div>}
           {actions && actionsAlign === "below" && <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
@@ -796,21 +796,21 @@ export function PageHeaderMetrics({
   return (
     <header className="relative mb-6 grid items-end gap-6 border-b border-[#e5d9df] pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(520px,.85fr)]">
       <div className="min-w-0">
-        {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[#8f3a68]">{eyebrow}</p>}
-        <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[#2d1d27] md:text-[2.15rem]`}>{title}</h1>
+        {eyebrow && <p className="text-[11px] font-black uppercase tracking-[.2em] text-[var(--esse-berry,#8f3a68)]">{eyebrow}</p>}
+        <h1 className={`${eyebrow ? "mt-1.5" : ""} text-3xl font-bold tracking-[-.025em] text-[var(--esse-ink,#25161f)] md:text-[2.15rem]`}>{title}</h1>
         {subtitle && <div className="mt-1.5 max-w-3xl text-sm leading-6 text-stone-600">{subtitle}</div>}
         {actions && <div className="mt-3 flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      <div className="grid grid-cols-2 border-y border-[#e5d9df] py-4 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none lg:border-y-0 lg:py-0">
+      <div className="grid grid-cols-2 border-y border-[var(--esse-petal,#e5d9df)] py-4 sm:grid-flow-col sm:auto-cols-fr sm:grid-cols-none lg:border-y-0 lg:py-0">
         {metrics.map((metric, index) => (
-          <div className={`px-2 py-3 sm:px-5 sm:py-1 ${index > 0 ? "border-l border-[#e5d9df]" : ""} ${index > 1 ? "border-t border-[#e5d9df] sm:border-t-0" : ""}`} key={metric.label}>
-            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#8f3a68]">{metric.label}</p>
-            <strong className="mt-1 block text-3xl font-black leading-none text-[#2d1d27]">{metric.value}</strong>
+          <div className={`px-2 py-3 sm:px-5 sm:py-1 ${index > 0 ? "border-l border-[var(--esse-petal,#e5d9df)]" : ""} ${index > 1 ? "border-t border-[var(--esse-petal,#e5d9df)] sm:border-t-0" : ""}`} key={metric.label}>
+            <p className="text-[10px] font-black uppercase tracking-[.16em] text-[var(--esse-berry,#8f3a68)]">{metric.label}</p>
+            <strong className="mt-1 block text-3xl font-black leading-none text-[var(--esse-ink,#25161f)]">{metric.value}</strong>
             {metric.detail && <p className="mt-2 text-xs font-medium text-stone-500">{metric.detail}</p>}
           </div>
         ))}
       </div>
-      <span aria-hidden="true" className="absolute -bottom-px left-0 h-0.5 w-[72px] bg-[linear-gradient(90deg,#792f59,#d99aba_55%,transparent)]" />
+      <span aria-hidden="true" className="absolute -bottom-px left-0 h-0.5 w-[72px] bg-[linear-gradient(90deg,var(--esse-mulberry,#543147),var(--esse-berry,#b85888)_55%,transparent)]" />
     </header>
   );
 }
@@ -880,9 +880,9 @@ export function StatCard({
 }) {
   return (
     <div className="esse-panel relative overflow-hidden rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div aria-hidden="true" className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[#b85888]" />
+      <div aria-hidden="true" className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-[var(--esse-berry,#b85888)]" />
       <dt className="pl-1 text-[11px] font-bold uppercase tracking-[.13em] text-stone-500">{label}</dt>
-      <dd className="mt-1.5 pl-1 text-2xl font-black tracking-[-.02em] text-[#2d1d27]">{value}</dd>
+      <dd className="mt-1.5 pl-1 text-2xl font-black tracking-[-.02em] text-[var(--esse-ink,#25161f)]">{value}</dd>
       {detail && <p className="mt-1 text-xs font-medium text-stone-500">{detail}</p>}
     </div>
   );
@@ -911,7 +911,7 @@ export function SectionCard({
       {(title || actions || subtitle) && (
         <div className="relative mb-5 flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            {Icon && <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[#792f59]" />}
+            {Icon && <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--esse-mulberry,#543147)]" />}
             <div>
               {title && <h2 className="text-xl font-bold text-stone-950" id={titleId}>{title}</h2>}
               {subtitle && <p className="mt-1 text-sm leading-6 text-stone-500">{subtitle}</p>}
@@ -953,7 +953,7 @@ export function AppIconTile({
   return (
     <a
       aria-current={active ? "page" : undefined}
-      className={`group flex min-h-20 items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${active ? "border-[#d99aba] bg-[#faf3f7]" : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"}`}
+      className={`group flex min-h-20 items-center gap-3 rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 ${active ? "border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)]" : "border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50"}`}
       href={href}
       onClick={onClick}
     >
@@ -977,7 +977,7 @@ export function AppLauncherPanel({
 }) {
   return (
     <section className={`rounded-2xl border border-stone-200 bg-[#f8f7f5] p-4 shadow-[0_24px_70px_rgb(45_29_39_/_0.18)] md:p-6 ${className}`}>
-      <h2 className="text-xl font-bold tracking-[-.02em] text-[#2d1d27]">{title}</h2>
+      <h2 className="text-xl font-bold tracking-[-.02em] text-[var(--esse-ink,#25161f)]">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -1002,7 +1002,7 @@ export function ContextTabs({
     <nav aria-label="Viste dell'app" className={`flex min-h-11 items-end gap-1 overflow-x-auto border-b border-stone-200 ${className}`}>
       {items.map((item) => {
         const active = item.href === activeHref;
-        return <a aria-current={active ? "page" : undefined} className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[#792f59] text-[#792f59]" : "border-transparent text-stone-500 hover:border-stone-300 hover:text-stone-900"}`} href={item.href} key={item.href}>{item.label}</a>;
+        return <a aria-current={active ? "page" : undefined} className={`shrink-0 border-b-2 px-3 py-2.5 text-sm font-semibold transition ${active ? "border-[var(--esse-mulberry,#543147)] text-[var(--esse-mulberry,#543147)]" : "border-transparent text-stone-500 hover:border-[var(--esse-berry,#b85888)] hover:text-[var(--esse-ink,#25161f)]"}`} href={item.href} key={item.href}>{item.label}</a>;
       })}
     </nav>
   );
@@ -1086,8 +1086,8 @@ export function Switch({
   return (
     <button
       aria-checked={checked}
-      className={`relative inline-flex h-7 w-12 items-center rounded-full border transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 ${
-        checked ? "border-[#792f59] bg-[#792f59]" : "border-stone-300 bg-stone-200"
+      className={`relative inline-flex h-7 w-12 items-center rounded-full border transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 ${
+        checked ? "border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)]" : "border-stone-300 bg-stone-200"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""} ${className}`}
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
@@ -1144,7 +1144,7 @@ export function EmptyState({
   title: string;
 }) {
   return (
-    <section className="rounded-xl border border-dashed border-[#d7a6c1] bg-[#fffafd]/85 p-10 text-center shadow-none">
+    <section className="rounded-xl border border-dashed border-[var(--esse-berry,#b85888)] bg-[var(--esse-petal,#f2e1eb)]/85 p-10 text-center shadow-none">
       <h2 className="text-xl font-bold text-stone-950">{title}</h2>
       {description && <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
@@ -1307,7 +1307,7 @@ export function Dialog({
       {open && (
         <motion.div
           animate={{ opacity: 1 }}
-          className={`${contained ? "absolute" : "fixed"} inset-0 z-50 grid place-items-center bg-[#2d1d27]/45 p-4 backdrop-blur-sm`}
+          className={`${contained ? "absolute" : "fixed"} inset-0 z-50 grid place-items-center bg-[var(--esse-ink,#25161f)]/45 p-4 backdrop-blur-sm`}
           exit={{ opacity: 0 }}
           initial={{ opacity: 0 }}
           onMouseDown={onClose}
@@ -1384,7 +1384,7 @@ export function Drawer({
       {open && (
         <motion.div
           animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 bg-[#2d1d27]/45 backdrop-blur-sm"
+          className="fixed inset-0 z-50 bg-[var(--esse-ink,#25161f)]/45 backdrop-blur-sm"
           exit={{ opacity: 0 }}
           initial={{ opacity: 0 }}
           onMouseDown={onClose}
@@ -1484,7 +1484,7 @@ export function DataTable<T>({
   return (
     <div className="esse-panel overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
       <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="bg-[#faf3f7] text-xs uppercase tracking-wider text-[#792f59]">
+        <thead className="bg-[var(--esse-petal)] text-xs uppercase tracking-wider text-[var(--esse-mulberry)]">
           <tr>
             {columns.map((column) => (
               <th key={column.key} className={`p-4 ${column.align === "right" ? "text-right" : "text-left"}`}>
@@ -1495,7 +1495,7 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={getRowId(item)} className="h-[46px] border-t border-stone-100 transition hover:bg-[#fffafd]">
+            <tr key={getRowId(item)} className="h-[46px] border-t border-stone-100 transition hover:bg-[var(--esse-petal)]">
               {columns.map((column) => (
                 <td key={column.key} className={`p-4 ${column.align === "right" ? "text-right" : "text-left"}`}>
                   {column.render(item)}
@@ -1600,7 +1600,7 @@ export function ScheduleEditor({
               <button
                 aria-controls={panelId}
                 aria-expanded={expanded}
-                className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-lg px-2 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20 disabled:cursor-default"
+                className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-lg px-2 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--esse-berry,#b85888)]/20 disabled:cursor-default"
                 disabled={!open}
                 onClick={() => setExpandedDays((current) => ({ ...current, [day.key]: !expanded }))}
                 type="button"
@@ -1609,7 +1609,7 @@ export function ScheduleEditor({
                 <span className={`min-w-0 flex-1 truncate text-xs font-medium ${open ? "text-stone-600" : "text-stone-500"}`}>{summary}</span>
                 <ChevronDown
                   aria-hidden="true"
-                  className={`size-4 shrink-0 transition-transform ${expanded ? "rotate-180 text-[#792f59]" : open ? "text-stone-500" : "text-stone-400 opacity-50"}`}
+                  className={`size-4 shrink-0 transition-transform ${expanded ? "rotate-180 text-[var(--esse-mulberry,#543147)]" : open ? "text-stone-500" : "text-stone-400 opacity-50"}`}
                 />
               </button>
               <Switch
@@ -1628,7 +1628,7 @@ export function ScheduleEditor({
                   initial={{ height: 0, opacity: 0 }}
                   transition={{ duration: designTokens.motion.duration.normal, ease: designTokens.motion.ease.standard }}
                 >
-                  <div className="space-y-2 border-t border-stone-200 bg-[#fffafd] p-3">
+                  <div className="space-y-2 border-t border-stone-200 bg-[var(--esse-petal,#f2e1eb)] p-3">
                     {intervals.map((interval, index) => (
                       <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center" key={`${day.key}-${index}`}>
                         <input
@@ -1685,7 +1685,7 @@ export function Breadcrumbs({
         <span key={`${item.label}-${index}`} className="flex items-center gap-1">
           {index > 0 && <span aria-hidden="true" className="text-stone-300">›</span>}
           {item.href ? (
-            <a className="rounded-full px-2 py-1 text-[#792f59] transition hover:bg-[#f3e2eb]" href={item.href}>
+            <a className="rounded-full px-2 py-1 text-[var(--esse-mulberry)] transition hover:bg-[var(--esse-petal)]" href={item.href}>
               {item.label}
             </a>
           ) : (

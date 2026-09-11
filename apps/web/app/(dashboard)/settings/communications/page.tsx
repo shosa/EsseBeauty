@@ -170,7 +170,7 @@ export default function CommunicationsSettingsPage() {
             </div>
 
             <div className="mt-6 border-t border-stone-200 pt-5">
-              <div className="mb-4 flex items-center gap-2"><ShieldCheck className="size-5 text-[#792f59]" /><h3 className="font-black">Credenziali protette</h3></div>
+              <div className="mb-4 flex items-center gap-2"><ShieldCheck className="size-5 text-[var(--esse-mulberry,#543147)]" /><h3 className="font-black">Credenziali protette</h3></div>
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField label="Access token" description={settings.credential_present ? "Credenziale presente. Lascia vuoto per mantenerla." : "Token permanente o system-user generato in Meta."} required={!settings.credential_present}>
                   <input autoComplete="new-password" className="w-full" onChange={(event) => setForm((value) => ({ ...value, accessToken: event.target.value }))} placeholder={settings.credential_present ? "••••••••••••" : "Incolla il token"} type="password" value={form.accessToken} />

@@ -429,6 +429,11 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
     tabs: [
       {
         href: "/settings",
+        label: "Indice",
+        permissions: [PERMISSION_KEYS.SETTINGS_SALON],
+      },
+      {
+        href: "/settings/salon",
         label: "Salone",
         permissions: [PERMISSION_KEYS.SETTINGS_SALON],
       },
@@ -445,6 +450,11 @@ export const APP_REGISTRY: readonly AppDefinition[] = [
       {
         href: "/settings/pwa",
         label: "App clienti",
+        permissions: [PERMISSION_KEYS.SETTINGS_SALON],
+      },
+      {
+        href: "/settings/personalization",
+        label: "Personalizzazione",
         permissions: [PERMISSION_KEYS.SETTINGS_SALON],
       },
     ],

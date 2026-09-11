@@ -191,7 +191,7 @@ export default function AuditSettingsPage() {
     return (
       <AppPage maxWidth="max-w-[1600px]">
         <EmptyState
-          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai ad App e moduli</Link>}
+          action={<Link className="font-bold text-[var(--esse-mulberry,#543147)]" href="/apps">Vai ad App e moduli</Link>}
           description="Il modulo Attività non è attivo per questo salone. Attivalo dalla pagina App e moduli per consultare il registro delle attività."
           title="Modulo Attività non attivo"
         />
@@ -212,7 +212,7 @@ export default function AuditSettingsPage() {
           </section>
 
           <section className="flex items-center gap-3 rounded-2xl border border-stone-200 p-4">
-            <span className="grid size-11 place-items-center rounded-full bg-[#f4e4ec] text-xs font-black text-[#792f59]">{initials(selectedActivity.actorName)}</span>
+            <span className="grid size-11 place-items-center rounded-full bg-[var(--esse-petal,#f2e1eb)] text-xs font-black text-[var(--esse-mulberry,#543147)]">{initials(selectedActivity.actorName)}</span>
             <div><strong>{selectedActivity.actorName || "Sistema"}</strong><p className="mt-1 text-sm text-stone-500">{selectedActivity.actorRole ? roleLabels[selectedActivity.actorRole] ?? selectedActivity.actorRole : "Operazione automatica"}</p></div>
           </section>
 
@@ -235,7 +235,7 @@ export default function AuditSettingsPage() {
             <div className="mt-3 rounded-2xl bg-stone-50 p-4">
               <div className="flex justify-between text-sm"><span>Subtotale</span><strong>{euro(selectedSubtotal)}</strong></div>
               {selectedDiscount > 0 && <div className="mt-2 flex justify-between text-sm text-stone-500"><span>Sconto conto</span><strong>- {euro(selectedDiscount)}</strong></div>}
-              <div className="mt-3 flex justify-between border-t border-stone-200 pt-3 text-lg"><strong>Totale</strong><strong className="text-[#792f59]">{euro(Math.max(0, selectedSubtotal - selectedDiscount))}</strong></div>
+              <div className="mt-3 flex justify-between border-t border-stone-200 pt-3 text-lg"><strong>Totale</strong><strong className="text-[var(--esse-mulberry,#543147)]">{euro(Math.max(0, selectedSubtotal - selectedDiscount))}</strong></div>
             </div>
           </section>}
 
@@ -279,7 +279,7 @@ export default function AuditSettingsPage() {
             ["team", "Team"],
             ["settings", "Impostazioni"],
           ] as Array<[ActivityKind, string]>).map(([value, label]) => (
-            <button aria-pressed={kind === value} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold transition ${kind === value ? "border-[#792f59] bg-[#792f59] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-[#c98cac]"}`} key={value} onClick={() => setKind(value)} type="button">{label}</button>
+            <button aria-pressed={kind === value} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold transition ${kind === value ? "border-[var(--esse-mulberry,#543147)] bg-[var(--esse-mulberry,#543147)] text-white" : "border-stone-200 bg-white text-stone-600 hover:border-[var(--esse-berry,#b85888)]"}`} key={value} onClick={() => setKind(value)} type="button">{label}</button>
           ))}
           <input aria-label="Cerca nel registro" className="min-h-10 min-w-64 flex-1 rounded-xl border border-stone-200 px-4 text-sm" onChange={(event) => setQuery(event.target.value)} placeholder="Cerca per persona o attività" value={query} />
         </div>
@@ -289,12 +289,12 @@ export default function AuditSettingsPage() {
               const itemKind = activityKind(item);
               const details = activityDetails(item);
               return (
-                <button className="grid w-full gap-4 py-5 text-left transition hover:bg-[#fffafd] sm:grid-cols-[40px_minmax(0,1fr)_auto]" key={item.id} onClick={() => setSelectedActivity(item)} type="button">
+                <button className="grid w-full gap-4 py-5 text-left transition hover:bg-[var(--esse-petal,#f2e1eb)] sm:grid-cols-[40px_minmax(0,1fr)_auto]" key={item.id} onClick={() => setSelectedActivity(item)} type="button">
                   <ActivityIcon kind={itemKind} />
                   <div className="min-w-0">
                     <h3 className="font-bold text-stone-950">{activityTitle(item)}</h3>
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-stone-600">
-                      <span className="grid size-7 place-items-center rounded-full bg-[#f4e4ec] text-[10px] font-black text-[#792f59]">{initials(item.actorName)}</span>
+                      <span className="grid size-7 place-items-center rounded-full bg-[var(--esse-petal,#f2e1eb)] text-[10px] font-black text-[var(--esse-mulberry,#543147)]">{initials(item.actorName)}</span>
                       <strong className="text-stone-800">{item.actorName || "Sistema"}</strong>
                       {item.actorRole && <span>· {roleLabels[item.actorRole] ?? item.actorRole}</span>}
                     </div>
@@ -304,7 +304,7 @@ export default function AuditSettingsPage() {
                     <time className="text-xs font-bold text-stone-400 sm:text-right" dateTime={item.createdAt}>
                       {item.createdAt ? new Date(item.createdAt).toLocaleString("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Ora non disponibile"}
                     </time>
-                    <span className="text-xs font-bold text-[#792f59]">Vedi dettagli →</span>
+                    <span className="text-xs font-bold text-[var(--esse-mulberry,#543147)]">Vedi dettagli →</span>
                   </span>
                 </button>
               );

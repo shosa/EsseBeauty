@@ -2,12 +2,11 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Style } from "@dicebear/core";
-import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import { ChevronRight, Mail, MessageCircle, Phone, Plus, Search, Tag, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch, Select} from "@esse-beauty/ui";
 
 import { useAuth } from "../../../lib/auth-context";
+import { CustomerAvatar } from "../../../lib/customer-avatar";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
 type CustomerStatus = "all" | "active" | "blocked";
@@ -32,30 +31,6 @@ interface CustomerList {
   page: number;
   page_size: number;
   total: number;
-}
-
-const avatarStyle = new Style(avatars);
-
-function CustomerAvatar({ id, name }: { id: string; name: string }) {
-  const src = useMemo(
-    () =>
-      new Avatar(avatarStyle, {
-        seed: name,
-        size: 80,
-        borderRadius: 50,
-      }).toDataUri(),
-    [id],
-  );
-
-  return (
-    <img
-      alt={`Avatar di ${name}`}
-      className="size-10 shrink-0 rounded-full border-2 border-[#792f59] object-cover"
-      height={40}
-      src={src}
-      width={40}
-    />
-  );
 }
 
 function customerName(customer: Pick<Customer, "first_name" | "last_name" | "full_name">) {

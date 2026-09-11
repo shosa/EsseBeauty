@@ -151,7 +151,7 @@ export default function DocumentsSettingsPage() {
       <AppPage maxWidth="max-w-[1600px]">
         <PageHeader eyebrow="Moduli" subtitle="Modelli versionati, richieste di firma ed evidenze verificabili per ogni cliente." title="Documenti e consensi" />
         <EmptyState
-          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai a App e moduli</Link>}
+          action={<Link className="font-bold text-[var(--esse-mulberry,#543147)]" href="/apps">Vai a App e moduli</Link>}
           description="Attiva il modulo Documenti dalla pagina App e moduli per creare modelli di consenso e raccogliere firme."
           title="Modulo Documenti non attivo"
         />
@@ -172,7 +172,7 @@ export default function DocumentsSettingsPage() {
               {items.map((item) => (
                 <article className="esse-panel rounded-xl border border-stone-200 bg-white px-4 py-3 shadow-sm" key={item.id} role="listitem">
                   <div className="flex items-start gap-3">
-                    <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg ${item.active ? "bg-[#faf3f7] text-[#792f59]" : "bg-stone-100 text-stone-500"}`}>
+                    <span className={`mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg ${item.active ? "bg-[var(--esse-petal,#f2e1eb)] text-[var(--esse-mulberry,#543147)]" : "bg-stone-100 text-stone-500"}`}>
                       {item.active ? <FileSignature aria-hidden="true" className="size-4" /> : <Archive aria-hidden="true" className="size-4" />}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -191,7 +191,7 @@ export default function DocumentsSettingsPage() {
                     </div>
                   </div>
                   <div className="mt-2 flex flex-wrap justify-end gap-2 pl-11 text-sm font-semibold">
-                    <Link className="inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-[#6f3556] transition hover:bg-[#faf3f7] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href={`/settings/documents/${item.id}`}>Apri versione</Link>
+                    <Link className="inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-[var(--esse-mulberry,#543147)] transition hover:bg-[var(--esse-petal,#f2e1eb)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href={`/settings/documents/${item.id}`}>Apri versione</Link>
                     {item.active && <Link className="inline-flex min-h-10 items-center rounded-lg px-3 py-2 text-stone-700 transition hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20" href={`/settings/documents/${item.id}`}>Crea nuova versione</Link>}
                   </div>
                 </article>
@@ -202,7 +202,7 @@ export default function DocumentsSettingsPage() {
 
         <SectionCard
           className="xl:order-1"
-          actions={<span className="inline-flex items-center gap-2 rounded-full bg-[#faf3f7] px-3 py-1.5 text-xs font-bold text-[#792f59]"><FileSignature aria-hidden="true" className="size-4" />Versione iniziale</span>}
+          actions={<span className="inline-flex items-center gap-2 rounded-full bg-[var(--esse-petal,#f2e1eb)] px-3 py-1.5 text-xs font-bold text-[var(--esse-mulberry,#543147)]"><FileSignature aria-hidden="true" className="size-4" />Versione iniziale</span>}
           icon={FileSignature}
           subtitle="Prepara il testo iniziale, scegli quando attivarlo e collegalo solo ai servizi che lo richiedono."
           title="Nuovo modello"
@@ -242,7 +242,7 @@ export default function DocumentsSettingsPage() {
               <fieldset className="rounded-xl border border-stone-200 bg-stone-50/70 p-4">
                 <legend className="sr-only">Obbligatorio per i servizi</legend>
                 <div className="flex items-start gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white text-[#792f59] shadow-sm">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white text-[var(--esse-mulberry,#543147)] shadow-sm">
                     <Link2 aria-hidden="true" className="size-5" />
                   </span>
                   <div>
@@ -258,7 +258,7 @@ export default function DocumentsSettingsPage() {
                       <div className="overflow-hidden rounded-lg border border-stone-200 bg-white" key={group.id}>
                         <button
                           aria-expanded={open}
-                          className="flex min-h-12 w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[#fffafd] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+                          className="flex min-h-12 w-full items-center justify-between gap-3 px-3 py-2 text-left transition hover:bg-[var(--esse-petal,#f2e1eb)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
                           onClick={() => toggleCategory(group.id)}
                           type="button"
                         >
@@ -266,7 +266,7 @@ export default function DocumentsSettingsPage() {
                             <span className="block truncate text-sm font-bold text-stone-900">{group.name}</span>
                             <span className="mt-0.5 block text-xs font-medium text-stone-500">{selectedCount > 0 ? `${selectedCount} selezionati su ${group.services.length}` : `${group.services.length} servizi`}</span>
                           </span>
-                          <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-stone-400 transition-transform ${open ? "rotate-180 text-[#792f59]" : ""}`} />
+                          <ChevronDown aria-hidden="true" className={`size-4 shrink-0 text-stone-400 transition-transform ${open ? "rotate-180 text-[var(--esse-mulberry,#543147)]" : ""}`} />
                         </button>
                         {open && (
                           <div className="space-y-1 border-t border-stone-100 bg-stone-50/60 p-2">
@@ -274,7 +274,7 @@ export default function DocumentsSettingsPage() {
                               const selected = form.requiredForServices.includes(service.id);
                               return (
                                 <label
-                                  className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm font-semibold transition-colors ${selected ? "border-[#792f59]/55 text-stone-950" : "border-transparent text-stone-700"}`}
+                                  className={`flex min-h-11 items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm font-semibold transition-colors ${selected ? "border-[var(--esse-mulberry,#543147)]/55 text-stone-950" : "border-transparent text-stone-700"}`}
                                   key={service.id}
                                 >
                                   <span className="min-w-0 truncate">{service.name}</span>

@@ -1,8 +1,6 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
-import { Avatar, Style } from "@dicebear/core";
-import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import { useRouter } from "next/navigation";
 import { Ban, CalendarClock, CalendarPlus, Gift, KeyRound, Layers, Mail, Phone, ShieldCheck, Sparkles, Tag, Trash2, User } from "lucide-react";
 import { appointmentStatusLabel, PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -10,6 +8,7 @@ import { MODULE_KEYS, useModuleEnabled } from "@esse-beauty/feature-flags";
 import { AppPage, Breadcrumbs, Button, ConfirmDialog, Dialog, FormField, InlineError, PageTransition, SaveToast, StatusBadge } from "@esse-beauty/ui";
 
 import { useAuth } from "../../../../lib/auth-context";
+import { CustomerAvatar } from "../../../../lib/customer-avatar";
 import { ConsentRecordsPanel } from "../../settings/documents/_components/ConsentRecordsPanel";
 import { DocumentsModuleGate } from "../../settings/documents/_components/DocumentsModuleGate";
 import { WhatsAppMarketingConsentPanel } from "../_components/WhatsAppMarketingConsentPanel";
@@ -59,30 +58,6 @@ interface Customer {
 
 function customerName(customer: Pick<Customer, "firstName" | "lastName" | "fullName">) {
   return [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.fullName;
-}
-
-const avatarStyle = new Style(avatars);
-
-function CustomerAvatar({ id, name }: { id: string; name: string }) {
-  const src = useMemo(
-    () =>
-      new Avatar(avatarStyle, {
-        seed: name,
-        size: 128,
-        borderRadius: 50,
-      }).toDataUri(),
-    [id],
-  );
-
-  return (
-    <img
-      alt={`Avatar di ${name}`}
-      className="size-16 shrink-0 rounded-full border-2 border-[#792f59] object-cover"
-      height={64}
-      src={src}
-      width={64}
-    />
-  );
 }
 
 function money(cents: number) {
@@ -280,7 +255,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
           <div className="flex min-w-0 items-center gap-4">
-            <CustomerAvatar id={customer.id} name={name} />
+            <CustomerAvatar className="size-16" id={customer.id} name={name} size={64} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold text-stone-950">{name}</h1>

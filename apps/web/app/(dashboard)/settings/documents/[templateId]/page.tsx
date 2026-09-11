@@ -137,7 +137,7 @@ export default function DocumentVersionPage() {
       <AppPage maxWidth="max-w-[1600px]">
         <Breadcrumbs items={[{ href: "/settings/documents", label: "Documenti e consensi" }, { label: "Versione" }]} />
         <EmptyState
-          action={<Link className="font-bold text-[#792f59]" href="/apps">Vai a App e moduli</Link>}
+          action={<Link className="font-bold text-[var(--esse-mulberry,#543147)]" href="/apps">Vai a App e moduli</Link>}
           description="Attiva il modulo Documenti dalla pagina App e moduli per gestire le versioni di questo modello."
           title="Modulo Documenti non attivo"
         />
@@ -167,7 +167,7 @@ export default function DocumentVersionPage() {
                 <details className="group rounded-xl border border-stone-200" key={category}>
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-bold uppercase tracking-[.08em] text-stone-500 marker:content-none">
                     <span className="flex items-center gap-2"><ChevronRight aria-hidden="true" className="size-3.5 text-stone-400 transition-transform group-open:rotate-90" />{category}</span>
-                    {selectedCount > 0 && <span className="rounded-full bg-[#f3e2eb] px-2 py-0.5 text-[11px] font-bold text-[#792f59]">{selectedCount}</span>}
+                    {selectedCount > 0 && <span className="rounded-full bg-[var(--esse-petal,#f2e1eb)] px-2 py-0.5 text-[11px] font-bold text-[var(--esse-mulberry,#543147)]">{selectedCount}</span>}
                   </summary>
                   <div className="grid gap-2 border-t border-stone-100 p-3 sm:grid-cols-2">{groupServices.map((service) => <label className="flex items-center justify-between gap-2 rounded-xl bg-stone-50 px-3 py-2 text-sm font-semibold" key={service.id}><span>{service.name}</span><Switch checked={draft.requiredForServices.includes(service.id)} onCheckedChange={() => toggleService(service.id)} /></label>)}</div>
                 </details>

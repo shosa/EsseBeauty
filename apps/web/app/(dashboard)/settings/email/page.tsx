@@ -125,7 +125,7 @@ export default function EmailSettingsPage() {
         <SectionCard title="Anteprima" subtitle="Aspetto dei dati salone dentro alle email.">
           <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
             <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-lg bg-white text-[#792f59] shadow-sm"><Mail aria-hidden="true" className="size-5" /></span>
+              <span className="grid size-10 place-items-center rounded-lg bg-white text-[var(--esse-mulberry,#543147)] shadow-sm"><Mail aria-hidden="true" className="size-5" /></span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-stone-950">{settings.fromName || "Nome salone"}</p>
                 <p className="truncate text-xs text-stone-500">Risposte a {settings.replyToEmail || "email salone"}</p>
@@ -134,7 +134,7 @@ export default function EmailSettingsPage() {
             <div className="mt-4 space-y-3 rounded-lg bg-white p-4 text-sm leading-6 text-stone-700">
               <p>Gentile cliente, trovi qui il riepilogo richiesto dal salone.</p>
               <div className="border-t border-stone-100 pt-3 text-xs leading-5 text-stone-500">
-                <p className="flex items-center gap-2 font-bold text-stone-700"><Signature aria-hidden="true" className="size-4 text-[#792f59]" />Firma</p>
+                <p className="flex items-center gap-2 font-bold text-stone-700"><Signature aria-hidden="true" className="size-4 text-[var(--esse-mulberry,#543147)]" />Firma</p>
                 <p className="mt-1 whitespace-pre-wrap">{settings.footer || "Footer non configurato."}</p>
               </div>
             </div>
