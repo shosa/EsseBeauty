@@ -25,4 +25,14 @@ describe("platform tier contract", () => {
     expect(platform).toContain('action: "module.updated"');
     expect(platform).toContain(".delete(salons)");
   });
+
+  it("exposes tenant-manager endpoints for plans, module alignment and service status", () => {
+    const platform = readFileSync(join(process.cwd(), "src", "routes", "platform", "index.ts"), "utf8");
+
+    expect(platform).toContain('"/api/platform/salons/:salonId/plan-alignment"');
+    expect(platform).toContain('"/api/platform/salons/:salonId/apply-plan"');
+    expect(platform).toContain('"/api/platform/services/status"');
+    expect(platform).toContain("included_modules");
+    expect(platform).toContain('action: "salon.plan_aligned"');
+  });
 });

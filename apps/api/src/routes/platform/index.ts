@@ -38,6 +38,7 @@ import {
   verifyPassword,
 } from "@esse-beauty/server-shared";
 import { testPlatformEmailConnection } from "@esse-beauty/comms-contracts";
+import { checkServiceHealth } from "./service-health.js";
 
 const PLATFORM_SESSION_COOKIE = "esse-platform-session";
 
@@ -286,6 +287,12 @@ export async function registerPlatformRoutes(
   );
 
   app.get(
+    "/api/platform/services/status",
+    { preHandler: [authenticatePlatform] },
+    async () => ({ services: await checkServiceHealth() }),
+  );
+
+  app.get(
     "/api/platform/salons",
     { preHandler: [authenticatePlatform] },
     async () =>
@@ -390,6 +397,45 @@ export async function registerPlatformRoutes(
         targetType: "plan",
       });
       return reply.code(201).send(rows[0]);
+    },
+  );
+
+  app.put<{
+    Body: { active?: boolean; code: string; description?: string; included_modules?: string[]; limits?: Record<string, unknown>; name: string };
+    Params: { planId: string };
+  }>(
+    "/api/platform/plans/:planId",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      if (!request.body.name?.trim() || !request.body.code?.trim()) {
+        return reply.code(400).send({ error: "PLAN_REQUIRED" });
+      }
+      const rows = await app.db
+        .update(platformPlans)
+        .set({
+          active: request.body.active ?? true,
+          code: request.body.code.trim(),
+          description: request.body.description,
+          includedModules: (request.body.included_modules ?? []).filter(isModuleKey),
+          limits: request.body.limits ?? {},
+          name: request.body.name.trim(),
+          updatedAt: new Date(),
+        })
+        .where(eq(platformPlans.id, request.params.planId))
+        .returning();
+      const plan = rows[0];
+      if (!plan) return reply.code(404).send({ error: "PLAN_NOT_FOUND" });
+      await writePlatformAudit(app, request, {
+        action: "plan.updated",
+        diff: {
+          included_modules: plan.includedModules,
+          limits: plan.limits,
+        },
+        summary: `Aggiornato il piano ${plan.name}`,
+        targetId: plan.id,
+        targetType: "plan",
+      });
+      return plan;
     },
   );
 
@@ -631,6 +677,161 @@ export async function registerPlatformRoutes(
       });
 
       return salon;
+    },
+  );
+
+  app.get<{
+    Params: { salonId: string };
+  }>(
+    "/api/platform/salons/:salonId/plan-alignment",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      const salonRows = await app.db
+        .select({
+          id: salons.id,
+          name: salons.name,
+          plan_id: salons.planId,
+        })
+        .from(salons)
+        .where(eq(salons.id, request.params.salonId))
+        .limit(1);
+      const salon = salonRows[0];
+      if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+
+      const [planRows, moduleRows] = await Promise.all([
+        salon.plan_id
+          ? app.db
+              .select()
+              .from(platformPlans)
+              .where(eq(platformPlans.code, salon.plan_id))
+              .limit(1)
+          : Promise.resolve([]),
+        app.db
+          .select({
+            enabled: salonModules.enabled,
+            module_key: salonModules.moduleKey,
+            updated_at: salonModules.updatedAt,
+          })
+          .from(salonModules)
+          .where(eq(salonModules.salonId, request.params.salonId)),
+      ]);
+
+      const plan = planRows[0] ?? null;
+      const includedModules = (plan?.includedModules ?? []).filter(isModuleKey);
+      const enabledModules = moduleRows
+        .filter((item) => item.enabled)
+        .map((item) => item.module_key)
+        .filter(isModuleKey);
+
+      return {
+        enabled_modules: enabledModules,
+        extra_modules: enabledModules.filter((key) => !includedModules.includes(key)),
+        missing_modules: includedModules.filter((key) => !enabledModules.includes(key)),
+        module_rows: moduleRows,
+        plan: plan
+          ? {
+              code: plan.code,
+              included_modules: includedModules,
+              limits: plan.limits ?? {},
+              name: plan.name,
+            }
+          : null,
+        salon,
+      };
+    },
+  );
+
+  app.post<{
+    Params: { salonId: string };
+  }>(
+    "/api/platform/salons/:salonId/apply-plan",
+    { preHandler: [authenticatePlatform] },
+    async (request, reply) => {
+      const salonRows = await app.db
+        .select({
+          id: salons.id,
+          name: salons.name,
+          plan_id: salons.planId,
+        })
+        .from(salons)
+        .where(eq(salons.id, request.params.salonId))
+        .limit(1);
+      const salon = salonRows[0];
+      if (!salon) return reply.code(404).send({ error: "SALON_NOT_FOUND" });
+      if (!salon.plan_id) return reply.code(422).send({ error: "PLAN_NOT_ASSIGNED" });
+
+      const planRows = await app.db
+        .select()
+        .from(platformPlans)
+        .where(eq(platformPlans.code, salon.plan_id))
+        .limit(1);
+      const plan = planRows[0];
+      if (!plan) return reply.code(422).send({ error: "PLAN_NOT_FOUND" });
+
+      const includedModules = (plan.includedModules ?? []).filter(isModuleKey);
+      const existingRows = await app.db
+        .select({
+          enabled: salonModules.enabled,
+          module_key: salonModules.moduleKey,
+        })
+        .from(salonModules)
+        .where(eq(salonModules.salonId, request.params.salonId));
+
+      await app.db.transaction(async (tx) => {
+        for (const moduleKey of includedModules) {
+          await tx
+            .insert(salonModules)
+            .values({
+              enabled: true,
+              moduleKey,
+              salonId: request.params.salonId,
+              updatedAt: new Date(),
+            })
+            .onConflictDoUpdate({
+              set: { enabled: true, updatedAt: new Date() },
+              target: [salonModules.salonId, salonModules.moduleKey],
+            });
+        }
+
+        for (const row of existingRows) {
+          if (isModuleKey(row.module_key) && !includedModules.includes(row.module_key)) {
+            await tx
+              .update(salonModules)
+              .set({ enabled: false, updatedAt: new Date() })
+              .where(
+                and(
+                  eq(salonModules.salonId, request.params.salonId),
+                  eq(salonModules.moduleKey, row.module_key),
+                ),
+              );
+          }
+        }
+      });
+
+      for (const moduleKey of new Set<ModuleKey>([
+        ...includedModules,
+        ...existingRows.map((row) => row.module_key).filter(isModuleKey),
+      ])) {
+        invalidateModuleCache(request.params.salonId, moduleKey);
+      }
+
+      await writePlatformAudit(app, request, {
+        action: "salon.plan_aligned",
+        diff: {
+          included_modules: includedModules,
+          plan_code: plan.code,
+        },
+        salonId: request.params.salonId,
+        summary: `Allineato ${salon.name} al piano ${plan.name}`,
+        targetId: request.params.salonId,
+        targetType: "salon",
+      });
+
+      return {
+        aligned: true,
+        included_modules: includedModules,
+        plan_code: plan.code,
+      };
     },
   );
 

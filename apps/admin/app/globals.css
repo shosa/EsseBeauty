@@ -21,7 +21,6 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; background: var(--platform-bg); color: var(--platform-ink); }
-body { background-image: radial-gradient(circle at 82% 0%, rgb(79 95 215 / .055), transparent 28rem); background-attachment: fixed; }
 body { min-height: 100vh; font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 button, input, select, textarea { font: inherit; }
 button:not(:disabled), a[href] { cursor: pointer; }
@@ -31,10 +30,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   outline-offset: 2px;
 }
 h1, h2, h3, p { margin: 0; }
-h1, h2, h3 { font-family: var(--font-display), var(--font-sans), sans-serif; letter-spacing: -.022em; text-wrap: balance; }
+h1, h2, h3 { font-family: var(--font-display), var(--font-sans), sans-serif; letter-spacing: 0; text-wrap: balance; }
 
 .platform-input {
-  width: 100%; min-height: 44px; border: 1px solid var(--platform-line); border-radius: 11px;
+  width: 100%; min-height: 44px; border: 1px solid var(--platform-line); border-radius: 8px;
   background: var(--platform-surface); padding: 0 13px; color: var(--platform-ink); outline: none;
   transition: border-color 140ms ease, box-shadow 140ms ease;
 }
@@ -45,10 +44,10 @@ textarea.platform-input { min-height: 104px; padding-block: 11px; resize: vertic
 /* Reserve icon space after base input rules, so utility padding cannot be overwritten. */
 .relative > svg.absolute ~ input { padding-left: 2.75rem !important; }
 
-.platform-card { border: 1px solid var(--platform-line); border-radius: 20px; background: color-mix(in srgb, var(--platform-surface) 96%, transparent); box-shadow: var(--platform-shadow); }
+.platform-card { border: 1px solid var(--platform-line); border-radius: 8px; background: var(--platform-surface); box-shadow: var(--platform-shadow); }
 .platform-button {
   display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px;
-  border: 1px solid transparent; border-radius: 11px; padding: 0 15px; font-size: 13px; font-weight: 700;
+  border: 1px solid transparent; border-radius: 8px; padding: 0 15px; font-size: 13px; font-weight: 700;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 .platform-button:active:not(:disabled) { transform: translateY(1px); }
@@ -69,9 +68,7 @@ textarea.platform-input { min-height: 104px; padding-block: 11px; resize: vertic
 .platform-scrollbar::-webkit-scrollbar-thumb { border-radius: 999px; background: #c9d3cf; }
 
 .platform-sidebar {
-  background:
-    radial-gradient(circle at 15% 0%, rgb(120 133 255 / .16), transparent 18rem),
-    var(--platform-sidebar);
+  background: var(--platform-sidebar);
   box-shadow: inset -1px 0 rgb(255 255 255 / .06);
 }
 
@@ -85,23 +82,7 @@ textarea.platform-input { min-height: 104px; padding-block: 11px; resize: vertic
 .platform-auth-panel {
   position: relative;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 15% 18%, rgb(128 142 255 / .28), transparent 22rem),
-    radial-gradient(circle at 85% 82%, rgb(92 199 220 / .14), transparent 24rem),
-    var(--platform-sidebar);
-}
-
-.platform-auth-panel::after {
-  position: absolute;
-  z-index: -1;
-  right: -9rem;
-  bottom: -9rem;
-  width: 28rem;
-  height: 28rem;
-  border: 1px solid rgb(255 255 255 / .09);
-  border-radius: 50%;
-  box-shadow: 0 0 0 4rem rgb(255 255 255 / .025), 0 0 0 8rem rgb(255 255 255 / .018);
-  content: "";
+  background: var(--platform-sidebar);
 }
 
 @media (prefers-reduced-transparency: reduce) {

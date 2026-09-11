@@ -1,7 +1,7 @@
 import type { ModuleKey } from "@esse-beauty/feature-flags";
 
-export type View = "overview" | "tenants" | "plans" | "modules" | "templates" | "settings" | "audit";
-export type TenantTab = "profile" | "owner" | "modules" | "danger";
+export type View = "overview" | "tenants" | "plans" | "modules" | "templates" | "settings" | "services" | "audit";
+export type TenantTab = "profile" | "owner" | "plan" | "modules" | "danger";
 export type TenantStatus = "active" | "suspended" | "trial" | "churn_risk";
 
 export interface PlatformSession { admin: { email: string; full_name: string; id: string } }
@@ -36,6 +36,13 @@ export interface PlatformPlan {
   includedModules: string[];
   limits: Record<string, unknown>;
   name: string;
+}
+export interface PlanAlignment {
+  enabled_modules: ModuleKey[];
+  extra_modules: ModuleKey[];
+  missing_modules: ModuleKey[];
+  module_rows: Array<{ enabled: boolean; module_key: ModuleKey; updated_at: string }>;
+  plan: { code: string; included_modules: ModuleKey[]; limits: Record<string, unknown>; name: string } | null;
 }
 export interface PlatformModule {
   defaultEnabled: boolean;
@@ -77,6 +84,17 @@ export interface PlatformEmailTestResult {
   checkedAt: string;
   message: string;
   ok: boolean;
+}
+export type ServiceHealthStatus = "operational" | "degraded" | "offline";
+export interface PlatformServiceStatus {
+  checkedAt: string;
+  error?: string;
+  healthUrl: string;
+  key: string;
+  latencyMs: number;
+  name: string;
+  owner: string;
+  status: ServiceHealthStatus;
 }
 export interface SalonOwner {
   active: boolean;
