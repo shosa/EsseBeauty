@@ -78,6 +78,7 @@ services:
       PLATFORM_BOOKING_HEALTH_URL: ${PLATFORM_BOOKING_HEALTH_URL:-http://booking:3007/health}
       PLATFORM_COMMERCE_HEALTH_URL: ${PLATFORM_COMMERCE_HEALTH_URL:-http://commerce:3008/health}
       PLATFORM_IDENTITY_HEALTH_URL: ${PLATFORM_IDENTITY_HEALTH_URL:-http://identity:3009/health}
+      PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
