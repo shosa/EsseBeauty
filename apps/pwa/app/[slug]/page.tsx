@@ -5,7 +5,7 @@ import { ArrowRight, Bell, BellOff, Clock, LogOut, Sparkles, Star, X } from "luc
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, Style } from "@dicebear/core";
-import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
+import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import { useParams } from "next/navigation";
 import type { Weekday, WorkingHours } from "@esse-beauty/shared";
 
@@ -17,25 +17,23 @@ import { useCustomerAuth } from "./_components/CustomerAuthProvider";
 import { InstallAppButton } from "./_components/InstallAppButton";
 import { getExistingPushSubscription, isPushSupported, subscribeToPush, unsubscribeFromPush } from "./_components/push-notifications";
 
-const avatarStyle = new Style(miniavs);
+const avatarStyle = new Style(avatars);
 
 function CustomerAvatar({
   borderColor,
   name,
-  seed,
 }: {
   borderColor: string;
   name: string;
-  seed: string;
 }) {
   const src = useMemo(
     () =>
       new Avatar(avatarStyle, {
-        seed,
+        seed: name,
         size: 64,
         borderRadius: 50,
       }).toDataUri(),
-    [seed],
+    [name],
   );
 
   return (
@@ -48,11 +46,6 @@ function CustomerAvatar({
       width={32}
     />
   );
-}
-
-function customerAvatarSeed(customer: { full_name: string }): string {
-  const id = (customer as { id?: unknown }).id;
-  return typeof id === "string" && id ? id : customer.full_name;
 }
 
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
@@ -99,7 +92,6 @@ export default function SalonLanding() {
   const [pushBusy, setPushBusy] = useState(false);
   const [pushPromptDismissed, setPushPromptDismissed] = useState(true);
   const [toast, setToast] = useState("");
-  const [guestAvatarSeed] = useState(() => `guest-${crypto.randomUUID()}`);
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -247,13 +239,11 @@ export default function SalonLanding() {
                 <CustomerAvatar
                   borderColor={primary}
                   name={customer.full_name}
-                  seed={customerAvatarSeed(customer)}
                 />
               ) : (
                 <CustomerAvatar
                   borderColor={primary}
                   name="Ospite"
-                  seed={guestAvatarSeed}
                 />
               )}
             </button>

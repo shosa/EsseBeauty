@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { Avatar, Style } from "@dicebear/core";
-import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
+import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import { useRouter } from "next/navigation";
 import { Ban, CalendarClock, CalendarPlus, Gift, KeyRound, Layers, Mail, Phone, ShieldCheck, Sparkles, Tag, Trash2, User } from "lucide-react";
 import { appointmentStatusLabel, PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -61,13 +61,13 @@ function customerName(customer: Pick<Customer, "firstName" | "lastName" | "fullN
   return [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.fullName;
 }
 
-const avatarStyle = new Style(miniavs);
+const avatarStyle = new Style(avatars);
 
 function CustomerAvatar({ id, name }: { id: string; name: string }) {
   const src = useMemo(
     () =>
       new Avatar(avatarStyle, {
-        seed: id,
+        seed: name,
         size: 128,
         borderRadius: 50,
       }).toDataUri(),

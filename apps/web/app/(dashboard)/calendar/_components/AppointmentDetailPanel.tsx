@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Avatar, Style } from "@dicebear/core";
-import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
+import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, CheckCheck, ChevronDown, Clock3, EyeOff, Mail, Pencil, Phone, ShoppingBag, Trash2, UserRound, X } from "lucide-react";
 import {
@@ -125,7 +125,7 @@ function DayPositionPreview({ color, endsAt, label, startsAt }: { color: string;
   );
 }
 
-const avatarStyle = new Style(miniavs);
+const avatarStyle = new Style(avatars);
 
 function CustomerAvatar({
   id,
@@ -137,7 +137,7 @@ function CustomerAvatar({
   const src = useMemo(
     () =>
       new Avatar(avatarStyle, {
-        seed: id,
+        seed: name,
         size: 96,
         borderRadius: 50,
       }).toDataUri(),

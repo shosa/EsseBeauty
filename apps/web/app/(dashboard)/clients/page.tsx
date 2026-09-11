@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Avatar, Style } from "@dicebear/core";
-import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
+import avatars from "@dicebear/styles/initial-face.json" with { type: "json" };
 import { ChevronRight, Mail, MessageCircle, Phone, Plus, Search, Tag, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch, Select} from "@esse-beauty/ui";
 
@@ -34,13 +34,13 @@ interface CustomerList {
   total: number;
 }
 
-const avatarStyle = new Style(miniavs);
+const avatarStyle = new Style(avatars);
 
 function CustomerAvatar({ id, name }: { id: string; name: string }) {
   const src = useMemo(
     () =>
       new Avatar(avatarStyle, {
-        seed: id,
+        seed: name,
         size: 80,
         borderRadius: 50,
       }).toDataUri(),
