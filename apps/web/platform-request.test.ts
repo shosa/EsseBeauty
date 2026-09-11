@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { platformRequest } from "../platform/app/api";
+import { platformRequest } from "../admin/app/api";
 
 afterEach(() => {
   vi.unstubAllGlobals();

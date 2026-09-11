@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const platformRoot = join(process.cwd(), "..", "platform", "app");
+const platformRoot = join(process.cwd(), "..", "admin", "app");
 const source = readFileSync(join(platformRoot, "_components", "PlatformConsole.tsx"), "utf8");
 
 describe("platform operations console", () => {

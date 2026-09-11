@@ -3,19 +3,19 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { customerCredentials, customerPasswordResetTokens, customers, customerSessions, salons } from "@esse-beauty/db/schema";
-import { isValidBirthday } from "../../lib/birthday.js";
-import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
-import { inspectPublicToken, issuePublicToken } from "../../lib/public-tokens.js";
-import {
-  createCommunicationProviderRegistry,
-  type CommunicationProviderRegistry,
-} from "../../providers/communications.js";
+import { isValidBirthday, normalizePhoneE164 } from "@esse-beauty/shared";
 import {
   createSessionToken,
   hashPassword,
   hashSessionToken,
+  inspectPublicToken,
+  issuePublicToken,
   verifyPassword,
-} from "../auth/local-auth.js";
+} from "@esse-beauty/server-shared";
+import {
+  createCommunicationProviderRegistry,
+  type CommunicationProviderRegistry,
+} from "@esse-beauty/comms-contracts";
 
 export const CUSTOMER_SESSION_COOKIE = "esse-customer-session";
 export const CUSTOMER_SESSION_DURATION_MS = 90 * 24 * 60 * 60_000;

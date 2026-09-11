@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("salon onboarding security contract", () => {
   it("does not expose public salon bootstrap routes", () => {
     const auth = readFileSync(
-      join(process.cwd(), "src", "routes", "auth", "index.ts"),
+      join(process.cwd(), "..", "identity", "src", "routes", "auth", "index.ts"),
       "utf8",
     );
 

@@ -109,3 +109,13 @@ export type {
   Weekday,
   WorkingHours,
 } from "./types.js";
+export { isValidBirthday, todayMonthDayInTimezone } from "./birthday.js";
+export { normalizePhoneE164 } from "./phone-normalization.js";
+export { availableResourceFor, isStaffQualified, qualifiedStaffIds } from "./scheduling-resources.js";
+export {
+  applySpecialOpeningHours,
+  findSpecialOpening,
+  hasSpecialOpening,
+  weekdayForDate,
+  type SpecialOpening,
+} from "./special-openings.js";

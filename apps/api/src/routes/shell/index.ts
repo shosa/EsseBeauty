@@ -20,7 +20,7 @@ import {
   ensureOnlineBookingNotifications,
   ensureStaffRequestReviewNotifications,
 } from "../../jobs/staff-request-notifications.js";
-import { parseBody, type SafeParseSchema } from "../../lib/http-validation.js";
+import { parseBody, type SafeParseSchema } from "@esse-beauty/server-shared";
 import { authenticate } from "../../middleware/auth.js";
 
 const shellPreferencesBodySchema: SafeParseSchema<{

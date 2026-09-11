@@ -14,7 +14,7 @@ import {
 } from "@esse-beauty/db/schema";
 
 import { createApp } from "../app.js";
-import { hashSessionToken } from "../routes/auth/local-auth.js";
+import { hashSessionToken } from "@esse-beauty/server-shared";
 import { testDatabaseUrl } from "../test/postgres.js";
 import {
   createConsentRequest,
@@ -25,7 +25,7 @@ import {
   resolveConsent,
   signConsent,
 } from "./consent-evidence.js";
-import { issuePublicToken } from "./public-tokens.js";
+import { issuePublicToken } from "@esse-beauty/server-shared";
 
 const databaseUrl = testDatabaseUrl();
 const postgresSuite = databaseUrl ? describe : describe.skip;

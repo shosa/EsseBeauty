@@ -1,0 +1,32 @@
+export interface CommunicationsEnvironment {
+  API_CORS_ORIGIN: string;
+  API_HOST: string;
+  DATABASE_URL: string;
+  PORT: number;
+  REVIEW_TOKEN_SECRET: string;
+}
+
+function required(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
+}
+
+export function loadEnvironment(): CommunicationsEnvironment {
+  const portValue = process.env.PORT ?? "3003";
+  const port = Number(portValue);
+
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error("PORT must be a positive integer");
+  }
+
+  return {
+    API_CORS_ORIGIN: required("API_CORS_ORIGIN"),
+    API_HOST: process.env.API_HOST ?? "0.0.0.0",
+    DATABASE_URL: required("DATABASE_URL"),
+    PORT: port,
+    REVIEW_TOKEN_SECRET: required("REVIEW_TOKEN_SECRET"),
+  };
+}

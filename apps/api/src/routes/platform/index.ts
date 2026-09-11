@@ -31,13 +31,13 @@ import {
 
 import {
   createSessionToken,
+  encryptProviderSecret,
   hashPassword,
   hashSessionToken,
   SESSION_DURATION_MS,
   verifyPassword,
-} from "../auth/local-auth.js";
-import { encryptProviderSecret } from "../../lib/provider-credentials.js";
-import { testPlatformEmailConnection } from "../../jobs/notifications.js";
+} from "@esse-beauty/server-shared";
+import { testPlatformEmailConnection } from "@esse-beauty/comms-contracts";
 
 const PLATFORM_SESSION_COOKIE = "esse-platform-session";
 

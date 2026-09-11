@@ -10,7 +10,7 @@ import {
 import {
   hashSessionToken,
   sessionCookieForClient,
-} from "../routes/auth/local-auth.js";
+} from "@esse-beauty/server-shared";
 
 export interface AuthenticatedUser {
   id: string;

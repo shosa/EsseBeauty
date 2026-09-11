@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const dashboardRoot = join(process.cwd(), "app", "(dashboard)");
 const sharedUi = join(process.cwd(), "..", "..", "packages", "ui", "index.tsx");
-const platformConsole = join(process.cwd(), "..", "platform", "app", "_components", "PlatformConsole.tsx");
+const platformConsole = join(process.cwd(), "..", "admin", "app", "_components", "PlatformConsole.tsx");
 
 function dashboardPages(directory = dashboardRoot): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

@@ -1,0 +1,257 @@
+import { Worker, type Job, type JobsOptions } from "bullmq";
+import { and, eq, inArray, sql } from "drizzle-orm";
+
+import type { DrizzleDB } from "@esse-beauty/db";
+import { campaignRecipients, campaignTemplates, communicationConsents, customers, marketingCampaigns, salons } from "@esse-beauty/db/schema";
+import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
+
+import { refreshCampaignStatus } from "./campaign-status.js";
+
+export { aggregateCampaignStatus, type AggregatedCampaignStatus } from "./campaign-status.js";
+
+import { applyMarketingWildcards, brandedEmailHtml, marketingWildcardValues } from "@esse-beauty/shared";
+import { QUEUE_NAMES, redisConnection } from "@esse-beauty/queue-client";
+import {
+  createCommunicationProviderRegistry,
+  enqueueCommunication,
+  sendCustomerAppMessage,
+  sendEmailFromDb,
+  type CommunicationProviderRegistry,
+  type DeliveryReceipt,
+  ProviderNotConfiguredError,
+} from "@esse-beauty/comms-contracts";
+
+type EmailSender = (to: string, subject: string, html: string, options?: { idempotencyKey?: string }) => Promise<DeliveryReceipt>;
+
+export interface CampaignBatchJob {
+  campaignId: string;
+  recipientIds: string[];
+}
+
+export interface CampaignQueue {
+  add(name: string, data: CampaignBatchJob, options?: JobsOptions): Promise<unknown>;
+}
+
+
+export async function processCampaignBatch(
+  db: DrizzleDB,
+  job: Pick<Job<CampaignBatchJob>, "data">,
+  providers: CommunicationProviderRegistry = createCommunicationProviderRegistry(),
+  enqueue: typeof enqueueCommunication = enqueueCommunication,
+  emailSender: EmailSender = (to, subject, html, options) => sendEmailFromDb(db, to, subject, html, options),
+): Promise<void> {
+  const campaigns = await db
+    .select()
+    .from(marketingCampaigns)
+    .where(eq(marketingCampaigns.id, job.data.campaignId));
+  const campaign = campaigns[0];
+  if (!campaign || campaign.status === "cancelled") return;
+  if (!(await isModuleEnabled(campaign.salonId, MODULE_KEYS.MARKETING, db))) {
+    await db
+      .update(campaignRecipients)
+      .set({ error: "MODULE_DISABLED", status: "failed", updatedAt: new Date() })
+      .where(
+        and(
+          eq(campaignRecipients.campaignId, campaign.id),
+          eq(campaignRecipients.salonId, campaign.salonId),
+          inArray(campaignRecipients.id, job.data.recipientIds),
+          eq(campaignRecipients.status, "queued"),
+        ),
+      );
+    return;
+  }
+  // Historical campaigns retain their recorded channel and are never repurposed
+  // into a different delivery channel at runtime.
+  if (campaign.channel !== "email" && campaign.channel !== "whatsapp" && campaign.channel !== "app") return;
+
+  const claimed = await db.transaction(async (tx) => {
+    const started = await tx
+      .update(marketingCampaigns)
+      .set({
+        processingStartedAt: campaign.processingStartedAt ?? new Date(),
+        status: "processing",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(marketingCampaigns.id, campaign.id),
+          inArray(marketingCampaigns.status, ["queued", "scheduled", "processing"]),
+        ),
+      )
+      .returning({ id: marketingCampaigns.id });
+    if (!started[0]) return [];
+    return tx
+      .update(campaignRecipients)
+      .set({
+        deliveryAttempts: sql`${campaignRecipients.deliveryAttempts} + 1`,
+        error: null,
+        lastAttemptAt: new Date(),
+        status: "processing",
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(campaignRecipients.campaignId, campaign.id),
+          eq(campaignRecipients.salonId, campaign.salonId),
+          inArray(campaignRecipients.id, job.data.recipientIds),
+          eq(campaignRecipients.status, "queued"),
+        ),
+      )
+      .returning();
+  });
+  if (claimed.length === 0) return;
+
+  const salon = (await db.select({ name: salons.name, slug: salons.slug }).from(salons).where(eq(salons.id, campaign.salonId)))[0];
+  const salonSlug = salon?.slug;
+
+  // Email and app content can carry {{...}} wildcards; batch-load the recipients'
+  // customer rows once instead of a query per recipient.
+  const customerById = new Map<string, { firstName: string; fullName: string }>();
+  if (campaign.channel === "email" || campaign.channel === "app") {
+    const customerIds = [...new Set(claimed.map((recipient) => recipient.customerId).filter((id): id is string => Boolean(id)))];
+    if (customerIds.length > 0) {
+      const rows = await db.select({ firstName: customers.firstName, fullName: customers.fullName, id: customers.id }).from(customers).where(inArray(customers.id, customerIds));
+      for (const row of rows) customerById.set(row.id, row);
+    }
+  }
+
+  for (const recipient of claimed) {
+    try {
+      const wildcardValues = marketingWildcardValues({
+        customerFirstName: recipient.customerId ? customerById.get(recipient.customerId)?.firstName : undefined,
+        customerFullName: recipient.customerId ? customerById.get(recipient.customerId)?.fullName : undefined,
+        salonName: salon?.name,
+      });
+      const personalizedName = applyMarketingWildcards(campaign.name, wildcardValues);
+      if (campaign.channel === "app" && (!recipient.customerId || !salonSlug)) {
+        await db.update(campaignRecipients).set({ error: "APP_PUSH_DESTINATION_INVALID", status: "failed", updatedAt: new Date() })
+          .where(eq(campaignRecipients.id, recipient.id));
+        continue;
+      }
+      if (campaign.channel === "whatsapp") {
+        const consent = recipient.customerId && (await db.select({ id: communicationConsents.id })
+          .from(communicationConsents)
+          .where(and(
+            eq(communicationConsents.salonId, campaign.salonId),
+            eq(communicationConsents.customerId, recipient.customerId),
+            eq(communicationConsents.channel, "whatsapp"),
+            eq(communicationConsents.purpose, "marketing"),
+            eq(communicationConsents.status, "granted"),
+          )))[0];
+        if (!consent) {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_MARKETING_CONSENT_REVOKED", status: "skipped", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+        const template = campaign.templateId && (await db.select().from(campaignTemplates).where(and(
+          eq(campaignTemplates.id, campaign.templateId),
+          eq(campaignTemplates.salonId, campaign.salonId),
+        )))[0];
+        if (!template || !template.active || template.whatsappApprovalStatus !== "approved" || !template.whatsappTemplateName || !template.whatsappTemplateLocale || !campaign.whatsappTemplateName || !campaign.whatsappTemplateLocale || campaign.whatsappTemplateApprovalStatus !== "approved") {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_NOT_APPROVED", status: "failed", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+        if (campaign.whatsappTemplateName !== template.whatsappTemplateName || campaign.whatsappTemplateLocale !== template.whatsappTemplateLocale) {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_SNAPSHOT_STALE", status: "failed", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+        if (campaign.whatsappTemplateParameters.length !== template.variables.length) {
+          await db.update(campaignRecipients).set({ error: "WHATSAPP_TEMPLATE_PARAMETER_MISMATCH", status: "failed", updatedAt: new Date() })
+            .where(eq(campaignRecipients.id, recipient.id));
+          continue;
+        }
+      }
+      const receipt = campaign.channel === "email"
+        ? await emailSender(
+            recipient.destination,
+            personalizedName,
+            brandedEmailHtml({
+              bodyHtml: applyMarketingWildcards(campaign.content, wildcardValues, { escapeValues: true }),
+              eyebrow: salon?.name ?? "EsseBeauty",
+              footerNote: `Comunicazione inviata tramite EsseBeauty per conto di ${salon?.name ?? "il salone"}.`,
+              title: personalizedName,
+            }),
+            { idempotencyKey: `campaign-recipient-${recipient.id}` },
+          )
+        : campaign.channel === "app"
+        ? await sendCustomerAppMessage(db, campaign.salonId, recipient.customerId!, {
+            body: applyMarketingWildcards(campaign.content, wildcardValues),
+            href: `/${salonSlug}/book`,
+            kind: "campaign",
+            slug: salonSlug!,
+            title: personalizedName,
+          }).then(() => ({
+            acceptedAt: new Date(),
+            provider: null,
+            providerMessageId: null,
+          }))
+        : await enqueue(db, {
+            idempotencyKey: `campaign-recipient-${recipient.id}`,
+            kind: "template",
+            salonId: campaign.salonId,
+            sourceId: recipient.id,
+            sourceType: "campaign_recipient",
+            template: {
+              locale: campaign.whatsappTemplateLocale ?? "it",
+              name: campaign.whatsappTemplateName ?? "",
+              parameters: campaign.whatsappTemplateParameters,
+            },
+            to: recipient.destination,
+          }).then((queued) => ({
+            acceptedAt: new Date(),
+            provider: null,
+            providerMessageId: null,
+          }));
+      await db
+        .update(campaignRecipients)
+        .set({
+          error: null,
+          providerMessageId: receipt.providerMessageId,
+          providerName: receipt.provider,
+          sentAt: receipt.acceptedAt,
+          status: campaign.channel === "whatsapp" ? "queued" : "sent",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(campaignRecipients.id, recipient.id),
+            eq(campaignRecipients.status, "processing"),
+          ),
+        );
+    } catch (error) {
+      await db
+        .update(campaignRecipients)
+        .set({
+          error:
+            error instanceof ProviderNotConfiguredError
+              ? "PROVIDER_NOT_CONFIGURED"
+              : "PROVIDER_DELIVERY_FAILED",
+          providerMessageId: null,
+          providerName: null,
+          status: "failed",
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(campaignRecipients.id, recipient.id),
+            eq(campaignRecipients.status, "processing"),
+          ),
+        );
+    }
+  }
+
+  await refreshCampaignStatus(db, campaign.id);
+}
+
+export function startMarketingWorker(
+  db: DrizzleDB,
+  providers: CommunicationProviderRegistry = createCommunicationProviderRegistry(),
+): Worker<CampaignBatchJob> {
+  return new Worker(
+    QUEUE_NAMES.CAMPAIGNS,
+    (job) => processCampaignBatch(db, job, providers),
+    { connection: redisConnection() },
+  );
+}

@@ -79,7 +79,7 @@ import {
   waitlistEntries,
 } from "@esse-beauty/db/schema";
 
-import { hashPassword } from "../routes/auth/local-auth.js";
+import { hashPassword } from "@esse-beauty/server-shared";
 import { DEMO_IDENTITY, type DemoScenario, type DemoTableRows } from "./scenario-types.js";
 
 const TABLE_REFS: Record<keyof DemoTableRows, PgTable> = {

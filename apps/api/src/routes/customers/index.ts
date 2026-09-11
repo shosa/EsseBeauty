@@ -13,12 +13,10 @@ import {
   staff,
 } from "@esse-beauty/db/schema";
 import { isModuleEnabled, MODULE_KEYS } from "@esse-beauty/feature-flags";
-import { PERMISSION_KEYS } from "@esse-beauty/shared";
+import { isValidBirthday, normalizePhoneE164, PERMISSION_KEYS } from "@esse-beauty/shared";
 
 import { authenticate, requirePermission } from "../../middleware/auth.js";
-import { isValidBirthday } from "../../lib/birthday.js";
-import { normalizePhoneE164 } from "../../lib/phone-normalization.js";
-import { hashPassword } from "../auth/local-auth.js";
+import { hashPassword } from "@esse-beauty/server-shared";
 
 const viewGuard = [
   authenticate,

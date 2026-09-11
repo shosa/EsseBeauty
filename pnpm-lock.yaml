@@ -15,77 +15,7 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
-  apps/api:
-    dependencies:
-      '@esse-beauty/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@esse-beauty/feature-flags':
-        specifier: workspace:*
-        version: link:../../packages/feature-flags
-      '@esse-beauty/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      '@fastify/cookie':
-        specifier: ^11.0.2
-        version: 11.0.2
-      '@fastify/cors':
-        specifier: ^11.0.1
-        version: 11.2.0
-      '@fastify/helmet':
-        specifier: ^13.0.1
-        version: 13.0.2
-      '@fastify/rate-limit':
-        specifier: ^10.3.0
-        version: 10.3.0
-      '@pdf-lib/fontkit':
-        specifier: ^1.1.1
-        version: 1.1.1
-      bullmq:
-        specifier: ^5.56.7
-        version: 5.78.1
-      drizzle-orm:
-        specifier: ^0.44.2
-        version: 0.44.7(postgres@3.4.9)
-      exceljs:
-        specifier: ^4.4.0
-        version: 4.4.0
-      fastify:
-        specifier: ^5.4.0
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.6.1
-        version: 5.11.1
-      nodemailer:
-        specifier: ^10.0.1
-        version: 10.0.1
-      pdf-lib:
-        specifier: ^1.17.1
-        version: 1.17.1
-      web-push:
-        specifier: ^3.6.7
-        version: 3.6.7
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.32
-        version: 22.19.21
-      '@types/nodemailer':
-        specifier: ^8.0.1
-        version: 8.0.1
-      '@types/web-push':
-        specifier: ^3.6.4
-        version: 3.6.4
-      tsx:
-        specifier: ^4.20.3
-        version: 4.22.4
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.3
-      vitest:
-        specifier: ^3.2.4
-        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
-
-  apps/platform:
+  apps/admin:
     dependencies:
       '@esse-beauty/feature-flags':
         specifier: workspace:*
@@ -124,6 +54,351 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+
+  apps/api:
+    dependencies:
+      '@esse-beauty/comms-contracts':
+        specifier: workspace:*
+        version: link:../../packages/comms-contracts
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@fastify/helmet':
+        specifier: ^13.0.1
+        version: 13.0.2
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      tsx:
+        specifier: ^4.20.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  apps/booking:
+    dependencies:
+      '@esse-beauty/comms-contracts':
+        specifier: workspace:*
+        version: link:../../packages/comms-contracts
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@esse-beauty/queue-client':
+        specifier: workspace:*
+        version: link:../../packages/queue-client
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@fastify/helmet':
+        specifier: ^13.0.1
+        version: 13.0.2
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      tsx:
+        specifier: ^4.20.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  apps/commerce:
+    dependencies:
+      '@esse-beauty/comms-contracts':
+        specifier: workspace:*
+        version: link:../../packages/comms-contracts
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@esse-beauty/domain-events':
+        specifier: workspace:*
+        version: link:../../packages/domain-events
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@esse-beauty/loyalty-contracts':
+        specifier: workspace:*
+        version: link:../../packages/loyalty-contracts
+      '@esse-beauty/queue-client':
+        specifier: workspace:*
+        version: link:../../packages/queue-client
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@fastify/helmet':
+        specifier: ^13.0.1
+        version: 13.0.2
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      '@pdf-lib/fontkit':
+        specifier: ^1.1.1
+        version: 1.1.1
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      tsx:
+        specifier: ^4.20.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  apps/communications:
+    dependencies:
+      '@esse-beauty/comms-contracts':
+        specifier: workspace:*
+        version: link:../../packages/comms-contracts
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@esse-beauty/domain-events':
+        specifier: workspace:*
+        version: link:../../packages/domain-events
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@esse-beauty/queue-client':
+        specifier: workspace:*
+        version: link:../../packages/queue-client
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@fastify/helmet':
+        specifier: ^13.0.1
+        version: 13.0.2
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.11.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      tsx:
+        specifier: ^4.20.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  apps/identity:
+    dependencies:
+      '@esse-beauty/comms-contracts':
+        specifier: workspace:*
+        version: link:../../packages/comms-contracts
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@fastify/helmet':
+        specifier: ^13.0.1
+        version: 13.0.2
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      tsx:
+        specifier: ^4.20.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  apps/loyalty-marketing:
+    dependencies:
+      '@esse-beauty/comms-contracts':
+        specifier: workspace:*
+        version: link:../../packages/comms-contracts
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@esse-beauty/domain-events':
+        specifier: workspace:*
+        version: link:../../packages/domain-events
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../../packages/feature-flags
+      '@esse-beauty/loyalty-contracts':
+        specifier: workspace:*
+        version: link:../../packages/loyalty-contracts
+      '@esse-beauty/queue-client':
+        specifier: workspace:*
+        version: link:../../packages/queue-client
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@fastify/cookie':
+        specifier: ^11.0.2
+        version: 11.0.2
+      '@fastify/cors':
+        specifier: ^11.0.1
+        version: 11.2.0
+      '@fastify/helmet':
+        specifier: ^13.0.1
+        version: 13.0.2
+      '@fastify/rate-limit':
+        specifier: ^10.3.0
+        version: 10.3.0
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      tsx:
+        specifier: ^4.20.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
 
   apps/pwa:
     dependencies:
@@ -366,6 +641,52 @@ importers:
         specifier: ^3.2.4
         version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
 
+  packages/comms-contracts:
+    dependencies:
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../db
+      '@esse-beauty/feature-flags':
+        specifier: workspace:*
+        version: link:../feature-flags
+      '@esse-beauty/queue-client':
+        specifier: workspace:*
+        version: link:../queue-client
+      '@esse-beauty/server-shared':
+        specifier: workspace:*
+        version: link:../server-shared
+      '@esse-beauty/shared':
+        specifier: workspace:*
+        version: link:../shared
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      nodemailer:
+        specifier: ^10.0.1
+        version: 10.0.1
+      web-push:
+        specifier: ^3.6.7
+        version: 3.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      '@types/nodemailer':
+        specifier: ^8.0.1
+        version: 8.0.1
+      '@types/web-push':
+        specifier: ^3.6.4
+        version: 3.6.4
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
   packages/db:
     dependencies:
       drizzle-orm:
@@ -385,6 +706,25 @@ importers:
         specifier: ^5.8.3
         version: 5.9.3
 
+  packages/domain-events:
+    dependencies:
+      '@esse-beauty/queue-client':
+        specifier: workspace:*
+        version: link:../queue-client
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
   packages/feature-flags:
     dependencies:
       '@esse-beauty/db':
@@ -403,6 +743,66 @@ importers:
       '@types/react':
         specifier: ^19.1.8
         version: 19.2.17
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  packages/loyalty-contracts:
+    dependencies:
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  packages/queue-client:
+    dependencies:
+      bullmq:
+        specifier: ^5.56.7
+        version: 5.78.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.6(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)
+
+  packages/server-shared:
+    dependencies:
+      '@esse-beauty/db':
+        specifier: workspace:*
+        version: link:../db
+      drizzle-orm:
+        specifier: ^0.44.2
+        version: 0.44.7(postgres@3.4.9)
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
+      fastify:
+        specifier: ^5.4.0
+        version: 5.8.5
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.32
+        version: 22.19.21
       typescript:
         specifier: ^5.8.3
         version: 5.9.3

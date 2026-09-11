@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 describe("service packages core integration", () => {
   const enterprise = readFileSync(join(process.cwd(), "src", "routes", "enterprise", "index.ts"), "utf8");
-  const sales = readFileSync(join(process.cwd(), "src", "routes", "sales", "index.ts"), "utf8");
+  const sales = readFileSync(join(process.cwd(), "..", "commerce", "src", "routes", "sales", "index.ts"), "utf8");
 
   it("tracks package items, customer balances and transactional checkout usage", () => {
     expect(enterprise).toContain("servicePackageItems");

@@ -72,6 +72,35 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    ports:
+      - "127.0.0.1:${API_UPSTREAM_PORT:-3011}:3001"
+    networks:
+      - app
+
+  communications:
+    container_name: esse-beauty-communications
+    build:
+      context: .
+      dockerfile: apps/communications/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
       REDIS_URL: redis://redis:6379
       REVIEW_TOKEN_SECRET: ${REVIEW_TOKEN_SECRET:?REVIEW_TOKEN_SECRET is required}
       META_APP_SECRET: ${META_APP_SECRET:-}
@@ -82,19 +111,177 @@ services:
       PUSH_VAPID_PUBLIC_KEY: ${PUSH_VAPID_PUBLIC_KEY:-}
       PUSH_VAPID_PRIVATE_KEY: ${PUSH_VAPID_PRIVATE_KEY:-}
       PUSH_VAPID_SUBJECT: ${PUSH_VAPID_SUBJECT:-mailto:support@essebeauty.app}
-    ports:
-      - "${API_PORT:-3001}:3001"
     depends_on:
       migrate:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3003/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 15s
+    ports:
+      - "127.0.0.1:${COMMUNICATIONS_UPSTREAM_PORT:-3013}:3003"
+    networks:
+      - app
+
+  loyalty-marketing:
+    container_name: esse-beauty-loyalty-marketing
+    build:
+      context: .
+      dockerfile: apps/loyalty-marketing/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3006
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3006/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    ports:
+      - "127.0.0.1:${LOYALTY_MARKETING_UPSTREAM_PORT:-3016}:3006"
+    networks:
+      - app
+
+  booking:
+    container_name: esse-beauty-booking
+    build:
+      context: .
+      dockerfile: apps/booking/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3007
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+      REDIS_URL: redis://redis:6379
+      PWA_URL: ${PWA_URL:-http://localhost:3002}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3007/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    ports:
+      - "127.0.0.1:${BOOKING_UPSTREAM_PORT:-3017}:3007"
+    networks:
+      - app
+
+  commerce:
+    container_name: esse-beauty-commerce
+    build:
+      context: .
+      dockerfile: apps/commerce/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3008
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3008/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    ports:
+      - "127.0.0.1:${COMMERCE_UPSTREAM_PORT:-3018}:3008"
+    networks:
+      - app
+
+  identity:
+    container_name: esse-beauty-identity
+    build:
+      context: .
+      dockerfile: apps/identity/Dockerfile
+      target: runner
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: 3009
+      API_HOST: 0.0.0.0
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:3009/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    ports:
+      - "127.0.0.1:${IDENTITY_UPSTREAM_PORT:-3019}:3009"
+    networks:
+      - app
+
+  gateway:
+    container_name: esse-beauty-gateway
+    image: nginx:1.27-alpine
+    profiles:
+      - gateway
+    restart: unless-stopped
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+      communications:
+        condition: service_healthy
+      loyalty-marketing:
+        condition: service_healthy
+      booking:
+        condition: service_healthy
+      commerce:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://127.0.0.1:3001/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
     networks:
       - app
 
@@ -109,10 +296,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${WEB_PORT:-3000}:3000"
-    depends_on:
-      api:
-        condition: service_healthy
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
     networks:
       - app
 
@@ -126,13 +310,10 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      API_INTERNAL_URL: http://api:3001
+      API_INTERNAL_URL: ${PWA_API_INTERNAL_URL:-http://gateway:3001}
       REVIEW_SESSION_SECRET: ${REVIEW_SESSION_SECRET:?REVIEW_SESSION_SECRET is required}
     ports:
-      - "${PWA_PORT:-3002}:3002"
-    depends_on:
-      api:
-        condition: service_healthy
+      - "127.0.0.1:${PWA_PORT:-3002}:3002"
     networks:
       - app
 
@@ -146,27 +327,21 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${STAFF_PWA_PORT:-3003}:3003"
-    depends_on:
-      api:
-        condition: service_healthy
+      - "127.0.0.1:${STAFF_PWA_PORT:-3003}:3003"
     networks:
       - app
 
-  platform:
-    container_name: esse-beauty-platform
+  admin:
+    container_name: esse-beauty-admin
     build:
       context: .
-      dockerfile: apps/platform/Dockerfile
+      dockerfile: apps/admin/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     restart: unless-stopped
     init: true
     ports:
-      - "${PLATFORM_PORT:-3004}:3004"
-    depends_on:
-      api:
-        condition: service_healthy
+      - "127.0.0.1:${PLATFORM_PORT:-3004}:3004"
     networks:
       - app
   website:
@@ -183,7 +358,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "${WEBSITE_PORT:-3005}:3005"
+      - "127.0.0.1:${WEBSITE_PORT:-3005}:3005"
     networks:
       - app
 networks:
