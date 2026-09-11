@@ -2,6 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { Avatar, Style } from "@dicebear/core";
+import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
 import { ChevronRight, Mail, MessageCircle, Phone, Plus, Search, Tag, X } from "lucide-react";
 import { AppPage, Button, Dialog, EmptyState, FormField, InlineError, PageHeader, PageTransition, StatusBadge, Switch, Select} from "@esse-beauty/ui";
 
@@ -32,16 +34,28 @@ interface CustomerList {
   total: number;
 }
 
-const avatarPalette = ["#b8578a", "#8f3a68", "#57534e", "#c98a3f", "#3f7d6f", "#7a4fa0"];
+const avatarStyle = new Style(miniavs);
 
-function avatarColor(id: string) {
-  let hash = 0;
-  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
-  return avatarPalette[hash % avatarPalette.length];
-}
+function CustomerAvatar({ id, name }: { id: string; name: string }) {
+  const src = useMemo(
+    () =>
+      new Avatar(avatarStyle, {
+        seed: id,
+        size: 80,
+        borderRadius: 50,
+      }).toDataUri(),
+    [id],
+  );
 
-function initials(name: string) {
-  return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  return (
+    <img
+      alt={`Avatar di ${name}`}
+      className="size-10 shrink-0 rounded-full border-2 border-[#792f59] object-cover"
+      height={40}
+      src={src}
+      width={40}
+    />
+  );
 }
 
 function customerName(customer: Pick<Customer, "first_name" | "last_name" | "full_name">) {
@@ -274,7 +288,7 @@ export default function ClientsPage() {
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
-                          <span className="grid size-10 shrink-0 place-items-center rounded-full text-xs font-black text-white" style={{ background: avatarColor(customer.id) }}>{initials(customerName(customer))}</span>
+                          <CustomerAvatar id={customer.id} name={customerName(customer)} />
                           <span className="min-w-0">
                             <strong className="block truncate text-stone-950 group-hover:text-[#792f59]">{customerName(customer)}</strong>
                             <span className="mt-1 flex flex-wrap gap-1.5">

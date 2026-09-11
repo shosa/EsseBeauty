@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Bell, BellOff, Clock, LogOut, Sparkles, Star, UserRound, X } from "lucide-react";
+import { ArrowRight, Bell, BellOff, Clock, LogOut, Sparkles, Star, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import { Avatar, Style } from "@dicebear/core";
+import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
 import { useParams } from "next/navigation";
 import type { Weekday, WorkingHours } from "@esse-beauty/shared";
 
@@ -15,10 +17,44 @@ import { useCustomerAuth } from "./_components/CustomerAuthProvider";
 import { InstallAppButton } from "./_components/InstallAppButton";
 import { getExistingPushSubscription, isPushSupported, subscribeToPush, unsubscribeFromPush } from "./_components/push-notifications";
 
-function initials(fullNameValue: string): string {
-  const parts = fullNameValue.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+const avatarStyle = new Style(miniavs);
+
+function CustomerAvatar({
+  borderColor,
+  name,
+  seed,
+}: {
+  borderColor: string;
+  name: string;
+  seed: string;
+}) {
+  const src = useMemo(
+    () =>
+      new Avatar(avatarStyle, {
+        seed,
+        size: 64,
+        borderRadius: 50,
+      }).toDataUri(),
+    [seed],
+  );
+
+  return (
+    <img
+      alt={`Avatar di ${name}`}
+      className="size-8 shrink-0 rounded-full border-2 object-cover"
+      height={32}
+      src={src}
+      style={{ borderColor }}
+      width={32}
+    />
+  );
 }
+
+function customerAvatarSeed(customer: { full_name: string }): string {
+  const id = (customer as { id?: unknown }).id;
+  return typeof id === "string" && id ? id : customer.full_name;
+}
+
 interface Service { id: string; name: string; category: string; durationMinutes: number; priceCents: number; }
 interface Category { icon: string; id: string; name: string; }
 interface Branding { accentColor?: string; heroSubtitle?: string; heroTitle?: string; installPromptEnabled?: boolean; logoUrl?: string; primaryColor?: string; welcomeText?: string; }
@@ -63,6 +99,7 @@ export default function SalonLanding() {
   const [pushBusy, setPushBusy] = useState(false);
   const [pushPromptDismissed, setPushPromptDismissed] = useState(true);
   const [toast, setToast] = useState("");
+  const [guestAvatarSeed] = useState(() => `guest-${crypto.randomUUID()}`);
 
   useEffect(() => {
     void fetch(`${apiBaseUrl()}/api/public/${slug}`).then(async (response) => {
@@ -206,9 +243,19 @@ export default function SalonLanding() {
               type="button"
             >
               {authStatus === "authenticated" && customer ? customer.first_name : "Accedi"}
-              <span className="grid size-8 place-items-center rounded-full text-xs font-black text-white" style={{ background: primary }}>
-                {authStatus === "authenticated" && customer ? initials(customer.full_name) : <UserRound className="size-4" />}
-              </span>
+              {authStatus === "authenticated" && customer ? (
+                <CustomerAvatar
+                  borderColor={primary}
+                  name={customer.full_name}
+                  seed={customerAvatarSeed(customer)}
+                />
+              ) : (
+                <CustomerAvatar
+                  borderColor={primary}
+                  name="Ospite"
+                  seed={guestAvatarSeed}
+                />
+              )}
             </button>
             {accountMenuOpen && customer && (
               <div className="animate-pop absolute right-0 top-[calc(100%+8px)] z-20 w-60 origin-top-right rounded-2xl border border-stone-200 bg-white p-3 text-left shadow-[0_12px_32px_rgb(21_20_15_/_0.12)]">

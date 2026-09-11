@@ -1,6 +1,8 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
+import { Avatar, Style } from "@dicebear/core";
+import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
 import { useRouter } from "next/navigation";
 import { Ban, CalendarClock, CalendarPlus, Gift, KeyRound, Layers, Mail, Phone, ShieldCheck, Sparkles, Tag, Trash2, User } from "lucide-react";
 import { appointmentStatusLabel, PERMISSION_KEYS } from "@esse-beauty/shared";
@@ -13,7 +15,6 @@ import { DocumentsModuleGate } from "../../settings/documents/_components/Docume
 import { WhatsAppMarketingConsentPanel } from "../_components/WhatsAppMarketingConsentPanel";
 
 const api = process.env.NEXT_PUBLIC_API_URL ?? "";
-const avatarPalette = ["#b8578a", "#8f3a68", "#57534e", "#c98a3f", "#3f7d6f", "#7a4fa0"];
 type TabKey = "overview" | "appointments" | "loyalty" | "packages" | "privacy";
 
 interface Appointment { id: string; service_name: string; staff_name: string; starts_at: string; status: string; }
@@ -60,14 +61,28 @@ function customerName(customer: Pick<Customer, "firstName" | "lastName" | "fullN
   return [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.fullName;
 }
 
-function avatarColor(id: string) {
-  let hash = 0;
-  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
-  return avatarPalette[hash % avatarPalette.length];
-}
+const avatarStyle = new Style(miniavs);
 
-function initials(name: string) {
-  return name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+function CustomerAvatar({ id, name }: { id: string; name: string }) {
+  const src = useMemo(
+    () =>
+      new Avatar(avatarStyle, {
+        seed: id,
+        size: 128,
+        borderRadius: 50,
+      }).toDataUri(),
+    [id],
+  );
+
+  return (
+    <img
+      alt={`Avatar di ${name}`}
+      className="size-16 shrink-0 rounded-full border-2 border-[#792f59] object-cover"
+      height={64}
+      src={src}
+      width={64}
+    />
+  );
 }
 
 function money(cents: number) {
@@ -265,7 +280,7 @@ export default function CustomerPage({ params }: { params: Promise<{ customerId:
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#e8dfe4] bg-white p-6 shadow-[0_10px_30px_rgb(45_29_39_/_0.055)]">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="grid size-16 shrink-0 place-items-center rounded-full text-lg font-black text-white" style={{ background: avatarColor(customer.id) }}>{initials(name)}</span>
+            <CustomerAvatar id={customer.id} name={name} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold text-stone-950">{name}</h1>
