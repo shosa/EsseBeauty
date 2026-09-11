@@ -72,6 +72,12 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       API_CORS_ORIGIN: ${API_CORS_ORIGIN:-http://localhost:3000,http://localhost:3002,http://localhost:3003,http://localhost:3004}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-esse_beauty}
+      PLATFORM_API_HEALTH_URL: ${PLATFORM_API_HEALTH_URL:-http://127.0.0.1:3001/health}
+      PLATFORM_COMMUNICATIONS_HEALTH_URL: ${PLATFORM_COMMUNICATIONS_HEALTH_URL:-http://communications:3003/health}
+      PLATFORM_LOYALTY_MARKETING_HEALTH_URL: ${PLATFORM_LOYALTY_MARKETING_HEALTH_URL:-http://loyalty-marketing:3006/health}
+      PLATFORM_BOOKING_HEALTH_URL: ${PLATFORM_BOOKING_HEALTH_URL:-http://booking:3007/health}
+      PLATFORM_COMMERCE_HEALTH_URL: ${PLATFORM_COMMERCE_HEALTH_URL:-http://commerce:3008/health}
+      PLATFORM_IDENTITY_HEALTH_URL: ${PLATFORM_IDENTITY_HEALTH_URL:-http://identity:3009/health}
     depends_on:
       migrate:
         condition: service_completed_successfully

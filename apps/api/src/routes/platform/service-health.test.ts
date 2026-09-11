@@ -21,8 +21,8 @@ describe("platform service health", () => {
   it("marks failing services offline and slow services degraded", async () => {
     let clock = 10_000;
     const fetcher = vi.fn(async (url: string) => {
-      if (url.includes("3013")) throw new Error("connection refused");
-      if (url.includes("3017")) return new Response(null, { status: 503 });
+      if (url.includes("communications")) throw new Error("connection refused");
+      if (url.includes("booking")) return new Response(null, { status: 503 });
       return new Response(null, { status: 204 });
     });
     const now = () => {
