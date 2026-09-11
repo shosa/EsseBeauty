@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Avatar, Style } from "@dicebear/core";
+import miniavs from "@dicebear/styles/miniavs.json" with { type: "json" };
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Check, CheckCheck, ChevronDown, Clock3, EyeOff, Mail, Pencil, Phone, ShoppingBag, Trash2, UserRound, X } from "lucide-react";
 import {
@@ -123,8 +125,34 @@ function DayPositionPreview({ color, endsAt, label, startsAt }: { color: string;
   );
 }
 
-function initials(value: string) {
-  return value.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
+const avatarStyle = new Style(miniavs);
+
+function CustomerAvatar({
+  id,
+  name,
+}: {
+  id: string;
+  name: string;
+}) {
+  const src = useMemo(
+    () =>
+      new Avatar(avatarStyle, {
+        seed: id,
+        size: 96,
+        borderRadius: 50,
+      }).toDataUri(),
+    [id],
+  );
+
+  return (
+    <img
+      alt={`Avatar di ${name}`}
+      className="size-12 shrink-0 rounded-full border-2 border-[#792f59] object-cover"
+      height={48}
+      src={src}
+      width={48}
+    />
+  );
 }
 
 function dateInputValue(value: string) {
@@ -457,7 +485,17 @@ export default function AppointmentDetailPanel({
       </Dialog>
       <header className="z-30 shrink-0 border-b border-stone-200 bg-white px-4 py-4 sm:px-6 lg:px-7">
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <Link aria-label={appointment ? `Apri anagrafica di ${appointment.customer_name}` : "Appuntamento"} className="grid size-12 shrink-0 place-items-center rounded-full bg-[#f3e2eb] text-sm font-black text-[#792f59]" href={appointment ? `/clients/${appointment.customer_id}` : "/clients"}>{appointment ? initials(appointment.customer_name) : "—"}</Link>
+          <Link
+            aria-label={appointment ? `Apri anagrafica di ${appointment.customer_name}` : "Appuntamento"}
+            className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#b85888]/20"
+            href={appointment ? `/clients/${appointment.customer_id}` : "/clients"}
+          >
+            {appointment ? (
+              <CustomerAvatar id={appointment.customer_id} name={appointment.customer_name} />
+            ) : (
+              <span className="grid size-12 shrink-0 place-items-center rounded-full border-2 border-[#792f59] bg-[#f3e2eb] text-sm font-black text-[#792f59]">—</span>
+            )}
+          </Link>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#792f59]">Gestione appuntamento</p>{appointment && <StatusBadge status={appointment.status} />}{isClosed && <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">Conto chiuso</span>}</div>
             <h1 className="mt-1 text-xl font-black tracking-tight text-stone-950 sm:truncate sm:text-2xl">{appointment?.customer_name ?? "Appuntamento"}</h1>
