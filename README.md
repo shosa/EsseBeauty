@@ -1,1352 +1,266 @@
 # EsseBeauty
 
-Compendio tecnico e funzionale di EsseBeauty per agenti software.
+Piattaforma gestionale multi-salone per attività beauty e benessere.
 
-Questo documento descrive architettura, struttura del repository, dominio applicativo, moduli, database, API, UI, flussi principali e convenzioni operative. Usarlo come contesto iniziale prima di modificare il progetto.
+---
 
-## 1. Identità del prodotto
+## Cos'è EsseBeauty
 
-EsseBeauty è una piattaforma gestionale multi-salone per attività beauty.
+EsseBeauty è una piattaforma software completa che unisce **gestione operativa dei saloni**, **esperienza cliente**, **marketing e fedeltà**, **commerciale e cassa**, **inventario** e **automatizzazioni comunicative** in un'unica architettura multi-tenant.
 
-Il software copre:
+Il prodotto è pensato per:
 
-- gestione saloni e configurazione centrale;
-- dashboard gestionale per titolari e staff;
-- prenotazioni, calendario, clienti, servizi e collaboratori;
-- moduli opzionali attivabili per salone;
-- portale pubblico/PWA per clienti finali;
-- automazioni operative come promemoria, recensioni, lista d'attesa, marketing, fedeltà, inventario e report.
+- titolari e manager di centri estetici, beauty salon, studio di estetica
+- staff di sala (receptionist, operatori, collaboratori)
+- clienti finali che prenotano e gestiscono il proprio percorso tramite PWA pubblica
 
-La separazione concettuale principale è:
+Offre un'esperienza cohesive da **dashboard gestionale** a **PWA cliente**, con backend modulare, automazioni intelligenti e interfaccia moderna.
 
-- **Platform / gestione centrale**: amministrazione dei saloni, moduli inclusi, accesso titolare.
-- **Web dashboard salone**: uso quotidiano da parte del salone.
-- **PWA pubblica**: prenotazione e consultazione lato cliente.
-- **API**: Fastify, autenticazione locale, logica dominio, job e integrazioni.
-- **DB**: PostgreSQL via Drizzle ORM.
+---
 
-## 2. Stack tecnico
+## Cosa risolve
 
-### Runtime e linguaggi
+**Per il titolare / manager**
 
-- Monorepo TypeScript.
-- Node.js `>=22`.
-- Package manager: `pnpm@10.12.1`.
-- Build orchestration: Turbo.
+- Gestione centralizzata di più saloni da un'area platform
+- Configurazione moduli a livello di singolo salone
+- Panoramica persone, vendite, attività e stato servizi
+- Gestione piani, accesso titolare e audit log centralizzato
 
-### Frontend
+**Per il salone operativo**
 
-- `Next.js 15`.
-- `React 19`.
-- `Tailwind CSS 4`.
-- Shared UI package in `packages/ui`.
-- Dashboard web in `apps/web`.
-- PWA pubblica in `apps/pwa`.
+- Agenda condivisa, slot, staff, servizi, clienti e note
+- Prenotazioni online pubbliche con gestione conflitti e risorse
+- Lista d'attesa con notifica automatica quando si libera uno slot
+- Cassa e vendita completa, voucher, chiusure, reportistica
+- Inventario pezzi, movimenti, scadenze, riordini, contabilità base
+- Promemoria WhatsApp/email/app per appuntamenti
+- Recensioni con invio automatico, raccolta e pubblicazione
+- Programma fedeltà punti, premi e redemption
+- Campagne marketing segmentate via email, WhatsApp e app
+- Permessi granulari per ruolo e override per utente
 
-### Backend
+**Per il cliente finale**
 
-- `Fastify 5`.
-- `Drizzle ORM`.
-- `postgres` driver.
-- `BullMQ` + Redis per job.
-- Cookie auth.
-- `@fastify/cors`, `@fastify/cookie`, `@fastify/helmet`, `@fastify/rate-limit`.
+- Landing page del salone con prenotazione online
+- Selezione servizi, operatore, slot
+- Gestione account cliente (email/telefono)
+- Consultazione appuntamenti, cancellazioni e riprogrammazioni
+- Fedeltà e premi visibili nella PWA
+- Invio recensione post appuntamento
 
-### Database e infrastruttura locale
+---
 
-- PostgreSQL 16.
-- Redis 7.
-- Docker Compose disponibile.
+## Product Highlights
 
-Container previsti:
+<table>
+  <tr>
+    <th>Area</th>
+    <th>Cosa offre</th>
+  </tr>
+  <tr>
+    <td>Smart Booking</td>
+    <td>Prenotazione online pubblica, ricerca slot, multi-servizio, preferenza staff, risorse, calendario operativo, lista d'attesa, cancellazioni e riprogrammazioni.</td>
+  </tr>
+  <tr>
+    <td>Customer CRM</td>
+    <td>Anagrafica cliente, storico, note, tag, consensi marketing, blocchi, merget hint, fedeltà integrata.</td>
+  </tr>
+  <tr>
+    <td>Staff Workspace</td>
+    <td>Profili operatori, ruoli, permessi, agenda personale, blocchi disponibilità, richieste disponibilità.</td>
+  </tr>
+  <tr>
+    <td>Sales &amp; Checkout</td>
+    <td>Cassa, vendita servizi e prodotti, pagamenti multipli, vouchers, ridenzioni fedeltà in vendita, void, chiusure, export contabilità.</td>
+  </tr>
+  <tr>
+    <td>Loyalty</td>
+    <td>Punti per appuntamento e vendita, premi, tier, earning rules, scadenza, redemption con approvazione, vouchers generati da premi.</td>
+  </tr>
+  <tr>
+    <td>Inventory</td>
+    <td>Prodotti, stock, soglie, movimenti, documenti, fornitori, conteggi, spese, asset, riordini.</td>
+  </tr>
+  <tr>
+    <td>Communications</td>
+    <td>WhatsApp (Meta Cloud API), email, promemoria, recensioni, outbox, webhook, gestione provider per salone.</td>
+  </tr>
+  <tr>
+    <td>Reviews</td>
+    <td>Richiesta automatica post appuntamento, delivery multi-canal, raccolta, risposta staff, pubblicazione.</td>
+  </tr>
+  <tr>
+    <td>Marketing</td>
+    <td>Campagne email, WhatsApp e app, segmentazione, pianificazione, stato di invio, templating.</td>
+  </tr>
+  <tr>
+    <td>Customer PWA</td>
+    <td>Landing salone, prenotazione, appuntamenti, fedeltà, recensioni, account cliente, push.</td>
+  </tr>
+  <tr>
+    <td>Staff PWA</td>
+    <td>Interfaccia mobile per staff, accesso al contesto salone.</td>
+  </tr>
+  <tr>
+    <td>Platform Admin</td>
+    <td>Multi-tenant, creazione saloni, piani, moduli, accesso titolare, audit, email platform, stato servizi.</td>
+  </tr>
+  <tr>
+    <td>SaaS &amp; Moduli</td>
+    <td>Feature flag persistenti per salone, catalogo moduli, enforced su API e UI, abilitazione da platform.</td>
+  </tr>
+</table>
 
-- `esse-beauty-db`: PostgreSQL, raggiungibile internamente come `db:5432`.
-- `esse-beauty-redis`: Redis, raggiungibile internamente come `redis:6379`.
-- `esse-beauty-migrate`: applica migrazioni Drizzle.
-- `esse-beauty-api`: API Fastify su `3001`.
-- `esse-beauty-web`: dashboard su `3000`.
-- `esse-beauty-pwa`: PWA su `3002`.
+---
 
-## 3. Struttura repository
+## Customer Experience
 
-```text
-.
-├─ apps/
-│  ├─ api/          Fastify API, route dominio, auth, jobs
-│  ├─ web/          Dashboard salone + area platform Next.js
-│  └─ pwa/          Portale pubblico/PWA clienti
-├─ packages/
-│  ├─ db/           Drizzle schema, db client, migrazioni
-│  ├─ feature-flags/ Moduli attivabili per salone
-│  ├─ shared/       Permessi, ruoli, utilities condivise
-│  └─ ui/           Componenti UI condivisi e design tokens
-├─ scripts/
-│  └─ dev.ps1       Avvio locale coordinato
-├─ compose.yaml     Stack Docker
-├─ DOCKER.md        Note operative Docker
-├─ package.json     Script root
-└─ pnpm-workspace.yaml
+Il cliente scopre il salone, consulta servizi e orari, sceglie un trattamento,
+aggiusta il momento e pu&ograve; indicare l'operatore preferito.
+La prenotazione viene confermata e il cliente riceve promemoria prima dell'appuntamento.
+Dopo il trattamento, pu&ograve; lasciare una recensione e accumulare punti fedelt&agrave;.
+Tutto questo &egrave; disponibile dalla PWA pubblica senza obbligo di scaricare un'app.
+
+---
+
+## Salon Operations
+
+Il team di sala gestisce l'agenda in tempo reale, crea e modifica appuntamenti,
+assegna risorse e staff, gestisce clienti e note, chiude le vendite,
+gestisce voucher e scontrini, tiene traccia di stock e movimenti,
+e lancia campagne promozionali segmentate.
+I permessi e i moduli limitano ci&ograve; che ogni ruolo vede e fa.
+
+---
+
+## Communication Layer
+
+Il sistema invia promemoria, richieste di recensione e campagne utilizzando
+WhatsApp (Meta Cloud API), email e notifiche push alla PWA.
+Le comunicazioni transitive passano attraverso un outbox persistente con
+ritentativi, lease e recovery automatica, in modo che nessun lavoro soggetto
+a fallimento venga perso se un processo va gi&agrave; in background o si interrompe.
+
+---
+
+## SaaS Architecture
+
+EsseBeauty &egrave; multi-tenant: ogni salone &egrave; isolato nei dati e nelle impostazioni.
+La platform amministra i saloni, i piani, il catalogo moduli e l'accesso titolare.
+Al livello salone, i moduli sono feature flag persistenti che attivano o meno
+interwhole funzionali (promemoria, recensioni, lista d'attesa, fedelt&agrave;,
+marketing, inventario, performance staff).
+
+I moduli sono:
+
+- controllati a livello API con enforcing server-side
+- controllati a livello UI con gating React
+- gestibili da platform e visibili, in lettura, nella dashboard salone
+
+---
+
+## Applications
+
+| App | Porta dev | Scopo | Pubblico |
+|-----|-----------|-------|----------|
+| Web dashboard | 3000 | Gestione salone + area platform | Staff, manager, owner |
+| Customer PWA | 3002 | Prenotazione e servizi cliente | Clienti finali |
+| Staff PWA | 3003 | Opera per lo staff | Operatori e receptionist |
+| Platform admin | 3004 | Gestione multi-salone | Platform admin, owner |
+| Website | 3005 | Sito pubblico / marketing | Visitatori |
+| API (legacy core) | 3011 | Core route: auth, clients, services, settings, shell, reports, onboarding, public, platform | Frontend e servizi |
+| Communications | 3013 | WhatsApp/email, promemoria, recensioni, outbox, webhook | Servizi backend e frontend |
+| Loyalty &amp; Marketing | 3006 | Fedelt&agrave;, premi, campagne | Servizi backend e frontend |
+| Booking | 3007 | Appuntamenti, slot, calendario, waitlist | Servizi backend e frontend |
+| Commerce | 3008 | Inventario, cassa, voucher, contabilit&agrave; | Servizi backend e frontend |
+| Identity | 3009 | Auth staff, sessioni, password, utenti, permessi | Servizi backend e frontend |
+| Gateway (opzionale) | 3001 | Nginx di smistamento API | — |
+
+In sviluppo locale, tutti gli URL pubblici passano di norma per il gateway locale
+su `http://localhost:3001`.
+
+---
+
+## Technology
+
+- **Runtime**: Node.js >= 22
+- **Package manager**: pnpm 10.12.1
+- **Build orchestration**: Turbo
+- **Backend**: Fastify 5, multi-servizio
+- **Frontend**: Next.js 15, React 19, Tailwind CSS 4
+- **Shared UI**: Design system interno in `packages/ui`
+- **Database**: PostgreSQL 16
+- **ORM**: Drizzle ORM
+- **Cache / code**: Redis 7 + BullMQ
+- **Auth**: Cookie sessioni, password hashate, JWT-free
+- **Push**: Web Push / VAPID
+- **WhatsApp**: Meta Cloud API
+- **Email**: SMTP configurabile da platform, Resend opzionale
+- **Container / deploy**: Docker Compose, Nginx (opzionale)
+- **Lingue**: TypeScript across il monorepo
+
+---
+
+## Architecture at a Glance
+
+```
+PWA cliente        Staff PWA        Web dashboard       Platform admin     Website
+      \               \                  \                   \                \
+       +----- gateway/nginx (opzionale, porta 3001) -----+
+                                                       |
+          +----------+-----------+-------------+--------+-----------+
+          |          |           |             |        |           |
+     api (legacy) communications loyalty-marketing booking commerce  identity
+          |          |           |             |        |           |
+          +----------+-----------+-------------+--------+-----------+
+                                                       |
+                                          PostgreSQL 16  +  Redis 7
 ```
 
-## 4. Workspace package
+Smistamento gateway (se attivo):
 
-### `apps/api`
+- `/api/auth/**` → identity
+- `/api/salons/…/appointments|slots|calendar-events|waitlist*` → booking
+- `/api/salons/…/communications|reminders|reviews|review-invitations*` → communications
+- `/api/salons/…/loyalty|campaigns|campaign-templates*` → loyalty-marketing
+- `/api/salons/…/inventory|pos-\*|sales|vouchers|accounting*` → commerce
+- `/api/salons/…/appointments/…/checkout` → commerce
+- tutto il resto → api (legacy core)
 
-API HTTP principale.
+---
 
-Entry principali:
+## Project Status
 
-- `apps/api/src/index.ts`: boot server.
-- `apps/api/src/app.ts`: crea app Fastify, plugin, route, healthcheck.
-- `apps/api/src/env.ts`: variabili ambiente richieste.
-- `apps/api/src/middleware/auth.ts`: autenticazione sessione salone.
-- `apps/api/src/routes/**`: route dominio.
-- `apps/api/src/jobs/**`: job asincroni e hook evento.
+**Attivo inviluppo continuo.** Il prodotto &egrave; utilizzabile in locale con Docker
+o processi nativi e include un demo seed deterministico per esercitare i flussi.
 
-Script:
+Alcune aree sono ancora in evoluzione e alcune pagine/route potrebbero non
+essere ancora esposte in ogni frontend; il codice &egrave; articolato in modo da
+rendere queste parti isolabili e progressivamente attivabili.
 
-- `pnpm --filter @esse-beauty/api dev`
-- `pnpm --filter @esse-beauty/api typecheck`
-- `pnpm --filter @esse-beauty/api test`
-- `pnpm --filter @esse-beauty/api build`
+---
 
-### `apps/web`
+## Repository &amp; License
 
-Dashboard gestionale salone e area platform centrale.
+Questo repository &egrave; privato. Non &egrave; rilasciato come open source.
+Vedi la licenza del repository per i termini di utilizzo.
 
-Route principali:
+---
 
-- `app/login/page.tsx`: login/bootstrap salone.
-- `app/platform/page.tsx`: configurazione centrale saloni.
-- `app/(dashboard)/page.tsx`: dashboard salone.
-- `app/(dashboard)/calendar/**`: calendario e appuntamenti.
-- `app/(dashboard)/clients/**`: clienti.
-- `app/(dashboard)/services/**`: servizi.
-- `app/(dashboard)/staff/**`: staff.
-- `app/(dashboard)/settings/**`: impostazioni.
-- `app/(dashboard)/reviews/page.tsx`: recensioni.
-- `app/(dashboard)/waitlist/page.tsx`: lista d'attesa.
-- `app/(dashboard)/marketing/**`: campagne.
-- `app/(dashboard)/inventory/**`: magazzino.
-- `app/(dashboard)/reports/page.tsx`: performance staff.
+## Codice verificato
 
-Componenti shell:
+Questo README &egrave; basato su:
 
-- `app/(dashboard)/_components/DashboardShell.tsx`: sidebar, mobile nav, command palette, notification drawer, quick create.
-- `app/(dashboard)/_components/Icons.tsx`: icone SVG condivise.
-- `lib/auth-context.tsx`: sessione, salone, utente e permessi lato client.
-
-Script:
-
-- `pnpm --filter @esse-beauty/web dev`
-- `pnpm --filter @esse-beauty/web typecheck`
-- `pnpm --filter @esse-beauty/web test`
-- `pnpm --filter @esse-beauty/web build`
-
-### `apps/pwa`
-
-Portale pubblico per clienti finali.
-
-Route:
-
-- `/`: pagina base.
-- `/[slug]`: landing pubblica salone.
-- `/[slug]/book`: prenotazione pubblica.
-- `/[slug]/appointments`: appuntamenti cliente.
-- `/[slug]/loyalty`: fedeltà pubblica cliente.
-- `/review/[appointmentId]`: invio recensione post appuntamento.
-
-Script:
-
-- `pnpm --filter @esse-beauty/pwa dev`
-- `pnpm --filter @esse-beauty/pwa typecheck`
-- `pnpm --filter @esse-beauty/pwa build`
-
-### `packages/db`
-
-Schema database e connessione Drizzle.
-
-File principali:
-
-- `packages/db/schema.ts`: schema completo.
-- `packages/db/drizzle.config.ts`: configurazione Drizzle.
-
-Script:
-
-- `pnpm --filter @esse-beauty/db db:generate`
-- `pnpm --filter @esse-beauty/db db:migrate`
-- `pnpm --filter @esse-beauty/db build`
-
-### `packages/feature-flags`
-
-Gestione moduli salone.
-
-File principali:
-
-- `keys.ts`: elenco moduli.
-- `server.ts`: helper server `isModuleEnabled`, `requireModule`, cache moduli.
-- `react.tsx`: `ModuleProvider`, `useModuleEnabled`, `useModules`.
-
-### `packages/shared`
-
-Ruoli, permessi e utilities condivise.
-
-File principali:
-
-- `permissions.ts`: ruoli, permessi, default per ruolo, cache permessi.
-- `utils/slots.ts`: logica disponibilità slot.
-
-### `packages/ui`
-
-Design system condiviso.
-
-File principale:
-
-- `packages/ui/index.tsx`
-
-Contiene:
-
-- `designTokens`;
-- `Button`;
-- `AppPage`;
-- `PageHeader`;
-- `SectionCard`;
-- `StatGrid`, `StatCard`;
-- `StatusBadge`;
-- `Badge`;
-- `Switch`;
-- `FormField`;
-- `SaveToast`;
-- `Dialog`, `ConfirmDialog`, `Drawer`;
-- `DataTable`;
-- `ScheduleEditor`;
-- `Breadcrumbs`;
-- skeleton e empty states.
-
-## 5. Avvio locale
-
-### Avvio dev manuale
-
-Da root:
-
-```powershell
-pnpm run dev
-```
-
-Lo script `scripts/dev.ps1` avvia:
-
-- API su `http://localhost:3001`;
-- web su `http://localhost:3000`;
-- PWA su `http://localhost:3002`.
-
-### Variabili ambiente essenziali
-
-API:
-
-- `DATABASE_URL`
-- `REDIS_URL`
-- `API_CORS_ORIGIN`
-- `API_HOST` opzionale, default `0.0.0.0`
-- `PORT` opzionale, default `3001`
-- `COOKIE_SECURE`, `true` in produzione HTTPS
-
-Frontend:
-
-- `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_PWA_URL`
-
-Segreti:
-
-- `REVIEW_TOKEN_SECRET` e `REVIEW_SESSION_SECRET`, obbligatori e distinti.
-- `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`, obbligatorio prima di salvare credenziali provider.
-- `META_APP_SECRET` e `META_WEBHOOK_VERIFY_TOKEN` quando si abilita WhatsApp.
-- La configurazione SMTP email si gestisce dalla console Platform.
-
-Docker:
-
-- host interno PostgreSQL: `db`
-- host interno Redis: `redis`
-- stringa tipica container: `postgresql://postgres:postgres@db:5432/esse_beauty`
-- `POSTGRES_DB` crea il database solo al primo bootstrap del volume; il servizio `migrate` esegue `packages/db/scripts/ensure-database.mjs` prima di Drizzle per creare il database mancante su volumi gia esistenti.
-- `POSTGRES_MAINTENANCE_DB` opzionale, default `postgres`, indica il database amministrativo usato dal preflight.
-
-## 6. Autenticazione
-
-Il progetto usa autenticazione locale, non Supabase.
-
-### Dashboard salone
-
-Entità:
-
-- `users`
-- `user_credentials`
-- `auth_sessions`
-- `password_reset_tokens`
-- `login_activity`
-
-Cookie/sessioni:
-
-- Sessione applicativa gestita dall'API.
-- `apps/api/src/middleware/auth.ts` valida sessione e popola `request.user` e `request.salonId`.
-
-Endpoint principali:
-
-- `GET /api/auth/bootstrap/status`
-- `POST /api/auth/bootstrap`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-- `POST /api/auth/change-password`
-- `POST /api/auth/invite`
-- `GET /api/auth/users`
-- `PATCH /api/auth/users/:userId/permissions`
-- `PATCH /api/auth/users/:userId`
-
-Lato web:
-
-- `apps/web/lib/auth-context.tsx` carica `GET /api/auth/me`.
-- Espone `user`, `salon`, `permissions`, `hasPermission()`.
-
-### Area platform centrale
-
-Entità:
-
-- `platform_admins`
-- `platform_admin_sessions`
-
-Cookie:
-
-- `esse-platform-session`
-
-Endpoint:
-
-- `GET /api/platform/auth/bootstrap/status`
-- `POST /api/platform/auth/bootstrap`
-- `POST /api/platform/auth/login`
-- `POST /api/platform/auth/logout`
-- `GET /api/platform/auth/me`
-
-La platform è separata dagli utenti salone. Serve per creare saloni, gestire moduli e configurare accesso titolare.
-
-## 7. Ruoli e permessi
-
-Ruoli applicativi:
-
-- `owner`
-- `manager`
-- `receptionist`
-- `employee`
-
-Permessi:
-
-- `calendar.view_own`
-- `calendar.manage_own`
-- `calendar.view_others`
-- `calendar.manage_others`
-- `calendar.delete`
-- `clients.view`
-- `clients.edit`
-- `clients.block`
-- `reports.view_own`
-- `reports.view_all`
-- `reports.export`
-- `settings.salon`
-- `settings.services`
-- `settings.staff`
-- `settings.users`
-- `settings.modules`
-- `reviews.reply`
-- `marketing.send`
-- `inventory.manage`
-- `waitlist.manage`
-- `loyalty.manage`
-
-Default:
-
-- `owner`: tutti i permessi.
-- `manager`: quasi tutti, esclusi gestione utenti e moduli.
-- `receptionist`: calendario, clienti, report personali.
-- `employee`: calendario personale, clienti, report personali.
-
-I permessi possono essere sovrascritti in `user_permissions`.
-
-## 8. Moduli salone
-
-I moduli sono feature flag persistenti per salone, in tabella `salon_modules`.
-
-Chiavi:
-
-- `reminders`
-- `reviews`
-- `waitlist`
-- `loyalty`
-- `marketing`
-- `inventory`
-- `staff_performance`
-
-Implementazione:
-
-- `packages/feature-flags/keys.ts`: definisce chiavi.
-- `packages/feature-flags/server.ts`: enforcement API.
-- `packages/feature-flags/react.tsx`: gating UI lato salone.
-
-Gestione:
-
-- La platform abilita/disabilita moduli.
-- La dashboard salone mostra solo i moduli attivi in sidebar.
-- La pagina `settings/modules` lato salone è informativa/read-only.
-
-Endpoint:
-
-- `GET /api/salons/:id/modules`: stato moduli del salone autenticato.
-- `GET /api/platform/salons/:salonId/modules`: stato moduli da platform.
-- `PATCH /api/platform/salons/:salonId/modules/:key`: abilita/disabilita modulo.
-
-## 9. Database: schema dominio
-
-Schema in `packages/db/schema.ts`.
-
-### Tabelle core
-
-- `salons`: saloni, slug pubblico, timezone, locale, piano, stato.
-- `users`: utenti salone.
-- `user_credentials`: password hash/salt e flag cambio password.
-- `auth_sessions`: sessioni utenti salone.
-- `platform_admins`: admin centrali.
-- `platform_admin_sessions`: sessioni admin centrali.
-
-### Permessi e sicurezza
-
-- `user_permissions`: override permessi.
-- `password_reset_tokens`: reset password.
-- `login_activity`: audit accessi.
-
-### Configurazione salone
-
-- `salon_modules`: moduli attivi.
-- `reminder_settings`: impostazioni promemoria.
-- `loyalty_settings`: impostazioni punti fedeltà.
-- `saved_views`: viste salvate.
-
-### Staff e servizi
-
-- `staff`: collaboratori.
-- `services`: servizi.
-- `service_staff`: associazione molti-a-molti servizi/collaboratori.
-- `availability_blocks`: blocchi disponibilità staff.
-
-### Clienti e appuntamenti
-
-- `customers`: clienti.
-- `customer_tags`: tag cliente.
-- `appointments`: appuntamenti.
-- `appointment_notes`: note appuntamento.
-
-### Automazioni e comunicazioni
-
-- `reminders`: promemoria WhatsApp/email.
-- `notifications`: notifiche in-app.
-- `activity_log`: audit attività.
-
-WhatsApp operativo richiede Meta App Secret, chiave di cifratura credenziali e account provider del salone abilitato e `ready`. Il webhook deve usare un’origine pubblica HTTPS; i messaggi automatici richiedono template approvati. Verificare sempre il round trip con un messaggio di test e relativo webhook prima di dichiarare l’integrazione pronta.
-
-### Recensioni e lista d'attesa
-
-- `reviews`: recensioni, una per appuntamento.
-- `waitlist_entries`: richieste lista d'attesa.
-
-### Fedeltà
-
-- `loyalty_adjustment_reasons`
-- `loyalty_tiers`
-- `loyalty_rewards`
-- `loyalty_reward_redemptions`
-- `loyalty_points`
-
-### Marketing
-
-- `campaign_templates`
-- `marketing_campaigns`
-- `campaign_recipients`
-
-### Inventario
-
-- `inventory_products`
-- `inventory_reorder_requests`
-- `inventory_movements`
-
-## 10. API: struttura e responsabilità
-
-Le route sono registrate in `apps/api/src/app.ts`.
-
-Plugin globali:
-
-- cookie;
-- CORS con credenziali;
-- helmet;
-- rate limit;
-- healthcheck.
-
-### Convenzione tenant salone
-
-La maggior parte delle route usa path:
-
-```text
-/api/salons/:id/...
-```
-
-L'autenticazione determina `request.salonId`. La route viene accettata solo se `:id` corrisponde al salone della sessione, tramite controlli middleware o route-specifici.
-
-### Route core
-
-#### Appuntamenti
-
-- Lista appuntamenti per intervallo/staff/status.
-- Slot disponibili per staff, servizio e data.
-- Creazione manuale/walk-in.
-- Dettaglio appuntamento.
-- Aggiornamento stato, data, note.
-- Eliminazione.
-
-Path principali:
-
-- `GET /api/salons/:id/appointments`
-- `GET /api/salons/:id/slots`
-- `POST /api/salons/:id/appointments`
-- `GET /api/salons/:id/appointments/:appointmentId`
-- `PATCH /api/salons/:id/appointments/:appointmentId`
-- `DELETE /api/salons/:id/appointments/:appointmentId`
-
-#### Clienti
-
-Funzioni:
-
-- ricerca e paginazione clienti;
-- profilo cliente;
-- creazione/modifica/eliminazione;
-- blocco/sblocco;
-- timeline o dati associati;
-- integrazione loyalty.
-
-Path principali:
-
-- `GET /api/salons/:id/customers`
-- `GET /api/salons/:id/customers/:customerId`
-- `POST /api/salons/:id/customers`
-- `PATCH /api/salons/:id/customers/:customerId`
-- `DELETE /api/salons/:id/customers/:customerId`
-
-#### Servizi
-
-Funzioni:
-
-- lista servizi;
-- creazione;
-- modifica;
-- soft delete/disattivazione;
-- riordino display.
-
-Path principali:
-
-- `GET /api/salons/:id/services`
-- `POST /api/salons/:id/services`
-- `PATCH /api/salons/:id/services/:serviceId`
-- `DELETE /api/salons/:id/services/:serviceId`
-- `PATCH /api/salons/:id/services/order`
-
-#### Staff
-
-Funzioni:
-
-- lista collaboratori;
-- creazione/modifica/disattivazione;
-- blocchi disponibilità.
-
-Path principali:
-
-- `GET /api/salons/:id/staff`
-- `POST /api/salons/:id/staff`
-- `PATCH /api/salons/:id/staff/:staffId`
-- `DELETE /api/salons/:id/staff/:staffId`
-- `GET /api/salons/:id/staff/:staffId/availability-blocks`
-- `POST /api/salons/:id/staff/:staffId/availability-blocks`
-- `DELETE /api/salons/:id/staff/:staffId/availability-blocks/:blockId`
-
-#### Settings salone
-
-Funzioni:
-
-- lettura e modifica impostazioni salone.
-
-Path:
-
-- `GET /api/salons/:id/settings`
-- `PATCH /api/salons/:id/settings`
-
-### Route moduli
-
-#### Promemoria
-
-Modulo: `reminders`.
-
-Funzioni:
-
-- impostazioni WhatsApp/email;
-- ore prima appuntamento;
-- lista promemoria.
-
-Path:
-
-- `GET /api/salons/:id/reminders/settings`
-- `PATCH /api/salons/:id/reminders/settings`
-- `GET /api/salons/:id/reminders`
-
-#### Recensioni
-
-Modulo: `reviews`.
-
-Funzioni:
-
-- invio recensione pubblica su appuntamento;
-- lista recensioni salone;
-- risposta salone;
-- pubblicazione/privata.
-
-Path:
-
-- `GET /api/reviews/:appointmentId`
-- `POST /api/reviews/:appointmentId`
-- `GET /api/salons/:id/reviews`
-- `PATCH /api/salons/:id/reviews/:reviewId/reply`
-- `PATCH /api/salons/:id/reviews/:reviewId/publish`
-
-#### Lista d'attesa
-
-Modulo: `waitlist`.
-
-Funzioni:
-
-- richiesta pubblica o interna;
-- lista e filtri;
-- cambio stato;
-- eliminazione.
-
-Path:
-
-- `POST /api/salons/:id/waitlist`
-- `GET /api/salons/:id/waitlist`
-- `PATCH /api/salons/:id/waitlist/:entryId`
-- `DELETE /api/salons/:id/waitlist/:entryId`
-
-#### Fedeltà
-
-Modulo: `loyalty`.
-
-Funzioni:
-
-- punti per appuntamento;
-- premi;
-- saldo cliente;
-- movimenti punti;
-- pagina pubblica loyalty.
-
-Path:
-
-- `GET /api/salons/:id/loyalty/settings`
-- `PATCH /api/salons/:id/loyalty/settings`
-- `GET /api/salons/:id/loyalty/rewards`
-- `POST /api/salons/:id/loyalty/rewards`
-- `PATCH /api/salons/:id/loyalty/rewards/:rewardId`
-- `DELETE /api/salons/:id/loyalty/rewards/:rewardId`
-- `GET /api/salons/:id/loyalty/customers/:customerId`
-- `POST /api/salons/:id/loyalty/customers/:customerId/points`
-
-#### Marketing
-
-Modulo: `marketing`.
-
-Funzioni:
-
-- campagne email/WhatsApp;
-- segmenti target;
-- bozze, pianificazione, invio;
-- destinatari e statistiche.
-
-Path:
-
-- `GET /api/salons/:id/campaigns`
-- `POST /api/salons/:id/campaigns`
-- `PATCH /api/salons/:id/campaigns/:campaignId`
-- `POST /api/salons/:id/campaigns/:campaignId/send`
-- `GET /api/salons/:id/campaigns/:campaignId`
-
-#### Inventario
-
-Modulo: `inventory`.
-
-Funzioni:
-
-- prodotti;
-- scorte;
-- soglie;
-- movimenti;
-- richieste riordino.
-
-Path:
-
-- `GET /api/salons/:id/inventory`
-- `POST /api/salons/:id/inventory`
-- `PATCH /api/salons/:id/inventory/:productId`
-- `DELETE /api/salons/:id/inventory/:productId`
-- `POST /api/salons/:id/inventory/:productId/movements`
-- `GET /api/salons/:id/inventory/:productId`
-
-#### Report / performance staff
-
-Modulo: `staff_performance`.
-
-Funzioni:
-
-- performance staff;
-- report personali;
-- servizi più richiesti;
-- export CSV.
-
-Path:
-
-- `GET /api/salons/:id/reports/staff`
-- `GET /api/salons/:id/reports/own`
-- `GET /api/salons/:id/reports/services`
-- `GET /api/salons/:id/reports/export`
-
-### Shell API
-
-Funzioni:
-
-- ricerca globale `Ctrl+K`;
-- notifiche;
-- gestione notifiche lette/eliminate.
-
-Path:
-
-- `GET /api/salons/:id/search`
-- `GET /api/salons/:id/notifications`
-- `PATCH /api/salons/:id/notifications/:notificationId`
-- `DELETE /api/salons/:id/notifications/:notificationId`
-
-### Public API
-
-Non richiede sessione salone.
-
-Funzioni:
-
-- recupero salone da slug;
-- slot pubblici;
-- prenotazione pubblica;
-- appuntamenti cliente via email.
-
-Path:
-
-- `GET /api/public/:slug`
-- `GET /api/public/:slug/slots`
-- `POST /api/public/:slug/book`
-- `GET /api/public/:slug/appointments`
-
-### Platform API
-
-Area centrale.
-
-Funzioni:
-
-- bootstrap/login admin centrale;
-- lista saloni;
-- creazione salone;
-- modifica salone;
-- creazione/aggiornamento accesso titolare;
-- lettura e modifica moduli.
-
-Path:
-
-- `GET /api/platform/auth/bootstrap/status`
-- `POST /api/platform/auth/bootstrap`
-- `POST /api/platform/auth/login`
-- `POST /api/platform/auth/logout`
-- `GET /api/platform/auth/me`
-- `GET /api/platform/salons`
-- `POST /api/platform/salons`
-- `PATCH /api/platform/salons/:salonId`
-- `POST /api/platform/salons/:salonId/owner-access`
-- `GET /api/platform/salons/:salonId/modules`
-- `PATCH /api/platform/salons/:salonId/modules/:key`
-
-## 11. Job e automazioni
-
-Cartella: `apps/api/src/jobs`.
-
-File:
-
-- `queues.ts`: setup BullMQ/Redis.
-- `appointment-events.ts`: hook su eventi appuntamento.
-- `reminders.ts`: generazione/invio promemoria.
-- `reviews.ts`: richieste recensione post appuntamento.
-- `marketing.ts`: invio campagne.
-- `notifications.ts`: notifiche interne.
-
-I job devono rispettare:
-
-- modulo attivo del salone;
-- stato appuntamento/campagna;
-- impostazioni salone;
-- idempotenza dove necessario.
-
-## 12. Frontend web: architettura UI
-
-### Layout principale
-
-`apps/web/app/(dashboard)/layout.tsx` monta la shell dashboard.
-
-`DashboardShell` gestisce:
-
-- sidebar desktop;
-- bottom nav mobile;
-- navigazione principale;
-- moduli attivi;
-- command palette;
-- centro notifiche;
-- quick create;
-- logout.
-
-### Design system
-
-Usare preferibilmente componenti da `@esse-beauty/ui`.
-
-Componenti raccomandati:
-
-- pagina: `AppPage`;
-- intestazione: `PageHeader`;
-- card: `SectionCard`;
-- KPI: `StatGrid`, `StatCard`;
-- stato: `StatusBadge`;
-- form: `FormField`;
-- azioni: `Button`;
-- stato vuoto: `EmptyState`;
-- errori: `InlineError`;
-- toast: `SaveToast`;
-- modal: `Dialog`, `ConfirmDialog`, `Drawer`;
-- tabelle generiche: `DataTable` quando adatto.
-
-Stile attuale:
-
-- impronta “atelier gestionale”;
-- superfici glass/cipria;
-- gradienti cipria/champagne controllati;
-- ombre morbide;
-- focus ring visibile;
-- input tattili e arrotondati;
-- copy orientato a operazioni reali, non tecnologia interna.
-
-Evitare:
-
-- nuove pagine con `main` hardcoded e card locali se esiste componente condiviso;
-- bottoni nativi senza `Button`, salvo casi minimi;
-- testi tecnici rivolti all’utente come `slug`, `feature flag`, `webhook`, `schema`, `UUID`;
-- messaggi inline che spostano layout quando una toast è più adatta.
-
-## 13. Frontend web: pagine principali
-
-### Platform
-
-File:
-
-- `apps/web/app/platform/page.tsx`
-
-Responsabilità:
-
-- login/bootstrap admin centrale;
-- lista saloni;
-- nessuna scheda salone aperta se non è selezionato un salone;
-- scheda salone chiudibile con X;
-- creazione salone;
-- modifica dati salone;
-- accesso titolare;
-- gestione moduli.
-
-Importante:
-
-- il pannello `Moduli` usa ancora internamente lo stato `features`, ma il copy utente deve parlare di `Moduli`.
-- non usare fallback automatico a `salons[0]` per `selectedSalon`.
-- la sezione accesso titolare chiama `POST /api/platform/salons/:salonId/owner-access`.
-
-### Dashboard
-
-File:
-
-- `apps/web/app/(dashboard)/page.tsx`
-
-Mostra riepilogo operativo del salone e usa moduli/permessi per controllare cosa rendere visibile.
-
-### Calendario
-
-File:
-
-- `calendar/page.tsx`
-- `calendar/appointments/new/page.tsx`
-- `calendar/appointments/[appointmentId]/page.tsx`
-
-Responsabilità:
-
-- vista appuntamenti;
-- creazione appuntamento;
-- dettaglio/modifica stato;
-- gestione note/cancellazioni.
-
-### Clienti
-
-File:
-
-- `clients/page.tsx`
-- `clients/new/page.tsx`
-- `clients/[customerId]/page.tsx`
-
-Responsabilità:
-
-- ricerca/scorrimento clienti;
-- creazione;
-- scheda cliente;
-- blocco/sblocco;
-- appuntamenti/loyalty collegati.
-
-### Servizi
-
-File:
-
-- `services/page.tsx`
-- `services/new/page.tsx`
-- `services/[serviceId]/page.tsx`
-
-Responsabilità:
-
-- catalogo servizi;
-- creazione/modifica;
-- durata/prezzo;
-- servizio attivo/disattivo;
-- eventuale ordinamento.
-
-### Staff
-
-File:
-
-- `staff/page.tsx`
-- `staff/new/page.tsx`
-- `staff/[staffId]/page.tsx`
-
-Responsabilità:
-
-- collaboratori;
-- ruoli operativi;
-- disponibilità e blocchi.
-
-### Impostazioni
-
-File:
-
-- `settings/page.tsx`
-- `settings/layout.tsx`
-- `settings/users/**`
-- `settings/modules/page.tsx`
-- `settings/reminders/page.tsx`
-- `settings/loyalty/**`
-
-Responsabilità:
-
-- dati salone;
-- utenti e permessi;
-- moduli inclusi;
-- promemoria;
-- programma fedeltà.
-
-### Moduli dashboard
-
-File:
-
-- `reviews/page.tsx`
-- `waitlist/page.tsx`
-- `marketing/**`
-- `inventory/**`
-- `reports/page.tsx`
-
-Queste viste devono usare lo stesso linguaggio UI di `AppPage`, `PageHeader`, `SectionCard`, `StatGrid`.
-
-## 14. PWA pubblica
-
-La PWA è in `apps/pwa`.
-
-### Landing salone
-
-Route:
-
-- `/[slug]`
-
-Carica dati pubblici da:
-
-- `GET /api/public/:slug`
-
-### Prenotazione
-
-Route:
-
-- `/[slug]/book`
-
-Flusso:
-
-1. cliente seleziona servizio;
-2. sceglie collaboratore preferito se previsto;
-3. seleziona slot disponibile;
-4. inserisce dati cliente;
-5. crea appuntamento via public API.
-
-### Appuntamenti cliente
-
-Route:
-
-- `/[slug]/appointments`
-
-Permette consultazione tramite email cliente.
-
-### Loyalty cliente
-
-Route:
-
-- `/[slug]/loyalty`
-
-Mostra stato fedeltà se modulo attivo.
-
-### Recensione
-
-Route:
-
-- `/review/[appointmentId]`
-
-Usa endpoint recensioni pubblici.
-
-## 15. Convenzioni API e dati
-
-### Naming
-
-- DB schema usa camelCase lato TypeScript e snake_case lato colonne.
-- API spesso risponde con snake_case per payload storici o pubblici.
-- Frontend definisce interfacce locali con nomi coerenti al JSON ricevuto.
-
-### Autorizzazione
-
-Per nuove route salone:
-
-1. autenticare con `authenticate`;
-2. verificare tenant `:id` contro `request.salonId`;
-3. verificare permessi con `requirePermission(...)` se azione sensibile;
-4. verificare modulo con `requireModule(...)` se fa parte di un modulo opzionale.
-
-### Moduli
-
-Non usare default in memoria o fallback di processo per simulare schema mancante.
-
-Se una feature richiede persistenza:
-
-- aggiornare `packages/db/schema.ts`;
-- creare migrazione Drizzle;
-- usare il DB come source of truth.
-
-### Errori
-
-Gli errori API usano `{ error: "CODE" }`.
-
-Lato UI, mappare codici tecnici a messaggi utente leggibili.
-
-## 16. Migrazioni e database
-
-Comandi:
-
-```powershell
-pnpm --filter @esse-beauty/db db:generate
-pnpm --filter @esse-beauty/db db:migrate
-```
-
-Quando cambiare schema:
-
-- nuove tabelle;
-- nuove colonne persistenti;
-- vincoli univoci;
-- indici necessari;
-- relazioni necessarie per acceptance criteria.
-
-Non risolvere requisiti dati con:
-
-- stato in memoria;
-- default process-level;
-- workaround frontend;
-- JSON temporanei fuori schema se serve struttura queryable.
-
-## 17. Testing e validazione
-
-Script root:
-
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-
-Script mirati:
-
-- `pnpm --filter @esse-beauty/api typecheck`
-- `pnpm --filter @esse-beauty/api test`
-- `pnpm --filter @esse-beauty/web typecheck`
-- `pnpm --filter @esse-beauty/web test`
-- `pnpm --filter @esse-beauty/web build`
-- `pnpm --filter @esse-beauty/pwa typecheck`
-- `pnpm --filter @esse-beauty/pwa build`
-- `pnpm --filter @esse-beauty/ui build`
-
-Nota operativa recente:
-
-- durante sezioni intensive di UI, non lanciare build/test completi a ogni micro-modifica;
-- usare typecheck mirati quando si toccano API/types/import;
-- fare validazione più ampia a fine blocco.
-
-## 18. Test esistenti importanti
-
-Esempi:
-
-- API:
-  - `apps/api/src/app.test.ts`
-  - `apps/api/src/middleware/auth.test.ts`
-  - `apps/api/src/routes/appointments/index.test.ts`
-  - `apps/api/src/routes/shell/index.test.ts`
-  - `apps/api/src/platform-contract.test.ts`
-- Web:
-  - `apps/web/ui-polish-regression.test.ts`
-  - `apps/web/ui-contract.test.ts`
-  - `apps/web/middleware.test.ts`
-  - `apps/web/shell-config.test.ts`
-- Shared:
-  - `packages/feature-flags/server.test.ts`
-  - `packages/shared/utils/slots.test.ts`
-  - `packages/db/schema-contract.test.ts`
-
-`ui-polish-regression.test.ts` contiene guard utili contro regressioni UI e vecchi pattern modali.
-
-## 19. Design e copy guidelines
-
-### Linguaggio utente
-
-Usare parole operative:
-
-- “Moduli”, non “feature flag”.
-- “Pagina prenotazioni”, non “slug” se rivolto all’utente.
-- “Accesso titolare”, non “user credential”.
-- “Piano del salone”, non “tier platform”.
-
-### Stato e feedback
-
-- Per conferme brevi usare `SaveToast`.
-- Il colore della toast deve seguire l’esito:
-  - `success`: verde;
-  - `error`: rosso;
-  - `warning`: ambra;
-  - `info`: blu.
-- Evitare messaggi inline che cambiano altezza/layout della pagina quando non necessario.
-
-### UI
-
-Preferire:
-
-- `AppPage`;
-- `PageHeader`;
-- `SectionCard`;
-- `StatGrid`;
-- `StatusBadge`;
-- `Button`;
-- `FormField`;
-- `EmptyState`.
-
-Evitare:
-
-- wrapper locali `main className="min-h-screen bg..."`;
-- header hardcoded duplicati;
-- tabelle non stilate;
-- card bianche senza bordi/ombre coerenti;
-- icone generiche per moduli quando esistono icone tematiche.
-
-## 20. Note su branch e stato attuale
-
-Il repository ha avuto modifiche recenti su:
-
-- area platform;
-- moduli;
-- design system;
-- pagine modulo dashboard;
-- accesso titolare platform;
-- schema e migrazioni precedenti.
-
-Prima di interventi importanti:
-
-```powershell
-git status --short
-```
-
-Non creare commit o branch salvo richiesta esplicita.
-
-## 21. Punti di attenzione per agenti
-
-### Non rompere multi-tenant
-
-Ogni dato salone deve essere filtrato per `salonId`.
-
-Le route `/api/salons/:id/...` non devono permettere accesso cross-salon.
-
-### Non bypassare moduli
-
-Se una funzione appartiene a un modulo opzionale, controllare:
-
-- API: `requireModule(MODULE_KEYS.X)`;
-- UI: `useModuleEnabled(MODULE_KEYS.X)`.
-
-### Non bypassare permessi
-
-Controllare permessi sia lato API che lato UI quando l'azione è sensibile.
-
-### Non usare Supabase
-
-L'autenticazione e i dati sono locali su PostgreSQL.
-
-Supabase non è la source of truth del progetto.
-
-### Non introdurre stato fittizio
-
-Per requisiti persistenti modificare schema/migrazioni/API.
-
-### Curare encoding
-
-Alcuni file mostrano accenti corrotti storici (`Ã`, `â€œ`).
-
-Quando si tocca copy, preferire testo UTF-8 corretto o, se il file è già problematico e serve minimizzare rischio, testo senza accenti.
-
-### Link e bottoni
-
-Evitare `button` annidati dentro `a`.
-
-Per CTA link:
-
-- usare `Link` stilato direttamente;
-- oppure refactorare `Button` per supportare `asChild` solo se richiesto.
-
-## 22. Mappa funzionale sintetica
-
-### Core gestionale
-
-- Dashboard: panoramica salone.
-- Calendario: appuntamenti, slot, stati.
-- Clienti: anagrafica e storico.
-- Servizi: catalogo.
-- Staff: collaboratori e disponibilità.
-- Impostazioni: salone, utenti, permessi, moduli.
-
-### Moduli opzionali
-
-- Promemoria: WhatsApp/email pre-appuntamento.
-- Recensioni: feedback post appuntamento, risposta, pubblicazione.
-- Lista d'attesa: richieste quando non ci sono slot.
-- Fedeltà: punti, premi, movimenti.
-- Marketing: campagne email/WhatsApp e destinatari.
-- Inventario: prodotti, scorte, movimenti.
-- Performance staff: report e export.
-
-### Platform
-
-- Admin centrale separato.
-- Creazione saloni.
-- Stato salone.
-- Moduli inclusi.
-- Accesso titolare.
-- Configurazione applicativo.
-
-### PWA clienti
-
-- Landing salone.
-- Prenotazione.
-- Consultazione appuntamenti.
-- Loyalty pubblica.
-- Recensione.
-
-## 23. File da consultare spesso
-
-Per schema:
-
+- `compose.yaml`
+- `gateway/nginx.conf`
+- `apps/*/package.json`
 - `packages/db/schema.ts`
+- `packages/queue-client/queues.ts`
+- `apps/*/src/jobs/*.ts`
+- `apps/*/src/env.ts`
+- `scripts/dev.ps1`
+- `deploy/nginx/`
 
-Per moduli:
-
-- `packages/feature-flags/keys.ts`
-- `packages/feature-flags/server.ts`
-- `packages/feature-flags/react.tsx`
-
-Per permessi:
-
-- `packages/shared/permissions.ts`
-
-Per API:
-
-- `apps/api/src/app.ts`
-- `apps/api/src/routes/**/index.ts`
-- `apps/api/src/middleware/auth.ts`
-
-Per UI:
-
-- `packages/ui/index.tsx`
-- `apps/web/app/globals.css`
-- `apps/web/app/(dashboard)/_components/DashboardShell.tsx`
-- `apps/web/app/(dashboard)/_components/Icons.tsx`
-
-Per platform:
-
-- `apps/web/app/platform/page.tsx`
-- `apps/api/src/routes/platform/index.ts`
-
-Per PWA:
-
-- `apps/pwa/app/[slug]/page.tsx`
-- `apps/pwa/app/[slug]/book/page.tsx`
-- `apps/api/src/routes/public/index.ts`
-
-## 24. Checklist modifica feature
-
-Quando si aggiunge o cambia una funzione:
-
-1. Identificare se è core o modulo.
-2. Se serve persistenza, aggiornare schema e migrazione.
-3. Aggiornare route API.
-4. Aggiungere controllo tenant.
-5. Aggiungere controllo permessi.
-6. Aggiungere controllo modulo se necessario.
-7. Aggiornare UI usando design system.
-8. Aggiornare PWA se la funzione è pubblica.
-9. Aggiornare test mirati o contract test.
-10. Eseguire typecheck mirato.
-11. Eseguire test/build più ampi a fine blocco.
-
-## 25. Comandi rapidi
-
-```powershell
-pnpm install
-pnpm run dev
-pnpm --filter @esse-beauty/api dev
-pnpm --filter @esse-beauty/web dev
-pnpm --filter @esse-beauty/pwa dev
-pnpm --filter @esse-beauty/api typecheck
-pnpm --filter @esse-beauty/web typecheck
-pnpm --filter @esse-beauty/pwa typecheck
-pnpm --filter @esse-beauty/db db:generate
-pnpm --filter @esse-beauty/db db:migrate
-docker compose up -d --build
-docker compose logs -f
-docker compose down
-```
-
+Non includiamo funzionalit&agrave; che non sono implementate nel codice.
+Per dettagli operativi e di sviluppo, vedi [TECH.md](./TECH.md).
